@@ -2,6 +2,17 @@
 /* eslint-disable */
 
 /**
+ * Contains triangulated mesh data ready for Cesium.Geometry
+ */
+export class CesiumMeshGeometry {
+    private constructor();
+    free(): void;
+    [Symbol.dispose](): void;
+    readonly indices: Uint32Array;
+    readonly positions: Float64Array;
+}
+
+/**
  * A high-performance spatial index using an R-Tree.
  */
 export class SpatialIndex {
@@ -119,6 +130,11 @@ export function batchWgs84ToBd09(coords: Float64Array): Float64Array;
 export function batchWgs84ToBd09InPlace(coords: Float64Array): void;
 
 /**
+ * Batch convert a flat array of `[lng, lat, ...]` into `[x, y, z, ...]`.
+ */
+export function batchWgs84ToCartesian3(coords: Float64Array): Float64Array;
+
+/**
  * Batch "WGS-84 → CGCS2000" — identity transform. Returns a copy.
  *
  * See [`cgcs2000_is_wgs84_compatible`] for precision details.
@@ -186,6 +202,11 @@ export function cgcs2000IsWgs84Compatible(): boolean;
  * Useful for progress reporting before parsing a very large file.
  */
 export function countGeoJsonFeatures(input: string): number;
+
+/**
+ * Generate triangulated mesh from GeoJSON Polygons/MultiPolygons.
+ */
+export function generateCesiumGeometry(geojson_str: string, height_property?: string | null): CesiumMeshGeometry;
 
 /**
  * Initialize the WASM module. Call this once before any other function.
@@ -276,6 +297,7 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
+    readonly __wbg_cesiummeshgeometry_free: (a: number, b: number) => void;
     readonly __wbg_get_vectortileoptions_buffer: (a: number) => number;
     readonly __wbg_get_vectortileoptions_extent: (a: number) => number;
     readonly __wbg_get_vectortileoptions_generate_id: (a: number) => number;
@@ -307,14 +329,18 @@ export interface InitOutput {
     readonly batchMercatorToWgs84InPlace: (a: number, b: number, c: number) => void;
     readonly batchWgs84ToBd09: (a: number) => number;
     readonly batchWgs84ToBd09InPlace: (a: number, b: number, c: number) => void;
+    readonly batchWgs84ToCartesian3: (a: number, b: number) => number;
     readonly batchWgs84ToCgcs2000: (a: number) => number;
     readonly batchWgs84ToCgcs2000InPlace: (a: number, b: number, c: number) => void;
     readonly batchWgs84ToGcj02: (a: number) => number;
     readonly batchWgs84ToGcj02InPlace: (a: number, b: number, c: number) => void;
     readonly batchWgs84ToMercator: (a: number) => number;
     readonly batchWgs84ToMercatorInPlace: (a: number, b: number, c: number) => void;
+    readonly cesiummeshgeometry_indices: (a: number) => number;
+    readonly cesiummeshgeometry_positions: (a: number) => number;
     readonly cgcs2000IsWgs84Compatible: () => number;
     readonly countGeoJsonFeatures: (a: number, b: number, c: number) => void;
+    readonly generateCesiumGeometry: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly init: () => void;
     readonly parseGeoJsonCoords: (a: number, b: number, c: number) => void;
     readonly parseGeoJsonPerFeature: (a: number, b: number, c: number) => void;
