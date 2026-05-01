@@ -15,7 +15,12 @@ readme = "README.md"
 crate-type = ["cdylib", "rlib"]
 
 [features]
-default = ["console_error_panic_hook"]
+default = ["console_error_panic_hook", "single-thread"]
+# Single-thread mode: zero-config, works everywhere, no COOP/COEP needed.
+single-thread = []
+# Multi-thread mode: extreme performance via Web Workers + SharedArrayBuffer.
+# ⚠️ Requires COOP/COEP HTTP headers on the hosting server.
+# multi-thread = ["rayon", "wasm-bindgen-rayon"]  # TODO: enable in Phase 2
 
 [dependencies]
 wasm-bindgen = "0.2"
@@ -24,7 +29,6 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 geojson = "0.24"
 geo = "0.29"
-proj = { version = "0.28", optional = true }
 console_error_panic_hook = { version = "0.1", optional = true }
 
 [dependencies.web-sys]
