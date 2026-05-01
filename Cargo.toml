@@ -36,6 +36,7 @@ wasm-bindgen-rayon = { version = "1.2", optional = true }
 geojsonvt = "0.1.0"
 mvt = "0.13.0"
 geozero = { version = "0.15.1", features = ["with-mvt", "with-geojson"] }
+earcutr = "0.5.0"
 
 [dependencies.web-sys]
 version = "0.3"

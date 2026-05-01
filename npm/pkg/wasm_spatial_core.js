@@ -3,6 +3,43 @@ import { startWorkers } from './snippets/wasm-bindgen-rayon-38edf6e439f6d70d/src
 
 
 /**
+ * Contains triangulated mesh data ready for Cesium.Geometry
+ */
+export class CesiumMeshGeometry {
+    static __wrap(ptr) {
+        const obj = Object.create(CesiumMeshGeometry.prototype);
+        obj.__wbg_ptr = ptr;
+        CesiumMeshGeometryFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        CesiumMeshGeometryFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_cesiummeshgeometry_free(ptr, 0);
+    }
+    /**
+     * @returns {Uint32Array}
+     */
+    get indices() {
+        const ret = wasm.cesiummeshgeometry_indices(this.__wbg_ptr);
+        return takeObject(ret);
+    }
+    /**
+     * @returns {Float64Array}
+     */
+    get positions() {
+        const ret = wasm.cesiummeshgeometry_positions(this.__wbg_ptr);
+        return takeObject(ret);
+    }
+}
+if (Symbol.dispose) CesiumMeshGeometry.prototype[Symbol.dispose] = CesiumMeshGeometry.prototype.free;
+
+/**
  * A high-performance spatial index using an R-Tree.
  */
 export class SpatialIndex {
@@ -394,6 +431,18 @@ export function batchWgs84ToBd09InPlace(coords) {
 }
 
 /**
+ * Batch convert a flat array of `[lng, lat, ...]` into `[x, y, z, ...]`.
+ * @param {Float64Array} coords
+ * @returns {Float64Array}
+ */
+export function batchWgs84ToCartesian3(coords) {
+    const ptr0 = passArrayF64ToWasm0(coords, wasm.__wbindgen_export3);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.batchWgs84ToCartesian3(ptr0, len0);
+    return takeObject(ret);
+}
+
+/**
  * Batch "WGS-84 → CGCS2000" — identity transform. Returns a copy.
  *
  * See [`cgcs2000_is_wgs84_compatible`] for precision details.
@@ -521,6 +570,32 @@ export function countGeoJsonFeatures(input) {
             throw takeObject(r1);
         }
         return r0 >>> 0;
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
+}
+
+/**
+ * Generate triangulated mesh from GeoJSON Polygons/MultiPolygons.
+ * @param {string} geojson_str
+ * @param {string | null} [height_property]
+ * @returns {CesiumMeshGeometry}
+ */
+export function generateCesiumGeometry(geojson_str, height_property) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passStringToWasm0(geojson_str, wasm.__wbindgen_export3, wasm.__wbindgen_export4);
+        const len0 = WASM_VECTOR_LEN;
+        var ptr1 = isLikeNone(height_property) ? 0 : passStringToWasm0(height_property, wasm.__wbindgen_export3, wasm.__wbindgen_export4);
+        var len1 = WASM_VECTOR_LEN;
+        wasm.generateCesiumGeometry(retptr, ptr0, len0, ptr1, len1);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return CesiumMeshGeometry.__wrap(r0);
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
     }
@@ -869,6 +944,9 @@ function __wbg_get_imports() {
     };
 }
 
+const CesiumMeshGeometryFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_cesiummeshgeometry_free(ptr, 1));
 const SpatialIndexFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_spatialindex_free(ptr, 1));

@@ -1,6 +1,7 @@
 /* tslint:disable */
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
+export const __wbg_cesiummeshgeometry_free: (a: number, b: number) => void;
 export const __wbg_get_vectortileoptions_buffer: (a: number) => number;
 export const __wbg_get_vectortileoptions_extent: (a: number) => number;
 export const __wbg_get_vectortileoptions_generate_id: (a: number) => number;
@@ -32,14 +33,18 @@ export const batchMercatorToWgs84: (a: number) => number;
 export const batchMercatorToWgs84InPlace: (a: number, b: number, c: number) => void;
 export const batchWgs84ToBd09: (a: number) => number;
 export const batchWgs84ToBd09InPlace: (a: number, b: number, c: number) => void;
+export const batchWgs84ToCartesian3: (a: number, b: number) => number;
 export const batchWgs84ToCgcs2000: (a: number) => number;
 export const batchWgs84ToCgcs2000InPlace: (a: number, b: number, c: number) => void;
 export const batchWgs84ToGcj02: (a: number) => number;
 export const batchWgs84ToGcj02InPlace: (a: number, b: number, c: number) => void;
 export const batchWgs84ToMercator: (a: number) => number;
 export const batchWgs84ToMercatorInPlace: (a: number, b: number, c: number) => void;
+export const cesiummeshgeometry_indices: (a: number) => number;
+export const cesiummeshgeometry_positions: (a: number) => number;
 export const cgcs2000IsWgs84Compatible: () => number;
 export const countGeoJsonFeatures: (a: number, b: number, c: number) => void;
+export const generateCesiumGeometry: (a: number, b: number, c: number, d: number, e: number) => void;
 export const init: () => void;
 export const parseGeoJsonCoords: (a: number, b: number, c: number) => void;
 export const parseGeoJsonPerFeature: (a: number, b: number, c: number) => void;

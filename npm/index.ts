@@ -47,6 +47,10 @@ export {
   // ── Vector Tile Slicing ────────────────────────────────────
   VectorTileEngine,
   VectorTileOptions,
+  // ── Cesium Native Adapter ──────────────────────────────────
+  batchWgs84ToCartesian3,
+  CesiumMeshGeometry,
+  generateCesiumGeometry,
   // ── Multi-threading ────────────────────────────────────────
   initThreadPool,
 } from "./wasm_spatial_core.js";
