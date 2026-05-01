@@ -39,6 +39,9 @@ export {
   // ── GeoJSON ────────────────────────────────────────────────
   parseGeoJsonCoords,
   countGeoJsonFeatures,
+  // ── GeoJSON Streaming ──────────────────────────────────────
+  parseGeoJsonStream,
+  parseGeoJsonPerFeature,
 } from "./wasm_spatial_core.js";
 
 // ---------------------------------------------------------------------------
@@ -66,6 +69,26 @@ export interface ConvertOptions {
    */
   inPlace?: boolean;
 }
+
+/**
+ * Callback for the streaming GeoJSON parser.
+ *
+ * @param coords   — Flat `Float64Array` with coordinate pairs for this chunk.
+ * @param processed — Number of features processed so far.
+ * @param total     — Total number of features.
+ *
+ * ```ts
+ * const onChunk: StreamChunkCallback = (coords, processed, total) => {
+ *   progressBar.value = processed / total;
+ *   gl.bufferSubData(gl.ARRAY_BUFFER, offset, coords);
+ * };
+ * ```
+ */
+export type StreamChunkCallback = (
+  coords: Float64Array,
+  processed: number,
+  total: number,
+) => void;
 
 /**
  * High-level helper: initialise the WASM module and return the public API.
