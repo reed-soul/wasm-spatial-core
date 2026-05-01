@@ -56,6 +56,200 @@ export class SpatialIndex {
 if (Symbol.dispose) SpatialIndex.prototype[Symbol.dispose] = SpatialIndex.prototype.free;
 
 /**
+ * A high-performance vector tile engine.
+ */
+export class VectorTileEngine {
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        VectorTileEngineFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_vectortileengine_free(ptr, 0);
+    }
+    /**
+     * Request a tile by `z, x, y` coordinates.
+     * Returns a raw `Uint8Array` representing the MVT (PBF) protobuf.
+     * If the tile is empty or out of bounds, returns an empty array.
+     * @param {number} z
+     * @param {number} x
+     * @param {number} y
+     * @returns {Uint8Array}
+     */
+    getTile(z, x, y) {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.vectortileengine_getTile(retptr, this.__wbg_ptr, z, x, y);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+            if (r2) {
+                throw takeObject(r1);
+            }
+            return takeObject(r0);
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
+    }
+    /**
+     * Create a new VectorTileEngine from a GeoJSON string.
+     * @param {string} geojson_str
+     * @param {VectorTileOptions} options
+     */
+    constructor(geojson_str, options) {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            const ptr0 = passStringToWasm0(geojson_str, wasm.__wbindgen_export3, wasm.__wbindgen_export4);
+            const len0 = WASM_VECTOR_LEN;
+            _assertClass(options, VectorTileOptions);
+            var ptr1 = options.__destroy_into_raw();
+            wasm.vectortileengine_new(retptr, ptr0, len0, ptr1);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+            if (r2) {
+                throw takeObject(r1);
+            }
+            this.__wbg_ptr = r0;
+            VectorTileEngineFinalization.register(this, this.__wbg_ptr, this);
+            return this;
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
+    }
+}
+if (Symbol.dispose) VectorTileEngine.prototype[Symbol.dispose] = VectorTileEngine.prototype.free;
+
+/**
+ * Options for vector tile generation.
+ */
+export class VectorTileOptions {
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        VectorTileOptionsFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_vectortileoptions_free(ptr, 0);
+    }
+    /**
+     * @returns {number}
+     */
+    get buffer() {
+        const ret = wasm.__wbg_get_vectortileoptions_buffer(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {number}
+     */
+    get extent() {
+        const ret = wasm.__wbg_get_vectortileoptions_extent(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {boolean}
+     */
+    get generate_id() {
+        const ret = wasm.__wbg_get_vectortileoptions_generate_id(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * @returns {number}
+     */
+    get index_max_points() {
+        const ret = wasm.__wbg_get_vectortileoptions_index_max_points(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @returns {number}
+     */
+    get index_max_zoom() {
+        const ret = wasm.__wbg_get_vectortileoptions_index_max_zoom(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {boolean}
+     */
+    get line_metrics() {
+        const ret = wasm.__wbg_get_vectortileoptions_line_metrics(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * @returns {number}
+     */
+    get max_zoom() {
+        const ret = wasm.__wbg_get_vectortileoptions_max_zoom(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {number}
+     */
+    get tolerance() {
+        const ret = wasm.__wbg_get_vectortileoptions_tolerance(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @param {number} arg0
+     */
+    set buffer(arg0) {
+        wasm.__wbg_set_vectortileoptions_buffer(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @param {number} arg0
+     */
+    set extent(arg0) {
+        wasm.__wbg_set_vectortileoptions_extent(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @param {boolean} arg0
+     */
+    set generate_id(arg0) {
+        wasm.__wbg_set_vectortileoptions_generate_id(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @param {number} arg0
+     */
+    set index_max_points(arg0) {
+        wasm.__wbg_set_vectortileoptions_index_max_points(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @param {number} arg0
+     */
+    set index_max_zoom(arg0) {
+        wasm.__wbg_set_vectortileoptions_index_max_zoom(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @param {boolean} arg0
+     */
+    set line_metrics(arg0) {
+        wasm.__wbg_set_vectortileoptions_line_metrics(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @param {number} arg0
+     */
+    set max_zoom(arg0) {
+        wasm.__wbg_set_vectortileoptions_max_zoom(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @param {number} arg0
+     */
+    set tolerance(arg0) {
+        wasm.__wbg_set_vectortileoptions_tolerance(this.__wbg_ptr, arg0);
+    }
+    constructor() {
+        const ret = wasm.vectortileoptions_new();
+        this.__wbg_ptr = ret;
+        VectorTileOptionsFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+}
+if (Symbol.dispose) VectorTileOptions.prototype[Symbol.dispose] = VectorTileOptions.prototype.free;
+
+/**
  * Batch BD-09 → GCJ-02. Returns a **new** `Float64Array`.
  * @param {Float64Array} coords
  * @returns {Float64Array}
@@ -581,6 +775,10 @@ function __wbg_get_imports() {
             const ret = getObject(arg0).length;
             return ret;
         },
+        __wbg_length_ba3c032602efe310: function(arg0) {
+            const ret = getObject(arg0).length;
+            return ret;
+        },
         __wbg_length_eaf0f4c1173c0a9f: function(arg0) {
             const ret = getObject(arg0).length;
             return ret;
@@ -591,6 +789,10 @@ function __wbg_get_imports() {
         },
         __wbg_new_with_length_2a29aa33411ddc89: function(arg0) {
             const ret = new Float64Array(arg0 >>> 0);
+            return addHeapObject(ret);
+        },
+        __wbg_new_with_length_9011f5da794bf5d9: function(arg0) {
+            const ret = new Uint8Array(arg0 >>> 0);
             return addHeapObject(ret);
         },
         __wbg_new_with_length_95e51bab415f3ca8: function(arg0) {
@@ -606,6 +808,9 @@ function __wbg_get_imports() {
         },
         __wbg_set_1f222978a13c32ed: function(arg0, arg1, arg2) {
             getObject(arg0).set(getArrayU32FromWasm0(arg1, arg2));
+        },
+        __wbg_set_b0d9dc239ecdb765: function(arg0, arg1, arg2) {
+            getObject(arg0).set(getArrayU8FromWasm0(arg1, arg2));
         },
         __wbg_set_e307b0b9eac6f966: function(arg0, arg1, arg2) {
             getObject(arg0).set(getArrayF64FromWasm0(arg1, arg2));
@@ -667,6 +872,12 @@ function __wbg_get_imports() {
 const SpatialIndexFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_spatialindex_free(ptr, 1));
+const VectorTileEngineFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_vectortileengine_free(ptr, 1));
+const VectorTileOptionsFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_vectortileoptions_free(ptr, 1));
 const wbg_rayon_PoolBuilderFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_wbg_rayon_poolbuilder_free(ptr, 1));
@@ -678,6 +889,12 @@ function addHeapObject(obj) {
 
     heap[idx] = obj;
     return idx;
+}
+
+function _assertClass(instance, klass) {
+    if (!(instance instanceof klass)) {
+        throw new Error(`expected instance of ${klass.name}`);
+    }
 }
 
 function addBorrowedObject(obj) {

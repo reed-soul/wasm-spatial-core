@@ -1,7 +1,25 @@
 /* tslint:disable */
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
+export const __wbg_get_vectortileoptions_buffer: (a: number) => number;
+export const __wbg_get_vectortileoptions_extent: (a: number) => number;
+export const __wbg_get_vectortileoptions_generate_id: (a: number) => number;
+export const __wbg_get_vectortileoptions_index_max_points: (a: number) => number;
+export const __wbg_get_vectortileoptions_index_max_zoom: (a: number) => number;
+export const __wbg_get_vectortileoptions_line_metrics: (a: number) => number;
+export const __wbg_get_vectortileoptions_max_zoom: (a: number) => number;
+export const __wbg_get_vectortileoptions_tolerance: (a: number) => number;
+export const __wbg_set_vectortileoptions_buffer: (a: number, b: number) => void;
+export const __wbg_set_vectortileoptions_extent: (a: number, b: number) => void;
+export const __wbg_set_vectortileoptions_generate_id: (a: number, b: number) => void;
+export const __wbg_set_vectortileoptions_index_max_points: (a: number, b: number) => void;
+export const __wbg_set_vectortileoptions_index_max_zoom: (a: number, b: number) => void;
+export const __wbg_set_vectortileoptions_line_metrics: (a: number, b: number) => void;
+export const __wbg_set_vectortileoptions_max_zoom: (a: number, b: number) => void;
+export const __wbg_set_vectortileoptions_tolerance: (a: number, b: number) => void;
 export const __wbg_spatialindex_free: (a: number, b: number) => void;
+export const __wbg_vectortileengine_free: (a: number, b: number) => void;
+export const __wbg_vectortileoptions_free: (a: number, b: number) => void;
 export const batchBd09ToGcj02: (a: number) => number;
 export const batchBd09ToGcj02InPlace: (a: number, b: number, c: number) => void;
 export const batchBd09ToWgs84: (a: number) => number;
@@ -29,6 +47,9 @@ export const parseGeoJsonStream: (a: number, b: number, c: number, d: number, e:
 export const spatialindex_new: (a: number) => number;
 export const spatialindex_searchBBox: (a: number, b: number, c: number, d: number, e: number) => number;
 export const spatialindex_size: (a: number) => number;
+export const vectortileengine_getTile: (a: number, b: number, c: number, d: number, e: number) => void;
+export const vectortileengine_new: (a: number, b: number, c: number, d: number) => void;
+export const vectortileoptions_new: () => number;
 export const version: (a: number) => void;
 export const __wbg_wbg_rayon_poolbuilder_free: (a: number, b: number) => void;
 export const initThreadPool: (a: number) => number;
