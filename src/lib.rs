@@ -16,6 +16,7 @@
 mod coordinate;
 mod geojson_parser;
 mod geojson_streaming;
+mod spatial_index;
 mod utils;
 
 use wasm_bindgen::prelude::*;
@@ -27,6 +28,9 @@ use wasm_bindgen::prelude::*;
 pub fn init() {
     utils::set_panic_hook();
 }
+
+#[cfg(feature = "multi-thread")]
+pub use wasm_bindgen_rayon::init_thread_pool;
 
 /// Return the library version string.
 #[wasm_bindgen]

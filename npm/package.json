@@ -33,7 +33,9 @@
     "README.md"
   ],
   "scripts": {
-    "build": "tsc --declaration --emitDeclarationOnly index.ts || true"
+    "build:wasm": "cd .. && wasm-pack build --target web --release --out-dir npm/pkg",
+    "build:wasm:mt": "cd .. && RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals' cargo +nightly build -Z build-std=panic_abort,std --target wasm32-unknown-unknown --release --features multi-thread && wasm-bindgen --target web --out-dir npm/pkg target/wasm32-unknown-unknown/release/wasm_spatial_core.wasm",
+    "build": "npm run build:wasm && tsc --declaration --emitDeclarationOnly index.ts || true"
   },
   "devDependencies": {
     "typescript": "^5.4.0"

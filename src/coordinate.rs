@@ -137,17 +137,33 @@ fn mercator_to_wgs84_pt(x: f64, y: f64) -> (f64, f64) {
 // Generic batch helper — DRY all batch operations
 // ===========================================================================
 
+#[cfg(feature = "multi-thread")]
+use rayon::prelude::*;
+
 /// Apply a point transform function to every `(lng, lat)` pair in a flat slice.
 /// This is the true zero-copy workhorse — mutates in place with zero allocation.
 #[inline]
 fn transform_slice_in_place(coords: &mut [f64], f: fn(f64, f64) -> (f64, f64)) {
-    let len = coords.len();
-    let mut i = 0;
-    while i + 1 < len {
-        let (new_x, new_y) = f(coords[i], coords[i + 1]);
-        coords[i] = new_x;
-        coords[i + 1] = new_y;
-        i += 2;
+    #[cfg(feature = "multi-thread")]
+    {
+        // Use Rayon for parallel in-place mutation
+        coords.par_chunks_exact_mut(2).for_each(|chunk| {
+            let (new_x, new_y) = f(chunk[0], chunk[1]);
+            chunk[0] = new_x;
+            chunk[1] = new_y;
+        });
+    }
+
+    #[cfg(not(feature = "multi-thread"))]
+    {
+        let len = coords.len();
+        let mut i = 0;
+        while i + 1 < len {
+            let (new_x, new_y) = f(coords[i], coords[i + 1]);
+            coords[i] = new_x;
+            coords[i + 1] = new_y;
+            i += 2;
+        }
     }
 }
 
