@@ -42,6 +42,10 @@ export {
   // ── GeoJSON Streaming ──────────────────────────────────────
   parseGeoJsonStream,
   parseGeoJsonPerFeature,
+  // ── Spatial Indexing ───────────────────────────────────────
+  SpatialIndex,
+  // ── Multi-threading ────────────────────────────────────────
+  initThreadPool,
 } from "./wasm_spatial_core.js";
 
 // ---------------------------------------------------------------------------

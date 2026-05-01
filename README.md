@@ -181,15 +181,34 @@ for (let i = 0; i < mercatorCoords.length; i += 2) {
 git clone https://github.com/reed-soul/wasm-spatial-core.git
 cd wasm-spatial-core
 
-# Build the WASM package
+# Build the standard single-threaded WASM package
 wasm-pack build --target web --release
-
-# Run Rust tests
-cargo test
-
-# Run WASM tests in a headless browser
-wasm-pack test --headless --chrome
 ```
+
+### Build with Multi-threading
+
+To enable Web Workers and `SharedArrayBuffer` for extreme performance, you must use the `nightly` Rust toolchain and the custom `build:wasm:mt` NPM script:
+
+```bash
+# Ensure you have the nightly toolchain and rust-src component
+rustup toolchain install nightly
+rustup component add rust-src --toolchain nightly
+
+# Build the multi-threaded version
+cd npm
+npm run build:wasm:mt
+```
+
+> **⚠️ IMPORTANT:** The multi-threaded version relies on `SharedArrayBuffer`. Your web server must be configured with the following HTTP headers:
+> - `Cross-Origin-Opener-Policy: same-origin`
+> - `Cross-Origin-Embedder-Policy: require-corp`
+> 
+> You must also initialize the thread pool on the JS side before calling any parallel functions:
+> ```typescript
+> import { loadSpatialCore, initThreadPool } from "@anthropic-wasm/spatial-core";
+> await loadSpatialCore();
+> await initThreadPool(navigator.hardwareConcurrency);
+> ```
 
 ---
 
