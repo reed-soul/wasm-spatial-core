@@ -14,9 +14,29 @@
 export {
   default as initWasm,
   version,
+  // ── Copy-based API ──────────────────────────────────────────
   batchWgs84ToGcj02,
   batchGcj02ToWgs84,
+  batchWgs84ToBd09,
+  batchBd09ToWgs84,
+  batchGcj02ToBd09,
+  batchBd09ToGcj02,
   batchWgs84ToMercator,
+  batchMercatorToWgs84,
+  batchWgs84ToCgcs2000,
+  // ── Zero-copy in-place API ─────────────────────────────────
+  batchWgs84ToGcj02InPlace,
+  batchGcj02ToWgs84InPlace,
+  batchWgs84ToBd09InPlace,
+  batchBd09ToWgs84InPlace,
+  batchGcj02ToBd09InPlace,
+  batchBd09ToGcj02InPlace,
+  batchWgs84ToMercatorInPlace,
+  batchMercatorToWgs84InPlace,
+  batchWgs84ToCgcs2000InPlace,
+  // ── Utilities ──────────────────────────────────────────────
+  cgcs2000IsWgs84Compatible,
+  // ── GeoJSON ────────────────────────────────────────────────
   parseGeoJsonCoords,
   countGeoJsonFeatures,
 } from "./wasm_spatial_core.js";
@@ -27,10 +47,11 @@ export {
 
 /** Supported coordinate reference systems. */
 export type CRS =
-  | "WGS84"      // EPSG:4326
-  | "GCJ02"      // China encrypted
-  | "BD09"       // Baidu (planned)
-  | "EPSG:3857"; // Web Mercator
+  | "WGS84"       // EPSG:4326
+  | "GCJ02"       // China encrypted (Gaode / Amap)
+  | "BD09"        // Baidu
+  | "CGCS2000"    // China Geodetic Coordinate System 2000
+  | "EPSG:3857";  // Web Mercator
 
 /** Options for batch coordinate conversion. */
 export interface ConvertOptions {
@@ -38,6 +59,12 @@ export interface ConvertOptions {
   from?: CRS;
   /** Target CRS — defaults to `"GCJ02"`. */
   to?: CRS;
+  /**
+   * If `true`, use the zero-copy in-place API.
+   * The input buffer will be mutated directly.
+   * @default false
+   */
+  inPlace?: boolean;
 }
 
 /**

@@ -76,7 +76,10 @@ pub fn parse_geojson_coords(input: &str) -> Result<Float64Array, JsValue> {
         .parse()
         .map_err(|e| JsValue::from_str(&format!("GeoJSON parse error: {e}")))?;
 
-    let mut coords: Vec<f64> = Vec::new();
+    // Heuristic: ~1 coordinate pair per ~80 bytes of GeoJSON text.
+    // Pre-allocating avoids repeated realloc for large files.
+    let estimated_pairs = input.len() / 80;
+    let mut coords: Vec<f64> = Vec::with_capacity(estimated_pairs * 2);
 
     match geojson {
         GeoJson::Geometry(geom) => extract_coords(&geom, &mut coords),
