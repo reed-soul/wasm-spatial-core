@@ -41,6 +41,8 @@ features = [
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
+criterion = { version = "0.5", features = ["html_reports"] }
+rand = "0.8"
 
 [profile.release]
 opt-level = "s"        # Optimize for size
@@ -50,3 +52,7 @@ strip = true           # Strip debug info
 
 [package.metadata.wasm-pack.profile.release]
 wasm-opt = false
+
+[[bench]]
+name = "spatial_benchmarks"
+harness = false
