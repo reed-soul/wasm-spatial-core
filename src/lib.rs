@@ -17,6 +17,7 @@ mod coordinate;
 mod geojson_parser;
 mod geojson_streaming;
 mod spatial_index;
+mod vector_tile;
 mod utils;
 
 use wasm_bindgen::prelude::*;

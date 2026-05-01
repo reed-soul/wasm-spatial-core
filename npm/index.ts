@@ -44,6 +44,9 @@ export {
   parseGeoJsonPerFeature,
   // ── Spatial Indexing ───────────────────────────────────────
   SpatialIndex,
+  // ── Vector Tile Slicing ────────────────────────────────────
+  VectorTileEngine,
+  VectorTileOptions,
   // ── Multi-threading ────────────────────────────────────────
   initThreadPool,
 } from "./wasm_spatial_core.js";

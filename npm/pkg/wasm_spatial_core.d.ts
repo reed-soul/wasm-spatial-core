@@ -24,6 +24,41 @@ export class SpatialIndex {
 }
 
 /**
+ * A high-performance vector tile engine.
+ */
+export class VectorTileEngine {
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * Request a tile by `z, x, y` coordinates.
+     * Returns a raw `Uint8Array` representing the MVT (PBF) protobuf.
+     * If the tile is empty or out of bounds, returns an empty array.
+     */
+    getTile(z: number, x: number, y: number): Uint8Array;
+    /**
+     * Create a new VectorTileEngine from a GeoJSON string.
+     */
+    constructor(geojson_str: string, options: VectorTileOptions);
+}
+
+/**
+ * Options for vector tile generation.
+ */
+export class VectorTileOptions {
+    free(): void;
+    [Symbol.dispose](): void;
+    constructor();
+    buffer: number;
+    extent: number;
+    generate_id: boolean;
+    index_max_points: number;
+    index_max_zoom: number;
+    line_metrics: boolean;
+    max_zoom: number;
+    tolerance: number;
+}
+
+/**
  * Batch BD-09 → GCJ-02. Returns a **new** `Float64Array`.
  */
 export function batchBd09ToGcj02(coords: Float64Array): Float64Array;
@@ -241,7 +276,25 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
+    readonly __wbg_get_vectortileoptions_buffer: (a: number) => number;
+    readonly __wbg_get_vectortileoptions_extent: (a: number) => number;
+    readonly __wbg_get_vectortileoptions_generate_id: (a: number) => number;
+    readonly __wbg_get_vectortileoptions_index_max_points: (a: number) => number;
+    readonly __wbg_get_vectortileoptions_index_max_zoom: (a: number) => number;
+    readonly __wbg_get_vectortileoptions_line_metrics: (a: number) => number;
+    readonly __wbg_get_vectortileoptions_max_zoom: (a: number) => number;
+    readonly __wbg_get_vectortileoptions_tolerance: (a: number) => number;
+    readonly __wbg_set_vectortileoptions_buffer: (a: number, b: number) => void;
+    readonly __wbg_set_vectortileoptions_extent: (a: number, b: number) => void;
+    readonly __wbg_set_vectortileoptions_generate_id: (a: number, b: number) => void;
+    readonly __wbg_set_vectortileoptions_index_max_points: (a: number, b: number) => void;
+    readonly __wbg_set_vectortileoptions_index_max_zoom: (a: number, b: number) => void;
+    readonly __wbg_set_vectortileoptions_line_metrics: (a: number, b: number) => void;
+    readonly __wbg_set_vectortileoptions_max_zoom: (a: number, b: number) => void;
+    readonly __wbg_set_vectortileoptions_tolerance: (a: number, b: number) => void;
     readonly __wbg_spatialindex_free: (a: number, b: number) => void;
+    readonly __wbg_vectortileengine_free: (a: number, b: number) => void;
+    readonly __wbg_vectortileoptions_free: (a: number, b: number) => void;
     readonly batchBd09ToGcj02: (a: number) => number;
     readonly batchBd09ToGcj02InPlace: (a: number, b: number, c: number) => void;
     readonly batchBd09ToWgs84: (a: number) => number;
@@ -269,6 +322,9 @@ export interface InitOutput {
     readonly spatialindex_new: (a: number) => number;
     readonly spatialindex_searchBBox: (a: number, b: number, c: number, d: number, e: number) => number;
     readonly spatialindex_size: (a: number) => number;
+    readonly vectortileengine_getTile: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly vectortileengine_new: (a: number, b: number, c: number, d: number) => void;
+    readonly vectortileoptions_new: () => number;
     readonly version: (a: number) => void;
     readonly __wbg_wbg_rayon_poolbuilder_free: (a: number, b: number) => void;
     readonly initThreadPool: (a: number) => number;
