@@ -75,18 +75,20 @@ Modern Web3D and GIS applications face a fundamental bottleneck:
 
 ### Available Now (v0.1)
 
-- 🔄 **Batch Coordinate Projection** — WGS-84 ↔ GCJ-02, WGS-84 → Web Mercator (EPSG:3857)
+- 🔄 **Batch Coordinate Projection** — WGS-84 ↔ GCJ-02, WGS-84 ↔ BD-09, WGS-84 ↔ Web Mercator (EPSG:3857)
 - 📦 **GeoJSON Parser** — Parse large FeatureCollections into flat `Float64Array` buffers
+- 📡 **Streaming GeoJSON Parser** — Chunked processing with progress callbacks for large files
+- 🔍 **Spatial Index (R-Tree)** — Bounding box search, nearest-neighbor, K-nearest-neighbor queries
+- 🗺️ **Vector Tile Slicing** — Frontend MVT tile generation via `geojsonvt` + `geozero`
+- 🌐 **Cesium Native Adapter** — WGS84 → Cartesian3 (ECEF), polygon triangulation (earcut)
 - ⚡ **Zero-Copy Architecture** — Data stays in WASM linear memory; JS gets typed array views
 - 📊 **GPU-Ready Output** — Flat `[x, y, x, y, …]` buffers upload directly to WebGL vertex attributes
+- 🧵 **Multi-threaded** (optional) — Web Workers + SharedArrayBuffer via Rayon
 
-### Coming Soon
+### Planned
 
-- 🗺️ Frontend vector tile slicing (MVT)
-- 🌐 Cesium 3D Tiles / Mars3D adapters
 - ☁️ LAS/LAZ point cloud parsing & decimation
 - 🏗️ IFC/BIM geometry extraction
-- 🧵 Multi-threaded via Web Workers + SharedArrayBuffer
 
 ---
 
@@ -218,22 +220,56 @@ npm run build:wasm:mt
 
 | Function | Description |
 |----------|-------------|
-| `batchWgs84ToGcj02(coords: Float64Array): Float64Array` | WGS-84 → GCJ-02 (China) |
-| `batchGcj02ToWgs84(coords: Float64Array): Float64Array` | GCJ-02 → WGS-84 |
-| `batchWgs84ToMercator(coords: Float64Array): Float64Array` | WGS-84 → EPSG:3857 |
+| `batchWgs84ToGcj02(coords)` | WGS-84 → GCJ-02 (China) |
+| `batchGcj02ToWgs84(coords)` | GCJ-02 → WGS-84 |
+| `batchWgs84ToBd09(coords)` | WGS-84 → BD-09 (Baidu) |
+| `batchBd09ToWgs84(coords)` | BD-09 → WGS-84 |
+| `batchGcj02ToBd09(coords)` | GCJ-02 → BD-09 |
+| `batchBd09ToGcj02(coords)` | BD-09 → GCJ-02 |
+| `batchWgs84ToMercator(coords)` | WGS-84 → EPSG:3857 |
+| `batchMercatorToWgs84(coords)` | EPSG:3857 → WGS-84 |
+| `batchWgs84ToCgcs2000(coords)` | WGS-84 → CGCS2000 (identity) |
+| `*InPlace` variants | Zero-copy in-place mutation for all above |
 
 ### GeoJSON Processing
 
 | Function | Description |
 |----------|-------------|
-| `parseGeoJsonCoords(geojson: string): Float64Array` | Extract all coordinates as flat array |
-| `countGeoJsonFeatures(geojson: string): number` | Count features (fast pre-scan) |
+| `parseGeoJsonCoords(geojson)` | Extract all coordinates as flat `Float64Array` |
+| `countGeoJsonFeatures(geojson)` | Count features (fast pre-scan) |
+| `parseGeoJsonStream(input, chunkSize, onChunk)` | Streaming chunked parser with progress callback |
+| `parseGeoJsonPerFeature(input)` | Parse into per-feature coordinate arrays |
+
+### Spatial Index
+
+| Function | Description |
+|----------|-------------|
+| `new SpatialIndex(coords)` | Build R-Tree from flat coordinate array |
+| `.searchBBox(minX, minY, maxX, maxY)` | Bounding box range query → `Uint32Array` of IDs |
+| `.nearestNeighbor(x, y)` | Find nearest point → ID or `null` |
+| `.kNearestNeighbors(x, y, k)` | K nearest neighbors → `Uint32Array` of IDs |
+| `.size()` | Total point count |
+
+### Vector Tiles
+
+| Function | Description |
+|----------|-------------|
+| `new VectorTileEngine(geojson, options)` | Create MVT tile engine from GeoJSON |
+| `.getTile(z, x, y)` | Get MVT (PBF) protobuf for tile → `Uint8Array` |
+
+### Cesium Adapter
+
+| Function | Description |
+|----------|-------------|
+| `batchWgs84ToCartesian3(coords)` | WGS84 `[lng,lat,…]` → Cartesian3 `[x,y,z,…]` |
+| `generateCesiumGeometry(geojson, heightProp?)` | Triangulate polygons → `CesiumMeshGeometry` |
 
 ### Utilities
 
 | Function | Description |
 |----------|-------------|
-| `version(): string` | Library version |
+| `version()` | Library version |
+| `cgcs2000IsWgs84Compatible()` | Returns `true` (sub-cm accuracy) |
 
 > All coordinate functions accept and return **flat** `Float64Array` in
 > `[lng, lat, lng, lat, …]` layout for maximum throughput and direct
