@@ -11,7 +11,7 @@ use earcutr::earcut;
 use rayon::prelude::*;
 
 const A: f64 = 6378137.0;
-const B: f64 = 6356752.3142451793;
+const B: f64 = 6_356_752.314_245_179;
 const A_SQ: f64 = A * A;
 const B_SQ: f64 = B * B;
 const E_SQ: f64 = 1.0 - (B_SQ / A_SQ);
@@ -285,5 +285,99 @@ mod tests {
         // Let's just check it didn't fail and gave us data.
         assert!(!result.positions.is_empty());
         assert!(!result.indices.is_empty());
+    }
+
+    #[test]
+    fn test_generate_cesium_geometry_multipolygon() {
+        let geojson = r#"{
+            "type": "Feature",
+            "geometry": {
+                "type": "MultiPolygon",
+                "coordinates": [
+                    [[[0, 0], [5, 0], [5, 5], [0, 5], [0, 0]]],
+                    [[[10, 10], [15, 10], [15, 15], [10, 15], [10, 10]]]
+                ]
+            },
+            "properties": {
+                "height": 100.0
+            }
+        }"#;
+
+        let result = generate_cesium_geometry(geojson, Some("height".to_string())).unwrap();
+
+        // Two polygons, each with 5 vertices (4 unique + closing) → 
+        // positions should be 2 polygons × 5 vertices × 3 components = 30
+        assert!(!result.positions.is_empty());
+        assert!(result.positions.len() >= 30, "Expected at least 30 position floats, got {}", result.positions.len());
+
+        // Each polygon should produce at least 2 triangles (6 indices)
+        // Total: at least 12 indices
+        assert!(!result.indices.is_empty());
+        assert!(result.indices.len() >= 12, "Expected at least 12 indices, got {}", result.indices.len());
+
+        // Verify indices are within bounds
+        let max_idx = *result.indices.iter().max().unwrap();
+        let num_vertices = result.positions.len() / 3;
+        assert!(max_idx < num_vertices as u32, "Index {} exceeds vertex count {}", max_idx, num_vertices);
+    }
+
+    #[test]
+    fn test_generate_cesium_geometry_polygon_with_hole() {
+        let geojson = r#"{
+            "type": "Feature",
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                    [[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]],
+                    [[3, 3], [7, 3], [7, 7], [3, 7], [3, 3]]
+                ]
+            }
+        }"#;
+
+        let result = generate_cesium_geometry(geojson, None).unwrap();
+        assert!(!result.positions.is_empty());
+        assert!(!result.indices.is_empty());
+
+        // Outer ring: 5 points, inner ring: 5 points = 10 vertices × 3 = 30 floats
+        assert!(result.positions.len() >= 30);
+
+        // Should have valid indices
+        let max_idx = *result.indices.iter().max().unwrap();
+        let num_vertices = result.positions.len() / 3;
+        assert!(max_idx < num_vertices as u32);
+    }
+
+    #[test]
+    fn test_generate_cesium_geometry_feature_collection() {
+        let geojson = r#"{
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]]
+                    },
+                    "properties": {}
+                },
+                {
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "MultiPolygon",
+                        "coordinates": [
+                            [[[5, 5], [6, 5], [6, 6], [5, 6], [5, 5]]]
+                        ]
+                    },
+                    "properties": {}
+                }
+            ]
+        }"#;
+
+        let result = generate_cesium_geometry(geojson, None).unwrap();
+        assert!(!result.positions.is_empty());
+        assert!(!result.indices.is_empty());
+
+        // 2 features, each producing at least 2 triangles
+        assert!(result.indices.len() >= 12);
     }
 }

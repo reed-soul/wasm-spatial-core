@@ -62,6 +62,29 @@ impl SpatialIndex {
     pub fn size(&self) -> u32 {
         self.tree.size() as u32
     }
+
+    /// Find the nearest point to a given query coordinate.
+    /// Returns the ID of the nearest point, or `null` if the index is empty.
+    #[wasm_bindgen(js_name = "nearestNeighbor")]
+    pub fn nearest_neighbor(&self, query_x: f64, query_y: f64) -> Option<u32> {
+        let query_point = [query_x, query_y];
+        let nearest = self.tree.nearest_neighbor(&query_point)?;
+        Some(nearest.data)
+    }
+
+    /// Find the K nearest neighbors to a given query coordinate.
+    /// Returns a `Uint32Array` containing the IDs, ordered by distance (nearest first).
+    /// If `k` is greater than the number of points, returns all points.
+    #[wasm_bindgen(js_name = "kNearestNeighbors")]
+    pub fn k_nearest_neighbors(&self, query_x: f64, query_y: f64, k: u32) -> Uint32Array {
+        let query_point = [query_x, query_y];
+        let nearest_iter = self.tree.nearest_neighbor_iter(&query_point);
+        let results: Vec<u32> = nearest_iter.take(k as usize).map(|p| p.data).collect();
+
+        let result_array = Uint32Array::new_with_length(results.len() as u32);
+        result_array.copy_from(&results);
+        result_array
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -86,5 +109,43 @@ mod tests {
 
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].data, 1);
+    }
+
+    #[test]
+    fn test_nearest_neighbor() {
+        let points = vec![
+            IndexedPoint::new([0.0, 0.0], 0),
+            IndexedPoint::new([10.0, 10.0], 1),
+            IndexedPoint::new([20.0, 20.0], 2),
+        ];
+
+        let tree = RTree::bulk_load(points);
+
+        // Query near (10, 10) — should return id 1
+        let nearest = tree.nearest_neighbor(&[11.0, 9.0]).unwrap();
+        assert_eq!(nearest.data, 1);
+
+        // Query near (0, 0) — should return id 0
+        let nearest = tree.nearest_neighbor(&[0.5, 0.5]).unwrap();
+        assert_eq!(nearest.data, 0);
+    }
+
+    #[test]
+    fn test_k_nearest_neighbors() {
+        let points = vec![
+            IndexedPoint::new([0.0, 0.0], 0),
+            IndexedPoint::new([5.0, 0.0], 1),
+            IndexedPoint::new([10.0, 0.0], 2),
+            IndexedPoint::new([100.0, 100.0], 3),
+        ];
+
+        let tree = RTree::bulk_load(points);
+        let nearest_iter = tree.nearest_neighbor_iter(&[4.0, 1.0]);
+        let results: Vec<u32> = nearest_iter.take(2).map(|p| p.data).collect();
+
+        // Nearest to (4,1) should be id=1 (5,0), then id=0 (0,0)
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0], 1);
+        assert_eq!(results[1], 0);
     }
 }

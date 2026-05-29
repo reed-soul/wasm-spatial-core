@@ -155,4 +155,81 @@ mod tests {
         let count = count_geojson_features(SAMPLE_FC).unwrap();
         assert_eq!(count, 2);
     }
+
+    // ── Tests that exercise the public WASM API (requires wasm32) ─────
+
+    #[cfg(target_arch = "wasm32")]
+    #[test]
+    fn test_parse_geojson_coords_returns_correct_count() {
+        let coords = parse_geojson_coords(SAMPLE_FC).unwrap();
+        // Feature 0: 1 Point = 1 pair = 2 floats
+        // Feature 1: 1 LineString with 2 points = 2 pairs = 4 floats
+        // Total: 3 pairs = 6 floats
+        assert_eq!(coords.length(), 6);
+        assert_eq!(coords.length() / 2, 3);
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    #[test]
+    fn test_parse_geojson_coords_point() {
+        let geojson = r#"{
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [116.404, 39.915]
+            },
+            "properties": {}
+        }"#;
+        let coords = parse_geojson_coords(geojson).unwrap();
+        assert_eq!(coords.length(), 2);
+        let mut buf = vec![0.0; 2];
+        coords.copy_to(&mut buf);
+        assert!((buf[0] - 116.404).abs() < 1e-10);
+        assert!((buf[1] - 39.915).abs() < 1e-10);
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    #[test]
+    fn test_parse_geojson_coords_polygon() {
+        let geojson = r#"{
+            "type": "Feature",
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [[[0,0],[1,0],[1,1],[0,0]]]
+            },
+            "properties": {}
+        }"#;
+        let coords = parse_geojson_coords(geojson).unwrap();
+        assert_eq!(coords.length(), 8);
+    }
+
+    // ── Native tests (test internal logic, no WASM needed) ───────────
+
+    #[test]
+    fn test_extract_coords_from_geometry() {
+        let geom = Geometry::new(GeoValue::Point(vec![1.0, 2.0]));
+        let mut out = Vec::new();
+        extract_coords(&geom, &mut out);
+        assert_eq!(out, vec![1.0, 2.0]);
+    }
+
+    #[test]
+    fn test_extract_coords_linestring() {
+        let positions = vec![vec![0.0, 0.0], vec![1.0, 1.0], vec![2.0, 2.0]];
+        let geom = Geometry::new(GeoValue::LineString(positions));
+        let mut out = Vec::new();
+        extract_coords(&geom, &mut out);
+        assert_eq!(out, vec![0.0, 0.0, 1.0, 1.0, 2.0, 2.0]);
+        assert_eq!(out.len() / 2, 3); // 3 coordinate pairs
+    }
+
+    #[test]
+    fn test_extract_coords_multipolygon_count() {
+        let ring1 = vec![vec![0.0, 0.0], vec![1.0, 1.0], vec![0.0, 0.0]];
+        let ring2 = vec![vec![2.0, 2.0], vec![3.0, 3.0], vec![2.0, 2.0]];
+        let geom = Geometry::new(GeoValue::MultiPolygon(vec![vec![ring1], vec![ring2]]));
+        let mut out = Vec::new();
+        extract_coords(&geom, &mut out);
+        assert_eq!(out.len() / 2, 6); // 6 coordinate pairs
+    }
 }

@@ -111,3 +111,91 @@ impl VectorTileEngine {
         Ok(out_array)
     }
 }
+
+// ---------------------------------------------------------------------------
+// Unit tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SAMPLE_GEOJSON: &str = r#"{
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [116.404, 39.915]
+                },
+                "properties": { "name": "Beijing" }
+            },
+            {
+                "type": "Feature",
+                "geometry": {
+                    "type": "LineString",
+                    "coordinates": [[100.0, 0.0], [101.0, 1.0]]
+                },
+                "properties": { "name": "test_line" }
+            }
+        ]
+    }"#;
+
+    #[test]
+    fn test_vector_tile_options_default() {
+        let opts = VectorTileOptions::new();
+        assert_eq!(opts.max_zoom, 14);
+        assert_eq!(opts.extent, 4096);
+        assert_eq!(opts.buffer, 64);
+        assert!(!opts.line_metrics);
+    }
+
+    #[test]
+    fn test_vector_tile_engine_create() {
+        let opts = VectorTileOptions::new();
+        let engine = VectorTileEngine::new(SAMPLE_GEOJSON, opts);
+        assert!(engine.is_ok());
+    }
+
+    // Tests that call get_tile require JS/WASM runtime (js_sys::Uint8Array)
+    #[cfg(target_arch = "wasm32")]
+    #[test]
+    fn test_get_tile_basic() {
+        let opts = VectorTileOptions::new();
+        let mut engine = VectorTileEngine::new(SAMPLE_GEOJSON, opts).unwrap();
+
+        // z=10, x=868, y=387 — tile containing Beijing area
+        let tile = engine.get_tile(10, 868, 387);
+        assert!(tile.is_ok());
+
+        // Just verify it's a valid result (no crash)
+        let _tile_data = tile.unwrap();
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    #[test]
+    fn test_get_tile_out_of_bounds() {
+        let opts = VectorTileOptions::new();
+        let mut engine = VectorTileEngine::new(SAMPLE_GEOJSON, opts).unwrap();
+
+        // Tile at z=0, x=0, y=0 (global tile) — should not crash
+        let tile = engine.get_tile(0, 0, 0);
+        assert!(tile.is_ok());
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    #[test]
+    fn test_get_tile_empty_high_zoom() {
+        let mut opts = VectorTileOptions::new();
+        opts.max_zoom = 14;
+        let mut engine = VectorTileEngine::new(SAMPLE_GEOJSON, opts).unwrap();
+
+        // Very high zoom in the Pacific Ocean — likely empty
+        let tile = engine.get_tile(14, 0, 0);
+        assert!(tile.is_ok());
+        let tile_data = tile.unwrap();
+        // Should be empty since no features in ocean tile
+        assert_eq!(tile_data.length(), 0);
+    }
+}
