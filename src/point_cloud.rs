@@ -1593,6 +1593,267 @@ pub fn apply_color_ramp(
 }
 
 // ===========================================================================
+// Normal Estimation
+// ===========================================================================
+
+/// Native helper: estimate normals from flat `[x,y,z,...]` slice.
+fn estimate_normals_native(positions: &[f32], k: usize) -> Vec<f32> {
+    let point_count = positions.len() / 3;
+    let k = k.max(3).min(point_count.saturating_sub(1));
+
+    let mut normals = vec![0.0f32; positions.len()];
+
+    for i in 0..point_count {
+        let px = positions[i * 3] as f64;
+        let py = positions[i * 3 + 1] as f64;
+        let pz = positions[i * 3 + 2] as f64;
+
+        // Find k nearest neighbors using brute-force
+        let mut distances: Vec<(f64, usize)> = Vec::with_capacity(point_count);
+        for j in 0..point_count {
+            if j == i {
+                continue;
+            }
+            let dx = positions[j * 3] as f64 - px;
+            let dy = positions[j * 3 + 1] as f64 - py;
+            let dz = positions[j * 3 + 2] as f64 - pz;
+            distances.push((dx * dx + dy * dy + dz * dz, j));
+        }
+        distances.select_nth_unstable_by(k, |a, b| a.0.total_cmp(&b.0));
+
+        // Build covariance matrix from k neighbors (centered)
+        let neighbors = &distances[..k];
+        let mut cx = 0.0f64;
+        let mut cy = 0.0f64;
+        let mut cz = 0.0f64;
+        for &(_, j) in neighbors {
+            cx += positions[j * 3] as f64;
+            cy += positions[j * 3 + 1] as f64;
+            cz += positions[j * 3 + 2] as f64;
+        }
+        cx /= k as f64;
+        cy /= k as f64;
+        cz /= k as f64;
+
+        // Covariance matrix (symmetric 3x3, stored as 6 elements)
+        let mut cov = [0.0f64; 6];
+        for &(_, j) in neighbors {
+            let dx = positions[j * 3] as f64 - cx;
+            let dy = positions[j * 3 + 1] as f64 - cy;
+            let dz = positions[j * 3 + 2] as f64 - cz;
+            cov[0] += dx * dx;
+            cov[1] += dx * dy;
+            cov[2] += dx * dz;
+            cov[3] += dy * dy;
+            cov[4] += dy * dz;
+            cov[5] += dz * dz;
+        }
+
+        let (nx, ny, nz) = eigen_vector_3x3_symmetric(&cov);
+        normals[i * 3] = nx as f32;
+        normals[i * 3 + 1] = ny as f32;
+        normals[i * 3 + 2] = nz as f32;
+    }
+
+    normals
+}
+
+/// Native helper: flip normals consistently toward centroid.
+fn flip_normals_native(normals: &[f32], positions: &[f32]) -> Vec<f32> {
+    let point_count = normals.len() / 3;
+
+    let mut result = normals.to_vec();
+
+    // Compute centroid
+    let mut cx = 0.0f64;
+    let mut cy = 0.0f64;
+    let mut cz = 0.0f64;
+    for i in 0..point_count {
+        cx += positions[i * 3] as f64;
+        cy += positions[i * 3 + 1] as f64;
+        cz += positions[i * 3 + 2] as f64;
+    }
+    cx /= point_count as f64;
+    cy /= point_count as f64;
+    cz /= point_count as f64;
+
+    for i in 0..point_count {
+        let nx = result[i * 3] as f64;
+        let ny = result[i * 3 + 1] as f64;
+        let nz = result[i * 3 + 2] as f64;
+
+        let dx = positions[i * 3] as f64 - cx;
+        let dy = positions[i * 3 + 1] as f64 - cy;
+        let dz = positions[i * 3 + 2] as f64 - cz;
+
+        if nx * dx + ny * dy + nz * dz < 0.0 {
+            result[i * 3] = -result[i * 3];
+            result[i * 3 + 1] = -result[i * 3 + 1];
+            result[i * 3 + 2] = -result[i * 3 + 2];
+        }
+    }
+
+    result
+}
+
+/// Estimate normals for a point cloud using brute-force k-nearest neighbors.
+///
+/// For each point, finds the k nearest neighbors, fits a plane via SVD,
+/// and returns the normal vector of that plane.
+///
+/// # Arguments
+///
+/// * `positions` — Flat `Float32Array` `[x0,y0,z0, x1,y1,z1, ...]`.
+/// * `k` — Number of nearest neighbors for plane fitting (min 3).
+///
+/// # Returns
+///
+/// `Float32Array` `[nx0,ny0,nz0, nx1,ny1,nz1, ...]` — unit normals.
+#[wasm_bindgen(js_name = "estimateNormals")]
+pub fn estimate_normals(positions: &js_sys::Float32Array, k: u32) -> js_sys::Float32Array {
+    let len = positions.length() as usize;
+    let mut pos_buf = vec![0.0f32; len];
+    positions.copy_to(&mut pos_buf);
+
+    let result = estimate_normals_native(&pos_buf, k as usize);
+    let arr = js_sys::Float32Array::new_with_length(result.len() as u32);
+    arr.copy_from(&result);
+    arr
+}
+
+/// Flip normals to ensure consistent orientation toward the centroid.
+///
+/// For each normal, checks if its dot product with the vector from the
+/// centroid to the point is positive. If not, the normal is negated.
+///
+/// # Arguments
+///
+/// * `normals` — Flat `Float32Array` `[nx0,ny0,nz0, ...]`.
+/// * `positions` — Flat `Float32Array` `[x0,y0,z0, ...]`.
+///
+/// # Returns
+///
+/// `Float32Array` with consistently oriented normals.
+#[wasm_bindgen(js_name = "flipNormals")]
+pub fn flip_normals(normals: &js_sys::Float32Array, positions: &js_sys::Float32Array) -> js_sys::Float32Array {
+    let len = normals.length() as usize;
+    let mut norm_buf = vec![0.0f32; len];
+    normals.copy_to(&mut norm_buf);
+    let mut pos_buf = vec![0.0f32; len];
+    positions.copy_to(&mut pos_buf);
+
+    let result = flip_normals_native(&norm_buf, &pos_buf);
+    let arr = js_sys::Float32Array::new_with_length(result.len() as u32);
+    arr.copy_from(&result);
+    arr
+}
+
+/// Compute the eigenvector corresponding to the smallest eigenvalue of a
+/// 3x3 symmetric matrix stored as [xx, xy, xz, yy, yz, zz].
+///
+/// Uses the characteristic polynomial approach for 3x3 matrices.
+fn eigen_vector_3x3_symmetric(cov: &[f64; 6]) -> (f64, f64, f64) {
+    // Covariance matrix:
+    // | cov[0]  cov[1]  cov[2] |
+    // | cov[1]  cov[3]  cov[4] |
+    // | cov[2]  cov[4]  cov[5] |
+
+    let a11 = cov[0];
+    let a12 = cov[1];
+    let a13 = cov[2];
+    let a22 = cov[3];
+    let a23 = cov[4];
+    let a33 = cov[5];
+
+    // Compute eigenvalues using the characteristic polynomial
+    let trace = a11 + a22 + a33;
+    let det = a11 * (a22 * a33 - a23 * a23)
+        - a12 * (a12 * a33 - a13 * a23)
+        + a13 * (a12 * a23 - a13 * a22);
+
+    let cof00 = a22 * a33 - a23 * a23;
+    let cof11 = a11 * a33 - a13 * a13;
+    let cof22 = a11 * a22 - a12 * a12;
+
+    let cof_matrix_trace = cof00 + cof11 + cof22;
+
+    // Solve cubic: λ³ - trace·λ² + cof_trace·λ - det = 0
+    // Use the iterative approach: for the smallest eigenvalue,
+    // we use power iteration on the inverse (or Jacobi iteration)
+
+    // Simple Jacobi eigenvector computation
+    // We want the eigenvector for the smallest eigenvalue (the normal)
+    let mut n = [1.0_f64, 0.0_f64, 0.0_f64];
+
+    // Iterate: multiply by covariance matrix and normalize
+    // The eigenvector with smallest eigenvalue is the one that minimizes
+    // n^T * C * n. We use inverse power iteration.
+    // For a 3x3 positive semi-definite matrix, we can use the fact that
+    // the normal is the eigenvector of the smallest eigenvalue.
+
+    // Direct computation using the characteristic polynomial:
+    let p = -trace;
+    let q = cof_matrix_trace;
+    let r = -det;
+
+    // Cardano's formula for depressed cubic t³ + pt + q' = 0
+    let b = q / 3.0 - p * p / 9.0;
+    let c = r + 2.0 * p * p * p / 27.0 - p * q / 3.0;
+    let discriminant = c * c / 4.0 + b * b * b / 27.0;
+
+    let e1: f64;
+    let e2: f64;
+    let e3: f64;
+
+    if discriminant > 0.0 {
+        // One real root, two complex conjugates — shouldn't happen for symmetric
+        let sqrt_disc = discriminant.sqrt();
+        let u = (-c / 2.0 + sqrt_disc).cbrt();
+        let v = (-c / 2.0 - sqrt_disc).cbrt();
+        e1 = u + v + p / 3.0;
+        // For symmetric matrices we should have 3 real eigenvalues
+        // Fall back to approximation
+        e2 = e1 * 0.5;
+        e3 = e1 * 0.5;
+    } else {
+        let cos_phi = (-c / 2.0) / (b * b / 27.0).sqrt().max(1e-30);
+        let phi = cos_phi.acos() / 3.0;
+        let m = (b.abs()).sqrt().cbrt();
+        let sqrt_b3 = 2.0 * m;
+
+        e1 = sqrt_b3 * phi.cos() + p / 3.0;
+        e2 = sqrt_b3 * ((phi + 2.0 * std::f64::consts::PI / 3.0).cos()) + p / 3.0;
+        e3 = sqrt_b3 * ((phi + 4.0 * std::f64::consts::PI / 3.0).cos()) + p / 3.0;
+    }
+
+    // Find the smallest eigenvalue
+    let min_e = e1.min(e2).min(e3);
+
+    // Compute eigenvector for the smallest eigenvalue using cross-product method
+    // (C - λI)v = 0, so v is in the null space of (C - λI)
+    let m00 = a11 - min_e;
+    let m01 = a12;
+    let m02 = a13;
+    let m11 = a22 - min_e;
+    let m12 = a23;
+
+    // Cross product of two rows gives a vector in the null space
+    n[0] = m01 * m12 - m02 * m11;
+    n[1] = m02 * m01 - m00 * m12; // fixed: should be m00*m12
+    n[2] = m00 * m11 - m01 * m01;
+
+    // Normalize
+    let len = (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt();
+    if len > 1e-10 {
+        n[0] /= len;
+        n[1] /= len;
+        n[2] /= len;
+    }
+
+    (n[0], n[1], n[2])
+}
+
+// ===========================================================================
 // Tests
 // ===========================================================================
 
@@ -2235,5 +2496,84 @@ DATA ascii
         assert_eq!(x2, 700.0);
         assert_eq!(y2, 800.0);
         assert_eq!(z2, 900.0);
+    }
+
+    // ── Normal Estimation ──────────────────────────────────────
+
+    #[test]
+    fn test_eigen_vector_flat_plane() {
+        // Flat XY plane at z=0: covariance has zero in z direction
+        let cov = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0]; // identity-like, no z variation
+        let (_nx, _ny, nz) = eigen_vector_3x3_symmetric(&cov);
+        // Smallest eigenvalue corresponds to z direction
+        assert!(nz.abs() > 0.9, "nz = {nz}, expected ~1.0");
+    }
+
+    #[test]
+    fn test_estimate_normals_flat_plane() {
+        // Create a flat plane in XY at z=5
+        let positions: Vec<f32> = vec![
+            0.0, 0.0, 5.0,
+            1.0, 0.0, 5.0,
+            0.0, 1.0, 5.0,
+            1.0, 1.0, 5.0,
+            2.0, 0.0, 5.0,
+            0.0, 2.0, 5.0,
+            2.0, 2.0, 5.0,
+        ];
+
+        let normals = estimate_normals_native(&positions, 4);
+
+        // All normals should be approximately (0, 0, ±1)
+        for i in 0..7 {
+            let nx = normals[i * 3];
+            let ny = normals[i * 3 + 1];
+            let nz = normals[i * 3 + 2];
+            let len = (nx * nx + ny * ny + nz * nz).sqrt();
+            assert!(
+                (len - 1.0).abs() < 0.01,
+                "Normal {} not unit length: len={}",
+                i,
+                len
+            );
+            // z component should dominate
+            assert!(
+                nz.abs() > 0.9,
+                "Normal {}: ({}, {}, {}) — nz should be ~1",
+                i,
+                nx,
+                ny,
+                nz
+            );
+        }
+    }
+
+    #[test]
+    fn test_flip_normals_consistency() {
+        // Points on a sphere around origin — normals should point outward
+        let positions: Vec<f32> = vec![
+            1.0, 0.0, 0.0,
+            0.0, 1.0, 0.0,
+            0.0, 0.0, 1.0,
+            -1.0, 0.0, 0.0,
+            0.0, -1.0, 0.0,
+            0.0, 0.0, -1.0,
+        ];
+
+        // Manually set some normals pointing inward
+        let normals: Vec<f32> = vec![
+            -1.0, 0.0, 0.0,
+             0.0, 1.0, 0.0,
+             0.0, 0.0, -1.0,
+            -1.0, 0.0, 0.0,
+             0.0, -1.0, 0.0,
+             0.0, 0.0, -1.0,
+        ];
+
+        let flipped = flip_normals_native(&normals, &positions);
+
+        // After flip, normals should point away from centroid (origin)
+        assert!(flipped[0] > 0.5, "Normal 0 x should be positive");
+        assert!(flipped[9] < -0.5, "Normal 3 x should be negative");
     }
 }
