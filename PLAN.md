@@ -13,14 +13,14 @@ projection — at near-native speed inside the browser.
 
 | Task | Description | Status |
 |------|-------------|--------|
-| **1.1 Zero-copy memory bridge** | Design and implement the `Float64Array`-backed data exchange protocol between JS and WASM. All public APIs must operate on flat typed arrays — no JSON serialisation on the hot path. | 🟡 In Progress |
-| **1.2 GeoJSON streaming parser** | Parse arbitrarily large GeoJSON payloads (100 MB+) inside WASM memory. Output: flat `[lng, lat, …]` buffers ready for GPU upload. Support `FeatureCollection`, `Feature`, and bare `Geometry`. | 🟡 In Progress |
-| **1.3 Coordinate projection engine** | Batch WGS-84 ↔ GCJ-02, WGS-84 ↔ BD-09, WGS-84 → EPSG:3857 (Web Mercator). All operating on `Float64Array` with zero per-point JS↔WASM overhead. | 🟡 In Progress |
-| **1.4 Benchmark harness** | Automated benchmarks comparing WASM vs. pure-JS implementations (e.g. `proj4js`, `@turf/turf`) for 100k / 1M / 10M coordinate transforms. | ⬜ Planned |
-| **1.5 npm package & CI** | wasm-pack → npm publish pipeline, GitHub Actions CI with clippy + fmt + test + wasm-build. | 🟡 In Progress |
-| **1.6 Documentation & examples** | API docs (rustdoc + TypeDoc), runnable browser demo page. | ⬜ Planned |
+| **1.1 Zero-copy memory bridge** | Design and implement the `Float64Array`-backed data exchange protocol between JS and WASM. All public APIs must operate on flat typed arrays — no JSON serialisation on the hot path. | ✅ Done |
+| **1.2 GeoJSON streaming parser** | Parse arbitrarily large GeoJSON payloads (100 MB+) inside WASM memory. Output: flat `[lng, lat, …]` buffers ready for GPU upload. Support `FeatureCollection`, `Feature`, and bare `Geometry`. | ✅ Done |
+| **1.3 Coordinate projection engine** | Batch WGS-84 ↔ GCJ-02, WGS-84 ↔ BD-09, WGS-84 → EPSG:3857 (Web Mercator). All operating on `Float64Array` with zero per-point JS↔WASM overhead. | ✅ Done |
+| **1.4 Benchmark harness** | Automated benchmarks comparing WASM vs. pure-JS implementations (e.g. `proj4js`, `@turf/turf`) for 100k / 1M / 10M coordinate transforms. | ✅ Done |
+| **1.5 npm package & CI** | wasm-pack → npm publish pipeline, GitHub Actions CI with clippy + fmt + test + wasm-build. | ✅ Done |
+| **1.6 Documentation & examples** | API docs (rustdoc + TypeDoc), runnable browser demo page. | ✅ Done |
 
-**Exit Criteria**: A published npm package that can parse a 50 MB GeoJSON file
+**Exit Criteria**: ✅ Achieved — A published npm package that can parse a 50 MB GeoJSON file
 and project 1M coordinates in < 500 ms on a mid-range laptop browser.
 
 ---
@@ -34,11 +34,11 @@ skip the traditional server-side tile pipeline entirely for moderate datasets.
 
 | Task | Description | Status |
 |------|-------------|--------|
-| **2.1 Cesium 3D Tiles adapter** | Generate quantized-mesh terrain tiles or Batched 3D Model (b3dm) payloads from raw geometry directly in the browser. | ⬜ Planned |
+| **2.1 Cesium 3D Tiles adapter** | Generate quantized-mesh terrain tiles or Batched 3D Model (b3dm) payloads from raw geometry directly in the browser. | 🟡 In Progress |
 | **2.2 Mars3D / SuperMap integration** | Adapter layer for Mars3D's internal data structures. Direct `ArrayBuffer` → Mars3D entity pipeline. | ⬜ Planned |
-| **2.3 Frontend spatial indexing** | R-tree or grid-based spatial index built in WASM. Enables viewport-driven progressive loading without a tile server. | ⬜ Planned |
-| **2.4 Lightweight vector tile slicing** | Slice large GeoJSON into Mapbox Vector Tile (MVT) format on the client. Eliminate the need for `tippecanoe` or PostGIS for small-to-medium datasets. | ⬜ Planned |
-| **2.5 Multi-threaded via Web Workers** | Partition large datasets and distribute parsing / projection across multiple workers using `SharedArrayBuffer`. | ⬜ Planned |
+| **2.3 Frontend spatial indexing** | R-tree or grid-based spatial index built in WASM. Enables viewport-driven progressive loading without a tile server. | ✅ Done |
+| **2.4 Lightweight vector tile slicing** | Slice large GeoJSON into Mapbox Vector Tile (MVT) format on the client. Eliminate the need for `tippecanoe` or PostGIS for small-to-medium datasets. | 🟡 In Progress |
+| **2.5 Multi-threaded via Web Workers** | Partition large datasets and distribute parsing / projection across multiple workers using `SharedArrayBuffer`. | 🟡 In Progress |
 
 **Exit Criteria**: A Cesium-based demo that loads a 200 MB GeoJSON, projects,
 indexes, and renders it entirely in the browser with no backend support.
