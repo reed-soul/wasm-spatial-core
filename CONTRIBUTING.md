@@ -39,9 +39,9 @@ The `pkg/` directory is listed in `.gitignore` and is **not** stored in git. CI 
 
 ## Error handling (API)
 
-New code should return `Result<_, SpatialErrorDetail>` (see `src/errors.rs`) so JavaScript can read `e.code` / `e.message`.
+WASM exports that return `Result<_, JsValue>` should use helpers in `src/errors.rs` (`parse_js`, `invalid_input_js`, `tile_js`, etc.) so JavaScript receives `{ name: "SpatialError", code, message }`.
 
-Some legacy paths still throw plain `JsValue` strings (`geojson_streaming`, `vector_tile`, `wkb_wkt`, etc.). When touching those modules, prefer migrating to `SpatialError` rather than adding new string errors.
+Prefer `Result<_, SpatialErrorDetail>` in new Rust-only APIs; convert with `.map_err(Into::into)` at the wasm boundary.
 
 ---
 
