@@ -726,7 +726,10 @@ fn add_property_native(input: &str, key: &str, value: &str) -> Result<String, St
 
     if let Some(features) = doc.get_mut("features").and_then(|f| f.as_array_mut()) {
         for feature in features.iter_mut() {
-            if let Some(props) = feature.get_mut("properties").and_then(|p| p.as_object_mut()) {
+            if let Some(props) = feature
+                .get_mut("properties")
+                .and_then(|p| p.as_object_mut())
+            {
                 props.insert(key.to_string(), parsed_value.clone());
             }
         }
@@ -761,7 +764,10 @@ fn rename_property_native(input: &str, old_key: &str, new_key: &str) -> Result<S
 
     if let Some(features) = doc.get_mut("features").and_then(|f| f.as_array_mut()) {
         for feature in features.iter_mut() {
-            if let Some(props) = feature.get_mut("properties").and_then(|p| p.as_object_mut()) {
+            if let Some(props) = feature
+                .get_mut("properties")
+                .and_then(|p| p.as_object_mut())
+            {
                 if let Some(val) = props.remove(old_key) {
                     props.insert(new_key.to_string(), val);
                 }
@@ -797,7 +803,10 @@ fn remove_property_native(input: &str, key: &str) -> Result<String, String> {
 
     if let Some(features) = doc.get_mut("features").and_then(|f| f.as_array_mut()) {
         for feature in features.iter_mut() {
-            if let Some(props) = feature.get_mut("properties").and_then(|p| p.as_object_mut()) {
+            if let Some(props) = feature
+                .get_mut("properties")
+                .and_then(|p| p.as_object_mut())
+            {
                 props.remove(key);
             }
         }
@@ -1241,7 +1250,10 @@ mod tests {
     fn test_add_property_json_value() {
         let result = add_property_native(EDIT_FC, "metadata", r#"{"verified": true}"#).unwrap();
         let doc: serde_json::Value = serde_json::from_str(&result).unwrap();
-        assert_eq!(doc["features"][0]["properties"]["metadata"]["verified"], true);
+        assert_eq!(
+            doc["features"][0]["properties"]["metadata"]["verified"],
+            true
+        );
     }
 
     #[test]

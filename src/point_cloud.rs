@@ -1735,7 +1735,10 @@ pub fn estimate_normals(positions: &js_sys::Float32Array, k: u32) -> js_sys::Flo
 ///
 /// `Float32Array` with consistently oriented normals.
 #[wasm_bindgen(js_name = "flipNormals")]
-pub fn flip_normals(normals: &js_sys::Float32Array, positions: &js_sys::Float32Array) -> js_sys::Float32Array {
+pub fn flip_normals(
+    normals: &js_sys::Float32Array,
+    positions: &js_sys::Float32Array,
+) -> js_sys::Float32Array {
     let len = normals.length() as usize;
     let mut norm_buf = vec![0.0f32; len];
     normals.copy_to(&mut norm_buf);
@@ -1767,8 +1770,7 @@ fn eigen_vector_3x3_symmetric(cov: &[f64; 6]) -> (f64, f64, f64) {
 
     // Compute eigenvalues using the characteristic polynomial
     let trace = a11 + a22 + a33;
-    let det = a11 * (a22 * a33 - a23 * a23)
-        - a12 * (a12 * a33 - a13 * a23)
+    let det = a11 * (a22 * a33 - a23 * a23) - a12 * (a12 * a33 - a13 * a23)
         + a13 * (a12 * a23 - a13 * a22);
 
     let cof00 = a22 * a33 - a23 * a23;
@@ -2513,13 +2515,8 @@ DATA ascii
     fn test_estimate_normals_flat_plane() {
         // Create a flat plane in XY at z=5
         let positions: Vec<f32> = vec![
-            0.0, 0.0, 5.0,
-            1.0, 0.0, 5.0,
-            0.0, 1.0, 5.0,
-            1.0, 1.0, 5.0,
-            2.0, 0.0, 5.0,
-            0.0, 2.0, 5.0,
-            2.0, 2.0, 5.0,
+            0.0, 0.0, 5.0, 1.0, 0.0, 5.0, 0.0, 1.0, 5.0, 1.0, 1.0, 5.0, 2.0, 0.0, 5.0, 0.0, 2.0,
+            5.0, 2.0, 2.0, 5.0,
         ];
 
         let normals = estimate_normals_native(&positions, 4);
@@ -2552,22 +2549,14 @@ DATA ascii
     fn test_flip_normals_consistency() {
         // Points on a sphere around origin — normals should point outward
         let positions: Vec<f32> = vec![
-            1.0, 0.0, 0.0,
-            0.0, 1.0, 0.0,
-            0.0, 0.0, 1.0,
-            -1.0, 0.0, 0.0,
-            0.0, -1.0, 0.0,
-            0.0, 0.0, -1.0,
+            1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0,
+            -1.0,
         ];
 
         // Manually set some normals pointing inward
         let normals: Vec<f32> = vec![
-            -1.0, 0.0, 0.0,
-             0.0, 1.0, 0.0,
-             0.0, 0.0, -1.0,
-            -1.0, 0.0, 0.0,
-             0.0, -1.0, 0.0,
-             0.0, 0.0, -1.0,
+            -1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, -1.0, -1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0,
+            0.0, -1.0,
         ];
 
         let flipped = flip_normals_native(&normals, &positions);
