@@ -24,6 +24,9 @@ export {
   batchWgs84ToMercator,
   batchMercatorToWgs84,
   batchWgs84ToCgcs2000,
+  // ── Pipeline Transforms (combined conversions) ────────────
+  batchWgs84ToGcj02Mercator,
+  batchWgs84ToBd09Mercator,
   // ── Zero-copy in-place API ─────────────────────────────────
   batchWgs84ToGcj02InPlace,
   batchGcj02ToWgs84InPlace,
@@ -34,8 +37,17 @@ export {
   batchWgs84ToMercatorInPlace,
   batchMercatorToWgs84InPlace,
   batchWgs84ToCgcs2000InPlace,
+  batchWgs84ToGcj02MercatorInPlace,
+  batchWgs84ToBd09MercatorInPlace,
   // ── Utilities ──────────────────────────────────────────────
   cgcs2000IsWgs84Compatible,
+  // ── Geohash ───────────────────────────────────────────────
+  geohashEncode,
+  geohashDecode,
+  geohashNeighbors,
+  // ── Coordinate Normalization ─────────────────────────────
+  normalizeCoords,
+  denormalizeCoords,
   // ── GeoJSON ────────────────────────────────────────────────
   parseGeoJsonCoords,
   countGeoJsonFeatures,
@@ -44,6 +56,9 @@ export {
   GeoJsonFeaturesResult,
   geoJsonFromCoords,
   geoJsonFeatureCollection,
+  filterGeoJsonByProperty,
+  filterGeoJsonByBBox,
+  countGeoJsonByProperty,
   // ── GeoJSON Streaming ──────────────────────────────────────
   parseGeoJsonStream,
   parseGeoJsonPerFeature,
@@ -72,21 +87,29 @@ export {
   // ── Point Cloud (requires `point-cloud` feature) ──────────
   parseLasHeader,
   parseLasPoints,
+  parseLasPointsWithProgress,
   parseLasHeaderOnly,
   computeLasPointOffset,
   parseLasPointAt,
   decimateVoxelGrid,
+  decimateVoxelGridWithProgress,
   decimateRandom,
   parsePcdAscii,
   parsePcdBinary,
   generateInterleavedVertexBuffer,
   generateIndexedGeometry,
+  colorizeByHeight,
+  colorizeByIntensity,
+  applyColorRamp,
   // ── IFC/BIM (Experimental) ────────────────────────────────
   parseIfcGeometry,
   IfcGeometryResult,
   IfcMesh,
   // ── glTF / GLB Writer ──────────────────────────────────────
   GltfBuilder,
+  // ── TIN & Interpolation ───────────────────────────────────
+  buildTin,
+  tinInterpolate,
   // ── Spatial Analysis ───────────────────────────────────────
   haversineDistance,
   bearing,
@@ -104,6 +127,11 @@ export {
   isPointInRing,
   polygonIntersection,
   polygonUnion,
+  // ── Spatial Predicates ──────────────────────────────────────
+  contains,
+  touches,
+  disjoint,
+  polygonIntersects,
   // ── Coordinate Quality ────────────────────────────────────
   validateCoords,
   ValidationResult,
@@ -119,8 +147,6 @@ export {
   setInputSizeLimit,
   getInputSizeLimit,
   getAllocatedBytes,
-  // ── Multi-threading ────────────────────────────────────────
-  initThreadPool,
 } from "./wasm_spatial_core.js";
 
 // ---------------------------------------------------------------------------
