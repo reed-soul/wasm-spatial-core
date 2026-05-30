@@ -25,6 +25,7 @@ mod spatial_index;
 mod topology;
 mod utils;
 mod vector_tile;
+mod wkb_wkt;
 
 pub use errors::{SpatialError, SpatialErrorDetail};
 
