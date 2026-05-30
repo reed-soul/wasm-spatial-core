@@ -2,6 +2,7 @@
 name = "wasm-spatial-core"
 version = "0.2.0"
 edition = "2021"
+rust-version = "1.90"
 authors = ["Qingxi <qingxi@zhiqiweilai.com>"]
 license = "MIT"
 description = "A high-performance WebAssembly spatial data processing engine for frontend Web3D/GIS applications"
@@ -51,7 +52,15 @@ features = [
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
+
+# Native-only: Criterion/Rayon do not build for wasm32-unknown-unknown.
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
+rand = "0.8"
+
+# Browser `wasm-pack test` harness.
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+getrandom = { version = "0.2", features = ["js"] }
 rand = "0.8"
 
 [profile.release]

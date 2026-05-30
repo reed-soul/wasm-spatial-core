@@ -167,6 +167,35 @@ impl From<SpatialErrorDetail> for JsValue {
 }
 
 // ===========================================================================
+// Helpers for `Result<_, JsValue>` in wasm-bindgen exports
+// ===========================================================================
+
+#[inline]
+pub(crate) fn parse_js(detail: impl std::fmt::Display) -> JsValue {
+    SpatialError::parse_error(detail).into()
+}
+
+#[inline]
+pub(crate) fn invalid_input_js(detail: impl std::fmt::Display) -> JsValue {
+    SpatialError::invalid_input(detail).into()
+}
+
+#[inline]
+pub(crate) fn input_too_large_js(detail: impl std::fmt::Display) -> JsValue {
+    SpatialError::InputTooLarge.with_detail(detail).into()
+}
+
+#[inline]
+pub(crate) fn tile_js(detail: impl std::fmt::Display) -> JsValue {
+    SpatialError::tile_error(detail).into()
+}
+
+#[inline]
+pub(crate) fn geometry_js(detail: impl std::fmt::Display) -> JsValue {
+    SpatialError::geometry_error(detail).into()
+}
+
+// ===========================================================================
 // Tests
 // ===========================================================================
 
@@ -243,4 +272,5 @@ mod tests {
         assert!(display.contains("TILE_ERROR"));
         assert!(display.contains("zoom level too high"));
     }
+
 }

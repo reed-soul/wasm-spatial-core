@@ -96,7 +96,7 @@ impl VectorTileEngine {
     ) -> Result<VectorTileEngine, JsValue> {
         let geojson = geojson_str
             .parse::<GeoJson>()
-            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+            .map_err(crate::errors::tile_js)?;
         let vt_options: GeoJsonVtOptions = options.into();
         let index = GeoJSONVT::from_geojson(&geojson, &vt_options);
 
@@ -126,7 +126,7 @@ impl VectorTileEngine {
         }
 
         let json_str = serde_json::to_string(&tile.feature_collection)
-            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+            .map_err(crate::errors::tile_js)?;
 
         let mut geojson_data = GeoJsonString(json_str);
 
@@ -135,11 +135,11 @@ impl VectorTileEngine {
         // MvtWriter implements PropertyProcessor, so GeoJSON feature properties
         // are automatically encoded as MVT tags.
         let mut mvt_writer =
-            MvtWriter::new_unscaled(4096).map_err(|e| JsValue::from_str(&e.to_string()))?;
+            MvtWriter::new_unscaled(4096).map_err(crate::errors::tile_js)?;
 
         geojson_data
             .process(&mut mvt_writer)
-            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+            .map_err(crate::errors::tile_js)?;
 
         let mvt_layer = mvt_writer.layer(&self.layer_name);
 
@@ -149,7 +149,7 @@ impl VectorTileEngine {
         let mut mvt_bytes = Vec::new();
         mvt_tile
             .encode(&mut mvt_bytes)
-            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+            .map_err(crate::errors::tile_js)?;
 
         let out_array = js_sys::Uint8Array::new_with_length(mvt_bytes.len() as u32);
         out_array.copy_from(&mvt_bytes);
@@ -237,16 +237,16 @@ impl VectorTileEngine {
         }
 
         let json_str = serde_json::to_string(&tile.feature_collection)
-            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+            .map_err(crate::errors::tile_js)?;
 
         let mut geojson_data = GeoJsonString(json_str);
 
         let mut mvt_writer =
-            MvtWriter::new_unscaled(4096).map_err(|e| JsValue::from_str(&e.to_string()))?;
+            MvtWriter::new_unscaled(4096).map_err(crate::errors::tile_js)?;
 
         geojson_data
             .process(&mut mvt_writer)
-            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+            .map_err(crate::errors::tile_js)?;
 
         let mvt_layer = mvt_writer.layer(&self.layer_name);
 
@@ -256,7 +256,7 @@ impl VectorTileEngine {
         let mut mvt_bytes = Vec::new();
         mvt_tile
             .encode(&mut mvt_bytes)
-            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+            .map_err(crate::errors::tile_js)?;
 
         Ok(mvt_bytes)
     }
@@ -394,10 +394,10 @@ pub fn decode_mvt(bytes: js_sys::Uint8Array) -> Result<MvtLayerDecoded, JsValue>
     bytes.copy_to(&mut buf);
 
     let tile_proto = MvtProtoTile::decode(&buf[..])
-        .map_err(|e| JsValue::from_str(&format!("MVT decode error: {e}")))?;
+        .map_err(|e| crate::errors::tile_js(format!("MVT decode error: {e}")))?;
 
     if tile_proto.layers.is_empty() {
-        return Err(JsValue::from_str("MVT tile contains no layers"));
+        return Err(crate::errors::tile_js("MVT tile contains no layers"));
     }
 
     let layer_proto = &tile_proto.layers[0];

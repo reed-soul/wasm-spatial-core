@@ -27,6 +27,7 @@ mod utils;
 mod vector_tile;
 mod wkb_wkt;
 
+use errors::input_too_large_js;
 pub use errors::{SpatialError, SpatialErrorDetail};
 
 #[cfg(feature = "point-cloud")]
@@ -204,7 +205,7 @@ pub(crate) const DEFAULT_MAX_INPUT_SIZE: usize = 100 * 1024 * 1024;
 pub(crate) fn validate_input_size(len: usize, label: &str) -> Result<(), JsValue> {
     let limit = get_current_input_limit();
     if limit > 0 && len > limit {
-        Err(JsValue::from_str(&format!(
+        Err(input_too_large_js(format!(
             "Input too large ({} > {} bytes): {}",
             len, limit, label
         )))

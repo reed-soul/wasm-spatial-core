@@ -78,7 +78,7 @@ Potential future directions (not committed):
 
 ---
 
-## v0.2.0-alpha.1 — Enhancements
+## v0.2.0 — Enhancements
 
 | Feature | Description | Status |
 |---------|-------------|--------|
@@ -92,9 +92,9 @@ Potential future directions (not committed):
 
 | Metric | Value |
 |--------|-------|
-| Source lines | ~6800+ |
-| Unit tests | 131 |
-| Integration tests | 8 |
+| Source lines | ~11K+ |
+| Unit tests | 237+ |
+| Integration tests | 6+ |
 | Supported formats | GeoJSON, MVT, LAS, PCD, IFC, glTF/GLB |
 | Coordinate systems | WGS-84, GCJ-02, BD-09, CGCS2000, Web Mercator |
 
