@@ -240,7 +240,28 @@ npm run build:wasm:mt
 | `batchWgs84ToMercator(coords)` | WGS-84 → EPSG:3857 |
 | `batchMercatorToWgs84(coords)` | EPSG:3857 → WGS-84 |
 | `batchWgs84ToCgcs2000(coords)` | WGS-84 → CGCS2000 (identity) |
+| `batchWgs84ToGcj02Mercator(coords)` | WGS-84 → GCJ-02 → Mercator (pipeline) |
+| `batchWgs84ToBd09Mercator(coords)` | WGS-84 → BD-09 → Mercator (pipeline) |
+| `wgs84ToUtm(lng, lat)` | WGS-84 → UTM → `[zone, easting, northing, isN]` |
+| `utmToWgs84(zone, easting, northing, isN)` | UTM → WGS-84 → `[lng, lat]` |
+| `batchWgs84ToUtm(coords)` | WGS-84 → UTM (batch) |
+| `batchUtmToWgs84(utmCoords)` | UTM → WGS-84 (batch) |
 | `*InPlace` variants | Zero-copy in-place mutation for all above |
+
+### Geohash
+
+| Function | Description |
+|----------|-------------|
+| `geohashEncode(lng, lat, precision)` | Encode coordinate to geohash string |
+| `geohashDecode(hash)` | Decode geohash → `[lng, lat, minLng, minLat, maxLng, maxLat]` |
+| `geohashNeighbors(hash)` | 8 neighbors → `[N, NE, E, SE, S, SW, W, NW]` |
+
+### Coordinate Normalization
+
+| Function | Description |
+|----------|-------------|
+| `normalizeCoords(coords, bounds?)` | Normalize to `[0, 1]` range |
+| `denormalizeCoords(coords, bounds)` | Restore from normalized coordinates |
 
 ### GeoJSON Processing
 
@@ -255,6 +276,12 @@ npm run build:wasm:mt
 | `parseGeoJsonFeatures(input)` | Structured per-feature result → `GeoJsonFeaturesResult` |
 | `geoJsonFromCoords(coords, geometryType)` | **Generate** GeoJSON Feature from coordinate buffer |
 | `geoJsonFeatureCollection(coords, types, props)` | **Generate** FeatureCollection from multiple features |
+| `filterGeoJsonByProperty(input, key, value)` | Filter features by property equality |
+| `filterGeoJsonByBBox(input, minLng, minLat, maxLng, maxLat)` | Filter features by bounding box |
+| `countGeoJsonByProperty(input, key)` | Count features per unique property value |
+| `addProperty(input, key, value)` | Add a property to all features |
+| `renameProperty(input, oldKey, newKey)` | Rename a property key |
+| `removeProperty(input, key)` | Remove a property key |
 
 **Lazy GeoJSON usage:**
 ```typescript
@@ -324,7 +351,22 @@ const geojson = core.decodeMvtToGeoJson(new Uint8Array(buffer));
 |----------|-------------|
 | `parseLasHeader(bytes)` | Parse LAS header |
 | `parseLasPoints(bytes)` | Parse all points |
+| `parseLasPointsWithProgress(bytes, onProgress)` | Parse with progress callback |
 | `parseLasHeaderOnly(bytes)` | Header-only parse (COPC) |
+| `computeLasPointOffset(header, idx, format)` | Byte offset of Nth point |
+| `parseLasPointAt(bytes, offset, format)` | Parse single point |
+| `parsePcdAscii(text)` | Parse ASCII PCD |
+| `parsePcdBinary(bytes)` | Parse binary PCD |
+| `decimateVoxelGrid(positions, colors, gridSize)` | Voxel grid decimation |
+| `decimateVoxelGridWithProgress(positions, colors, gridSize, onProgress)` | Voxel decimation with progress |
+| `decimateRandom(positions, colors, targetCount)` | Random sampling |
+| `generateInterleavedVertexBuffer(positions, colors)` | GPU-ready interleaved buffer |
+| `generateIndexedGeometry(positions, indices)` | GPU-ready indexed buffers |
+| `colorizeByHeight(positions, minZ, maxZ)` | Height-based RGB coloring |
+| `colorizeByIntensity(positions, minI, maxI)` | Intensity-based grayscale |
+| `applyColorRamp(positions, colors)` | Apply color ramp to point cloud |
+| `estimateNormals(positions, k)` | kNN normal estimation → unit normals |
+| `flipNormals(normals, positions)` | Consistent orientation toward centroid |
 | `computeLasPointOffset(header, idx, format)` | Byte offset of Nth point |
 | `parseLasPointAt(bytes, offset, format)` | Parse single point |
 | `parsePcdAscii(text)` | Parse ASCII PCD |
@@ -361,6 +403,10 @@ const geojson = core.decodeMvtToGeoJson(new Uint8Array(buffer));
 | `isPointInRing(px, py, ring)` | Point-in-polygon via ray-casting → `bool` |
 | `polygonIntersection(ring1, ring2)` | **Boolean intersection** of two polygons → `Float64Array` |
 | `polygonUnion(ring1, ring2)` | **Boolean union** of two polygons → `Float64Array` |
+| `contains(ring, px, py)` | Point-in-polygon predicate |
+| `disjoint(ring1, ring2)` | Two polygons are disjoint |
+| `touches(ring1, ring2)` | Two polygons touch (boundary contact) |
+| `polygonIntersects(ring1, ring2)` | Two polygons intersect |
 
 ### Spatial Analysis
 
@@ -374,6 +420,13 @@ const geojson = core.decodeMvtToGeoJson(new Uint8Array(buffer));
 | `bufferLineString(coords, radius, segments?)` | Buffer a line → `Float64Array` |
 | `boundingBox(coords)` | Compute bbox → `[minLng, minLat, maxLng, maxLat]` |
 | `centroid(coords)` | Compute centroid → `[lng, lat]` |
+
+### TIN & Interpolation
+
+| Function | Description |
+|----------|-------------|
+| `buildTin(coords, values)` | Build Delaunay TIN → `TinResult` |
+| `tinInterpolate(tin, x, y)` | Interpolate value at point from TIN |
 
 ### Utilities
 
