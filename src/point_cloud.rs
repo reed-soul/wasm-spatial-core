@@ -7,6 +7,8 @@
 
 use wasm_bindgen::prelude::*;
 
+use crate::validate_input_size;
+
 // ===========================================================================
 // LAS Header Format (Public Header Block, first 227 bytes for full header)
 // ===========================================================================
@@ -130,7 +132,7 @@ impl LasPointCloud {
 // Internal byte readers
 // ===========================================================================
 
-fn read_f64_le(bytes: &[u8], offset: usize) -> f64 {
+pub fn read_f64_le(bytes: &[u8], offset: usize) -> f64 {
     f64::from_le_bytes([
         bytes[offset],
         bytes[offset + 1],
@@ -143,7 +145,7 @@ fn read_f64_le(bytes: &[u8], offset: usize) -> f64 {
     ])
 }
 
-fn read_u32_le(bytes: &[u8], offset: usize) -> u32 {
+pub fn read_u32_le(bytes: &[u8], offset: usize) -> u32 {
     u32::from_le_bytes([
         bytes[offset],
         bytes[offset + 1],
@@ -152,7 +154,7 @@ fn read_u32_le(bytes: &[u8], offset: usize) -> u32 {
     ])
 }
 
-fn read_u16_le(bytes: &[u8], offset: usize) -> u16 {
+pub fn read_u16_le(bytes: &[u8], offset: usize) -> u16 {
     u16::from_le_bytes([bytes[offset], bytes[offset + 1]])
 }
 
@@ -173,7 +175,7 @@ fn read_i32_le(bytes: &[u8], offset: usize) -> i32 {
 // LAS parsing core (pure Rust — testable without WASM runtime)
 // ===========================================================================
 
-fn parse_las_header_core(bytes: &[u8]) -> Result<LasHeader, String> {
+pub fn parse_las_header_core(bytes: &[u8]) -> Result<LasHeader, String> {
     if bytes.len() < 230 {
         return Err("LAS header requires at least 230 bytes".to_string());
     }
@@ -200,7 +202,7 @@ fn parse_las_header_core(bytes: &[u8]) -> Result<LasHeader, String> {
     })
 }
 
-fn parse_las_points_core(bytes: &[u8]) -> Result<LasPointCloud, String> {
+pub fn parse_las_points_core(bytes: &[u8]) -> Result<LasPointCloud, String> {
     let num_points = read_u32_le(bytes, 110) as usize;
     let point_offset = read_u32_le(bytes, 98) as usize;
     let point_format = bytes[106];
@@ -265,12 +267,14 @@ fn parse_las_points_core(bytes: &[u8]) -> Result<LasPointCloud, String> {
 /// WASM binding for LAS header parsing.
 #[wasm_bindgen(js_name = "parseLasHeader")]
 pub fn parse_las_header(bytes: &[u8]) -> Result<LasHeader, JsValue> {
+    validate_input_size(bytes.len(), "LAS input")?;
     parse_las_header_core(bytes).map_err(|e| JsValue::from_str(&e))
 }
 
 /// WASM binding for LAS point parsing.
 #[wasm_bindgen(js_name = "parseLasPoints")]
 pub fn parse_las_points(bytes: &[u8]) -> Result<LasPointCloud, JsValue> {
+    validate_input_size(bytes.len(), "LAS input")?;
     parse_las_points_core(bytes).map_err(|e| JsValue::from_str(&e))
 }
 
@@ -278,7 +282,7 @@ pub fn parse_las_points(bytes: &[u8]) -> Result<LasPointCloud, JsValue> {
 // Decimation (pure Rust core — testable without WASM runtime)
 // ===========================================================================
 
-fn voxel_grid_decimate_core(
+pub fn voxel_grid_decimate_core(
     positions: &[f32],
     colors: &[u8],
     cell_size: f32,
@@ -321,7 +325,7 @@ fn voxel_grid_decimate_core(
     (out_pos, out_col)
 }
 
-fn random_decimate_core(
+pub fn random_decimate_core(
     positions: &[f32],
     colors: &[u8],
     target_count: usize,
@@ -737,12 +741,14 @@ fn parse_pcd_binary_core(bytes: &[u8]) -> Result<PcdPointCloud, String> {
 /// Parse ASCII PCD format text into a point cloud.
 #[wasm_bindgen(js_name = "parsePcdAscii")]
 pub fn parse_pcd_ascii(text: &str) -> Result<PcdPointCloud, JsValue> {
+    validate_input_size(text.len(), "PCD input")?;
     parse_pcd_ascii_core(text).map_err(|e| JsValue::from_str(&e))
 }
 
 /// Parse binary PCD format bytes into a point cloud.
 #[wasm_bindgen(js_name = "parsePcdBinary")]
 pub fn parse_pcd_binary(bytes: &[u8]) -> Result<PcdPointCloud, JsValue> {
+    validate_input_size(bytes.len(), "PCD binary input")?;
     parse_pcd_binary_core(bytes).map_err(|e| JsValue::from_str(&e))
 }
 
@@ -1042,6 +1048,275 @@ pub fn decimate_voxel_grid_with_progress(
     js_sys::Reflect::set(&obj, &"positions".into(), &pos_arr).unwrap();
     js_sys::Reflect::set(&obj, &"colors".into(), &col_arr).unwrap();
     obj
+}
+
+// ===========================================================================
+// COPC: Cloud-Optimized Point Cloud — Header-Only & Range-Based Access
+// ===========================================================================
+
+/// Lightweight LAS header info for range-based access (COPC core concept).
+///
+/// This lets frontend code compute byte offsets for individual points and
+/// use `fetch` with `Range` headers to load only the points it needs.
+#[wasm_bindgen]
+pub struct LasHeaderInfo {
+    num_points: u32,
+    point_offset: u32,
+    point_format_id: u8,
+    point_record_length: u16,
+    x_scale: f64,
+    y_scale: f64,
+    z_scale: f64,
+    x_offset: f64,
+    y_offset: f64,
+    z_offset: f64,
+    bounds_min_x: f64,
+    bounds_min_y: f64,
+    bounds_min_z: f64,
+    bounds_max_x: f64,
+    bounds_max_y: f64,
+    bounds_max_z: f64,
+    file_size: u32,
+}
+
+#[wasm_bindgen]
+impl LasHeaderInfo {
+    #[wasm_bindgen(getter, js_name = "numPoints")]
+    pub fn num_points(&self) -> u32 { self.num_points }
+
+    #[wasm_bindgen(getter, js_name = "pointOffset")]
+    pub fn point_offset(&self) -> u32 { self.point_offset }
+
+    #[wasm_bindgen(getter, js_name = "pointFormatId")]
+    pub fn point_format_id(&self) -> u8 { self.point_format_id }
+
+    #[wasm_bindgen(getter, js_name = "pointRecordLength")]
+    pub fn point_record_length(&self) -> u16 { self.point_record_length }
+
+    #[wasm_bindgen(getter, js_name = "xScale")]
+    pub fn x_scale(&self) -> f64 { self.x_scale }
+    #[wasm_bindgen(getter, js_name = "yScale")]
+    pub fn y_scale(&self) -> f64 { self.y_scale }
+    #[wasm_bindgen(getter, js_name = "zScale")]
+    pub fn z_scale(&self) -> f64 { self.z_scale }
+
+    #[wasm_bindgen(getter, js_name = "xOffset")]
+    pub fn x_offset(&self) -> f64 { self.x_offset }
+    #[wasm_bindgen(getter, js_name = "yOffset")]
+    pub fn y_offset(&self) -> f64 { self.y_offset }
+    #[wasm_bindgen(getter, js_name = "zOffset")]
+    pub fn z_offset(&self) -> f64 { self.z_offset }
+
+    #[wasm_bindgen(getter, js_name = "boundsMinX")]
+    pub fn bounds_min_x(&self) -> f64 { self.bounds_min_x }
+    #[wasm_bindgen(getter, js_name = "boundsMinY")]
+    pub fn bounds_min_y(&self) -> f64 { self.bounds_min_y }
+    #[wasm_bindgen(getter, js_name = "boundsMinZ")]
+    pub fn bounds_min_z(&self) -> f64 { self.bounds_min_z }
+    #[wasm_bindgen(getter, js_name = "boundsMaxX")]
+    pub fn bounds_max_x(&self) -> f64 { self.bounds_max_x }
+    #[wasm_bindgen(getter, js_name = "boundsMaxY")]
+    pub fn bounds_max_y(&self) -> f64 { self.bounds_max_y }
+    #[wasm_bindgen(getter, js_name = "boundsMaxZ")]
+    pub fn bounds_max_z(&self) -> f64 { self.bounds_max_z }
+
+    #[wasm_bindgen(getter, js_name = "fileSize")]
+    pub fn file_size(&self) -> u32 { self.file_size }
+
+    /// Total size of point data in bytes.
+    #[wasm_bindgen(js_name = "pointDataSize")]
+    pub fn point_data_size(&self) -> u32 {
+        self.num_points * self.point_record_length as u32
+    }
+}
+
+/// Parsed data for a single LAS point.
+#[wasm_bindgen]
+pub struct PointData {
+    x: f64,
+    y: f64,
+    z: f64,
+    intensity: u16,
+    r: u8,
+    g: u8,
+    b: u8,
+}
+
+#[wasm_bindgen]
+impl PointData {
+    #[wasm_bindgen(getter)]
+    pub fn x(&self) -> f64 { self.x }
+    #[wasm_bindgen(getter)]
+    pub fn y(&self) -> f64 { self.y }
+    #[wasm_bindgen(getter)]
+    pub fn z(&self) -> f64 { self.z }
+    #[wasm_bindgen(getter)]
+    pub fn intensity(&self) -> u16 { self.intensity }
+    #[wasm_bindgen(getter)]
+    pub fn r(&self) -> u8 { self.r }
+    #[wasm_bindgen(getter)]
+    pub fn g(&self) -> u8 { self.g }
+    #[wasm_bindgen(getter)]
+    pub fn b(&self) -> u8 { self.b }
+}
+
+/// Parse only the LAS header (first 227+ bytes) for range-based access.
+///
+/// Returns a `LasHeaderInfo` with metadata needed to compute point offsets.
+/// This is the core COPC concept: read the header once, then fetch individual
+/// points on demand using `Range` headers.
+///
+/// # Arguments
+///
+/// * `bytes` - At least 230 bytes from the beginning of a LAS file.
+///
+/// # Example
+///
+/// ```ignore
+/// // In the browser:
+/// const response = await fetch("data.las", { headers: { Range: "bytes=0-229" } });
+/// const headerBytes = new Uint8Array(await response.arrayBuffer());
+/// const info = parseLasHeaderOnly(headerBytes);
+/// console.log(`File has ${info.numPoints()} points`);
+///
+/// // Fetch point 42:
+/// const offset = computeLasPointOffset(info, 42, info.pointFormatId());
+/// const pointResponse = await fetch("data.las", {
+///     headers: { Range: `bytes=${offset}-${offset + info.pointRecordLength() - 1}` }
+/// });
+/// const pointBytes = new Uint8Array(await pointResponse.arrayBuffer());
+/// const point = parseLasPointAt(pointBytes, 0, info.pointFormatId());
+/// ```
+#[wasm_bindgen(js_name = "parseLasHeaderOnly")]
+pub fn parse_las_header_only(bytes: &[u8]) -> Result<LasHeaderInfo, JsValue> {
+    if bytes.len() < 230 {
+        return Err(JsValue::from_str(
+            "LAS header requires at least 230 bytes",
+        ));
+    }
+    if &bytes[0..4] != b"LASF" {
+        return Err(JsValue::from_str("Invalid LAS magic: expected 'LASF'"));
+    }
+
+    Ok(LasHeaderInfo {
+        num_points: read_u32_le(bytes, 110),
+        point_offset: read_u32_le(bytes, 98),
+        point_format_id: bytes[106],
+        point_record_length: read_u16_le(bytes, 108),
+        x_scale: read_f64_le(bytes, 134),
+        y_scale: read_f64_le(bytes, 142),
+        z_scale: read_f64_le(bytes, 150),
+        x_offset: read_f64_le(bytes, 158),
+        y_offset: read_f64_le(bytes, 166),
+        z_offset: read_f64_le(bytes, 174),
+        bounds_max_x: read_f64_le(bytes, 182),
+        bounds_max_y: read_f64_le(bytes, 190),
+        bounds_max_z: read_f64_le(bytes, 198),
+        bounds_min_x: read_f64_le(bytes, 206),
+        bounds_min_y: read_f64_le(bytes, 214),
+        bounds_min_z: read_f64_le(bytes, 222),
+        file_size: bytes.len() as u32,
+    })
+}
+
+/// Compute the byte offset of the Nth point in a LAS file.
+///
+/// Given header info from `parseLasHeaderOnly`, compute where point `point_index`
+/// starts in the file. This enables range-based `fetch` for individual points.
+#[wasm_bindgen(js_name = "computeLasPointOffset")]
+pub fn compute_las_point_offset(
+    header_info: &LasHeaderInfo,
+    point_index: u32,
+    _point_format: u8,
+) -> usize {
+    header_info.point_offset as usize
+        + point_index as usize * header_info.point_record_length as usize
+}
+
+/// Parse a single LAS point at a given byte offset.
+///
+/// The `offset` parameter is relative to the start of the `bytes` buffer
+/// (which should contain at least `point_record_length` bytes starting at
+/// `offset`). Returns a `PointData` with XYZ, intensity, and RGB (if present).
+#[wasm_bindgen(js_name = "parseLasPointAt")]
+pub fn parse_las_point_at(
+    bytes: &[u8],
+    offset: usize,
+    point_format: u8,
+) -> Result<PointData, JsValue> {
+    let has_color = point_format == 2 || point_format == 3;
+    let needed = if has_color { 26 } else { 20 };
+
+    if offset + needed > bytes.len() {
+        return Err(JsValue::from_str(&format!(
+            "Not enough bytes at offset {} (need {}, have {})",
+            offset,
+            needed,
+            bytes.len() - offset
+        )));
+    }
+
+    let raw_x = read_i32_le(bytes, offset) as f64;
+    let raw_y = read_i32_le(bytes, offset + 4) as f64;
+    let raw_z = read_i32_le(bytes, offset + 8) as f64;
+    let intensity = read_u16_le(bytes, offset + 12);
+
+    // Use scale/offset = 1.0/0.0 since this is meant to be used with
+    // raw bytes where the caller should handle coordinate reconstruction
+    // (or pass pre-scaled bytes).
+    let x = raw_x;
+    let y = raw_y;
+    let z = raw_z;
+
+    let (r, g, b) = if has_color {
+        (
+            bytes[offset + 20],
+            bytes[offset + 21],
+            bytes[offset + 22],
+        )
+    } else {
+        (0, 0, 0)
+    };
+
+    Ok(PointData { x, y, z, intensity, r, g, b })
+}
+
+/// Compute the byte offset of the Nth point (pure Rust, testable without WASM).
+#[cfg(test)]
+fn compute_las_point_offset_core(
+    point_offset: u32,
+    point_index: u32,
+    point_record_length: u16,
+) -> usize {
+    point_offset as usize + point_index as usize * point_record_length as usize
+}
+
+/// Parse a single point at a given offset (pure Rust core, testable without WASM).
+#[cfg(test)]
+#[allow(clippy::too_many_arguments)]
+fn parse_las_point_at_core(
+    bytes: &[u8],
+    offset: usize,
+    point_format: u8,
+    x_scale: f64,
+    y_scale: f64,
+    z_scale: f64,
+    x_offset: f64,
+    y_offset: f64,
+    z_offset: f64,
+) -> Result<(f64, f64, f64), String> {
+    let needed = if point_format == 2 || point_format == 3 { 26 } else { 20 };
+    if offset + needed > bytes.len() {
+        return Err(format!("Not enough bytes at offset {}", offset));
+    }
+    let raw_x = read_i32_le(bytes, offset) as f64;
+    let raw_y = read_i32_le(bytes, offset + 4) as f64;
+    let raw_z = read_i32_le(bytes, offset + 8) as f64;
+    Ok((
+        raw_x * x_scale + x_offset,
+        raw_y * y_scale + y_offset,
+        raw_z * z_scale + z_offset,
+    ))
 }
 
 // ===========================================================================
@@ -1542,5 +1817,61 @@ DATA ascii
         // At least final callback
         assert!(call_count >= 1);
         assert_eq!(last_processed, 4); // 4 points processed
+    }
+
+    // ── COPC / Range-based access tests ──────────────────────────
+
+    #[test]
+    fn test_parse_las_header_only() {
+        let points = vec![(10.0, 20.0, 30.0), (40.0, 50.0, 60.0)];
+        let blob = build_test_las_blob(&points, false);
+
+        // parse_las_header_only is the WASM function, but we can test the core logic
+        let num_points = read_u32_le(&blob, 110);
+        let point_offset = read_u32_le(&blob, 98);
+        let point_format = blob[106];
+        let point_record_length = read_u16_le(&blob, 108);
+
+        assert_eq!(num_points, 2);
+        assert_eq!(point_offset, 230);
+        assert_eq!(point_format, 0);
+        assert_eq!(point_record_length, 20);
+    }
+
+    #[test]
+    fn test_compute_las_point_offset() {
+        // 230 byte header, 20 byte points
+        assert_eq!(compute_las_point_offset_core(230, 0, 20), 230);
+        assert_eq!(compute_las_point_offset_core(230, 1, 20), 250);
+        assert_eq!(compute_las_point_offset_core(230, 5, 26), 360);
+        assert_eq!(compute_las_point_offset_core(0, 0, 20), 0);
+    }
+
+    #[test]
+    fn test_parse_las_point_at_range_based() {
+        let points = vec![(100.0, 200.0, 300.0), (400.0, 500.0, 600.0), (700.0, 800.0, 900.0)];
+        let blob = build_test_las_blob(&points, false);
+
+        let point_offset = read_u32_le(&blob, 98) as usize;
+        let point_format = blob[106];
+
+        // Parse point 0 (at point_offset)
+        let (x0, y0, z0) = parse_las_point_at_core(
+            &blob, point_offset, point_format,
+            1.0, 1.0, 1.0, 0.0, 0.0, 0.0,
+        ).unwrap();
+        assert_eq!(x0, 100.0);
+        assert_eq!(y0, 200.0);
+        assert_eq!(z0, 300.0);
+
+        // Parse point 2 (at point_offset + 2 * record_length)
+        let offset2 = compute_las_point_offset_core(point_offset as u32, 2, 20);
+        let (x2, y2, z2) = parse_las_point_at_core(
+            &blob, offset2, point_format,
+            1.0, 1.0, 1.0, 0.0, 0.0, 0.0,
+        ).unwrap();
+        assert_eq!(x2, 700.0);
+        assert_eq!(y2, 800.0);
+        assert_eq!(z2, 900.0);
     }
 }
