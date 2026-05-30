@@ -390,8 +390,8 @@ pub fn decimate_voxel_grid(
     col_arr.copy_from(&out_col);
 
     let obj = js_sys::Object::new();
-    js_sys::Reflect::set(&obj, &"positions".into(), &pos_arr).unwrap();
-    js_sys::Reflect::set(&obj, &"colors".into(), &col_arr).unwrap();
+    js_sys::Reflect::set(&obj, &"positions".into(), &pos_arr).ok();
+    js_sys::Reflect::set(&obj, &"colors".into(), &col_arr).ok();
     obj
 }
 
@@ -418,8 +418,8 @@ pub fn decimate_random(
     col_arr.copy_from(&out_col);
 
     let obj = js_sys::Object::new();
-    js_sys::Reflect::set(&obj, &"positions".into(), &pos_arr).unwrap();
-    js_sys::Reflect::set(&obj, &"colors".into(), &col_arr).unwrap();
+    js_sys::Reflect::set(&obj, &"positions".into(), &pos_arr).ok();
+    js_sys::Reflect::set(&obj, &"colors".into(), &col_arr).ok();
     obj
 }
 
@@ -842,8 +842,8 @@ pub fn generate_indexed_geometry(positions: &js_sys::Float32Array) -> js_sys::Ob
     idx_arr.copy_from(&indices);
 
     let obj = js_sys::Object::new();
-    js_sys::Reflect::set(&obj, &"positions".into(), &pos_arr).unwrap();
-    js_sys::Reflect::set(&obj, &"indices".into(), &idx_arr).unwrap();
+    js_sys::Reflect::set(&obj, &"positions".into(), &pos_arr).ok();
+    js_sys::Reflect::set(&obj, &"indices".into(), &idx_arr).ok();
     obj
 }
 
@@ -1045,8 +1045,8 @@ pub fn decimate_voxel_grid_with_progress(
     col_arr.copy_from(&out_col);
 
     let obj = js_sys::Object::new();
-    js_sys::Reflect::set(&obj, &"positions".into(), &pos_arr).unwrap();
-    js_sys::Reflect::set(&obj, &"colors".into(), &col_arr).unwrap();
+    js_sys::Reflect::set(&obj, &"positions".into(), &pos_arr).ok();
+    js_sys::Reflect::set(&obj, &"colors".into(), &col_arr).ok();
     obj
 }
 
