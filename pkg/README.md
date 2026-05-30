@@ -510,9 +510,18 @@ Preliminary benchmarks on Apple M1 (Chrome 120, 1M coordinate pairs):
 
 ## 📋 Roadmap
 
-See **[PLAN.md](./PLAN.md)** for the full development roadmap.
+See **[PLAN.md](./PLAN.md)** and **[ROADMAP_V1.md](./ROADMAP_V1.md)** for the full development roadmap.
 
 All three phases completed ✅ — Phase 1 (MVP), Phase 2 (Ecosystem), Phase 3 (Heterogeneous Data), plus backlogged features.
+
+### LAZ Support
+
+The `laz` crate (v0.12.1) compiles successfully to `wasm32-unknown-unknown`. LAZ decompression is not yet integrated but the path forward is clear:
+1. Add `laz` as an optional `laz` feature
+2. Implement LAZ decompression in `PointCloudStreamer`
+3. Add COPC chunk table parsing for indexed random access
+
+Use `supportsLaz()` and `lazStatus()` WASM exports to check runtime support.
 
 ---
 
