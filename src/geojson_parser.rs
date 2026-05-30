@@ -11,6 +11,7 @@
 //! is a view onto WASM memory that JS can read without an additional copy.
 
 use crate::errors::{SpatialError, SpatialErrorDetail};
+use crate::validate_input_size;
 use geojson::{Feature, GeoJson, Geometry, Value as GeoValue};
 use js_sys::Float64Array;
 use wasm_bindgen::prelude::*;
@@ -110,7 +111,206 @@ fn collect_features(geojson: GeoJson) -> Vec<Feature> {
 }
 
 // ---------------------------------------------------------------------------
-// Public WASM API
+// GeoJSON Write (Serialization) — internal helpers
+// ---------------------------------------------------------------------------
+
+/// Build a GeoJSON coordinate array from a flat buffer, respecting the geometry type.
+fn build_geojson_coords(coords: &[f64], geometry_type: &str) -> serde_json::Value {
+    match geometry_type {
+        "Point" => {
+            assert!(coords.len() >= 2, "Point requires at least 2 values");
+            serde_json::json!([coords[0], coords[1]])
+        }
+        "MultiPoint" | "LineString" => {
+            let pts: Vec<serde_json::Value> = coords
+                .chunks_exact(2)
+                .map(|p| serde_json::json!([p[0], p[1]]))
+                .collect();
+            serde_json::json!(pts)
+        }
+        "Polygon" => {
+            // Assume single ring (exterior) — coords are a closed ring
+            let ring: Vec<serde_json::Value> = coords
+                .chunks_exact(2)
+                .map(|p| serde_json::json!([p[0], p[1]]))
+                .collect();
+            serde_json::json!([ring])
+        }
+        _ => {
+            // Unknown type — treat as LineString
+            let pts: Vec<serde_json::Value> = coords
+                .chunks_exact(2)
+                .map(|p| serde_json::json!([p[0], p[1]]))
+                .collect();
+            serde_json::json!(pts)
+        }
+    }
+}
+
+/// Native (non-WASM) helper: generate a GeoJSON Feature string from coords and type.
+pub(crate) fn geojson_from_coords_native(coords: &[f64], geometry_type: &str) -> String {
+    let geo_coords = build_geojson_coords(coords, geometry_type);
+    let feature = serde_json::json!({
+        "type": "Feature",
+        "geometry": {
+            "type": geometry_type,
+            "coordinates": geo_coords
+        },
+        "properties": {}
+    });
+    serde_json::to_string(&feature).unwrap()
+}
+
+/// Native (non-WASM) helper: generate a FeatureCollection from multiple features.
+pub(crate) fn geojson_feature_collection_native(
+    coords: &[f64],
+    types: &str,
+    properties_json: &str,
+) -> String {
+    let type_list: Vec<&str> = types.split(',').collect();
+    let prop_list: Vec<&str> = properties_json.split('\x01').collect();
+
+    let mut features = Vec::new();
+    let mut offset = 0usize;
+
+    for (i, gtype) in type_list.iter().enumerate() {
+        // Determine how many coordinate pairs this feature consumes
+        let pair_count = match *gtype {
+            "Point" => 1,
+            _ => {
+                // For other types, we need to figure out from the total or parse property boundaries
+                // We'll use a different strategy: parse from remaining coords greedily
+                // For MultiPoint/LineString: remaining pairs until next feature
+                // For Polygon: detect closed ring
+                count_pairs_for_type(*gtype, &coords[offset..])
+            }
+        };
+
+        let end = (offset + pair_count * 2).min(coords.len());
+        let feature_coords = &coords[offset..end];
+
+        let geo_coords = build_geojson_coords(feature_coords, gtype);
+        let prop_str = prop_list.get(i).copied().unwrap_or("{}");
+        let prop_val: serde_json::Value = serde_json::from_str(prop_str).unwrap_or(serde_json::json!({}));
+
+        features.push(serde_json::json!({
+            "type": "Feature",
+            "geometry": {
+                "type": gtype,
+                "coordinates": geo_coords
+            },
+            "properties": prop_val
+        }));
+
+        offset = end;
+    }
+
+    let fc = serde_json::json!({
+        "type": "FeatureCollection",
+        "features": features
+    });
+    serde_json::to_string(&fc).unwrap()
+}
+
+/// Count coordinate pairs for a given geometry type from a coordinate slice.
+fn count_pairs_for_type(gtype: &str, coords: &[f64]) -> usize {
+    let remaining = coords.len() / 2;
+    match gtype {
+        "Point" => 1,
+        "LineString" | "MultiPoint" => remaining,
+        "Polygon" => {
+            // Find the closed ring: scan until we see the same point as the start
+            if remaining < 4 {
+                return remaining;
+            }
+            for i in 1..remaining {
+                if (coords[i * 2] - coords[0]).abs() < 1e-12
+                    && (coords[i * 2 + 1] - coords[1]).abs() < 1e-12
+                {
+                    return i + 1; // include the closing point
+                }
+            }
+            remaining
+        }
+        _ => remaining,
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Public WASM API — GeoJSON Write
+// ---------------------------------------------------------------------------
+
+/// Generate a standard GeoJSON Feature string from coordinate buffer and geometry type.
+///
+/// # Arguments
+///
+/// * `coords` — Flat `Float64Array` `[lng0, lat0, lng1, lat1, …]`
+/// * `geometry_type` — One of: `"Point"`, `"LineString"`, `"Polygon"`, `"MultiPoint"`
+///
+/// # Returns
+///
+/// A JSON string representing a GeoJSON Feature.
+///
+/// # Example (JS)
+/// ```js
+/// const coords = new Float64Array([116.404, 39.915]);
+/// const json = core.geoJsonFromCoords(coords, "Point");
+/// // json = '{"type":"Feature","geometry":{"type":"Point","coordinates":[116.404,39.915]},"properties":{}}'
+/// ```
+#[wasm_bindgen(js_name = "geoJsonFromCoords")]
+pub fn geojson_from_coords(coords: &Float64Array, geometry_type: &str) -> Result<String, JsValue> {
+    validate_input_size(coords.length() as usize * 8, "geoJsonFromCoords")?;
+    let len = coords.length() as usize;
+    let mut buf = vec![0.0; len];
+    coords.copy_to(&mut buf);
+
+    match geometry_type {
+        "Point" | "LineString" | "Polygon" | "MultiPoint" => {}
+        _ => {
+            return Err(JsValue::from_str(&format!(
+                "Unsupported geometry type: {}",
+                geometry_type
+            )));
+        }
+    }
+
+    Ok(geojson_from_coords_native(&buf, geometry_type))
+}
+
+/// Generate a GeoJSON FeatureCollection string from multiple features.
+///
+/// # Arguments
+///
+/// * `coords` — Flat `Float64Array` with all feature coordinates concatenated
+/// * `types` — Comma-separated geometry types (one per feature)
+/// * `properties_json` — Properties for each feature, separated by `\x01` (unit separator).
+///   Each segment should be a valid JSON object string. Use `"{}"` for empty properties.
+///
+/// # Returns
+///
+/// A JSON string representing a GeoJSON FeatureCollection.
+///
+/// # Example (JS)
+/// ```js
+/// const coords = new Float64Array([116.4, 39.9, 121.5, 31.2]);
+/// const json = core.geoJsonFeatureCollection(coords, "Point,Point", '{"name":"BJ"}\x01{"name":"SH"}');
+/// ```
+#[wasm_bindgen(js_name = "geoJsonFeatureCollection")]
+pub fn geojson_feature_collection(
+    coords: &Float64Array,
+    types: &str,
+    properties_json: &str,
+) -> Result<String, JsValue> {
+    validate_input_size(coords.length() as usize * 8, "geoJsonFeatureCollection")?;
+    let len = coords.length() as usize;
+    let mut buf = vec![0.0; len];
+    coords.copy_to(&mut buf);
+
+    Ok(geojson_feature_collection_native(&buf, types, properties_json))
+}
+
+// ---------------------------------------------------------------------------
+// Public WASM API — GeoJSON Parse
 // ---------------------------------------------------------------------------
 
 /// Parse a GeoJSON string and return **all** coordinate pairs as a flat
@@ -512,5 +712,119 @@ mod tests {
         let props = parse_geojson_properties(geojson).unwrap();
         let parsed: Vec<Option<serde_json::Value>> = serde_json::from_str(&props).unwrap();
         assert!(parsed[0].is_none());
+    }
+
+    // ── GeoJSON Write tests ────────────────────────────────────
+
+    #[test]
+    fn test_geojson_from_coords_point() {
+        let coords = vec![116.404, 39.915];
+        let json = native_geojson_from_coords(&coords, "Point");
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed["type"], "Feature");
+        assert_eq!(parsed["geometry"]["type"], "Point");
+        assert_eq!(parsed["geometry"]["coordinates"][0], 116.404);
+        assert_eq!(parsed["geometry"]["coordinates"][1], 39.915);
+    }
+
+    #[test]
+    fn test_geojson_from_coords_linestring() {
+        let coords = vec![100.0, 0.0, 101.0, 1.0, 102.0, 2.0];
+        let json = native_geojson_from_coords(&coords, "LineString");
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed["geometry"]["type"], "LineString");
+        let arr = parsed["geometry"]["coordinates"].as_array().unwrap();
+        assert_eq!(arr.len(), 3);
+        assert_eq!(arr[0][0], 100.0);
+        assert_eq!(arr[2][1], 2.0);
+    }
+
+    #[test]
+    fn test_geojson_from_coords_multipoint() {
+        let coords = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
+        let json = native_geojson_from_coords(&coords, "MultiPoint");
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed["geometry"]["type"], "MultiPoint");
+        let arr = parsed["geometry"]["coordinates"].as_array().unwrap();
+        assert_eq!(arr.len(), 3);
+    }
+
+    #[test]
+    fn test_geojson_from_coords_polygon() {
+        // Closed ring: [0,0, 1,0, 1,1, 0,1, 0,0]
+        let coords = vec![0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0];
+        let json = native_geojson_from_coords(&coords, "Polygon");
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed["geometry"]["type"], "Polygon");
+        let rings = parsed["geometry"]["coordinates"].as_array().unwrap();
+        assert_eq!(rings.len(), 1); // one exterior ring
+        assert_eq!(rings[0].as_array().unwrap().len(), 5); // 5 vertices (closed)
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    #[test]
+    fn test_geojson_roundtrip_point() {
+        let coords = vec![116.404, 39.915];
+        let json = native_geojson_from_coords(&coords, "Point");
+        // Re-parse with our parser
+        let re_coords = parse_geojson_coords(&json).unwrap();
+        let mut buf = vec![0.0; 2];
+        re_coords.copy_to(&mut buf);
+        assert!((buf[0] - coords[0]).abs() < 1e-10);
+        assert!((buf[1] - coords[1]).abs() < 1e-10);
+    }
+
+    fn native_geojson_from_coords(coords: &[f64], geometry_type: &str) -> String {
+        geojson_from_coords_native(coords, geometry_type)
+    }
+
+    #[test]
+    fn test_geojson_feature_collection_native() {
+        let coords1 = vec![116.4, 39.9]; // Point
+        let coords2 = vec![100.0, 0.0, 101.0, 1.0]; // LineString
+        let mut all_coords = coords1.clone();
+        all_coords.extend_from_slice(&coords2);
+        let types = "Point,LineString";
+        let props = "{\"name\":\"Beijing\"}\x01{}";
+
+        let json = native_geojson_feature_collection(&all_coords, types, props);
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed["type"], "FeatureCollection");
+        let features = parsed["features"].as_array().unwrap();
+        assert_eq!(features.len(), 2);
+        assert_eq!(features[0]["geometry"]["type"], "Point");
+        assert_eq!(features[1]["geometry"]["type"], "LineString");
+        assert_eq!(features[0]["properties"]["name"], "Beijing");
+    }
+
+    fn native_geojson_feature_collection(
+        coords: &[f64],
+        types: &str,
+        properties_json: &str,
+    ) -> String {
+        geojson_feature_collection_native(coords, types, properties_json)
+    }
+
+    #[test]
+    fn test_geojson_feature_collection_roundtrip() {
+        // Build a FC: Point + LineString
+        let coords = vec![10.0, 20.0, 30.0, 40.0, 50.0, 60.0];
+        let types = "Point,LineString";
+        let props = "{\"a\":1}\x01{\"b\":2}";
+        let json = native_geojson_feature_collection(&coords, types, props);
+
+        // Parse back with native helpers
+        let geojson: GeoJson = json.parse().unwrap();
+        let features = collect_features(geojson);
+        assert_eq!(features.len(), 2);
+        let mut all_coords = Vec::new();
+        for feat in &features {
+            if let Some(geom) = &feat.geometry {
+                extract_coords(geom, &mut all_coords);
+            }
+        }
+        assert_eq!(all_coords.len(), 6);
+        assert_eq!(all_coords[0], 10.0);
+        assert_eq!(all_coords[5], 60.0);
     }
 }
