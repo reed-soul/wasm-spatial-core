@@ -183,7 +183,7 @@ fn transform_slice_in_place(coords: &mut [f64], f: fn(f64, f64) -> (f64, f64)) {
 /// and better instruction-level parallelism.
 #[cfg(all(target_arch = "wasm32", not(feature = "multi-thread")))]
 #[target_feature(enable = "simd128")]
-#[inline(always)]
+#[inline]
 unsafe fn transform_slice_in_place_simd(coords: &mut [f64], f: fn(f64, f64) -> (f64, f64)) {
     let len = coords.len();
     let pairs = len / 2;
