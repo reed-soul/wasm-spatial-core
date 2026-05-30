@@ -310,6 +310,44 @@ export class Octree {
 }
 
 /**
+ * Result of parsing a PLY file. Contains vertex positions, optional colors,
+ * optional normals, and face count.
+ */
+export class PlyResult {
+    private constructor();
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * Whether color data is present.
+     */
+    hasColors(): boolean;
+    /**
+     * Whether normal data is present.
+     */
+    hasNormals(): boolean;
+    /**
+     * Vertex colors as Uint8Array [r, g, b, ...], or null if no color data.
+     */
+    readonly colors: Uint8Array;
+    /**
+     * Number of faces (polygons).
+     */
+    readonly faceCount: number;
+    /**
+     * Vertex normals as Float32Array [nx, ny, nz, ...], or null if no normal data.
+     */
+    readonly normals: Float32Array;
+    /**
+     * Vertex positions as Float32Array [x, y, z, x, y, z, ...].
+     */
+    readonly positions: Float32Array;
+    /**
+     * Number of vertices.
+     */
+    readonly vertexCount: number;
+}
+
+/**
  * A spatial index for 2D line segments using an R-Tree.
  *
  * Indexes individual edges (line segments) from LineString geometries.
@@ -1054,6 +1092,11 @@ export function destination(lng: number, lat: number, bearing_deg: number, dista
 export function disjoint(ring1: Float64Array, ring2: Float64Array): boolean;
 
 /**
+ * Get E57 support status as a human-readable string.
+ */
+export function e57Status(): string;
+
+/**
  * Encode a point cloud tile into 3D Tiles Point Cloud (pnts) binary format.
  *
  * # Arguments
@@ -1453,6 +1496,38 @@ export function parseGeoJsonStream(input: string, chunk_size: number, on_chunk: 
 export function parseIfcGeometry(text: string): IfcGeometryResult;
 
 /**
+ * Extract vertex positions from an OBJ file.
+ *
+ * Returns a Float32Array of [x0, y0, z0, x1, y1, z1, ...].
+ * Only processes `v` lines; faces, materials, etc. are ignored.
+ */
+export function parseObjVertices(text: string): Float32Array;
+
+/**
+ * Extract vertex positions and normals from an OBJ file.
+ *
+ * Returns a JS object: `{ positions: Float32Array, normals: Float32Array | null }`.
+ * Normals are matched to vertices by order; returns null if counts don't match.
+ */
+export function parseObjWithNormals(text: string): object;
+
+/**
+ * Parse a PLY (Polygon File Format) file.
+ *
+ * Supports ASCII and binary_little_endian formats.
+ * Returns a `PlyResult` with vertex positions, optional colors, optional normals.
+ *
+ * # Example (JS)
+ * ```js
+ * const result = core.parsePly(arrayBuffer);
+ * const positions = result.positions();
+ * const colors = result.colors();
+ * const vertexCount = result.vertexCount;
+ * ```
+ */
+export function parsePly(bytes: Uint8Array): PlyResult;
+
+/**
  * Parse Well-Known Binary (WKB) data into a flat `Float64Array`.
  *
  * Supports 2D POINT, LINESTRING, POLYGON, MULTIPOINT.
@@ -1655,6 +1730,11 @@ export function sortCoordsByLat(coords: Float64Array): Float64Array;
 export function sortCoordsByLng(coords: Float64Array): Float64Array;
 
 /**
+ * Check if E57 format is supported (requires `e57-support` feature).
+ */
+export function supportsE57(): boolean;
+
+/**
  * Interpolate a Z value on a TIN surface at (x, y) using barycentric interpolation.
  *
  * Finds the triangle containing (x, y) and interpolates Z.
@@ -1792,6 +1872,7 @@ export interface InitOutput {
     readonly __wbg_mvtfeature_free: (a: number, b: number) => void;
     readonly __wbg_mvtlayer_free: (a: number, b: number) => void;
     readonly __wbg_octree_free: (a: number, b: number) => void;
+    readonly __wbg_plyresult_free: (a: number, b: number) => void;
     readonly __wbg_set_vectortileoptions_buffer: (a: number, b: number) => void;
     readonly __wbg_set_vectortileoptions_extent: (a: number, b: number) => void;
     readonly __wbg_set_vectortileoptions_generate_id: (a: number, b: number) => void;
@@ -1867,6 +1948,7 @@ export interface InitOutput {
     readonly denormalizeCoords: (a: number, b: number) => number;
     readonly destination: (a: number, b: number, c: number, d: number) => number;
     readonly disjoint: (a: number, b: number) => number;
+    readonly e57Status: (a: number) => void;
     readonly encodePntsTile: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
     readonly filterGeoJsonByBBox: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
     readonly filterGeoJsonByProperty: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
@@ -1936,8 +2018,18 @@ export interface InitOutput {
     readonly parseGeoJsonProperties: (a: number, b: number, c: number) => void;
     readonly parseGeoJsonStream: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly parseIfcGeometry: (a: number, b: number) => number;
+    readonly parseObjVertices: (a: number, b: number) => number;
+    readonly parseObjWithNormals: (a: number, b: number, c: number) => void;
+    readonly parsePly: (a: number, b: number, c: number) => void;
     readonly parseWkb: (a: number, b: number) => void;
     readonly parseWkt: (a: number, b: number, c: number) => void;
+    readonly plyresult_colors: (a: number) => number;
+    readonly plyresult_faceCount: (a: number) => number;
+    readonly plyresult_hasColors: (a: number) => number;
+    readonly plyresult_hasNormals: (a: number) => number;
+    readonly plyresult_normals: (a: number) => number;
+    readonly plyresult_positions: (a: number) => number;
+    readonly plyresult_vertexCount: (a: number) => number;
     readonly polygonArea: (a: number, b: number) => void;
     readonly polygonIntersection: (a: number, b: number) => number;
     readonly polygonIntersects: (a: number, b: number) => number;
@@ -1960,6 +2052,7 @@ export interface InitOutput {
     readonly spatialindex_new: (a: number) => number;
     readonly spatialindex_searchBBox: (a: number, b: number, c: number, d: number, e: number) => number;
     readonly spatialindex_size: (a: number) => number;
+    readonly supportsE57: () => number;
     readonly tilesetresult_tile: (a: number, b: number) => number;
     readonly tilesetresult_tileBounds: (a: number, b: number) => number;
     readonly tilesetresult_tileUri: (a: number, b: number, c: number) => void;
@@ -1990,9 +2083,9 @@ export interface InitOutput {
     readonly __wbg_ifcmesh_free: (a: number, b: number) => void;
     readonly tinresult_vertexCount: (a: number) => number;
     readonly tinresult_triangleCount: (a: number) => number;
+    readonly ifcmesh_indices: (a: number) => number;
     readonly tinresult_positions: (a: number) => number;
     readonly tinresult_indices: (a: number) => number;
-    readonly ifcmesh_indices: (a: number) => number;
     readonly ifcmesh_positions: (a: number) => number;
     readonly __wbindgen_export: (a: number, b: number) => number;
     readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;

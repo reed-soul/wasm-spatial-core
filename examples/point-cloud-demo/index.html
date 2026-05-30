@@ -184,6 +184,22 @@
       margin-bottom: 8px;
     }
 
+    /* Format badges */
+    .format-badges {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+      font-size: 0.7rem;
+    }
+    .format-badge {
+      background: rgba(88, 166, 255, 0.15);
+      color: var(--accent);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+
     /* Canvas container */
     .canvas-container {
       flex: 1;
@@ -269,13 +285,19 @@
   <aside class="sidebar">
     <!-- Upload -->
     <div class="panel">
-      <div class="panel-title">📁 Upload LAS File</div>
+      <div class="panel-title">📁 Upload Point Cloud</div>
       <div id="dropZone" class="drop-zone">
         <span class="icon">📂</span>
-        Drag & drop a .las or .laz file here<br>
+        Drag & drop a point cloud file here<br>
         or click to browse
+        <div class="format-badges">
+          <span class="format-badge">.las</span>
+          <span class="format-badge">.laz</span>
+          <span class="format-badge">.ply</span>
+          <span class="format-badge">.obj</span>
+        </div>
       </div>
-      <input type="file" id="fileInput" accept=".las,.laz" style="display:none">
+      <input type="file" id="fileInput" accept=".las,.laz,.ply,.obj" style="display:none">
       <div id="progressContainer" class="progress-container">
         <div class="progress-bar">
           <div id="progressFill" class="progress-bar-fill"></div>
@@ -326,7 +348,7 @@
   <div class="canvas-container">
     <div id="hint" class="hint">
       <span class="icon">☁️</span>
-      Load a .las or .laz file to view point cloud
+      Load a .las, .laz, .ply, or .obj file to view point cloud
     </div>
     <div id="loadingOverlay" class="loading-overlay">
       <div class="spinner"></div>
@@ -538,13 +560,39 @@ function applyIntensityColors(positions) {
 }
 
 // =========================================================================
-// LAS Processing Pipeline
+// File Processing Pipeline
 // =========================================================================
 
 let currentPositions = null;
 let currentRgbBytes = null;
 let currentHeader = null;
 let currentFileInfo = null;
+
+function getFormatFromName(filename) {
+  const ext = filename.toLowerCase().split('.').pop();
+  return ext; // 'las', 'laz', 'ply', 'obj'
+}
+
+async function processFile(file) {
+  const format = getFormatFromName(file.name);
+  switch (format) {
+    case 'las':
+    case 'laz':
+      await processLasFile(file);
+      break;
+    case 'ply':
+      await processPlyFile(file);
+      break;
+    case 'obj':
+      await processObjFile(file);
+      break;
+    default:
+      showError(`Unsupported format: .${format}. Supported: .las, .laz, .ply, .obj`);
+      hideLoading();
+  }
+}
+
+// ── LAS/LAZ Processing ──────────────────────────────────────────
 
 async function processLasFile(file) {
   showLoading('Reading file...');
@@ -583,11 +631,20 @@ async function processLasFile(file) {
   // Auto-detect format (LAS/LAZ/COPC) and parse with progress
   const isLaz = currentHeader.pointFormatId() >= 128;
   let cloud;
-  if (isLaz) {
+  if (isLaz && wasm.supportsLaz()) {
     cloud = wasm.parseLazPointsStream(bytes, (processed, total) => {
       const pct = 20 + Math.floor((processed / total) * 50);
       setProgress(pct, `Decompressing ${processed.toLocaleString()} / ${total.toLocaleString()} points`);
     });
+  } else if (isLaz) {
+    // Fallback: try parsePointCloudAuto
+    try {
+      cloud = wasm.parsePointCloudAuto(bytes);
+    } catch (e) {
+      showError('LAZ support not available. Build with --features laz-support.');
+      hideLoading();
+      return;
+    }
   } else {
     cloud = wasm.parseLasPointsWithProgress(bytes, (processed, total) => {
       const pct = 20 + Math.floor((processed / total) * 50);
@@ -608,6 +665,98 @@ async function processLasFile(file) {
   currentPositions = positions;
   currentRgbBytes = rgbBytes;
 
+  showFileInfoAndRender(file.name, file.size, positions, rgbBytes, {
+    numPoints: currentHeader.numPoints,
+    version: `${currentHeader.versionMajor}.${currentHeader.versionMinor}`,
+    format: currentHeader.pointFormatId,
+  });
+}
+
+// ── PLY Processing ──────────────────────────────────────────────
+
+async function processPlyFile(file) {
+  showLoading('Reading PLY file...');
+  setProgress(10, 'Reading file...');
+
+  const bytes = new Uint8Array(await file.arrayBuffer());
+
+  showLoading('Parsing PLY...');
+  setProgress(30, 'Parsing vertices...');
+
+  let plyResult;
+  try {
+    plyResult = wasm.parsePly(bytes);
+  } catch (e) {
+    showError(`Failed to parse PLY: ${e}`);
+    hideLoading();
+    return;
+  }
+
+  const vertexCount = plyResult.vertexCount();
+  if (vertexCount === 0) {
+    showError('PLY file contains no vertices.');
+    hideLoading();
+    return;
+  }
+
+  const positions = Array.from(plyResult.positions());
+  let rgbBytes = null;
+  if (plyResult.hasColors()) {
+    rgbBytes = Array.from(plyResult.colors());
+  }
+
+  currentPositions = positions;
+  currentRgbBytes = rgbBytes;
+
+  setProgress(70, `Parsed ${vertexCount.toLocaleString()} vertices`);
+
+  showFileInfoAndRender(file.name, file.size, positions, rgbBytes, {
+    numPoints: vertexCount,
+    version: '-',
+    format: 'PLY',
+  });
+}
+
+// ── OBJ Processing ──────────────────────────────────────────────
+
+async function processObjFile(file) {
+  showLoading('Reading OBJ file...');
+  setProgress(10, 'Reading file...');
+
+  const text = await file.text();
+
+  showLoading('Parsing OBJ...');
+  setProgress(30, 'Extracting vertices...');
+
+  try {
+    const positions = Array.from(wasm.parseObjVertices(text));
+    const vertexCount = positions.length / 3;
+
+    if (vertexCount === 0) {
+      showError('OBJ file contains no vertices.');
+      hideLoading();
+      return;
+    }
+
+    currentPositions = positions;
+    currentRgbBytes = null;
+
+    setProgress(70, `Extracted ${vertexCount.toLocaleString()} vertices`);
+
+    showFileInfoAndRender(file.name, file.size, positions, null, {
+      numPoints: vertexCount,
+      version: '-',
+      format: 'OBJ',
+    });
+  } catch (e) {
+    showError(`Failed to parse OBJ: ${e}`);
+    hideLoading();
+  }
+}
+
+// ── Common Render Pipeline ──────────────────────────────────────
+
+function showFileInfoAndRender(fileName, fileSize, positions, rgbBytes, meta) {
   showLoading('Building octree & tiles...');
   setProgress(75, 'Building octree...');
 
@@ -628,25 +777,26 @@ async function processLasFile(file) {
   // Display
   const pointSize = parseFloat(document.getElementById('pointSize').value);
   const colorMode = document.getElementById('colorMode').value;
-
   renderPointCloud(positions, rgbBytes, pointSize, colorMode);
 
   // File info
   currentFileInfo = {
-    name: file.name,
-    size: file.size,
-    numPoints: currentHeader.numPoints,
+    name: fileName,
+    size: fileSize,
+    numPoints: meta.numPoints,
     tileCount,
-    version: `${currentHeader.versionMajor}.${currentHeader.versionMinor}`,
-    format: currentHeader.pointFormatId,
+    version: meta.version,
+    format: meta.format,
   };
   showFileInfo(currentFileInfo);
 
   // Memory info
-  const mem = wasm.memoryInfo();
-  document.getElementById('memoryValue').textContent = formatBytes(mem.used());
+  try {
+    const mem = wasm.memoryInfo();
+    document.getElementById('memoryValue').textContent = formatBytes(mem.used());
+  } catch (e) { /* memoryInfo not available */ }
 
-  document.getElementById('pointCountValue').textContent = positions.length / 3;
+  document.getElementById('pointCountValue').textContent = (positions.length / 3).toLocaleString();
   document.getElementById('tileCountValue').textContent = tileCount;
 
   setProgress(100, 'Done!');
@@ -720,8 +870,8 @@ function showFileInfo(info) {
     <div>File: <span class="value">${info.name}</span></div>
     <div>Size: <span class="value">${formatBytes(info.size)}</span></div>
     <div>Points: <span class="value">${info.numPoints.toLocaleString()}</span></div>
-    <div>Version: <span class="value">LAS ${info.version}</span></div>
     <div>Format: <span class="value">${info.format}</span></div>
+    ${info.version !== '-' ? `<div>Version: <span class="value">${info.version}</span></div>` : ''}
     <div>Tiles: <span class="value">${info.tileCount}</span></div>
   `;
 }
@@ -736,6 +886,8 @@ function formatBytes(bytes) {
 // Event Handlers
 // =========================================================================
 
+const SUPPORTED_FORMATS = ['.las', '.laz', '.ply', '.obj'];
+
 function setupEvents() {
   const dropZone = document.getElementById('dropZone');
   const fileInput = document.getElementById('fileInput');
@@ -746,7 +898,7 @@ function setupEvents() {
   // File input change
   fileInput.addEventListener('change', (e) => {
     if (e.target.files.length > 0) {
-      processLasFile(e.target.files[0]);
+      processFile(e.target.files[0]);
     }
   });
 
@@ -765,12 +917,12 @@ function setupEvents() {
     dropZone.classList.remove('drag-over');
     if (e.dataTransfer.files.length > 0) {
       const file = e.dataTransfer.files[0];
-      const name = file.name.toLowerCase();
-      if (!name.endsWith('.las') && !name.endsWith('.laz')) {
-        showError('Please drop a .las or .laz file');
+      const ext = '.' + file.name.toLowerCase().split('.').pop();
+      if (!SUPPORTED_FORMATS.includes(ext)) {
+        showError(`Unsupported format: ${ext}\nSupported formats: ${SUPPORTED_FORMATS.join(', ')}`);
         return;
       }
-      processLasFile(file);
+      processFile(file);
     }
   });
 
@@ -821,10 +973,20 @@ function setupEvents() {
   const ok = await loadWasm();
   if (ok) {
     console.log('wasm-spatial-core loaded, version:', wasm.version());
+
+    // Show format support status
+    const formats = ['LAS'];
+    if (wasm.supportsLaz) formats.push('LAZ/COPC');
+    if (wasm.supportsE57) formats.push('E57');
+    formats.push('PLY', 'OBJ');
+
     document.getElementById('dropZone').innerHTML = `
       <span class="icon">📂</span>
-      Drag & drop a .las or .laz file here<br>
-      or click to browse<br>
+      Drag & drop a point cloud file here<br>
+      or click to browse
+      <div class="format-badges">
+        ${formats.map(f => `<span class="format-badge">.${f.toLowerCase()}</span>`).join('')}
+      </div>
       <small style="color:var(--muted);margin-top:8px;display:block">
         WASM v${wasm.version()} loaded ✓
       </small>
