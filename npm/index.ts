@@ -45,12 +45,22 @@ export {
   // ── GeoJSON Streaming ──────────────────────────────────────
   parseGeoJsonStream,
   parseGeoJsonPerFeature,
+  // ── Lazy GeoJSON (O(single feature) memory) ──────────────
+  parseGeoJsonLazy,
+  LazyGeoJsonIter,
   // ── Spatial Indexing ───────────────────────────────────────
   SpatialIndex,
   SpatialEdgeIndex,
+  computeBounds,
+  computeBoundsMulti,
   // ── Vector Tile Slicing ────────────────────────────────────
   VectorTileEngine,
   VectorTileOptions,
+  // ── MVT Decoding ──────────────────────────────────────────
+  decodeMvt,
+  decodeMvtToGeoJson,
+  MvtLayer,
+  MvtFeature,
   // ── Cesium Native Adapter ──────────────────────────────────
   batchWgs84ToCartesian3,
   CesiumMeshGeometry,
