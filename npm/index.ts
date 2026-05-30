@@ -112,6 +112,11 @@ export {
   colorizeByHeight,
   colorizeByIntensity,
   applyColorRamp,
+  // ── Point Cloud Streaming ──────────────────────────────────
+  PointCloudStreamer,
+  computeRegionByteRange,
+  supportsLaz,
+  lazStatus,
   // ── Point Cloud Normals ──────────────────────────────────
   estimateNormals,
   flipNormals,
