@@ -1,0 +1,16 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "curl -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable && . \"$HOME/.cargo/env\" && rustup target add wasm32-unknown-unknown && curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh && bash scripts/build-demo-site.sh",
+  "outputDirectory": "_site",
+  "installCommand": "echo 'Rust/wasm-pack installed in buildCommand'",
+  "framework": null,
+  "headers": [
+    {
+      "source": "/examples/worker-demo/(.*)",
+      "headers": [
+        { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" },
+        { "key": "Cross-Origin-Embedder-Policy", "value": "require-corp" }
+      ]
+    }
+  ]
+}
