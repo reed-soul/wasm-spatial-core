@@ -80,7 +80,7 @@ fn is_coord_valid(lng: f64, lat: f64, range: &CrsRange) -> bool {
 // ---------------------------------------------------------------------------
 
 /// Core validation logic — works on native slices.
-pub(crate) fn validate_coords_native(coords: &[f64], crs: &str) -> (u32, Vec<u32>) {
+pub fn validate_coords_native(coords: &[f64], crs: &str) -> (u32, Vec<u32>) {
     let range = CrsRange::from_name(crs).expect("Unknown CRS");
     let pair_count = coords.len() / 2;
     let mut valid_count = 0u32;
@@ -98,7 +98,7 @@ pub(crate) fn validate_coords_native(coords: &[f64], crs: &str) -> (u32, Vec<u32
 }
 
 /// Core clean logic — works on native slices.
-pub(crate) fn clean_coords_native(coords: &[f64], strategy: &str) -> Vec<f64> {
+pub fn clean_coords_native(coords: &[f64], strategy: &str) -> Vec<f64> {
     let range = CrsRange::wgs84();
     let pair_count = coords.len() / 2;
 
@@ -136,7 +136,7 @@ pub(crate) fn clean_coords_native(coords: &[f64], strategy: &str) -> Vec<f64> {
 }
 
 /// Core deduplication logic — works on native slices.
-pub(crate) fn deduplicate_coords_native(coords: &[f64], tolerance: f64) -> Vec<f64> {
+pub fn deduplicate_coords_native(coords: &[f64], tolerance: f64) -> Vec<f64> {
     if coords.is_empty() {
         return Vec::new();
     }

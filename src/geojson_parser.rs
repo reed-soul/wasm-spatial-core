@@ -148,7 +148,7 @@ fn build_geojson_coords(coords: &[f64], geometry_type: &str) -> serde_json::Valu
 }
 
 /// Native (non-WASM) helper: generate a GeoJSON Feature string from coords and type.
-pub(crate) fn geojson_from_coords_native(coords: &[f64], geometry_type: &str) -> String {
+pub fn geojson_from_coords_native(coords: &[f64], geometry_type: &str) -> String {
     let geo_coords = build_geojson_coords(coords, geometry_type);
     let feature = serde_json::json!({
         "type": "Feature",
@@ -162,7 +162,7 @@ pub(crate) fn geojson_from_coords_native(coords: &[f64], geometry_type: &str) ->
 }
 
 /// Native (non-WASM) helper: generate a FeatureCollection from multiple features.
-pub(crate) fn geojson_feature_collection_native(
+pub fn geojson_feature_collection_native(
     coords: &[f64],
     types: &str,
     properties_json: &str,
