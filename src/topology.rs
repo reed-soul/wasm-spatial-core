@@ -1532,7 +1532,7 @@ mod tests {
 
     #[test]
     fn test_convex_hull_square() {
-        let points = vec![
+        let points = [
             0.0, 0.0, // SW
             1.0, 0.0, // SE
             1.0, 1.0, // NE
