@@ -60,7 +60,7 @@
 
 ---
 
-## Phase A — 点云核心管线（先做这个） ✅ DONE
+## Phase A — 点云核心管线（先做这个） ✅ DONE (v0.3.0)
 
 ### A1: LAZ 解压引擎 ✅
 
@@ -244,13 +244,13 @@ Byte Length | Description
 
 ## Phase B — LOD 优化 + 性能（Phase A 完成后）
 
-### B1: 视点驱动的动态加载 ✅
+### B1: 视点驱动的动态加载 ✅ DONE (v0.3.0)
 - `computeScreenSpaceError(geoError, distance, fov, screenHeight)` — SSE in pixels
 - `getVisibleTiles(positions, camera, fov, screen)` — recursive LOD traversal
 - Camera distance drives tile refinement: close → more tiles, far → fewer tiles
 - Configurable SSE threshold (default: 1 pixel)
 
-### B2: 几何误差自动校准 ✅ (partial)
+### B2: 几何误差自动校准 ✅ DONE (v0.3.0) (partial)
 - Level-scaled geometricError: `diagonal × 0.5 / 2^level`
 - TODO: point-spacing-based refinement for seamless visual transitions
 
@@ -280,7 +280,7 @@ Byte Length | Description
 - **Complexity**: Medium — the crate does the heavy lifting
 - **WASM size impact**: TBD (roxmltree is small, e57 main crate TBD)
 
-### C2: PLY/OBJ ✅ DONE
+### C2: PLY/OBJ ✅ DONE (v0.3.0)
 - PLY: ASCII + binary_little_endian parsing
 - OBJ: vertex positions + normals extraction
 - See `src/ply.rs` and `src/obj.rs`
@@ -295,19 +295,14 @@ Byte Length | Description
 ## 实施顺序
 
 ```
-Week 1:
-  ├── A1 (LAZ) — 尝试 laz-rs 编译 wasm，不行就走 LAS-only + 转换工具
-  ├── A3 (八叉树) — 核心数据结构
-  └── A4 (pnts) — 编码器
+Week 1:  ✅ A1 (LAZ) + A3 (八叉树) + A4 (pnts)
+Week 2:  ✅ A5 (tileset.json) + A6 (Demo)
+Week 3:  ✅ B1-B2 (LOD + SSE) + 文档 + README 重写
 
-Week 2:
-  ├── A5 (tileset.json) — 从八叉树生成
-  ├── A2 (流式加载) — 如果需要
-  └── A6 (Demo) — 端到端打通
-
-Week 3:
-  ├── B1-B4 — 性能优化
-  └── 文档 + README 重写
+Future:
+  ├── B3-B4 — WebWorker 并行处理 + Draco 压缩
+  ├── C1 (E57) — crate 已编译到 wasm32，需写 wrapper
+  └── C3 (COPC full) — 已有基础，需完善
 ```
 
 ---
