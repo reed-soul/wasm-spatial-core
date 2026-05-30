@@ -711,6 +711,113 @@ pub fn polygon_union(
 }
 
 // ---------------------------------------------------------------------------
+// Spatial Relationship Predicates (DE-9IM)
+// ---------------------------------------------------------------------------
+
+/// Core: check if a point is inside a polygon (using `geo` crate).
+pub fn contains_native(outer_ring: &[f64], point_x: f64, point_y: f64) -> bool {
+    let poly = ring_to_geo_polygon(outer_ring);
+    let point = geo::Point(Coord {
+        x: point_x,
+        y: point_y,
+    });
+    use geo::Contains;
+    poly.contains(&point)
+}
+
+/// Core: check if two polygons touch (share boundary but not interior).
+pub fn touches_native(ring1: &[f64], ring2: &[f64]) -> bool {
+    let p1 = ring_to_geo_polygon(ring1);
+    let p2 = ring_to_geo_polygon(ring2);
+    use geo::Relate;
+    p1.relate(&p2).is_touches()
+}
+
+/// Core: check if two polygons intersect (share any point).
+pub fn intersects_native(ring1: &[f64], ring2: &[f64]) -> bool {
+    let p1 = ring_to_geo_polygon(ring1);
+    let p2 = ring_to_geo_polygon(ring2);
+    use geo::Intersects;
+    p1.intersects(&p2)
+}
+
+/// Core: check if two polygons are disjoint (share no points).
+pub fn disjoint_native(ring1: &[f64], ring2: &[f64]) -> bool {
+    let p1 = ring_to_geo_polygon(ring1);
+    let p2 = ring_to_geo_polygon(ring2);
+    use geo::Intersects;
+    !p1.intersects(&p2)
+}
+
+/// Check if a point is inside a polygon using the `geo` crate's algorithm.
+///
+/// Alias for `isPointInRing` using the robust `geo::Contains` trait.
+///
+/// # Arguments
+///
+/// * `outer_ring` — Flat `Float64Array` `[lng0,lat0, ...]`
+/// * `point_x` — Point longitude
+/// * `point_y` — Point latitude
+#[wasm_bindgen(js_name = "contains")]
+pub fn contains(outer_ring: &js_sys::Float64Array, point_x: f64, point_y: f64) -> bool {
+    let len = outer_ring.length() as usize;
+    let mut buf = vec![0.0; len];
+    outer_ring.copy_to(&mut buf);
+    contains_native(&buf, point_x, point_y)
+}
+
+/// Check if two polygons touch (share boundary but not interior).
+///
+/// # Arguments
+///
+/// * `ring1` — First polygon as flat closed ring
+/// * `ring2` — Second polygon as flat closed ring
+#[wasm_bindgen(js_name = "touches")]
+pub fn touches(ring1: &js_sys::Float64Array, ring2: &js_sys::Float64Array) -> bool {
+    let len1 = ring1.length() as usize;
+    let mut buf1 = vec![0.0; len1];
+    ring1.copy_to(&mut buf1);
+    let len2 = ring2.length() as usize;
+    let mut buf2 = vec![0.0; len2];
+    ring2.copy_to(&mut buf2);
+    touches_native(&buf1, &buf2)
+}
+
+/// Check if two polygons intersect (share any point).
+///
+/// # Arguments
+///
+/// * `ring1` — First polygon as flat closed ring
+/// * `ring2` — Second polygon as flat closed ring
+#[wasm_bindgen(js_name = "polygonIntersects")]
+pub fn polygon_intersects(ring1: &js_sys::Float64Array, ring2: &js_sys::Float64Array) -> bool {
+    let len1 = ring1.length() as usize;
+    let mut buf1 = vec![0.0; len1];
+    ring1.copy_to(&mut buf1);
+    let len2 = ring2.length() as usize;
+    let mut buf2 = vec![0.0; len2];
+    ring2.copy_to(&mut buf2);
+    intersects_native(&buf1, &buf2)
+}
+
+/// Check if two polygons are disjoint (share no points at all).
+///
+/// # Arguments
+///
+/// * `ring1` — First polygon as flat closed ring
+/// * `ring2` — Second polygon as flat closed ring
+#[wasm_bindgen(js_name = "disjoint")]
+pub fn disjoint(ring1: &js_sys::Float64Array, ring2: &js_sys::Float64Array) -> bool {
+    let len1 = ring1.length() as usize;
+    let mut buf1 = vec![0.0; len1];
+    ring1.copy_to(&mut buf1);
+    let len2 = ring2.length() as usize;
+    let mut buf2 = vec![0.0; len2];
+    ring2.copy_to(&mut buf2);
+    disjoint_native(&buf1, &buf2)
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -1064,5 +1171,71 @@ mod tests {
         let result = polygon_intersection_native(&ring1, &ring2);
         // Intersection should be ring2 (the contained polygon)
         assert!(!result.is_empty());
+    }
+
+    // ── Spatial relationship tests ────────────────────────────
+
+    #[test]
+    fn test_contains_inside() {
+        let ring = vec![0.0, 0.0, 2.0, 0.0, 2.0, 2.0, 0.0, 2.0, 0.0, 0.0];
+        assert!(contains_native(&ring, 1.0, 1.0));
+    }
+
+    #[test]
+    fn test_contains_outside() {
+        let ring = vec![0.0, 0.0, 2.0, 0.0, 2.0, 2.0, 0.0, 2.0, 0.0, 0.0];
+        assert!(!contains_native(&ring, 5.0, 5.0));
+    }
+
+    #[test]
+    fn test_contains_on_vertex() {
+        // geo::Contains does not include boundary vertices.
+        // A vertex on the polygon boundary is NOT strictly "contained".
+        let ring = vec![0.0, 0.0, 2.0, 0.0, 2.0, 2.0, 0.0, 2.0, 0.0, 0.0];
+        assert!(!contains_native(&ring, 2.0, 0.0)); // boundary vertex
+        assert!(!contains_native(&ring, 0.0, 0.0)); // boundary vertex
+    }
+
+    #[test]
+    fn test_intersects_overlapping() {
+        let ring1 = vec![0.0, 0.0, 2.0, 0.0, 2.0, 2.0, 0.0, 2.0, 0.0, 0.0];
+        let ring2 = vec![1.0, 1.0, 3.0, 1.0, 3.0, 3.0, 1.0, 3.0, 1.0, 1.0];
+        assert!(intersects_native(&ring1, &ring2));
+    }
+
+    #[test]
+    fn test_intersects_disjoint() {
+        let ring1 = vec![0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0];
+        let ring2 = vec![5.0, 5.0, 6.0, 5.0, 6.0, 6.0, 5.0, 6.0, 5.0, 5.0];
+        assert!(!intersects_native(&ring1, &ring2));
+    }
+
+    #[test]
+    fn test_disjoint_true() {
+        let ring1 = vec![0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0];
+        let ring2 = vec![5.0, 5.0, 6.0, 5.0, 6.0, 6.0, 5.0, 6.0, 5.0, 5.0];
+        assert!(disjoint_native(&ring1, &ring2));
+    }
+
+    #[test]
+    fn test_disjoint_false() {
+        let ring1 = vec![0.0, 0.0, 2.0, 0.0, 2.0, 2.0, 0.0, 2.0, 0.0, 0.0];
+        let ring2 = vec![1.0, 1.0, 3.0, 1.0, 3.0, 3.0, 1.0, 3.0, 1.0, 1.0];
+        assert!(!disjoint_native(&ring1, &ring2));
+    }
+
+    #[test]
+    fn test_touches_adjacent() {
+        // Two squares that share an edge
+        let ring1 = vec![0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0];
+        let ring2 = vec![1.0, 0.0, 2.0, 0.0, 2.0, 1.0, 1.0, 1.0, 1.0, 0.0];
+        assert!(touches_native(&ring1, &ring2));
+    }
+
+    #[test]
+    fn test_touches_not_touching() {
+        let ring1 = vec![0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0];
+        let ring2 = vec![5.0, 5.0, 6.0, 5.0, 6.0, 6.0, 5.0, 6.0, 5.0, 5.0];
+        assert!(!touches_native(&ring1, &ring2));
     }
 }
