@@ -41,6 +41,9 @@ mod point_cloud;
 #[cfg(feature = "point-cloud")]
 mod point_cloud_stream;
 
+#[cfg(feature = "e57-support")]
+mod e57;
+
 mod obj;
 mod ply;
 
@@ -59,6 +62,9 @@ pub use point_cloud::{
 
 #[cfg(feature = "laz-support")]
 pub use point_cloud::parse_laz_points_core;
+
+#[cfg(feature = "e57-support")]
+pub use e57::{parse_e57_core, E57Result, is_e57_format};
 
 #[cfg(feature = "point-cloud")]
 pub use point_cloud_stream::compute_region_byte_range;
@@ -132,7 +138,7 @@ pub fn e57_status() -> String {
     {
         String::from(
             "E57 support: AVAILABLE (e57 crate v0.11.12). Pure Rust, compiles to WASM. \
-             Full parsing not yet implemented — planned for next release.",
+             Supports reading Cartesian/Spherical coordinates, colors, and intensities.",
         )
     }
     #[cfg(not(feature = "e57-support"))]
@@ -140,6 +146,14 @@ pub fn e57_status() -> String {
         String::from("E57 support: DISABLED. Build with --features e57-support to enable.")
     }
 }
+
+/// Parse E57 file (feature-gated: requires `e57-support`).
+#[cfg(feature = "e57-support")]
+pub use e57::parse_e57;
+
+/// Parse E57 with streaming progress (feature-gated).
+#[cfg(feature = "e57-support")]
+pub use e57::parse_e57_stream;
 
 // ---------------------------------------------------------------------------
 // Dynamic Input Size Limit

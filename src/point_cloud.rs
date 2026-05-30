@@ -783,6 +783,12 @@ pub fn parse_laz_points_stream(
 ///
 /// Returns "las", "laz", or "copc".
 fn detect_point_cloud_format(bytes: &[u8]) -> Result<&'static str, String> {
+    // Check E57 first (different magic)
+    #[cfg(feature = "e57-support")]
+    if crate::e57::is_e57_format(bytes) {
+        return Ok("e57");
+    }
+
     if bytes.len() < 230 {
         return Err("Data too short to detect format".to_string());
     }
@@ -844,6 +850,17 @@ pub fn parse_point_cloud_auto(bytes: &[u8]) -> Result<LasPointCloud, SpatialErro
             "LAZ/COPC format detected but laz-support feature is not enabled. \
              Build with --features laz-support to enable LAZ decompression.",
         )),
+        #[cfg(feature = "e57-support")]
+        "e57" => {
+            // E57 has its own result type, convert to LasPointCloud
+            let e57_result = crate::e57::parse_e57_core(bytes)
+                .map_err(SpatialError::point_cloud_error)?;
+            Ok(LasPointCloud {
+                positions: e57_result.positions,
+                colors: e57_result.colors,
+                point_count: e57_result.point_count,
+            })
+        }
         _ => Err(SpatialError::point_cloud_error("Unknown format")),
     }
 }
