@@ -97,7 +97,7 @@ impl LasHeader {
 /// Parsed LAS point cloud data.
 #[wasm_bindgen]
 pub struct LasPointCloud {
-    pub(crate) positions: Vec<f32>,     // interleaved [x, y, z, x, y, z, ...]
+    pub(crate) positions: Vec<f32>, // interleaved [x, y, z, x, y, z, ...]
     pub(crate) colors: Option<Vec<u8>>, // [r, g, b, r, g, b, ...] if present
     pub(crate) point_count: u32,
 }
@@ -1107,6 +1107,7 @@ pub struct LasHeaderInfo {
 #[wasm_bindgen]
 impl LasHeaderInfo {
     /// Internal constructor used by PointCloudStreamer.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new_from_parts(
         num_points: u32,
         point_offset: u32,

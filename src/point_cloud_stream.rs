@@ -11,10 +11,8 @@
 
 use wasm_bindgen::prelude::*;
 
-use crate::point_cloud::{
-    read_f64_le, read_i32_le, read_u16_le, read_u32_le, LasPointCloud,
-};
 use crate::errors::{SpatialError, SpatialErrorDetail};
+use crate::point_cloud::{read_f64_le, read_i32_le, read_u16_le, read_u32_le, LasPointCloud};
 use crate::DEFAULT_MAX_INPUT_SIZE;
 
 // ===========================================================================
@@ -53,6 +51,12 @@ pub struct PointCloudStreamer {
     initialized: bool,
 }
 
+impl Default for PointCloudStreamer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[wasm_bindgen]
 impl PointCloudStreamer {
     /// Create a new streamer instance.
@@ -83,7 +87,10 @@ impl PointCloudStreamer {
     ///
     /// * `bytes` — At least 230 bytes from the start of a LAS file.
     #[wasm_bindgen(js_name = "parseHeader")]
-    pub fn parse_header(&mut self, bytes: &[u8]) -> Result<crate::point_cloud::LasHeaderInfo, SpatialErrorDetail> {
+    pub fn parse_header(
+        &mut self,
+        bytes: &[u8],
+    ) -> Result<crate::point_cloud::LasHeaderInfo, SpatialErrorDetail> {
         if bytes.len() < 230 {
             return Err(SpatialError::point_cloud_error(
                 "LAS header requires at least 230 bytes",
@@ -247,6 +254,7 @@ impl PointCloudStreamer {
 /// This is the core function behind `PointCloudStreamer::read_region` and
 /// `PointCloudStreamer::read_points`. It only reads the requested point range
 /// without iterating over the full file.
+#[allow(clippy::too_many_arguments)]
 pub fn parse_las_region_core(
     bytes: &[u8],
     point_offset: u32,
@@ -333,7 +341,8 @@ pub fn compute_region_byte_range_js(
     start_index: u32,
     count: u32,
 ) -> js_sys::Object {
-    let (start, len) = compute_region_byte_range(point_offset, point_record_length, start_index, count);
+    let (start, len) =
+        compute_region_byte_range(point_offset, point_record_length, start_index, count);
     let obj = js_sys::Object::new();
     js_sys::Reflect::set(&obj, &"startByte".into(), &JsValue::from(start as f64)).ok();
     js_sys::Reflect::set(&obj, &"byteLength".into(), &JsValue::from(len as f64)).ok();
@@ -455,7 +464,8 @@ mod tests {
 
     #[test]
     fn test_streamer_read_region() {
-        let points: Vec<(f64, f64, f64)> = (0..10).map(|i| (i as f64, i as f64, i as f64)).collect();
+        let points: Vec<(f64, f64, f64)> =
+            (0..10).map(|i| (i as f64, i as f64, i as f64)).collect();
         let blob = build_test_las_blob(&points, false);
         let header_bytes = blob[..230].to_vec();
         let mut streamer = PointCloudStreamer::new();
@@ -534,8 +544,7 @@ mod tests {
         let blob = build_test_las_blob(&points, false);
 
         let cloud = parse_las_region_core(
-            &blob,
-            230, // point_offset
+            &blob, 230, // point_offset
             0,   // point_format_id (no color)
             20,  // point_record_length
             1.0, 1.0, 1.0, // scale
