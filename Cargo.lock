@@ -764,6 +764,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "laz"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "efb1d9809cf87aa6500b6010e1164c6b6cd3cc15202ba79d6bb1dfb84c555a9b"
+dependencies = [
+ "byteorder",
+ "num-traits",
+]
+
+[[package]]
 name = "leb128fmt"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1580,6 +1590,7 @@ dependencies = [
  "geozero",
  "getrandom 0.2.17",
  "js-sys",
+ "laz",
  "mvt",
  "prost",
  "rand",

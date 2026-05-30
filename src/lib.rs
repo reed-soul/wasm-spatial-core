@@ -50,8 +50,8 @@ pub use coordinate::{
 
 #[cfg(feature = "point-cloud")]
 pub use point_cloud::{
-    parse_las_header_core, parse_las_points_core, random_decimate_core, read_f64_le, read_u16_le,
-    read_u32_le, voxel_grid_decimate_core,
+    parse_las_header_core, parse_las_points_core, parse_laz_points_core, random_decimate_core,
+    read_f64_le, read_u16_le, read_u32_le, voxel_grid_decimate_core,
 };
 
 #[cfg(feature = "point-cloud")]
