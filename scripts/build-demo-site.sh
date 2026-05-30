@@ -53,6 +53,8 @@ HTML
 touch "$OUT/.nojekyll"
 
 echo "Demo site ready at $OUT/"
-echo "  Hub:       examples/index.html"
-echo "  Full demo: examples/demo/index.html"
-echo "  Benchmark: bench/browser/index.html"
+echo "  Hub:              examples/index.html"
+echo "  Full demo:        examples/demo/index.html"
+echo "  Three.js PCloud:   examples/point-cloud-demo/index.html"
+echo "  Cesium PCloud:    examples/point-cloud-cesium/index.html"
+echo "  Benchmark:        bench/browser/index.html"
