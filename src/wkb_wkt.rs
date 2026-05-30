@@ -26,7 +26,7 @@ use wasm_bindgen::prelude::*;
 /// ```
 #[wasm_bindgen(js_name = "parseWkt")]
 pub fn parse_wkt(input: &str) -> Result<Float64Array, JsValue> {
-    let coords = parse_wkt_core(input).map_err(|e| JsValue::from_str(&e))?;
+    let coords = parse_wkt_core(input).map_err(|e| crate::errors::parse_js(&e))?;
     let arr = Float64Array::new_with_length(coords.len() as u32);
     if !coords.is_empty() {
         arr.copy_from(&coords);
@@ -198,7 +198,7 @@ pub fn to_wkt(coords: &Float64Array, geometry_type: &str) -> Result<String, JsVa
             } else if n == 1 {
                 Ok(format!("POINT({} {})", buf[0], buf[1]))
             } else {
-                Err(JsValue::from_str(
+                Err(crate::errors::parse_js(
                     "POINT requires exactly 1 coordinate pair",
                 ))
             }
@@ -231,7 +231,7 @@ pub fn to_wkt(coords: &Float64Array, geometry_type: &str) -> Result<String, JsVa
                 .collect();
             Ok(format!("POLYGON(({}))", pairs.join(", ")))
         }
-        _ => Err(JsValue::from_str(&format!(
+        _ => Err(crate::errors::parse_js(format!(
             "Unsupported geometry type: {}",
             geometry_type
         ))),
@@ -266,7 +266,7 @@ pub fn parse_wkb(bytes: &js_sys::Uint8Array) -> Result<Float64Array, JsValue> {
     bytes.copy_to(&mut buf);
 
     if buf.len() < 5 {
-        return Err(JsValue::from_str("WKB too short"));
+        return Err(crate::errors::parse_js("WKB too short"));
     }
 
     let byte_order = buf[0];
@@ -277,7 +277,7 @@ pub fn parse_wkb(bytes: &js_sys::Uint8Array) -> Result<Float64Array, JsValue> {
     let coords = match geom_type {
         WKB_POINT => {
             if buf.len() < 5 + 16 {
-                return Err(JsValue::from_str("WKB POINT too short"));
+                return Err(crate::errors::parse_js("WKB POINT too short"));
             }
             vec![read_f64(&buf[5..13], is_le), read_f64(&buf[13..21], is_le)]
         }
@@ -285,7 +285,7 @@ pub fn parse_wkb(bytes: &js_sys::Uint8Array) -> Result<Float64Array, JsValue> {
         WKB_POLYGON => parse_wkb_polygon(&buf, 5, is_le)?,
         WKB_MULTIPOINT => parse_wkb_multipoint(&buf, 5, is_le)?,
         _ => {
-            return Err(JsValue::from_str(&format!(
+            return Err(crate::errors::parse_js(format!(
                 "Unsupported WKB geometry type: {}",
                 geom_type
             )))
@@ -301,12 +301,14 @@ pub fn parse_wkb(bytes: &js_sys::Uint8Array) -> Result<Float64Array, JsValue> {
 
 fn parse_wkb_linestring(buf: &[u8], offset: usize, is_le: bool) -> Result<Vec<f64>, JsValue> {
     if buf.len() < offset + 4 {
-        return Err(JsValue::from_str("WKB LINESTRING too short for npoints"));
+        return Err(crate::errors::parse_js(
+            "WKB LINESTRING too short for npoints",
+        ));
     }
     let npoints = read_u32(&buf[offset..offset + 4], is_le) as usize;
     let needed = offset + 4 + npoints * 16;
     if buf.len() < needed {
-        return Err(JsValue::from_str(
+        return Err(crate::errors::parse_js(
             "WKB LINESTRING too short for coordinates",
         ));
     }
@@ -321,7 +323,7 @@ fn parse_wkb_linestring(buf: &[u8], offset: usize, is_le: bool) -> Result<Vec<f6
 
 fn parse_wkb_polygon(buf: &[u8], offset: usize, is_le: bool) -> Result<Vec<f64>, JsValue> {
     if buf.len() < offset + 4 {
-        return Err(JsValue::from_str("WKB POLYGON too short for nrings"));
+        return Err(crate::errors::parse_js("WKB POLYGON too short for nrings"));
     }
     let nrings = read_u32(&buf[offset..offset + 4], is_le) as usize;
     let mut coords = Vec::new();
@@ -329,13 +331,13 @@ fn parse_wkb_polygon(buf: &[u8], offset: usize, is_le: bool) -> Result<Vec<f64>,
 
     for _ in 0..nrings {
         if buf.len() < pos + 4 {
-            return Err(JsValue::from_str("WKB POLYGON ring too short"));
+            return Err(crate::errors::parse_js("WKB POLYGON ring too short"));
         }
         let npoints = read_u32(&buf[pos..pos + 4], is_le) as usize;
         pos += 4;
         let needed = pos + npoints * 16;
         if buf.len() < needed {
-            return Err(JsValue::from_str("WKB POLYGON ring coords too short"));
+            return Err(crate::errors::parse_js("WKB POLYGON ring coords too short"));
         }
         for i in 0..npoints {
             let base = pos + i * 16;
@@ -349,7 +351,9 @@ fn parse_wkb_polygon(buf: &[u8], offset: usize, is_le: bool) -> Result<Vec<f64>,
 
 fn parse_wkb_multipoint(buf: &[u8], offset: usize, is_le: bool) -> Result<Vec<f64>, JsValue> {
     if buf.len() < offset + 4 {
-        return Err(JsValue::from_str("WKB MULTIPOINT too short for npoints"));
+        return Err(crate::errors::parse_js(
+            "WKB MULTIPOINT too short for npoints",
+        ));
     }
     let npoints = read_u32(&buf[offset..offset + 4], is_le) as usize;
     let mut coords = Vec::with_capacity(npoints * 2);
@@ -358,7 +362,7 @@ fn parse_wkb_multipoint(buf: &[u8], offset: usize, is_le: bool) -> Result<Vec<f6
     for _ in 0..npoints {
         // Each point is a nested WKB element: byte_order(1) + type(4) + coords(16)
         if buf.len() < pos + 5 + 16 {
-            return Err(JsValue::from_str("WKB MULTIPOINT element too short"));
+            return Err(crate::errors::parse_js("WKB MULTIPOINT element too short"));
         }
         let pt_byte_order = buf[pos];
         let pt_is_le = pt_byte_order == 1;
@@ -393,7 +397,7 @@ pub fn to_wkb(coords: &Float64Array, geometry_type: &str) -> Result<js_sys::Uint
     let wkb: Vec<u8> = match gt.as_str() {
         "POINT" => {
             if n != 1 {
-                return Err(JsValue::from_str(
+                return Err(crate::errors::parse_js(
                     "POINT requires exactly 1 coordinate pair",
                 ));
             }
@@ -441,7 +445,7 @@ pub fn to_wkb(coords: &Float64Array, geometry_type: &str) -> Result<js_sys::Uint
             out
         }
         _ => {
-            return Err(JsValue::from_str(&format!(
+            return Err(crate::errors::parse_js(format!(
                 "Unsupported geometry type: {}",
                 geometry_type
             )))

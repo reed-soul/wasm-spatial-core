@@ -352,7 +352,7 @@ pub fn build_tin(points: &js_sys::Float64Array) -> Result<TinResult, JsValue> {
 
     let n = buf.len() / 3;
     if n < 3 {
-        return Err(JsValue::from_str("TIN requires at least 3 points"));
+        return Err(crate::errors::geometry_js("TIN requires at least 3 points"));
     }
 
     let result = bowyer_watson_2d(&buf, n);

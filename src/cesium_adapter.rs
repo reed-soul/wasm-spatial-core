@@ -119,7 +119,7 @@ pub fn generate_cesium_geometry(
     validate_input_size(geojson_str.len(), "GeoJSON input")?;
     let geojson = geojson_str
         .parse::<GeoJson>()
-        .map_err(|e: geojson::Error| JsValue::from_str(&e.to_string()))?;
+        .map_err(|e: geojson::Error| crate::errors::parse_js(e))?;
 
     let mut all_positions: Vec<f64> = Vec::new();
     let mut all_indices: Vec<u32> = Vec::new();

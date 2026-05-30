@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `npm/package-lock.json` for reproducible `npm/` wrapper installs.
+
 ### Fixed
+
+- WASM error paths now use structured `SpatialError` objects (`parse_js`, `tile_js`, …) instead of plain strings across GeoJSON, MVT, WKT/WKB, streaming, and validation APIs.
 
 - CI and GitHub Pages now trigger on the `master` default branch (was `main`).
 - `cargo fmt` drift in `spatial_analysis.rs`.

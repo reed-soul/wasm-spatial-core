@@ -218,7 +218,7 @@ pub fn validate_coords(
     crs: &str,
 ) -> Result<ValidationResult, JsValue> {
     let range = CrsRange::from_name(crs)
-        .ok_or_else(|| JsValue::from_str(&format!("Unknown CRS: {}", crs)))?;
+        .ok_or_else(|| crate::errors::invalid_input_js(format!("Unknown CRS: {}", crs)))?;
 
     let len = coords.length() as usize;
     let mut buf = vec![0.0; len];
