@@ -116,6 +116,14 @@ const core = await loadSpatialCore();
 
 console.log(core.version()); // "0.2.0"
 
+// Errors are structured objects (not plain strings):
+// { name: "SpatialError", code: "PARSE_ERROR", message: "..." }
+try {
+  core.parseGeoJsonCoords("{ invalid");
+} catch (e) {
+  console.log(e.code, e.message);
+}
+
 // ── Batch coordinate conversion ──────────────────────────────
 // Flat array: [lng0, lat0, lng1, lat1, ...]
 const wgs84Coords = new Float64Array([
@@ -196,8 +204,11 @@ const tileBytes = tile.toBytes();
 git clone https://github.com/reed-soul/wasm-spatial-core.git
 cd wasm-spatial-core
 
-# Standard single-threaded build
+# Standard single-threaded build (or: npm run build:pkg)
 wasm-pack build --target web --release --out-dir pkg
+
+# Run examples hub + interactive demo (builds pkg, then serves on :8080)
+npm run demo
 
 # With point cloud support
 wasm-pack build --target web --release --out-dir pkg -- --features point-cloud
