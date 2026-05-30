@@ -151,8 +151,8 @@ fn parse_ply_header(bytes: &[u8]) -> Result<PlyHeader, String> {
         None => return Err("PLY header: end_header not found".to_string()),
     };
 
-    let header_str =
-        String::from_utf8(bytes[..header_end].to_vec()).map_err(|e| format!("Invalid UTF-8 in PLY header: {}", e))?;
+    let header_str = String::from_utf8(bytes[..header_end].to_vec())
+        .map_err(|e| format!("Invalid UTF-8 in PLY header: {}", e))?;
 
     // First line must be "ply"
     let mut lines = header_str.lines();
@@ -224,7 +224,10 @@ fn parse_ply_header(bytes: &[u8]) -> Result<PlyHeader, String> {
     // Skip the newline after end_header
     let data_offset = if data_offset < bytes.len() && bytes[data_offset] == b'\n' {
         data_offset + 1
-    } else if data_offset + 1 < bytes.len() && bytes[data_offset] == b'\r' && bytes[data_offset + 1] == b'\n' {
+    } else if data_offset + 1 < bytes.len()
+        && bytes[data_offset] == b'\r'
+        && bytes[data_offset + 1] == b'\n'
+    {
         data_offset + 2
     } else {
         data_offset
@@ -254,7 +257,9 @@ fn parse_element_count(line: &str, element_name: &str) -> Result<u32, String> {
     if parts.len() < 3 {
         return Err(format!("Invalid element line: {}", line));
     }
-    parts[2].parse::<u32>().map_err(|e| format!("Invalid {} count: {}", element_name, e))
+    parts[2]
+        .parse::<u32>()
+        .map_err(|e| format!("Invalid {} count: {}", element_name, e))
 }
 
 /// Find property index by name (case-insensitive).
@@ -312,7 +317,7 @@ fn parse_ply_ascii(data: &str, header: &PlyHeader) -> Result<PlyResult, String> 
         // We count faces but don't store them
         if vertex_lines_parsed >= header.vertex_count {
             // We're past vertex data — faces or other elements
-            if values.len() >= 1 {
+            if !values.is_empty() {
                 if let Ok(_n) = values[0].parse::<u32>() {
                     // This is a face with n vertices — count it
                 }
@@ -407,7 +412,11 @@ fn parse_ply_binary_le(bytes: &[u8], header: &PlyHeader) -> Result<PlyResult, St
     };
 
     // Calculate per-vertex byte size
-    let vertex_size: usize = header.vertex_properties.iter().map(|p| type_size(&p.type_)).sum();
+    let vertex_size: usize = header
+        .vertex_properties
+        .iter()
+        .map(|p| type_size(&p.type_))
+        .sum();
     let vertex_data_end = header.vertex_count as usize * vertex_size;
 
     if data.len() < vertex_data_end {
@@ -424,18 +433,39 @@ fn parse_ply_binary_le(bytes: &[u8], header: &PlyHeader) -> Result<PlyResult, St
         let vertex_base = offset;
 
         // Read x
-        let x = read_float_at(data, vertex_base, &header.vertex_properties[x_idx.unwrap()].type_);
-        let y = read_float_at(data, vertex_base + property_byte_offset(&header.vertex_properties, y_idx.unwrap()), &header.vertex_properties[y_idx.unwrap()].type_);
-        let z = read_float_at(data, vertex_base + property_byte_offset(&header.vertex_properties, z_idx.unwrap()), &header.vertex_properties[z_idx.unwrap()].type_);
+        let x = read_float_at(
+            data,
+            vertex_base,
+            &header.vertex_properties[x_idx.unwrap()].type_,
+        );
+        let y = read_float_at(
+            data,
+            vertex_base + property_byte_offset(&header.vertex_properties, y_idx.unwrap()),
+            &header.vertex_properties[y_idx.unwrap()].type_,
+        );
+        let z = read_float_at(
+            data,
+            vertex_base + property_byte_offset(&header.vertex_properties, z_idx.unwrap()),
+            &header.vertex_properties[z_idx.unwrap()].type_,
+        );
 
         positions.push(x);
         positions.push(y);
         positions.push(z);
 
         if has_colors {
-            let r = read_u8_at(data, vertex_base + property_byte_offset(&header.vertex_properties, r_idx.unwrap()));
-            let g = read_u8_at(data, vertex_base + property_byte_offset(&header.vertex_properties, g_idx.unwrap()));
-            let b = read_u8_at(data, vertex_base + property_byte_offset(&header.vertex_properties, b_idx.unwrap()));
+            let r = read_u8_at(
+                data,
+                vertex_base + property_byte_offset(&header.vertex_properties, r_idx.unwrap()),
+            );
+            let g = read_u8_at(
+                data,
+                vertex_base + property_byte_offset(&header.vertex_properties, g_idx.unwrap()),
+            );
+            let b = read_u8_at(
+                data,
+                vertex_base + property_byte_offset(&header.vertex_properties, b_idx.unwrap()),
+            );
             if let Some(ref mut c) = colors {
                 c.push(r);
                 c.push(g);
@@ -444,9 +474,21 @@ fn parse_ply_binary_le(bytes: &[u8], header: &PlyHeader) -> Result<PlyResult, St
         }
 
         if has_normals {
-            let nx = read_float_at(data, vertex_base + property_byte_offset(&header.vertex_properties, nx_idx.unwrap()), &header.vertex_properties[nx_idx.unwrap()].type_);
-            let ny = read_float_at(data, vertex_base + property_byte_offset(&header.vertex_properties, ny_idx.unwrap()), &header.vertex_properties[ny_idx.unwrap()].type_);
-            let nz = read_float_at(data, vertex_base + property_byte_offset(&header.vertex_properties, nz_idx.unwrap()), &header.vertex_properties[nz_idx.unwrap()].type_);
+            let nx = read_float_at(
+                data,
+                vertex_base + property_byte_offset(&header.vertex_properties, nx_idx.unwrap()),
+                &header.vertex_properties[nx_idx.unwrap()].type_,
+            );
+            let ny = read_float_at(
+                data,
+                vertex_base + property_byte_offset(&header.vertex_properties, ny_idx.unwrap()),
+                &header.vertex_properties[ny_idx.unwrap()].type_,
+            );
+            let nz = read_float_at(
+                data,
+                vertex_base + property_byte_offset(&header.vertex_properties, nz_idx.unwrap()),
+                &header.vertex_properties[nz_idx.unwrap()].type_,
+            );
             if let Some(ref mut n) = normals {
                 n.push(nx);
                 n.push(ny);
@@ -467,7 +509,10 @@ fn parse_ply_binary_le(bytes: &[u8], header: &PlyHeader) -> Result<PlyResult, St
 }
 
 fn property_byte_offset(properties: &[PlyProperty], index: usize) -> usize {
-    properties[..index].iter().map(|p| type_size(&p.type_)).sum()
+    properties[..index]
+        .iter()
+        .map(|p| type_size(&p.type_))
+        .sum()
 }
 
 fn read_float_at(data: &[u8], base: usize, type_: &PlyPropertyType) -> f32 {
@@ -482,8 +527,14 @@ fn read_float_at(data: &[u8], base: usize, type_: &PlyPropertyType) -> f32 {
         PlyPropertyType::Double => {
             if base + 8 <= data.len() {
                 f64::from_le_bytes([
-                    data[base], data[base + 1], data[base + 2], data[base + 3],
-                    data[base + 4], data[base + 5], data[base + 6], data[base + 7],
+                    data[base],
+                    data[base + 1],
+                    data[base + 2],
+                    data[base + 3],
+                    data[base + 4],
+                    data[base + 5],
+                    data[base + 6],
+                    data[base + 7],
                 ]) as f32
             } else {
                 0.0
@@ -519,14 +570,16 @@ fn read_float_at(data: &[u8], base: usize, type_: &PlyPropertyType) -> f32 {
         }
         PlyPropertyType::Int32 => {
             if base + 4 <= data.len() {
-                i32::from_le_bytes([data[base], data[base + 1], data[base + 2], data[base + 3]]) as f32
+                i32::from_le_bytes([data[base], data[base + 1], data[base + 2], data[base + 3]])
+                    as f32
             } else {
                 0.0
             }
         }
         PlyPropertyType::Uint32 => {
             if base + 4 <= data.len() {
-                u32::from_le_bytes([data[base], data[base + 1], data[base + 2], data[base + 3]]) as f32
+                u32::from_le_bytes([data[base], data[base + 1], data[base + 2], data[base + 3]])
+                    as f32
             } else {
                 0.0
             }
@@ -593,9 +646,7 @@ pub fn parse_ply(bytes: &[u8]) -> Result<PlyResult, SpatialErrorDetail> {
             DEFAULT_MAX_INPUT_SIZE
         )));
     }
-    parse_ply_core(bytes).map_err(|e| {
-        SpatialError::point_cloud_error(&e)
-    })
+    parse_ply_core(bytes).map_err(|e| SpatialError::point_cloud_error(&e))
 }
 
 // ===========================================================================
@@ -606,7 +657,11 @@ pub fn parse_ply(bytes: &[u8]) -> Result<PlyResult, SpatialErrorDetail> {
 mod tests {
     use super::*;
 
-    fn make_ascii_ply(positions: &[(f32, f32, f32)], colors: Option<&[(u8, u8, u8)]>, normals: Option<&[(f32, f32, f32)]>) -> Vec<u8> {
+    fn make_ascii_ply(
+        positions: &[(f32, f32, f32)],
+        colors: Option<&[(u8, u8, u8)]>,
+        normals: Option<&[(f32, f32, f32)]>,
+    ) -> Vec<u8> {
         let mut header = String::from("ply\nformat ascii 1.0\n");
         header.push_str(&format!("element vertex {}\n", positions.len()));
         header.push_str("property float x\nproperty float y\nproperty float z\n");
@@ -634,7 +689,11 @@ mod tests {
         data
     }
 
-    fn make_binary_ply(positions: &[(f32, f32, f32)], colors: Option<&[(u8, u8, u8)]>, normals: Option<&[(f32, f32, f32)]>) -> Vec<u8> {
+    fn make_binary_ply(
+        positions: &[(f32, f32, f32)],
+        colors: Option<&[(u8, u8, u8)]>,
+        normals: Option<&[(f32, f32, f32)]>,
+    ) -> Vec<u8> {
         let has_colors = colors.is_some();
         let has_normals = normals.is_some();
 
@@ -808,7 +867,13 @@ mod tests {
     #[test]
     fn test_binary_many_vertices() {
         let pts: Vec<(f32, f32, f32)> = (0..1000)
-            .map(|i| (i as f32 * 0.1, (i as f32 * 0.2).sin(), (i as f32 * 0.3).cos()))
+            .map(|i| {
+                (
+                    i as f32 * 0.1,
+                    (i as f32 * 0.2).sin(),
+                    (i as f32 * 0.3).cos(),
+                )
+            })
             .collect();
         let data = make_binary_ply(&pts, None, None);
         let result = parse_ply_core(&data).unwrap();

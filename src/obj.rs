@@ -26,9 +26,11 @@ pub fn parse_obj_vertices_core(text: &str) -> Vec<f32> {
             let parts: Vec<&str> = line[2..].split_whitespace().collect();
             if parts.len() >= 3 {
                 // OBJ uses float coordinates
-                if let (Ok(x), Ok(y), Ok(z)) =
-                    (parts[0].parse::<f32>(), parts[1].parse::<f32>(), parts[2].parse::<f32>())
-                {
+                if let (Ok(x), Ok(y), Ok(z)) = (
+                    parts[0].parse::<f32>(),
+                    parts[1].parse::<f32>(),
+                    parts[2].parse::<f32>(),
+                ) {
                     positions.push(x);
                     positions.push(y);
                     positions.push(z);
@@ -54,9 +56,11 @@ pub fn parse_obj_with_normals_core(text: &str) -> (Vec<f32>, Option<Vec<f32>>) {
         if line.starts_with("vn ") || line.starts_with("vn\t") {
             let parts: Vec<&str> = line[3..].split_whitespace().collect();
             if parts.len() >= 3 {
-                if let (Ok(nx), Ok(ny), Ok(nz)) =
-                    (parts[0].parse::<f32>(), parts[1].parse::<f32>(), parts[2].parse::<f32>())
-                {
+                if let (Ok(nx), Ok(ny), Ok(nz)) = (
+                    parts[0].parse::<f32>(),
+                    parts[1].parse::<f32>(),
+                    parts[2].parse::<f32>(),
+                ) {
                     normals_raw.push(nx);
                     normals_raw.push(ny);
                     normals_raw.push(nz);
@@ -106,11 +110,17 @@ pub fn parse_obj_with_normals(text: &str) -> Result<js_sys::Object, SpatialError
     let (positions, normals) = parse_obj_with_normals_core(text);
     let obj = js_sys::Object::new();
 
-    js_sys::Reflect::set(&obj, &"positions".into(), &js_sys::Float32Array::from(&positions[..])).unwrap();
+    js_sys::Reflect::set(
+        &obj,
+        &"positions".into(),
+        &js_sys::Float32Array::from(&positions[..]),
+    )
+    .unwrap();
 
     match normals {
         Some(n) => {
-            js_sys::Reflect::set(&obj, &"normals".into(), &js_sys::Float32Array::from(&n[..])).unwrap();
+            js_sys::Reflect::set(&obj, &"normals".into(), &js_sys::Float32Array::from(&n[..]))
+                .unwrap();
         }
         None => {
             js_sys::Reflect::set(&obj, &"normals".into(), &JsValue::NULL).unwrap();
@@ -128,7 +138,11 @@ pub fn parse_obj_with_normals(text: &str) -> Result<js_sys::Object, SpatialError
 mod tests {
     use super::*;
 
-    fn make_obj(positions: &[(f32, f32, f32)], normals: Option<&[(f32, f32, f32)]>, faces: bool) -> String {
+    fn make_obj(
+        positions: &[(f32, f32, f32)],
+        normals: Option<&[(f32, f32, f32)]>,
+        faces: bool,
+    ) -> String {
         let mut s = String::new();
         // Optional comment
         s.push_str("# Test OBJ file\n");
@@ -142,9 +156,7 @@ mod tests {
         }
         if faces && positions.len() >= 3 {
             // Simple face using vertex indices
-            s.push_str(&format!(
-                "f 1 2 3\n"
-            ));
+            s.push_str("f 1 2 3\n");
         }
         s
     }
