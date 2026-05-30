@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `scripts/build-demo-site.sh` — static site for GitHub Pages / Vercel (`examples/` + `pkg/` layout).
+- [docs/DEMO_SITE.md](./docs/DEMO_SITE.md) — 在线演示部署说明（GitHub Pages + Vercel）。
+- `vercel.json` — optional Vercel static deploy.
+
+### Fixed
+
+- GitHub Pages 部署路径：保留 `examples/` 前缀，修复 `../pkg` 与 `data/china_cities.json` 加载失败问题。
+
+### Added
+
 - Root `package.json` dev scripts: `npm run build:pkg`, `npm run demo`, `npm run check`.
 - `examples/README.md` with demo URLs and build instructions.
 

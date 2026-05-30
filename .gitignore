@@ -2,6 +2,7 @@
 /target
 /pkg
 /wasm-pkg
+/_site
 
 # Node / npm
 node_modules/
