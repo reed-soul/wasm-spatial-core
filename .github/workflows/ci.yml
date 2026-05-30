@@ -50,7 +50,7 @@ jobs:
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
-      - name: Build WASM package
+      - name: Build WASM package (default features)
         run: wasm-pack build --target web --release --out-dir pkg
 
       - name: Upload WASM artifacts
@@ -60,7 +60,178 @@ jobs:
           path: pkg/
 
   # ------------------------------------------------------------------
-  # 2. npm publish — only on version tags
+  # 2. Deploy Demo — GitHub Pages on push to main
+  # ------------------------------------------------------------------
+  demo:
+    name: Deploy Demo to GitHub Pages
+    needs: rust
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download WASM artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: wasm-pkg
+          path: pkg/
+
+      - name: Setup demo directory
+        run: |
+          mkdir -p _site
+          cp examples/index.html _site/index.html
+          cp -r pkg _site/pkg
+          cp -r examples/demo _site/demo
+          cp -r examples/cesium-demo _site/cesium-demo
+          cp -r examples/worker-demo _site/worker-demo
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
+
+  # ------------------------------------------------------------------
+  # 3. Build Release Artifacts — all 3 variants on tag push
+  # ------------------------------------------------------------------
+  release-build:
+    name: Build Release (${{ matrix.name }})
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - name: default
+            features: ""
+            out_dir: pkg
+          - name: point-cloud
+            features: "--features point-cloud"
+            out_dir: pkg-point-cloud
+          - name: multi-thread
+            features: ""
+            out_dir: pkg-multi-thread
+            nightly: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install nightly toolchain (multi-thread)
+        if: matrix.nightly
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Cache cargo registry & build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-${{ matrix.name }}
+
+      - name: Build WASM (default / point-cloud)
+        if: "!matrix.nightly"
+        run: wasm-pack build --target web --release --out-dir ${{ matrix.out_dir }} ${{ matrix.features }}
+
+      - name: Build WASM (multi-thread with atomics)
+        if: matrix.nightly
+        run: |
+          RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals' \
+          cargo +nightly build -Z build-std=panic_abort,std \
+            --target wasm32-unknown-unknown --release --features multi-thread
+          wasm-bindgen --target web --out-dir ${{ matrix.out_dir }} \
+            target/wasm32-unknown-unknown/release/wasm_spatial_core.wasm
+
+      - name: Upload Release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm-pkg-${{ matrix.name }}
+          path: ${{ matrix.out_dir }}/
+
+  # ------------------------------------------------------------------
+  # 4. GitHub Release — upload all artifacts
+  # ------------------------------------------------------------------
+  github-release:
+    name: Create GitHub Release
+    needs: release-build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts/
+          pattern: wasm-pkg-*
+          merge-multiple: false
+
+      - name: Create tarballs
+        run: |
+          cd release-artifacts
+          for dir in wasm-pkg-*; do
+            name="${dir#wasm-pkg-}"
+            tar czf "../wasm-spatial-core-${name}.tar.gz" -C "$dir" .
+          done
+          cd ..
+          ls -la wasm-spatial-core-*.tar.gz
+
+      - name: Generate changelog from commits
+        id: changelog
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            CHANGELOG=$(git log "${PREV_TAG}..HEAD" --pretty=format:"- %s (%h)" --no-merges)
+          else
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges -20)
+          fi
+          echo "changelog<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$CHANGELOG" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          body: |
+            ## wasm-spatial-core ${{ github.ref_name }}
+
+            ### Downloads
+            - **Default build** — `wasm-spatial-core-default.tar.gz` (zero-config, works everywhere)
+            - **Point Cloud build** — `wasm-spatial-core-point-cloud.tar.gz` (with LAS/PCD parsing + voxel decimation)
+            - **Multi-thread build** — `wasm-spatial-core-multi-thread.tar.gz` (requires COOP/COEP headers)
+
+            ### Changes
+            ${{ steps.changelog.outputs.changelog }}
+          files: |
+            wasm-spatial-core-default.tar.gz
+            wasm-spatial-core-point-cloud.tar.gz
+            wasm-spatial-core-multi-thread.tar.gz
+
+  # ------------------------------------------------------------------
+  # 5. npm publish — only on version tags
   # ------------------------------------------------------------------
   publish-npm:
     name: Publish to npm
