@@ -340,6 +340,38 @@ mod tests {
             std::str::from_utf8(&tile[28..28 + header.feature_table_json_byte_length as usize])
                 .unwrap();
     }
+
+    #[test]
+    fn test_large_coordinates_encode() {
+        // Coordinates near f32 max range.
+        let positions = vec![
+            1e6f32, -2e6f32, 3e6f32,
+            5e6f32, 6e6f32, -7e6f32,
+        ];
+        let center = [3e6f64, 2e6f64, -2e6f64];
+        let tile = encode_pnts_tile(&positions, center, None).unwrap();
+        let (header, _) = parse_pnts_header(&tile).unwrap();
+        assert_eq!(header.version, 1);
+        assert_eq!(header.byte_length as usize, tile.len());
+        assert_eq!(
+            header.feature_table_binary_byte_length, 24,
+            "2 points × 3 × 4 bytes"
+        );
+    }
+
+    #[test]
+    fn test_single_point_encode() {
+        let positions = vec![42.0f32, -17.5, 100.0];
+        let tile = encode_pnts_tile(&positions, [42.0, -17.5, 100.0], None).unwrap();
+        let (header, _) = parse_pnts_header(&tile).unwrap();
+        assert_eq!(header.feature_table_binary_byte_length, 12);
+        // Center-relative position should be ~0.
+        let ft_json_len = pad_len(header.feature_table_json_byte_length) as usize;
+        let x = f32::from_le_bytes(
+            tile[28 + ft_json_len..28 + ft_json_len + 4].try_into().unwrap(),
+        );
+        assert!(x.abs() < 0.01, "single-point offset should be ~0, got {x}");
+    }
 }
 
 // ===========================================================================

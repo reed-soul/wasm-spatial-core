@@ -15,6 +15,8 @@
 
 use wasm_bindgen::prelude::*;
 
+use crate::errors::SpatialError;
+
 // ===========================================================================
 // Data structures
 // ===========================================================================
@@ -63,6 +65,27 @@ impl OctreeNode {
     }
 }
 
+/// Remove points with NaN or Infinity coordinates from a flat `[x,y,z,...]` buffer.
+/// Modifies the buffer in-place, truncating to valid points only.
+fn filter_valid_positions(positions: &mut Vec<f32>) {
+    let mut write_idx = 0usize;
+    let len = positions.len();
+    let mut i = 0usize;
+    while i + 2 < len {
+        let x = positions[i];
+        let y = positions[i + 1];
+        let z = positions[i + 2];
+        if x.is_finite() && y.is_finite() && z.is_finite() {
+            positions[write_idx] = x;
+            positions[write_idx + 1] = y;
+            positions[write_idx + 2] = z;
+            write_idx += 3;
+        }
+        i += 3;
+    }
+    positions.truncate(write_idx);
+}
+
 // ===========================================================================
 // Build
 // ===========================================================================
@@ -95,12 +118,31 @@ impl Octree {
     /// Points are reordered in-place so that each node's points occupy a
     /// contiguous range `[point_start .. point_start + point_count)`.
     ///
+    /// Points with NaN or Infinity coordinates are silently filtered out.
+    /// If all points are invalid, returns a single empty node.
+    ///
     /// # Arguments
     /// * `positions` — Mutable `Vec<f32>` of `[x, y, z, ...]` triples. **Will be
     ///   reordered** by this function.
     /// * `max_points_per_node` — Max points before splitting (default: 50 000).
     /// * `max_depth` — Max tree depth (default: 21).
     pub fn build(positions: &mut Vec<f32>, max_points_per_node: u32, max_depth: u32) -> Self {
+        let num_points = positions.len() / 3;
+        if num_points == 0 {
+            return Octree {
+                nodes: vec![OctreeNode {
+                    bounds: [0.0; 6],
+                    point_start: 0,
+                    point_count: 0,
+                    children: None,
+                    level: 0,
+                }],
+                total_points: 0,
+            };
+        }
+
+        // Filter out NaN / Infinity coordinates in-place.
+        filter_valid_positions(positions);
         let num_points = positions.len() / 3;
         if num_points == 0 {
             return Octree {
@@ -478,6 +520,7 @@ impl WasmOctree {
 /// Build an octree from a flat `[x, y, z, ...]` position buffer.
 ///
 /// The input buffer is **not** modified (a copy is made internally).
+/// Points with NaN/Infinity coordinates are silently filtered.
 ///
 /// # Arguments
 /// * `positions` — `Float32Array` of `[x, y, z, ...]` triples.
@@ -488,13 +531,17 @@ pub fn build_octree(
     positions: &[f32],
     max_points_per_node: Option<u32>,
     max_depth: Option<u32>,
-) -> WasmOctree {
+) -> Result<WasmOctree, JsValue> {
+    if positions.len() % 3 != 0 {
+        return Err(SpatialError::invalid_input(
+            "positions buffer length must be a multiple of 3",
+        ).into());
+    }
     let max_pts = max_points_per_node.unwrap_or(DEFAULT_MAX_POINTS_PER_NODE);
     let max_d = max_depth.unwrap_or(DEFAULT_MAX_DEPTH);
     let mut buf = positions.to_vec();
-    WasmOctree {
-        inner: Octree::build(&mut buf, max_pts, max_d),
-    }
+    let inner = Octree::build(&mut buf, max_pts, max_d);
+    Ok(WasmOctree { inner })
 }
 
 // ===========================================================================
@@ -722,5 +769,29 @@ mod tests {
         let bytes = octree_memory_usage(41, 20, 1_000_000);
         // 20 * 140 + 21 * 72 + 1_000_000 * 12 + 64 = 2800 + 1512 + 12_000_000 + 64
         assert_eq!(bytes, 12_004_376);
+    }
+
+    #[test]
+    fn test_nan_coordinates_filtered() {
+        let mut positions = make_positions(&[
+            [1.0, 2.0, 3.0],
+            [f32::NAN, 2.0, 3.0],
+            [4.0, 5.0, 6.0],
+            [1.0, f32::INFINITY, 3.0],
+        ]);
+        let tree = Octree::build(&mut positions, 10, 5);
+        // Only 2 valid points should remain (NaN and Infinity filtered out).
+        assert_eq!(tree.total_points(), 2);
+    }
+
+    #[test]
+    fn test_all_nan_returns_empty() {
+        let mut positions: Vec<f32> = vec![
+            f32::NAN, f32::NAN, f32::NAN,
+            f32::INFINITY, f32::NEG_INFINITY, f32::NAN,
+        ];
+        let tree = Octree::build(&mut positions, 10, 5);
+        assert_eq!(tree.node_count(), 1);
+        assert_eq!(tree.total_points(), 0);
     }
 }
