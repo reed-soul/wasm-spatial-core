@@ -41,6 +41,8 @@ mod point_cloud;
 #[cfg(feature = "point-cloud")]
 mod point_cloud_stream;
 
+mod ply;
+
 // Re-export core functions for integration testing and advanced usage
 pub use coordinate::{
     batch_bd09_to_gcj02_in_place, batch_bd09_to_wgs84_in_place, batch_gcj02_to_bd09_in_place,
