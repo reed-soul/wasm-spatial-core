@@ -121,6 +121,12 @@ pub struct GltfBuilder {
     materials: Vec<GltfMaterial>,
 }
 
+impl Default for GltfBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[wasm_bindgen]
 impl GltfBuilder {
     /// Create a new empty glTF builder.
