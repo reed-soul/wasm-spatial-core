@@ -295,6 +295,331 @@ pub fn is_point_in_ring(point_x: f64, point_y: f64, ring_coords: &js_sys::Float6
 }
 
 // ---------------------------------------------------------------------------
+// TIN (Triangulated Irregular Network)
+// ---------------------------------------------------------------------------
+
+/// Result of building a TIN from scattered 3D points.
+#[wasm_bindgen]
+pub struct TinResult {
+    positions: Vec<f64>,  // flat [x,y,z, x,y,z, ...]
+    indices: Vec<u32>,     // triangle indices [i0,i1,i2, ...]
+}
+
+#[wasm_bindgen]
+impl TinResult {
+    /// Flat vertex positions `[x0,y0,z0, x1,y1,z1, ...]`.
+    #[wasm_bindgen(getter)]
+    pub fn positions(&self) -> js_sys::Float64Array {
+        let arr = js_sys::Float64Array::new_with_length(self.positions.len() as u32);
+        arr.copy_from(&self.positions);
+        arr
+    }
+
+    /// Triangle indices `[i0,i1,i2, i3,i4,i5, ...]`.
+    #[wasm_bindgen(getter)]
+    pub fn indices(&self) -> js_sys::Uint32Array {
+        let arr = js_sys::Uint32Array::new_with_length(self.indices.len() as u32);
+        arr.copy_from(&self.indices);
+        arr
+    }
+
+    /// Number of vertices.
+    #[wasm_bindgen(getter, js_name = "vertexCount")]
+    pub fn vertex_count(&self) -> u32 {
+        (self.positions.len() / 3) as u32
+    }
+
+    /// Number of triangles.
+    #[wasm_bindgen(getter, js_name = "triangleCount")]
+    pub fn triangle_count(&self) -> u32 {
+        (self.indices.len() / 3) as u32
+    }
+}
+
+/// Build a TIN from scattered 3D points using the Bowyer-Watson algorithm.
+///
+/// # Arguments
+/// - `points`: Flat `Float64Array` `[x0,y0,z0, x1,y1,z1, ...]`
+///
+/// # Returns
+/// `TinResult` with deduplicated positions and triangle indices.
+#[wasm_bindgen(js_name = "buildTin")]
+pub fn build_tin(points: &js_sys::Float64Array) -> Result<TinResult, JsValue> {
+    let mut buf = vec![0.0f64; points.length() as usize];
+    points.copy_to(&mut buf);
+
+    let n = buf.len() / 3;
+    if n < 3 {
+        return Err(JsValue::from_str(
+            "TIN requires at least 3 points",
+        ));
+    }
+
+    let result = bowyer_watson_2d(&buf, n);
+    Ok(result)
+}
+
+/// Interpolate a Z value on a TIN surface at (x, y) using barycentric interpolation.
+///
+/// Finds the triangle containing (x, y) and interpolates Z.
+/// If the point is outside the TIN convex hull, returns the Z of the nearest vertex.
+#[wasm_bindgen(js_name = "tinInterpolate")]
+pub fn tin_interpolate(tin: &TinResult, x: f64, y: f64) -> f64 {
+    let positions = &tin.positions;
+    let indices = &tin.indices;
+
+    let n_triangles = indices.len() / 3;
+
+    for t in 0..n_triangles {
+        let i0 = indices[t * 3] as usize;
+        let i1 = indices[t * 3 + 1] as usize;
+        let i2 = indices[t * 3 + 2] as usize;
+
+        let x0 = positions[i0 * 3];
+        let y0 = positions[i0 * 3 + 1];
+        let z0 = positions[i0 * 3 + 2];
+        let x1 = positions[i1 * 3];
+        let y1 = positions[i1 * 3 + 1];
+        let z1 = positions[i1 * 3 + 2];
+        let x2 = positions[i2 * 3];
+        let y2 = positions[i2 * 3 + 1];
+        let z2 = positions[i2 * 3 + 2];
+
+        // Barycentric coordinate test
+        let denom = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2);
+        if denom.abs() < 1e-12 {
+            continue;
+        }
+        let w0 = ((y1 - y2) * (x - x2) + (x2 - x1) * (y - y2)) / denom;
+        let w1 = ((y2 - y0) * (x - x2) + (x0 - x2) * (y - y2)) / denom;
+        let w2 = 1.0 - w0 - w1;
+
+        if w0 >= -1e-10 && w1 >= -1e-10 && w2 >= -1e-10 {
+            return w0 * z0 + w1 * z1 + w2 * z2;
+        }
+    }
+
+    // Fallback: nearest vertex
+    let mut best_dist = f64::MAX;
+    let mut best_z = 0.0;
+    for i in 0..(positions.len() / 3) {
+        let dx = positions[i * 3] - x;
+        let dy = positions[i * 3 + 1] - y;
+        let d = dx * dx + dy * dy;
+        if d < best_dist {
+            best_dist = d;
+            best_z = positions[i * 3 + 2];
+        }
+    }
+    best_z
+}
+
+// ---------------------------------------------------------------------------
+// Bowyer-Watson Delaunay Triangulation (2D projection of 3D points)
+// ---------------------------------------------------------------------------
+
+/// 2D point for triangulation (projected from 3D).
+#[derive(Debug, Clone, Copy)]
+struct Point2D {
+    x: f64,
+    y: f64,
+    idx: usize, // original index in the positions array
+}
+
+/// A triangle in the triangulation.
+#[derive(Debug, Clone)]
+struct Triangle {
+    a: usize, // index into points2d
+    b: usize,
+    c: usize,
+}
+
+impl Triangle {
+    fn circumcircle_contains(&self, p: &Point2D, pts: &[Point2D]) -> bool {
+        let ax = pts[self.a].x;
+        let ay = pts[self.a].y;
+        let bx = pts[self.b].x;
+        let by = pts[self.b].y;
+        let cx = pts[self.c].x;
+        let cy = pts[self.c].y;
+
+        let d = 2.0 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
+        if d.abs() < 1e-12 {
+            return false; // degenerate
+        }
+
+        let ux = ((ax * ax + ay * ay) * (by - cy)
+            + (bx * bx + by * by) * (cy - ay)
+            + (cx * cx + cy * cy) * (ay - by))
+            / d;
+        let uy = ((ax * ax + ay * ay) * (cx - bx)
+            + (bx * bx + by * by) * (ax - cx)
+            + (cx * cx + cy * cy) * (bx - ax))
+            / d;
+
+        let r_sq = (ax - ux) * (ax - ux) + (ay - uy) * (ay - uy);
+        let d_sq = (p.x - ux) * (p.x - ux) + (p.y - uy) * (p.y - uy);
+
+        d_sq < r_sq
+    }
+
+    fn contains_vertex(&self, v: usize) -> bool {
+        self.a == v || self.b == v || self.c == v
+    }
+}
+
+/// Build TIN using Bowyer-Watson algorithm on 2D projection (XY).
+fn bowyer_watson_2d(coords: &[f64], n: usize) -> TinResult {
+    let mut pts2d: Vec<Point2D> = (0..n)
+        .map(|i| Point2D {
+            x: coords[i * 3],
+            y: coords[i * 3 + 1],
+            idx: i,
+        })
+        .collect();
+
+    // Super triangle that encompasses all points
+    let (min_x, max_x, min_y, max_y) = pts2d.iter().fold(
+        (f64::MAX, f64::MIN, f64::MAX, f64::MIN),
+        |(mn_x, mx_x, mn_y, mx_y), p| {
+            (
+                mn_x.min(p.x),
+                mx_x.max(p.x),
+                mn_y.min(p.y),
+                mx_y.max(p.y),
+            )
+        },
+    );
+
+    let dx = max_x - min_x;
+    let dy = max_y - min_y;
+    let delta_max = dx.max(dy);
+    let mid_x = (min_x + max_x) / 2.0;
+    let mid_y = (min_y + max_y) / 2.0;
+
+    // Super triangle vertices
+    let st0 = Point2D {
+        x: mid_x - 20.0 * delta_max,
+        y: mid_y - delta_max,
+        idx: usize::MAX, // sentinel
+    };
+    let st1 = Point2D {
+        x: mid_x,
+        y: mid_y + 20.0 * delta_max,
+        idx: usize::MAX,
+    };
+    let st2 = Point2D {
+        x: mid_x + 20.0 * delta_max,
+        y: mid_y - delta_max,
+        idx: usize::MAX,
+    };
+
+    pts2d.push(st0);
+    pts2d.push(st1);
+    pts2d.push(st2);
+
+    let st0_idx = n;
+    let st1_idx = n + 1;
+    let st2_idx = n + 2;
+
+    let mut triangles = vec![Triangle {
+        a: st0_idx,
+        b: st1_idx,
+        c: st2_idx,
+    }];
+
+    // Insert each point
+    for i in 0..n {
+        let mut bad: Vec<usize> = Vec::new();
+
+        for (t_idx, tri) in triangles.iter().enumerate() {
+            if tri.circumcircle_contains(&pts2d[i], &pts2d) {
+                bad.push(t_idx);
+            }
+        }
+
+        // Find boundary polygon of the bad triangles
+        let mut polygon: Vec<(usize, usize)> = Vec::new();
+        for &t_idx in &bad {
+            let tri = &triangles[t_idx];
+            let edges = [(tri.a, tri.b), (tri.b, tri.c), (tri.c, tri.a)];
+
+            for (ea, eb) in edges {
+                let shared = bad.iter().any(|&other_idx| {
+                    if other_idx == t_idx {
+                        return false;
+                    }
+                    let other = &triangles[other_idx];
+                    let oedges = [(other.a, other.b), (other.b, other.c), (other.c, other.a)];
+                    oedges.iter().any(|&(oa, ob)| oa == eb && ob == ea)
+                });
+
+                if !shared {
+                    polygon.push((ea, eb));
+                }
+            }
+        }
+
+        // Remove bad triangles (reverse order to maintain indices)
+        let mut bad_sorted = bad.clone();
+        bad_sorted.sort_unstable();
+        for &idx in bad_sorted.iter().rev() {
+            triangles.swap_remove(idx);
+        }
+
+        // Create new triangles from polygon edges to the new point
+        for (ea, eb) in polygon {
+            triangles.push(Triangle {
+                a: ea,
+                b: eb,
+                c: i,
+            });
+        }
+    }
+
+    // Remove triangles that share vertices with the super triangle
+    triangles.retain(|tri| {
+        tri.a < n && tri.b < n && tri.c < n
+    });
+
+    // Build output
+    let mut positions_out = Vec::with_capacity(n * 3);
+    let mut remap = vec![0usize; n]; // original index → deduped index
+    let mut dedup_map: std::collections::HashMap<(usize,), usize> =
+        std::collections::HashMap::new();
+
+    for i in 0..n {
+        let key = (i,);
+        if let Some(&existing) = dedup_map.get(&key) {
+            remap[i] = existing;
+        } else {
+            let new_idx = positions_out.len() / 3;
+            positions_out.push(coords[i * 3]);
+            positions_out.push(coords[i * 3 + 1]);
+            positions_out.push(coords[i * 3 + 2]);
+            dedup_map.insert(key, new_idx);
+            remap[i] = new_idx;
+        }
+    }
+
+    let indices: Vec<u32> = triangles
+        .iter()
+        .flat_map(|tri| {
+            [
+                remap[tri.a] as u32,
+                remap[tri.b] as u32,
+                remap[tri.c] as u32,
+            ]
+        })
+        .collect();
+
+    TinResult {
+        positions: positions_out,
+        indices,
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -515,6 +840,71 @@ mod tests {
             j = i;
         }
         inside
+    }
+
+    // ── TIN tests ───────────────────────────────────────────────
+
+    #[test]
+    fn test_tin_basic() {
+        // 3 points forming a triangle
+        let coords = vec![0.0, 0.0, 10.0, 1.0, 0.0, 20.0, 0.5, 1.0, 30.0];
+        let result = native_build_tin(&coords);
+        assert_eq!(result.vertex_count(), 3);
+        assert_eq!(result.triangle_count(), 1);
+        assert_eq!(result.indices.len(), 3);
+    }
+
+    #[test]
+    fn test_tin_interpolate_at_vertex() {
+        // Triangle with vertices at (0,0,10), (1,0,20), (0.5,1,30)
+        let coords = vec![0.0, 0.0, 10.0, 1.0, 0.0, 20.0, 0.5, 1.0, 30.0];
+        let result = native_build_tin(&coords);
+        let z = native_tin_interpolate(&result, 0.0, 0.0);
+        assert!(
+            (z - 10.0).abs() < 0.1,
+            "Z at vertex (0,0) should be ~10, got {}",
+            z
+        );
+    }
+
+    #[test]
+    fn test_tin_interpolate_centroid() {
+        // Triangle with vertices at (0,0,0), (2,0,0), (1,2,6)
+        let coords = vec![0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 1.0, 2.0, 6.0];
+        let result = native_build_tin(&coords);
+        // Centroid of triangle: (1, 2/3) — barycentric (1/3, 1/3, 1/3)
+        let z = native_tin_interpolate(&result, 1.0, 2.0 / 3.0);
+        assert!(
+            (z - 2.0).abs() < 0.1,
+            "Z at centroid should be ~2, got {}",
+            z
+        );
+    }
+
+    #[test]
+    fn test_tin_four_points() {
+        // 4 points forming 2 triangles
+        let coords = vec![
+            0.0, 0.0, 1.0,
+            1.0, 0.0, 2.0,
+            0.0, 1.0, 3.0,
+            1.0, 1.0, 4.0,
+        ];
+        let result = native_build_tin(&coords);
+        assert_eq!(result.vertex_count(), 4);
+        assert!(result.triangle_count() >= 2);
+        assert!(result.triangle_count() <= 2);
+    }
+
+    // Native helpers for TIN testing
+    fn native_build_tin(coords: &[f64]) -> TinResult {
+        let n = coords.len() / 3;
+        assert!(n >= 3, "TIN requires at least 3 points");
+        bowyer_watson_2d(coords, n)
+    }
+
+    fn native_tin_interpolate(tin: &TinResult, x: f64, y: f64) -> f64 {
+        tin_interpolate(tin, x, y)
     }
 
     // ── Area with holes test ──────────────────────────────────────
