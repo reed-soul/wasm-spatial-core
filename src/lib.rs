@@ -52,14 +52,12 @@ pub use ifc_reader::{parse_ifc_geometry_core, IfcGeometryResult, IfcMesh};
 #[doc(hidden)]
 pub mod test_exports {
     pub use crate::geojson_parser::{
-        geojson_feature_collection_native, geojson_from_coords_native,
-        parse_geojson_coords, count_geojson_features,
+        count_geojson_features, geojson_feature_collection_native, geojson_from_coords_native,
+        parse_geojson_coords,
     };
-    pub use crate::topology::{
-        polygon_intersection_native, polygon_union_native,
-    };
+    pub use crate::topology::{polygon_intersection_native, polygon_union_native};
     pub use crate::utils::{
-        deduplicate_coords_native, validate_coords_native, clean_coords_native,
+        clean_coords_native, deduplicate_coords_native, validate_coords_native,
     };
 }
 
@@ -68,15 +66,15 @@ use wasm_bindgen::prelude::*;
 // Dynamic input size limit — thread-safe via LazyLock + RwLock.
 use std::sync::{LazyLock, RwLock};
 
-static INPUT_SIZE_LIMIT: LazyLock<RwLock<usize>> =
-    LazyLock::new(|| RwLock::new(100 * 1024 * 1024));
+static INPUT_SIZE_LIMIT: LazyLock<RwLock<usize>> = LazyLock::new(|| RwLock::new(100 * 1024 * 1024));
 
 /// Get the current input size limit.
 pub(crate) fn get_current_input_limit() -> usize {
-    INPUT_SIZE_LIMIT.read().map(|v| *v).unwrap_or(DEFAULT_MAX_INPUT_SIZE)
+    INPUT_SIZE_LIMIT
+        .read()
+        .map(|v| *v)
+        .unwrap_or(DEFAULT_MAX_INPUT_SIZE)
 }
-
-
 
 /// Initialize the WASM module. Call this once before any other function.
 ///

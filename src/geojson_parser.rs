@@ -182,7 +182,7 @@ pub fn geojson_feature_collection_native(
                 // We'll use a different strategy: parse from remaining coords greedily
                 // For MultiPoint/LineString: remaining pairs until next feature
                 // For Polygon: detect closed ring
-                count_pairs_for_type(*gtype, &coords[offset..])
+                count_pairs_for_type(gtype, &coords[offset..])
             }
         };
 
@@ -191,7 +191,8 @@ pub fn geojson_feature_collection_native(
 
         let geo_coords = build_geojson_coords(feature_coords, gtype);
         let prop_str = prop_list.get(i).copied().unwrap_or("{}");
-        let prop_val: serde_json::Value = serde_json::from_str(prop_str).unwrap_or(serde_json::json!({}));
+        let prop_val: serde_json::Value =
+            serde_json::from_str(prop_str).unwrap_or(serde_json::json!({}));
 
         features.push(serde_json::json!({
             "type": "Feature",
@@ -306,7 +307,11 @@ pub fn geojson_feature_collection(
     let mut buf = vec![0.0; len];
     coords.copy_to(&mut buf);
 
-    Ok(geojson_feature_collection_native(&buf, types, properties_json))
+    Ok(geojson_feature_collection_native(
+        &buf,
+        types,
+        properties_json,
+    ))
 }
 
 // ---------------------------------------------------------------------------

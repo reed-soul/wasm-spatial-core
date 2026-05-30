@@ -120,8 +120,12 @@ pub fn clean_coords_native(coords: &[f64], strategy: &str) -> Vec<f64> {
                 let mut lat = coords[i * 2 + 1];
                 if !is_coord_valid(lng, lat, &range) {
                     if strategy == "snap" && (!lng.is_finite() || !lat.is_finite()) {
-                        if !lng.is_finite() { lng = 0.0; }
-                        if !lat.is_finite() { lat = 0.0; }
+                        if !lng.is_finite() {
+                            lng = 0.0;
+                        }
+                        if !lat.is_finite() {
+                            lat = 0.0;
+                        }
                     }
                     lng = lng.clamp(range.lng_min, range.lng_max);
                     lat = lat.clamp(range.lat_min, range.lat_max);
@@ -209,10 +213,12 @@ impl ValidationResult {
 ///
 /// A `ValidationResult` with valid count, invalid count, and indices of invalid pairs.
 #[wasm_bindgen(js_name = "validateCoords")]
-pub fn validate_coords(coords: &js_sys::Float64Array, crs: &str) -> Result<ValidationResult, JsValue> {
-    let range = CrsRange::from_name(crs).ok_or_else(|| {
-        JsValue::from_str(&format!("Unknown CRS: {}", crs))
-    })?;
+pub fn validate_coords(
+    coords: &js_sys::Float64Array,
+    crs: &str,
+) -> Result<ValidationResult, JsValue> {
+    let range = CrsRange::from_name(crs)
+        .ok_or_else(|| JsValue::from_str(&format!("Unknown CRS: {}", crs)))?;
 
     let len = coords.length() as usize;
     let mut buf = vec![0.0; len];
@@ -271,10 +277,7 @@ pub fn clean_coords(
 /// * `coords` — Flat `Float64Array` `[lng0, lat0, lng1, lat1, …]`
 /// * `tolerance` — Maximum distance (in coordinate units) for two points to be considered duplicates
 #[wasm_bindgen(js_name = "deduplicateCoords")]
-pub fn deduplicate_coords(
-    coords: &js_sys::Float64Array,
-    tolerance: f64,
-) -> js_sys::Float64Array {
+pub fn deduplicate_coords(coords: &js_sys::Float64Array, tolerance: f64) -> js_sys::Float64Array {
     let len = coords.length() as usize;
     let mut buf = vec![0.0; len];
     coords.copy_to(&mut buf);

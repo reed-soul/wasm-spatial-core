@@ -663,7 +663,10 @@ pub fn polygon_union_native(ring1: &[f64], ring2: &[f64]) -> Vec<f64> {
 ///
 /// A `Float64Array` with the intersection ring(s). Empty if polygons don't intersect.
 #[wasm_bindgen(js_name = "polygonIntersection")]
-pub fn polygon_intersection(ring1: &js_sys::Float64Array, ring2: &js_sys::Float64Array) -> js_sys::Float64Array {
+pub fn polygon_intersection(
+    ring1: &js_sys::Float64Array,
+    ring2: &js_sys::Float64Array,
+) -> js_sys::Float64Array {
     let len1 = ring1.length() as usize;
     let mut buf1 = vec![0.0; len1];
     ring1.copy_to(&mut buf1);
@@ -689,7 +692,10 @@ pub fn polygon_intersection(ring1: &js_sys::Float64Array, ring2: &js_sys::Float6
 ///
 /// A `Float64Array` with the union ring(s).
 #[wasm_bindgen(js_name = "polygonUnion")]
-pub fn polygon_union(ring1: &js_sys::Float64Array, ring2: &js_sys::Float64Array) -> js_sys::Float64Array {
+pub fn polygon_union(
+    ring1: &js_sys::Float64Array,
+    ring2: &js_sys::Float64Array,
+) -> js_sys::Float64Array {
     let len1 = ring1.length() as usize;
     let mut buf1 = vec![0.0; len1];
     ring1.copy_to(&mut buf1);
@@ -1024,7 +1030,10 @@ mod tests {
         let ring1 = vec![0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0];
         let ring2 = vec![5.0, 5.0, 6.0, 5.0, 6.0, 6.0, 5.0, 6.0, 5.0, 5.0];
         let result = polygon_intersection_native(&ring1, &ring2);
-        assert!(result.is_empty(), "Disjoint polygons should have empty intersection");
+        assert!(
+            result.is_empty(),
+            "Disjoint polygons should have empty intersection"
+        );
     }
 
     #[test]
@@ -1057,4 +1066,3 @@ mod tests {
         assert!(!result.is_empty());
     }
 }
-
