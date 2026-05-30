@@ -1082,46 +1082,80 @@ pub struct LasHeaderInfo {
 #[wasm_bindgen]
 impl LasHeaderInfo {
     #[wasm_bindgen(getter, js_name = "numPoints")]
-    pub fn num_points(&self) -> u32 { self.num_points }
+    pub fn num_points(&self) -> u32 {
+        self.num_points
+    }
 
     #[wasm_bindgen(getter, js_name = "pointOffset")]
-    pub fn point_offset(&self) -> u32 { self.point_offset }
+    pub fn point_offset(&self) -> u32 {
+        self.point_offset
+    }
 
     #[wasm_bindgen(getter, js_name = "pointFormatId")]
-    pub fn point_format_id(&self) -> u8 { self.point_format_id }
+    pub fn point_format_id(&self) -> u8 {
+        self.point_format_id
+    }
 
     #[wasm_bindgen(getter, js_name = "pointRecordLength")]
-    pub fn point_record_length(&self) -> u16 { self.point_record_length }
+    pub fn point_record_length(&self) -> u16 {
+        self.point_record_length
+    }
 
     #[wasm_bindgen(getter, js_name = "xScale")]
-    pub fn x_scale(&self) -> f64 { self.x_scale }
+    pub fn x_scale(&self) -> f64 {
+        self.x_scale
+    }
     #[wasm_bindgen(getter, js_name = "yScale")]
-    pub fn y_scale(&self) -> f64 { self.y_scale }
+    pub fn y_scale(&self) -> f64 {
+        self.y_scale
+    }
     #[wasm_bindgen(getter, js_name = "zScale")]
-    pub fn z_scale(&self) -> f64 { self.z_scale }
+    pub fn z_scale(&self) -> f64 {
+        self.z_scale
+    }
 
     #[wasm_bindgen(getter, js_name = "xOffset")]
-    pub fn x_offset(&self) -> f64 { self.x_offset }
+    pub fn x_offset(&self) -> f64 {
+        self.x_offset
+    }
     #[wasm_bindgen(getter, js_name = "yOffset")]
-    pub fn y_offset(&self) -> f64 { self.y_offset }
+    pub fn y_offset(&self) -> f64 {
+        self.y_offset
+    }
     #[wasm_bindgen(getter, js_name = "zOffset")]
-    pub fn z_offset(&self) -> f64 { self.z_offset }
+    pub fn z_offset(&self) -> f64 {
+        self.z_offset
+    }
 
     #[wasm_bindgen(getter, js_name = "boundsMinX")]
-    pub fn bounds_min_x(&self) -> f64 { self.bounds_min_x }
+    pub fn bounds_min_x(&self) -> f64 {
+        self.bounds_min_x
+    }
     #[wasm_bindgen(getter, js_name = "boundsMinY")]
-    pub fn bounds_min_y(&self) -> f64 { self.bounds_min_y }
+    pub fn bounds_min_y(&self) -> f64 {
+        self.bounds_min_y
+    }
     #[wasm_bindgen(getter, js_name = "boundsMinZ")]
-    pub fn bounds_min_z(&self) -> f64 { self.bounds_min_z }
+    pub fn bounds_min_z(&self) -> f64 {
+        self.bounds_min_z
+    }
     #[wasm_bindgen(getter, js_name = "boundsMaxX")]
-    pub fn bounds_max_x(&self) -> f64 { self.bounds_max_x }
+    pub fn bounds_max_x(&self) -> f64 {
+        self.bounds_max_x
+    }
     #[wasm_bindgen(getter, js_name = "boundsMaxY")]
-    pub fn bounds_max_y(&self) -> f64 { self.bounds_max_y }
+    pub fn bounds_max_y(&self) -> f64 {
+        self.bounds_max_y
+    }
     #[wasm_bindgen(getter, js_name = "boundsMaxZ")]
-    pub fn bounds_max_z(&self) -> f64 { self.bounds_max_z }
+    pub fn bounds_max_z(&self) -> f64 {
+        self.bounds_max_z
+    }
 
     #[wasm_bindgen(getter, js_name = "fileSize")]
-    pub fn file_size(&self) -> u32 { self.file_size }
+    pub fn file_size(&self) -> u32 {
+        self.file_size
+    }
 
     /// Total size of point data in bytes.
     #[wasm_bindgen(js_name = "pointDataSize")]
@@ -1145,19 +1179,33 @@ pub struct PointData {
 #[wasm_bindgen]
 impl PointData {
     #[wasm_bindgen(getter)]
-    pub fn x(&self) -> f64 { self.x }
+    pub fn x(&self) -> f64 {
+        self.x
+    }
     #[wasm_bindgen(getter)]
-    pub fn y(&self) -> f64 { self.y }
+    pub fn y(&self) -> f64 {
+        self.y
+    }
     #[wasm_bindgen(getter)]
-    pub fn z(&self) -> f64 { self.z }
+    pub fn z(&self) -> f64 {
+        self.z
+    }
     #[wasm_bindgen(getter)]
-    pub fn intensity(&self) -> u16 { self.intensity }
+    pub fn intensity(&self) -> u16 {
+        self.intensity
+    }
     #[wasm_bindgen(getter)]
-    pub fn r(&self) -> u8 { self.r }
+    pub fn r(&self) -> u8 {
+        self.r
+    }
     #[wasm_bindgen(getter)]
-    pub fn g(&self) -> u8 { self.g }
+    pub fn g(&self) -> u8 {
+        self.g
+    }
     #[wasm_bindgen(getter)]
-    pub fn b(&self) -> u8 { self.b }
+    pub fn b(&self) -> u8 {
+        self.b
+    }
 }
 
 /// Parse only the LAS header (first 227+ bytes) for range-based access.
@@ -1190,9 +1238,7 @@ impl PointData {
 #[wasm_bindgen(js_name = "parseLasHeaderOnly")]
 pub fn parse_las_header_only(bytes: &[u8]) -> Result<LasHeaderInfo, JsValue> {
     if bytes.len() < 230 {
-        return Err(JsValue::from_str(
-            "LAS header requires at least 230 bytes",
-        ));
+        return Err(JsValue::from_str("LAS header requires at least 230 bytes"));
     }
     if &bytes[0..4] != b"LASF" {
         return Err(JsValue::from_str("Invalid LAS magic: expected 'LASF'"));
@@ -1269,16 +1315,20 @@ pub fn parse_las_point_at(
     let z = raw_z;
 
     let (r, g, b) = if has_color {
-        (
-            bytes[offset + 20],
-            bytes[offset + 21],
-            bytes[offset + 22],
-        )
+        (bytes[offset + 20], bytes[offset + 21], bytes[offset + 22])
     } else {
         (0, 0, 0)
     };
 
-    Ok(PointData { x, y, z, intensity, r, g, b })
+    Ok(PointData {
+        x,
+        y,
+        z,
+        intensity,
+        r,
+        g,
+        b,
+    })
 }
 
 /// Compute the byte offset of the Nth point (pure Rust, testable without WASM).
@@ -1305,7 +1355,11 @@ fn parse_las_point_at_core(
     y_offset: f64,
     z_offset: f64,
 ) -> Result<(f64, f64, f64), String> {
-    let needed = if point_format == 2 || point_format == 3 { 26 } else { 20 };
+    let needed = if point_format == 2 || point_format == 3 {
+        26
+    } else {
+        20
+    };
     if offset + needed > bytes.len() {
         return Err(format!("Not enough bytes at offset {}", offset));
     }
@@ -1849,7 +1903,11 @@ DATA ascii
 
     #[test]
     fn test_parse_las_point_at_range_based() {
-        let points = vec![(100.0, 200.0, 300.0), (400.0, 500.0, 600.0), (700.0, 800.0, 900.0)];
+        let points = vec![
+            (100.0, 200.0, 300.0),
+            (400.0, 500.0, 600.0),
+            (700.0, 800.0, 900.0),
+        ];
         let blob = build_test_las_blob(&points, false);
 
         let point_offset = read_u32_le(&blob, 98) as usize;
@@ -1857,19 +1915,26 @@ DATA ascii
 
         // Parse point 0 (at point_offset)
         let (x0, y0, z0) = parse_las_point_at_core(
-            &blob, point_offset, point_format,
-            1.0, 1.0, 1.0, 0.0, 0.0, 0.0,
-        ).unwrap();
+            &blob,
+            point_offset,
+            point_format,
+            1.0,
+            1.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+        )
+        .unwrap();
         assert_eq!(x0, 100.0);
         assert_eq!(y0, 200.0);
         assert_eq!(z0, 300.0);
 
         // Parse point 2 (at point_offset + 2 * record_length)
         let offset2 = compute_las_point_offset_core(point_offset as u32, 2, 20);
-        let (x2, y2, z2) = parse_las_point_at_core(
-            &blob, offset2, point_format,
-            1.0, 1.0, 1.0, 0.0, 0.0, 0.0,
-        ).unwrap();
+        let (x2, y2, z2) =
+            parse_las_point_at_core(&blob, offset2, point_format, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0)
+                .unwrap();
         assert_eq!(x2, 700.0);
         assert_eq!(y2, 800.0);
         assert_eq!(z2, 900.0);

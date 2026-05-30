@@ -262,8 +262,7 @@ fn parse_ifc_entities(
     std::collections::HashMap<u32, Axis2Placement3D>,
     std::collections::HashMap<u32, Vec<u32>>, // polyline: id -> point refs
 ) {
-    let mut types: std::collections::HashMap<u32, String> =
-        std::collections::HashMap::new();
+    let mut types: std::collections::HashMap<u32, String> = std::collections::HashMap::new();
     let mut extrusions: std::collections::HashMap<u32, ExtrudedAreaSolid> =
         std::collections::HashMap::new();
     let mut directions: std::collections::HashMap<u32, Direction> =
@@ -274,8 +273,7 @@ fn parse_ifc_entities(
         std::collections::HashMap::new();
     let mut placements: std::collections::HashMap<u32, Axis2Placement3D> =
         std::collections::HashMap::new();
-    let mut polylines: std::collections::HashMap<u32, Vec<u32>> =
-        std::collections::HashMap::new();
+    let mut polylines: std::collections::HashMap<u32, Vec<u32>> = std::collections::HashMap::new();
 
     for line in text.lines() {
         let line = line.trim();
@@ -290,12 +288,7 @@ fn parse_ifc_entities(
 
         // Extract the entity keyword (after `=`)
         let after_eq = line.split_once('=').map(|x| x.1).unwrap_or("");
-        let keyword = after_eq
-            .trim_start()
-            .split('(')
-            .next()
-            .unwrap_or("")
-            .trim();
+        let keyword = after_eq.trim_start().split('(').next().unwrap_or("").trim();
 
         types.insert(id, keyword.to_uppercase());
 
@@ -308,10 +301,8 @@ fn parse_ifc_entities(
                     .trim_start_matches('(')
                     .trim_end_matches(");");
 
-
                 // Split by comma, respecting parentheses
                 let parts: Vec<&str> = split_ifc_args(inner);
-
 
                 if parts.len() >= 4 {
                     let depth = parts[3].trim().parse::<f64>().unwrap_or(0.0);
@@ -371,13 +362,14 @@ fn parse_ifc_entities(
                         .trim_end_matches(';'),
                 );
                 let loc_ref = parts.first().and_then(|p| extract_ref(p));
-                let loc = loc_ref
-                    .and_then(|r| points3d.get(&r).cloned())
-                    .unwrap_or(CartesianPoint {
-                        x: 0.0,
-                        y: 0.0,
-                        z: 0.0,
-                    });
+                let loc =
+                    loc_ref
+                        .and_then(|r| points3d.get(&r).cloned())
+                        .unwrap_or(CartesianPoint {
+                            x: 0.0,
+                            y: 0.0,
+                            z: 0.0,
+                        });
                 let axis_ref = parts.get(1).and_then(|p| extract_ref(p));
                 let axis = axis_ref
                     .and_then(|r| directions.get(&r).cloned())
@@ -386,7 +378,14 @@ fn parse_ifc_entities(
                         dy: 0.0,
                         dz: 1.0,
                     });
-                placements.insert(id, Axis2Placement3D { location: loc, axis, ref_dir: None });
+                placements.insert(
+                    id,
+                    Axis2Placement3D {
+                        location: loc,
+                        axis,
+                        ref_dir: None,
+                    },
+                );
             }
             "IFCPOLYLINE" => {
                 let refs = extract_ref_list(after_eq);
@@ -399,13 +398,7 @@ fn parse_ifc_entities(
     }
 
     (
-        types,
-        extrusions,
-        directions,
-        points3d,
-        points2d,
-        placements,
-        polylines,
+        types, extrusions, directions, points3d, points2d, placements, polylines,
     )
 }
 
@@ -477,7 +470,6 @@ pub fn parse_ifc_geometry_core(text: &str) -> IfcGeometryResult {
     let (_types, extrusions, directions, _points3d, points2d, placements, polylines) =
         parse_ifc_entities(text);
 
-
     // Pre-resolve all polyline 2D profiles
     let mut resolved_profiles: std::collections::HashMap<u32, Vec<(f64, f64)>> =
         std::collections::HashMap::new();
@@ -523,13 +515,8 @@ pub fn parse_ifc_geometry_core(text: &str) -> IfcGeometryResult {
         };
 
         // Resolve profile: try to find the best matching polyline
-        let profile_points = find_profile_for_extrusion(
-            ext_id,
-            ext,
-            text,
-            &resolved_profiles,
-            &mut used_polylines,
-        );
+        let profile_points =
+            find_profile_for_extrusion(ext_id, ext, text, &resolved_profiles, &mut used_polylines);
 
         if profile_points.len() < 3 || ext.depth <= 0.0 {
             continue;

@@ -80,8 +80,14 @@ fn test_pipeline_coordinate_roundtrip() {
     // WGS84 → Mercator → WGS84 roundtrip
     let mut merc_coords = vec![lng, lat];
     wasm_spatial_core::batch_wgs84_to_mercator_in_place(&mut merc_coords);
-    assert!(merc_coords[0].abs() < 20_000_000.0, "Mercator x should be in range");
-    assert!(merc_coords[1].abs() < 20_000_000.0, "Mercator y should be in range");
+    assert!(
+        merc_coords[0].abs() < 20_000_000.0,
+        "Mercator x should be in range"
+    );
+    assert!(
+        merc_coords[1].abs() < 20_000_000.0,
+        "Mercator y should be in range"
+    );
     wasm_spatial_core::batch_mercator_to_wgs84_in_place(&mut merc_coords);
     assert!((merc_coords[0] - lng).abs() < 1e-10);
     assert!((merc_coords[1] - lat).abs() < 1e-10);
@@ -127,7 +133,11 @@ fn test_pipeline_batch_coordinate_transform() {
     wasm_spatial_core::batch_gcj02_to_wgs84_in_place(&mut coords);
 
     for i in 0..200 {
-        assert!((coords[i] - original[i]).abs() < 0.001, "Roundtrip failed at i={}", i);
+        assert!(
+            (coords[i] - original[i]).abs() < 0.001,
+            "Roundtrip failed at i={}",
+            i
+        );
     }
 }
 
@@ -171,12 +181,7 @@ fn test_pipeline_ifc_geometry() {
 
 #[test]
 fn test_pipeline_spatial_analysis_consistency() {
-    let coords: Vec<f64> = vec![
-        0.0, 0.0,
-        10.0, 0.0,
-        10.0, 10.0,
-        0.0, 10.0,
-    ];
+    let coords: Vec<f64> = vec![0.0, 0.0, 10.0, 0.0, 10.0, 10.0, 0.0, 10.0];
     let point_count = coords.len() / 2;
 
     let mut min_lng = f64::MAX;
@@ -259,10 +264,11 @@ fn test_pipeline_geojson_polygon_triangulation_precheck() {
 #[cfg(feature = "point-cloud")]
 #[test]
 fn test_pipeline_las_header_range_access() {
-    use wasm_spatial_core::{read_u32_le, read_u16_le, parse_las_header_core};
+    use wasm_spatial_core::{parse_las_header_core, read_u16_le, read_u32_le};
 
     // Build a minimal LAS file with 3 points
-    let points: Vec<(f64, f64, f64)> = vec![(10.0, 20.0, 30.0), (40.0, 50.0, 60.0), (70.0, 80.0, 90.0)];
+    let points: Vec<(f64, f64, f64)> =
+        vec![(10.0, 20.0, 30.0), (40.0, 50.0, 60.0), (70.0, 80.0, 90.0)];
     let num_points = points.len() as u32;
     let header_size = 230u32;
     let point_format: u8 = 0;
