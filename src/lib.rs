@@ -38,6 +38,9 @@ pub use errors::{SpatialError, SpatialErrorDetail};
 #[cfg(feature = "point-cloud")]
 mod point_cloud;
 
+#[cfg(feature = "point-cloud")]
+mod point_cloud_stream;
+
 // Re-export core functions for integration testing and advanced usage
 pub use coordinate::{
     batch_bd09_to_gcj02_in_place, batch_bd09_to_wgs84_in_place, batch_gcj02_to_bd09_in_place,
@@ -50,6 +53,9 @@ pub use point_cloud::{
     parse_las_header_core, parse_las_points_core, random_decimate_core, read_f64_le, read_u16_le,
     read_u32_le, voxel_grid_decimate_core,
 };
+
+#[cfg(feature = "point-cloud")]
+pub use point_cloud_stream::{PointCloudStreamer, compute_region_byte_range, laz_status, supports_laz};
 
 pub use ifc_reader::{parse_ifc_geometry_core, IfcGeometryResult, IfcMesh};
 
