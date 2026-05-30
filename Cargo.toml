@@ -41,6 +41,7 @@ mvt = "0.13.0"
 geozero = { version = "0.15.1", features = ["with-mvt", "with-geojson"] }
 earcutr = "0.5.0"
 prost = "0.14"
+laz = "0.12.1"
 
 [dependencies.web-sys]
 version = "0.3"

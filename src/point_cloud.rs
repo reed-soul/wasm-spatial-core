@@ -96,6 +96,7 @@ impl LasHeader {
 
 /// Parsed LAS point cloud data.
 #[wasm_bindgen]
+#[derive(Debug)]
 pub struct LasPointCloud {
     pub(crate) positions: Vec<f32>, // interleaved [x, y, z, x, y, z, ...]
     pub(crate) colors: Option<Vec<u8>>, // [r, g, b, r, g, b, ...] if present
@@ -374,6 +375,389 @@ pub fn random_decimate_core(
     }
 
     (out_pos, out_col)
+}
+
+// ===========================================================================
+// LAZ Decompression (using laz crate)
+// ===========================================================================
+
+use std::io::{Cursor, Read, Seek, SeekFrom};
+
+/// Internal LAS header info needed for LAZ decompression.
+struct LazFileHeader {
+    num_points: u32,
+    point_format_id: u8,
+    #[allow(dead_code)]
+    point_record_length: u16,
+    offset_to_points: u32,
+    x_scale: f64,
+    y_scale: f64,
+    z_scale: f64,
+    x_offset: f64,
+    y_offset: f64,
+    z_offset: f64,
+    num_vlrs: u32,
+}
+
+impl LazFileHeader {
+    fn read_from_cursor(cursor: &mut Cursor<&[u8]>) -> Result<Self, String> {
+        if cursor.get_ref().len() < 230 {
+            return Err("LAZ header requires at least 230 bytes".to_string());
+        }
+        if &cursor.get_ref()[0..4] != b"LASF" {
+            return Err(format!(
+                "Invalid LAS magic: expected b\"LASF\", got {:?}",
+                &cursor.get_ref()[0..4]
+            ));
+        }
+
+        cursor.seek(SeekFrom::Start(24)).map_err(|e| e.to_string())?;
+        let mut buf1 = [0u8; 1];
+        cursor.read_exact(&mut buf1).map_err(|e| e.to_string())?;
+        let _major = buf1[0];
+        cursor.read_exact(&mut buf1).map_err(|e| e.to_string())?;
+        let _minor = buf1[0];
+
+        // Read fields sequentially starting at offset 94 (per LAS spec)
+        cursor.seek(SeekFrom::Start(94)).map_err(|e| e.to_string())?;
+        let mut buf2 = [0u8; 2];
+        cursor.read_exact(&mut buf2).map_err(|e| e.to_string())?;
+        let _header_size = u16::from_le_bytes(buf2);
+
+        let mut buf4 = [0u8; 4];
+        cursor.read_exact(&mut buf4).map_err(|e| e.to_string())?;
+        let offset_to_points = u32::from_le_bytes(buf4);
+
+        let mut buf4 = [0u8; 4];
+        cursor.read_exact(&mut buf4).map_err(|e| e.to_string())?;
+        let num_vlrs = u32::from_le_bytes(buf4);
+
+        let mut buf1 = [0u8; 1];
+        cursor.read_exact(&mut buf1).map_err(|e| e.to_string())?;
+        let point_format_id = buf1[0];
+
+        let mut buf2 = [0u8; 2];
+        cursor.read_exact(&mut buf2).map_err(|e| e.to_string())?;
+        let point_record_length = u16::from_le_bytes(buf2);
+
+        let mut buf4 = [0u8; 4];
+        cursor.read_exact(&mut buf4).map_err(|e| e.to_string())?;
+        let num_points = u32::from_le_bytes(buf4);
+
+        // Scale/offset
+        cursor.seek(SeekFrom::Start(134)).map_err(|e| e.to_string())?;
+        let mut buf8 = [0u8; 8];
+        cursor.read_exact(&mut buf8).map_err(|e| e.to_string())?;
+        let x_scale = f64::from_le_bytes(buf8);
+
+        let mut buf8 = [0u8; 8];
+        cursor.read_exact(&mut buf8).map_err(|e| e.to_string())?;
+        let y_scale = f64::from_le_bytes(buf8);
+
+        let mut buf8 = [0u8; 8];
+        cursor.read_exact(&mut buf8).map_err(|e| e.to_string())?;
+        let z_scale = f64::from_le_bytes(buf8);
+
+        let mut buf8 = [0u8; 8];
+        cursor.read_exact(&mut buf8).map_err(|e| e.to_string())?;
+        let x_offset = f64::from_le_bytes(buf8);
+
+        let mut buf8 = [0u8; 8];
+        cursor.read_exact(&mut buf8).map_err(|e| e.to_string())?;
+        let y_offset = f64::from_le_bytes(buf8);
+
+        let mut buf8 = [0u8; 8];
+        cursor.read_exact(&mut buf8).map_err(|e| e.to_string())?;
+        let z_offset = f64::from_le_bytes(buf8);
+
+        Ok(LazFileHeader {
+            num_points,
+            point_format_id: point_format_id & 0x3F, // strip compression bit
+            point_record_length,
+            offset_to_points,
+            x_scale,
+            y_scale,
+            z_scale,
+            x_offset,
+            y_offset,
+            z_offset,
+            num_vlrs,
+        })
+    }
+}
+
+/// Find the LASZIP VLR in the VLR section and parse it.
+///
+/// The LASZIP VLR has user_id="laszip encoded" (0x6C61737A697020656E636F646564) and record_id=22204.
+fn find_laszip_vlr(cursor: &mut Cursor<&[u8]>, num_vlrs: u32) -> Result<laz::LazVlr, String> {
+    for _ in 0..num_vlrs {
+        // Each VLR: reserved(2) + user_id(16) + record_id(2) + record_length(2) + description(32) + data(record_length)
+        let mut reserved = [0u8; 2];
+        cursor.read_exact(&mut reserved).map_err(|e| e.to_string())?;
+
+        let mut user_id = [0u8; 16];
+        cursor.read_exact(&mut user_id).map_err(|e| e.to_string())?;
+
+        let mut buf2 = [0u8; 2];
+        cursor.read_exact(&mut buf2).map_err(|e| e.to_string())?;
+        let record_id = u16::from_le_bytes(buf2);
+
+        let mut buf2 = [0u8; 2];
+        cursor.read_exact(&mut buf2).map_err(|e| e.to_string())?;
+        let record_length = u16::from_le_bytes(buf2) as usize;
+
+        let mut description = [0u8; 32];
+        cursor.read_exact(&mut description).map_err(|e| e.to_string())?;
+
+        let mut data = vec![0u8; record_length];
+        cursor.read_exact(&mut data).map_err(|e| e.to_string())?;
+
+        let user_id_str =
+            String::from_utf8_lossy(&user_id).trim_end_matches(|c: char| c == '\0').to_string();
+
+        if record_id == 22204 && user_id_str == "laszip encoded" {
+            return laz::LazVlr::read_from(data.as_slice()).map_err(|e| format!(
+                "Failed to parse LASZIP VLR: {}",
+                e
+            ));
+        }
+    }
+
+    Err("LASZIP VLR not found in file. File may not be LAZ compressed.".to_string())
+}
+
+/// Core LAZ point decompression — pure Rust, testable without WASM runtime.
+///
+/// Given a complete LAZ byte buffer:
+/// 1. Parse the LAS header (reuse our existing header parser)
+/// 2. Scan VLRs to find the LASZIP VLR
+/// 3. Create a LasZipDecompressor from the point data section
+/// 4. Decompress all points
+/// 5. Convert raw point bytes to positions + colors
+pub fn parse_laz_points_core(bytes: &[u8]) -> Result<LasPointCloud, String> {
+    if bytes.len() < 230 {
+        return Err("LAZ data too short for header".to_string());
+    }
+    if &bytes[0..4] != b"LASF" {
+        return Err(format!(
+            "Invalid LAZ magic: expected b\"LASF\", got {:?}",
+            &bytes[0..4]
+        ));
+    }
+
+    let mut cursor = Cursor::new(bytes.as_ref());
+
+    // Read LAS header
+    let header = LazFileHeader::read_from_cursor(&mut cursor)?;
+
+    // Check if this is actually compressed (point_format_id & 0x80)
+    // Point format is at offset 104 per LAS spec
+    if bytes[104] & 0x80 == 0 {
+        return Err(
+            "File appears to be uncompressed LAS (no compression bit set). Use parseLasPoints instead."
+                .to_string(),
+        );
+    }
+
+    // Find LASZIP VLR — position cursor after VLRs
+    // Header size is at offset 94 (u16) per LAS spec
+    let header_size = u16::from_le_bytes([bytes[94], bytes[95]]) as u64;
+    cursor
+        .seek(SeekFrom::Start(header_size))
+        .map_err(|e| e.to_string())?;
+
+    let laszip_vlr = find_laszip_vlr(&mut cursor, header.num_vlrs)?;
+
+    // Create decompressor pointing to the start of compressed data.
+    // We slice the bytes to create a new cursor starting at position 0,
+    // because the laz crate stores chunk table offsets relative to the
+    // start of the compressed data stream.
+    let compressed_slice = &bytes[header.offset_to_points as usize..];
+    let point_size = laszip_vlr.items_size() as usize;
+    let num_points = header.num_points as usize;
+
+    let has_color = matches!(
+        header.point_format_id,
+        2 | 3 | 8 // RGB formats
+    );
+    let has_color_in_laz = has_color
+        || laszip_vlr
+            .items()
+            .iter()
+            .any(|item| matches!(item.item_type(), laz::LazItemType::RGB12 | laz::LazItemType::RGB14));
+
+    let mut decompressor =
+        laz::LasZipDecompressor::new(Cursor::new(compressed_slice), laszip_vlr).map_err(|e| {
+            format!("Failed to create LAZ decompressor: {}", e)
+        })?;
+
+    let mut positions: Vec<f32> = Vec::with_capacity(num_points * 3);
+    let mut colors: Option<Vec<u8>> = if has_color_in_laz {
+        Some(Vec::with_capacity(num_points * 3))
+    } else {
+        None
+    };
+
+    let mut point_buf = vec![0u8; point_size];
+
+    for _ in 0..num_points {
+        decompressor
+            .decompress_one(&mut point_buf)
+            .map_err(|e| format!("LAZ decompression error: {}", e))?;
+
+        let raw_x = read_i32_le(&point_buf, 0) as f64;
+        let raw_y = read_i32_le(&point_buf, 4) as f64;
+        let raw_z = read_i32_le(&point_buf, 8) as f64;
+
+        positions.push((raw_x * header.x_scale + header.x_offset) as f32);
+        positions.push((raw_y * header.y_scale + header.y_offset) as f32);
+        positions.push((raw_z * header.z_scale + header.z_offset) as f32);
+
+        if has_color_in_laz {
+            // RGB is at offset 20 for Point10 (20 bytes) format
+            // Point14 (30 bytes) also has RGB at offset 20
+            if point_buf.len() >= 23 {
+                if let Some(ref mut c) = colors {
+                    c.push(point_buf[20]);
+                    c.push(point_buf[21]);
+                    c.push(point_buf[22]);
+                }
+            }
+        }
+    }
+
+    Ok(LasPointCloud {
+        point_count: positions.len() as u32 / 3,
+        positions,
+        colors,
+    })
+}
+
+/// Core LAZ decompression with progress callback — pure Rust.
+pub fn parse_laz_points_with_progress_core<F>(
+    bytes: &[u8],
+    mut on_progress: F,
+    interval: u32,
+) -> Result<LasPointCloud, String>
+where
+    F: FnMut(u32, u32),
+{
+    if bytes.len() < 230 {
+        return Err("LAZ data too short for header".to_string());
+    }
+    if &bytes[0..4] != b"LASF" {
+        return Err(format!(
+            "Invalid LAZ magic: expected b\"LASF\", got {:?}",
+            &bytes[0..4]
+        ));
+    }
+
+    let mut cursor = Cursor::new(bytes.as_ref());
+    let header = LazFileHeader::read_from_cursor(&mut cursor)?;
+
+    if bytes[104] & 0x80 == 0 {
+        return Err(
+            "File appears to be uncompressed LAS. Use parseLasPoints instead.".to_string()
+        );
+    }
+
+    let header_size = u16::from_le_bytes([bytes[94], bytes[95]]) as u64;
+    cursor
+        .seek(SeekFrom::Start(header_size))
+        .map_err(|e| e.to_string())?;
+    let laszip_vlr = find_laszip_vlr(&mut cursor, header.num_vlrs)?;
+
+    let compressed_slice = &bytes[header.offset_to_points as usize..];
+
+    let point_size = laszip_vlr.items_size() as usize;
+    let num_points = header.num_points as usize;
+    let has_color_in_laz = laszip_vlr
+        .items()
+        .iter()
+        .any(|item| matches!(item.item_type(), laz::LazItemType::RGB12 | laz::LazItemType::RGB14));
+
+    let mut decompressor =
+        laz::LasZipDecompressor::new(Cursor::new(compressed_slice), laszip_vlr).map_err(|e| {
+            format!("Failed to create LAZ decompressor: {}", e)
+        })?;
+
+    let mut positions: Vec<f32> = Vec::with_capacity(num_points * 3);
+    let mut colors: Option<Vec<u8>> = if has_color_in_laz {
+        Some(Vec::with_capacity(num_points * 3))
+    } else {
+        None
+    };
+
+    let mut point_buf = vec![0u8; point_size];
+    let mut last_reported: u32 = 0;
+
+    for i in 0..num_points {
+        decompressor
+            .decompress_one(&mut point_buf)
+            .map_err(|e| format!("LAZ decompression error: {}", e))?;
+
+        let raw_x = read_i32_le(&point_buf, 0) as f64;
+        let raw_y = read_i32_le(&point_buf, 4) as f64;
+        let raw_z = read_i32_le(&point_buf, 8) as f64;
+
+        positions.push((raw_x * header.x_scale + header.x_offset) as f32);
+        positions.push((raw_y * header.y_scale + header.y_offset) as f32);
+        positions.push((raw_z * header.z_scale + header.z_offset) as f32);
+
+        if has_color_in_laz && point_buf.len() >= 23 {
+            if let Some(ref mut c) = colors {
+                c.push(point_buf[20]);
+                c.push(point_buf[21]);
+                c.push(point_buf[22]);
+            }
+        }
+
+        if interval > 0 && (i as u32).saturating_sub(last_reported) >= interval {
+            on_progress(i as u32, num_points as u32);
+            last_reported = i as u32;
+        }
+    }
+
+    on_progress(num_points as u32, num_points as u32);
+
+    Ok(LasPointCloud {
+        point_count: positions.len() as u32 / 3,
+        positions,
+        colors,
+    })
+}
+
+/// WASM binding for LAZ point decompression.
+///
+/// Parses a LAZ compressed file and returns decompressed points.
+#[wasm_bindgen(js_name = "parseLazPoints")]
+pub fn parse_laz_points(bytes: &[u8]) -> Result<LasPointCloud, SpatialErrorDetail> {
+    if bytes.len() > DEFAULT_MAX_INPUT_SIZE {
+        return Err(SpatialError::InputTooLarge.with_detail(format!(
+            "LAZ input is {} bytes, max is {}",
+            bytes.len(),
+            DEFAULT_MAX_INPUT_SIZE
+        )));
+    }
+    parse_laz_points_core(bytes).map_err(SpatialError::point_cloud_error)
+}
+
+/// Parse LAZ points with a JS progress callback. Reports every 10,000 points.
+#[wasm_bindgen(js_name = "parseLazPointsStream")]
+pub fn parse_laz_points_stream(
+    bytes: &[u8],
+    on_progress: &js_sys::Function,
+) -> Result<LasPointCloud, SpatialErrorDetail> {
+    let this = JsValue::NULL;
+
+    parse_laz_points_with_progress_core(
+        bytes,
+        |processed, total| {
+            let _ = on_progress.call2(&this, &JsValue::from(processed), &JsValue::from(total));
+        },
+        10_000,
+    )
+    .map_err(SpatialError::point_cloud_error)
 }
 
 // ===========================================================================
@@ -1933,7 +2317,7 @@ pub(crate) mod tests {
         buf[0..4].copy_from_slice(b"LASF");
         buf[24] = 1; // version major
         buf[26] = 2; // version minor
-        buf[96..98].copy_from_slice(&(header_size as u16).to_le_bytes());
+        buf[94..96].copy_from_slice(&(header_size as u16).to_le_bytes());
         buf[98..102].copy_from_slice(&point_offset.to_le_bytes());
         buf[106] = point_format;
         buf[108..110].copy_from_slice(&record_len.to_le_bytes());
@@ -2606,5 +2990,267 @@ DATA ascii
         // After flip, normals should point away from centroid (origin)
         assert!(flipped[0] > 0.5, "Normal 0 x should be positive");
         assert!(flipped[9] < -0.5, "Normal 3 x should be negative");
+    }
+
+    // ── LAZ decompression tests ─────────────────────────────────────
+
+    /// Build a minimal valid LAZ blob by compressing points with the laz crate.
+    ///
+    /// Structure: LAS header (230 bytes) + LASZIP VLR (54 + VLR data) + compressed point data
+    fn build_test_laz_blob(points: &[(f64, f64, f64)], has_color: bool) -> Vec<u8> {
+        let num_points = points.len() as u32;
+        let header_size = 230u32;
+
+        // Build LASZIP VLR items based on format
+        let laz_items = if has_color {
+            laz::LazItemRecordBuilder::new()
+                .add_item(laz::LazItemType::Point10)
+                .add_item(laz::LazItemType::RGB12)
+                .build()
+        } else {
+            laz::LazItemRecordBuilder::new()
+                .add_item(laz::LazItemType::Point10)
+                .build()
+        };
+
+        let point_format: u8 = if has_color { 2 | 0x80 } else { 0 | 0x80 }; // compressed bit set
+        let point_size = laz::LazVlr::from_laz_items(laz_items.clone()).items_size() as u16;
+
+        // Build raw point data for compression
+        let raw_point_data: Vec<u8> = points.iter().flat_map(|&(x, y, z)| {
+            let mut p = vec![0u8; point_size as usize];
+            p[0..4].copy_from_slice(&(x as i32).to_le_bytes());
+            p[4..8].copy_from_slice(&(y as i32).to_le_bytes());
+            p[8..12].copy_from_slice(&(z as i32).to_le_bytes());
+            if has_color && p.len() >= 23 {
+                p[20] = 255; // R
+                p[21] = 128; // G
+                p[22] = 0;   // B
+            }
+            p
+        }).collect();
+
+        // Compress points
+        let mut compressed = std::io::Cursor::new(Vec::new());
+        {
+            let mut compressor =
+                laz::LasZipCompressor::from_laz_items(&mut compressed, laz_items).unwrap();
+            compressor
+                .compress_many(&raw_point_data)
+                .unwrap();
+            compressor.done().unwrap();
+        }
+        let compressed_data = compressed.into_inner();
+
+        // Build LASZIP VLR
+        let laz_vlr = laz::LazVlr::from_laz_items(
+            if has_color {
+                laz::LazItemRecordBuilder::new()
+                    .add_item(laz::LazItemType::Point10)
+                    .add_item(laz::LazItemType::RGB12)
+                    .build()
+            } else {
+                laz::LazItemRecordBuilder::new()
+                    .add_item(laz::LazItemType::Point10)
+                    .build()
+            },
+        );
+
+        let vlr_data = {
+            let mut vlr_buf = std::io::Cursor::new(Vec::new());
+            laz_vlr.write_to(&mut vlr_buf).unwrap();
+            vlr_buf.into_inner()
+        };
+
+        // VLR header: reserved(2) + user_id(16) + record_id(2) + record_length(2) + description(32) + data
+        let vlr_header_size: usize = 2 + 16 + 2 + 2 + 32;
+        let vlr_total_size = vlr_header_size + vlr_data.len();
+
+        let point_offset = header_size + vlr_total_size as u32;
+
+        // Build LAS header
+        let mut buf = vec![0u8; header_size as usize];
+        buf[0..4].copy_from_slice(b"LASF");
+        buf[24] = 1; // version major
+        buf[25] = 2; // version minor
+        buf[94..96].copy_from_slice(&(header_size as u16).to_le_bytes());
+        buf[96..100].copy_from_slice(&point_offset.to_le_bytes());
+        buf[100..104].copy_from_slice(&1u32.to_le_bytes()); // num_vlrs = 1
+        buf[104] = point_format;
+        buf[105..107].copy_from_slice(&point_size.to_le_bytes());
+        buf[107..111].copy_from_slice(&num_points.to_le_bytes());
+        buf[134..142].copy_from_slice(&1.0_f64.to_le_bytes()); // x_scale
+        buf[142..150].copy_from_slice(&1.0_f64.to_le_bytes()); // y_scale
+        buf[150..158].copy_from_slice(&1.0_f64.to_le_bytes()); // z_scale
+
+        // Build VLR
+        buf.resize(buf.len() + vlr_total_size, 0);
+        let vlr_start = header_size as usize;
+        // reserved = 0 (already)
+        // user_id = "laszip encoded" (16 bytes, null-padded)
+        let mut user_id = [0u8; 16];
+        user_id[..14].copy_from_slice(b"laszip encoded");
+        buf[vlr_start + 2..vlr_start + 18].copy_from_slice(&user_id);
+        // record_id = 22204
+        buf[vlr_start + 18..vlr_start + 20].copy_from_slice(&22204u16.to_le_bytes());
+        // record_length
+        buf[vlr_start + 20..vlr_start + 22]
+            .copy_from_slice(&(vlr_data.len() as u16).to_le_bytes());
+        // description (32 bytes of zeros, already zeroed)
+        // VLR data
+        buf[vlr_start + vlr_header_size..vlr_start + vlr_total_size].copy_from_slice(&vlr_data);
+
+        // Append compressed point data
+        buf.extend_from_slice(&compressed_data);
+
+        buf
+    }
+
+    #[test]
+    fn test_laz_roundtrip_format0() {
+        let points = vec![(10.0, 20.0, 30.0), (40.0, 50.0, 60.0), (70.0, 80.0, 90.0)];
+        let laz_blob = build_test_laz_blob(&points, false);
+
+        // Verify it's recognized as LAZ (compression bit)
+        assert!(laz_blob[104] & 0x80 != 0, "Should have compression bit set");
+
+        let cloud = parse_laz_points_core(&laz_blob).unwrap();
+        assert_eq!(cloud.point_count, 3);
+        assert!(cloud.colors.is_none());
+        assert_eq!(cloud.positions.len(), 9);
+
+        // Verify positions match
+        assert_eq!(cloud.positions[0], 10.0);
+        assert_eq!(cloud.positions[1], 20.0);
+        assert_eq!(cloud.positions[2], 30.0);
+        assert_eq!(cloud.positions[3], 40.0);
+        assert_eq!(cloud.positions[4], 50.0);
+        assert_eq!(cloud.positions[5], 60.0);
+        assert_eq!(cloud.positions[6], 70.0);
+        assert_eq!(cloud.positions[7], 80.0);
+        assert_eq!(cloud.positions[8], 90.0);
+    }
+
+    #[test]
+    fn test_laz_roundtrip_format2_with_color() {
+        let points = vec![(5.0, 10.0, 15.0), (25.0, 30.0, 35.0)];
+        let laz_blob = build_test_laz_blob(&points, true);
+
+        let cloud = parse_laz_points_core(&laz_blob).unwrap();
+        assert_eq!(cloud.point_count, 2);
+        assert!(cloud.colors.is_some());
+
+        let colors = cloud.colors.unwrap();
+        assert_eq!(colors.len(), 6);
+        // R=255, G=128, B=0 for each point
+        assert_eq!(colors[0], 255);
+        assert_eq!(colors[1], 128);
+        assert_eq!(colors[2], 0);
+        assert_eq!(colors[3], 255);
+        assert_eq!(colors[4], 128);
+        assert_eq!(colors[5], 0);
+    }
+
+    #[test]
+    fn test_laz_single_point() {
+        let points = vec![(42.0, -17.0, 0.0)];
+        let laz_blob = build_test_laz_blob(&points, false);
+
+        let cloud = parse_laz_points_core(&laz_blob).unwrap();
+        assert_eq!(cloud.point_count, 1);
+        assert_eq!(cloud.positions[0], 42.0);
+        assert_eq!(cloud.positions[1], -17.0);
+        assert_eq!(cloud.positions[2], 0.0);
+    }
+
+    #[test]
+    fn test_laz_many_points() {
+        let points: Vec<(f64, f64, f64)> = (0..500)
+            .map(|i| (i as f64 * 0.1, (i as f64 * 0.2).sin(), (i as f64 * 0.3).cos()))
+            .collect();
+        let laz_blob = build_test_laz_blob(&points, false);
+
+        let cloud = parse_laz_points_core(&laz_blob).unwrap();
+        assert_eq!(cloud.point_count, 500);
+
+        // Spot check first and last
+        assert_eq!(cloud.positions[0], 0.0);
+        assert_eq!(cloud.positions[1], 0.0_f64.sin() as f32);
+        let last = cloud.positions.len() - 3;
+        assert!((cloud.positions[last] - 49.0).abs() < 0.2, "Last x should be ~49.0, got {}", cloud.positions[last]);
+    }
+
+    #[test]
+    fn test_laz_rejects_uncompressed_las() {
+        // Build an uncompressed LAS blob (no compression bit)
+        let points = vec![(1.0, 2.0, 3.0)];
+        let las_blob = build_test_las_blob(&points, false);
+        // Ensure no compression bit at offset 104 (per LAS spec)
+        assert!(las_blob[104] & 0x80 == 0);
+
+        let result = parse_laz_points_core(&las_blob);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("uncompressed"));
+    }
+
+    #[test]
+    fn test_laz_rejects_invalid_magic() {
+        let mut blob = vec![0u8; 300];
+        blob[0..4].copy_from_slice(b"XASX");
+        blob[104] = 0x80; // compression bit at correct LAS spec offset
+
+        let result = parse_laz_points_core(&blob);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_laz_rejects_too_short() {
+        let result = parse_laz_points_core(&[0u8; 10]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_laz_progress_callback() {
+        let points: Vec<(f64, f64, f64)> = (0..250).map(|i| (i as f64, 0.0, 0.0)).collect();
+        let laz_blob = build_test_laz_blob(&points, false);
+
+        let mut call_count = 0u32;
+        let cloud = parse_laz_points_with_progress_core(
+            &laz_blob,
+            |_processed, _total| {
+                call_count += 1;
+            },
+            50, // report every 50 points
+        )
+        .unwrap();
+
+        assert_eq!(cloud.point_count, 250);
+        assert!(call_count >= 4, "Should have called progress at least 4 times, got {}", call_count);
+    }
+
+    #[test]
+    fn test_laz_las_data_consistency() {
+        // Create same points as LAS and LAZ, verify they produce identical results
+        let points = vec![
+            (100.0, -50.0, 25.0),
+            (-100.0, 50.0, -25.0),
+            (0.0, 0.0, 100.0),
+        ];
+        let las_blob = build_test_las_blob(&points, false);
+        let laz_blob = build_test_laz_blob(&points, false);
+
+        let las_cloud = parse_las_points_core(&las_blob).unwrap();
+        let laz_cloud = parse_laz_points_core(&laz_blob).unwrap();
+
+        assert_eq!(las_cloud.point_count, laz_cloud.point_count);
+        for i in 0..las_cloud.positions.len() {
+            assert!(
+                (las_cloud.positions[i] - laz_cloud.positions[i]).abs() < 1e-6,
+                "Position mismatch at index {}: LAS={}, LAZ={}",
+                i,
+                las_cloud.positions[i],
+                laz_cloud.positions[i]
+            );
+        }
     }
 }
