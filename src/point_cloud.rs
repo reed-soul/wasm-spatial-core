@@ -411,7 +411,9 @@ impl LazFileHeader {
             ));
         }
 
-        cursor.seek(SeekFrom::Start(24)).map_err(|e| e.to_string())?;
+        cursor
+            .seek(SeekFrom::Start(24))
+            .map_err(|e| e.to_string())?;
         let mut buf1 = [0u8; 1];
         cursor.read_exact(&mut buf1).map_err(|e| e.to_string())?;
         let _major = buf1[0];
@@ -419,7 +421,9 @@ impl LazFileHeader {
         let _minor = buf1[0];
 
         // Read fields sequentially starting at offset 94 (per LAS spec)
-        cursor.seek(SeekFrom::Start(94)).map_err(|e| e.to_string())?;
+        cursor
+            .seek(SeekFrom::Start(94))
+            .map_err(|e| e.to_string())?;
         let mut buf2 = [0u8; 2];
         cursor.read_exact(&mut buf2).map_err(|e| e.to_string())?;
         let _header_size = u16::from_le_bytes(buf2);
@@ -445,7 +449,9 @@ impl LazFileHeader {
         let num_points = u32::from_le_bytes(buf4);
 
         // Scale/offset
-        cursor.seek(SeekFrom::Start(134)).map_err(|e| e.to_string())?;
+        cursor
+            .seek(SeekFrom::Start(134))
+            .map_err(|e| e.to_string())?;
         let mut buf8 = [0u8; 8];
         cursor.read_exact(&mut buf8).map_err(|e| e.to_string())?;
         let x_scale = f64::from_le_bytes(buf8);
@@ -493,7 +499,9 @@ fn find_laszip_vlr(cursor: &mut Cursor<&[u8]>, num_vlrs: u32) -> Result<laz::Laz
     for _ in 0..num_vlrs {
         // Each VLR: reserved(2) + user_id(16) + record_id(2) + record_length(2) + description(32) + data(record_length)
         let mut reserved = [0u8; 2];
-        cursor.read_exact(&mut reserved).map_err(|e| e.to_string())?;
+        cursor
+            .read_exact(&mut reserved)
+            .map_err(|e| e.to_string())?;
 
         let mut user_id = [0u8; 16];
         cursor.read_exact(&mut user_id).map_err(|e| e.to_string())?;
@@ -507,19 +515,20 @@ fn find_laszip_vlr(cursor: &mut Cursor<&[u8]>, num_vlrs: u32) -> Result<laz::Laz
         let record_length = u16::from_le_bytes(buf2) as usize;
 
         let mut description = [0u8; 32];
-        cursor.read_exact(&mut description).map_err(|e| e.to_string())?;
+        cursor
+            .read_exact(&mut description)
+            .map_err(|e| e.to_string())?;
 
         let mut data = vec![0u8; record_length];
         cursor.read_exact(&mut data).map_err(|e| e.to_string())?;
 
-        let user_id_str =
-            String::from_utf8_lossy(&user_id).trim_end_matches(|c: char| c == '\0').to_string();
+        let user_id_str = String::from_utf8_lossy(&user_id)
+            .trim_end_matches('\0')
+            .to_string();
 
         if record_id == 22204 && user_id_str == "laszip encoded" {
-            return laz::LazVlr::read_from(data.as_slice()).map_err(|e| format!(
-                "Failed to parse LASZIP VLR: {}",
-                e
-            ));
+            return laz::LazVlr::read_from(data.as_slice())
+                .map_err(|e| format!("Failed to parse LASZIP VLR: {}", e));
         }
     }
 
@@ -545,7 +554,7 @@ pub fn parse_laz_points_core(bytes: &[u8]) -> Result<LasPointCloud, String> {
         ));
     }
 
-    let mut cursor = Cursor::new(bytes.as_ref());
+    let mut cursor = Cursor::new(bytes);
 
     // Read LAS header
     let header = LazFileHeader::read_from_cursor(&mut cursor)?;
@@ -581,15 +590,15 @@ pub fn parse_laz_points_core(bytes: &[u8]) -> Result<LasPointCloud, String> {
         2 | 3 | 8 // RGB formats
     );
     let has_color_in_laz = has_color
-        || laszip_vlr
-            .items()
-            .iter()
-            .any(|item| matches!(item.item_type(), laz::LazItemType::RGB12 | laz::LazItemType::RGB14));
+        || laszip_vlr.items().iter().any(|item| {
+            matches!(
+                item.item_type(),
+                laz::LazItemType::RGB12 | laz::LazItemType::RGB14
+            )
+        });
 
-    let mut decompressor =
-        laz::LasZipDecompressor::new(Cursor::new(compressed_slice), laszip_vlr).map_err(|e| {
-            format!("Failed to create LAZ decompressor: {}", e)
-        })?;
+    let mut decompressor = laz::LasZipDecompressor::new(Cursor::new(compressed_slice), laszip_vlr)
+        .map_err(|e| format!("Failed to create LAZ decompressor: {}", e))?;
 
     let mut positions: Vec<f32> = Vec::with_capacity(num_points * 3);
     let mut colors: Option<Vec<u8>> = if has_color_in_laz {
@@ -652,13 +661,11 @@ where
         ));
     }
 
-    let mut cursor = Cursor::new(bytes.as_ref());
+    let mut cursor = Cursor::new(bytes);
     let header = LazFileHeader::read_from_cursor(&mut cursor)?;
 
     if bytes[104] & 0x80 == 0 {
-        return Err(
-            "File appears to be uncompressed LAS. Use parseLasPoints instead.".to_string()
-        );
+        return Err("File appears to be uncompressed LAS. Use parseLasPoints instead.".to_string());
     }
 
     let header_size = u16::from_le_bytes([bytes[94], bytes[95]]) as u64;
@@ -671,15 +678,15 @@ where
 
     let point_size = laszip_vlr.items_size() as usize;
     let num_points = header.num_points as usize;
-    let has_color_in_laz = laszip_vlr
-        .items()
-        .iter()
-        .any(|item| matches!(item.item_type(), laz::LazItemType::RGB12 | laz::LazItemType::RGB14));
+    let has_color_in_laz = laszip_vlr.items().iter().any(|item| {
+        matches!(
+            item.item_type(),
+            laz::LazItemType::RGB12 | laz::LazItemType::RGB14
+        )
+    });
 
-    let mut decompressor =
-        laz::LasZipDecompressor::new(Cursor::new(compressed_slice), laszip_vlr).map_err(|e| {
-            format!("Failed to create LAZ decompressor: {}", e)
-        })?;
+    let mut decompressor = laz::LasZipDecompressor::new(Cursor::new(compressed_slice), laszip_vlr)
+        .map_err(|e| format!("Failed to create LAZ decompressor: {}", e))?;
 
     let mut positions: Vec<f32> = Vec::with_capacity(num_points * 3);
     let mut colors: Option<Vec<u8>> = if has_color_in_laz {
@@ -3078,48 +3085,47 @@ DATA ascii
                 .build()
         };
 
-        let point_format: u8 = if has_color { 2 | 0x80 } else { 0 | 0x80 }; // compressed bit set
+        let point_format: u8 = if has_color { 2 | 0x80 } else { 0x80 }; // compressed bit set
         let point_size = laz::LazVlr::from_laz_items(laz_items.clone()).items_size() as u16;
 
         // Build raw point data for compression
-        let raw_point_data: Vec<u8> = points.iter().flat_map(|&(x, y, z)| {
-            let mut p = vec![0u8; point_size as usize];
-            p[0..4].copy_from_slice(&(x as i32).to_le_bytes());
-            p[4..8].copy_from_slice(&(y as i32).to_le_bytes());
-            p[8..12].copy_from_slice(&(z as i32).to_le_bytes());
-            if has_color && p.len() >= 23 {
-                p[20] = 255; // R
-                p[21] = 128; // G
-                p[22] = 0;   // B
-            }
-            p
-        }).collect();
+        let raw_point_data: Vec<u8> = points
+            .iter()
+            .flat_map(|&(x, y, z)| {
+                let mut p = vec![0u8; point_size as usize];
+                p[0..4].copy_from_slice(&(x as i32).to_le_bytes());
+                p[4..8].copy_from_slice(&(y as i32).to_le_bytes());
+                p[8..12].copy_from_slice(&(z as i32).to_le_bytes());
+                if has_color && p.len() >= 23 {
+                    p[20] = 255; // R
+                    p[21] = 128; // G
+                    p[22] = 0; // B
+                }
+                p
+            })
+            .collect();
 
         // Compress points
         let mut compressed = std::io::Cursor::new(Vec::new());
         {
             let mut compressor =
                 laz::LasZipCompressor::from_laz_items(&mut compressed, laz_items).unwrap();
-            compressor
-                .compress_many(&raw_point_data)
-                .unwrap();
+            compressor.compress_many(&raw_point_data).unwrap();
             compressor.done().unwrap();
         }
         let compressed_data = compressed.into_inner();
 
         // Build LASZIP VLR
-        let laz_vlr = laz::LazVlr::from_laz_items(
-            if has_color {
-                laz::LazItemRecordBuilder::new()
-                    .add_item(laz::LazItemType::Point10)
-                    .add_item(laz::LazItemType::RGB12)
-                    .build()
-            } else {
-                laz::LazItemRecordBuilder::new()
-                    .add_item(laz::LazItemType::Point10)
-                    .build()
-            },
-        );
+        let laz_vlr = laz::LazVlr::from_laz_items(if has_color {
+            laz::LazItemRecordBuilder::new()
+                .add_item(laz::LazItemType::Point10)
+                .add_item(laz::LazItemType::RGB12)
+                .build()
+        } else {
+            laz::LazItemRecordBuilder::new()
+                .add_item(laz::LazItemType::Point10)
+                .build()
+        });
 
         let vlr_data = {
             let mut vlr_buf = std::io::Cursor::new(Vec::new());
@@ -3159,8 +3165,7 @@ DATA ascii
         // record_id = 22204
         buf[vlr_start + 18..vlr_start + 20].copy_from_slice(&22204u16.to_le_bytes());
         // record_length
-        buf[vlr_start + 20..vlr_start + 22]
-            .copy_from_slice(&(vlr_data.len() as u16).to_le_bytes());
+        buf[vlr_start + 20..vlr_start + 22].copy_from_slice(&(vlr_data.len() as u16).to_le_bytes());
         // description (32 bytes of zeros, already zeroed)
         // VLR data
         buf[vlr_start + vlr_header_size..vlr_start + vlr_total_size].copy_from_slice(&vlr_data);
@@ -3231,7 +3236,13 @@ DATA ascii
     #[test]
     fn test_laz_many_points() {
         let points: Vec<(f64, f64, f64)> = (0..500)
-            .map(|i| (i as f64 * 0.1, (i as f64 * 0.2).sin(), (i as f64 * 0.3).cos()))
+            .map(|i| {
+                (
+                    i as f64 * 0.1,
+                    (i as f64 * 0.2).sin(),
+                    (i as f64 * 0.3).cos(),
+                )
+            })
             .collect();
         let laz_blob = build_test_laz_blob(&points, false);
 
@@ -3242,7 +3253,11 @@ DATA ascii
         assert_eq!(cloud.positions[0], 0.0);
         assert_eq!(cloud.positions[1], 0.0_f64.sin() as f32);
         let last = cloud.positions.len() - 3;
-        assert!((cloud.positions[last] - 49.0).abs() < 0.2, "Last x should be ~49.0, got {}", cloud.positions[last]);
+        assert!(
+            (cloud.positions[last] - 49.0).abs() < 0.2,
+            "Last x should be ~49.0, got {}",
+            cloud.positions[last]
+        );
     }
 
     #[test]
@@ -3290,7 +3305,11 @@ DATA ascii
         .unwrap();
 
         assert_eq!(cloud.point_count, 250);
-        assert!(call_count >= 4, "Should have called progress at least 4 times, got {}", call_count);
+        assert!(
+            call_count >= 4,
+            "Should have called progress at least 4 times, got {}",
+            call_count
+        );
     }
 
     #[test]

@@ -246,7 +246,7 @@ fn build_las_blob(n: usize) -> Vec<u8> {
 /// Build a LAZ blob with n points (compressed with laz crate).
 #[cfg(feature = "point-cloud")]
 fn build_laz_blob(n: usize) -> Vec<u8> {
-    use laz::{LazItemRecordBuilder, LazItemType, LazVlr, LasZipCompressor};
+    use laz::{LasZipCompressor, LazItemRecordBuilder, LazItemType, LazVlr};
     use std::io::Cursor;
 
     let header_size = 230u32;
@@ -257,16 +257,18 @@ fn build_laz_blob(n: usize) -> Vec<u8> {
     let point_size = vlr.items_size() as u16;
 
     let mut rng = rand::thread_rng();
-    let raw_points: Vec<u8> = (0..n).flat_map(|_| {
-        let mut p = vec![0u8; point_size as usize];
-        let x = rng.gen_range(-1000.0..1000.0);
-        let y = rng.gen_range(-1000.0..1000.0);
-        let z = rng.gen_range(-100.0..500.0);
-        p[0..4].copy_from_slice(&(x as i32).to_le_bytes());
-        p[4..8].copy_from_slice(&(y as i32).to_le_bytes());
-        p[8..12].copy_from_slice(&(z as i32).to_le_bytes());
-        p
-    }).collect();
+    let raw_points: Vec<u8> = (0..n)
+        .flat_map(|_| {
+            let mut p = vec![0u8; point_size as usize];
+            let x = rng.gen_range(-1000.0..1000.0);
+            let y = rng.gen_range(-1000.0..1000.0);
+            let z = rng.gen_range(-100.0..500.0);
+            p[0..4].copy_from_slice(&(x as i32).to_le_bytes());
+            p[4..8].copy_from_slice(&(y as i32).to_le_bytes());
+            p[8..12].copy_from_slice(&(z as i32).to_le_bytes());
+            p
+        })
+        .collect();
 
     let mut compressed = Cursor::new(Vec::new());
     {
@@ -287,7 +289,8 @@ fn build_laz_blob(n: usize) -> Vec<u8> {
 
     let mut buf = vec![0u8; header_size as usize + vlr_total + compressed_data.len()];
     buf[0..4].copy_from_slice(b"LASF");
-    buf[24] = 1; buf[26] = 2;
+    buf[24] = 1;
+    buf[26] = 2;
     buf[94..96].copy_from_slice(&(header_size as u16).to_le_bytes());
     buf[96..100].copy_from_slice(&point_offset.to_le_bytes());
     buf[100..104].copy_from_slice(&1u32.to_le_bytes());
@@ -301,9 +304,12 @@ fn build_laz_blob(n: usize) -> Vec<u8> {
     let mut uid = [0u8; 16];
     uid[..14].copy_from_slice(b"laszip encoded");
     buf[header_size as usize + 2..header_size as usize + 18].copy_from_slice(&uid);
-    buf[header_size as usize + 18..header_size as usize + 20].copy_from_slice(&22204u16.to_le_bytes());
-    buf[header_size as usize + 20..header_size as usize + 22].copy_from_slice(&(vlr_data.len() as u16).to_le_bytes());
-    buf[header_size as usize + vlr_header_size..header_size as usize + vlr_total].copy_from_slice(&vlr_data);
+    buf[header_size as usize + 18..header_size as usize + 20]
+        .copy_from_slice(&22204u16.to_le_bytes());
+    buf[header_size as usize + 20..header_size as usize + 22]
+        .copy_from_slice(&(vlr_data.len() as u16).to_le_bytes());
+    buf[header_size as usize + vlr_header_size..header_size as usize + vlr_total]
+        .copy_from_slice(&vlr_data);
     buf[header_size as usize + vlr_total..].copy_from_slice(&compressed_data);
 
     buf
