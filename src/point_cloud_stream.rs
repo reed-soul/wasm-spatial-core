@@ -416,11 +416,36 @@ impl CopcInfo {
         let obj = js_sys::Object::new();
 
         // Version
-        js_sys::Reflect::set(&obj, &"version".into(), &format!("{}.{}", self.version_major, self.version_minor).into()).ok();
-        js_sys::Reflect::set(&obj, &"pointFormatId".into(), &JsValue::from(self.point_format_id as u32)).ok();
-        js_sys::Reflect::set(&obj, &"pointCount".into(), &JsValue::from(self.point_count as f64)).ok();
-        js_sys::Reflect::set(&obj, &"totalBytes".into(), &JsValue::from(self.total_bytes as f64)).ok();
-        js_sys::Reflect::set(&obj, &"pointDataOffset".into(), &JsValue::from(self.point_data_offset as f64)).ok();
+        js_sys::Reflect::set(
+            &obj,
+            &"version".into(),
+            &format!("{}.{}", self.version_major, self.version_minor).into(),
+        )
+        .ok();
+        js_sys::Reflect::set(
+            &obj,
+            &"pointFormatId".into(),
+            &JsValue::from(self.point_format_id as u32),
+        )
+        .ok();
+        js_sys::Reflect::set(
+            &obj,
+            &"pointCount".into(),
+            &JsValue::from(self.point_count as f64),
+        )
+        .ok();
+        js_sys::Reflect::set(
+            &obj,
+            &"totalBytes".into(),
+            &JsValue::from(self.total_bytes as f64),
+        )
+        .ok();
+        js_sys::Reflect::set(
+            &obj,
+            &"pointDataOffset".into(),
+            &JsValue::from(self.point_data_offset as f64),
+        )
+        .ok();
 
         // Scale/offset
         js_sys::Reflect::set(&obj, &"xScale".into(), &JsValue::from(self.x_scale)).ok();
@@ -486,8 +511,10 @@ pub fn parse_copc_header_core(bytes: &[u8]) -> Result<CopcInfo, String> {
     let version_minor = bytes[25];
 
     // Read key header fields (LAS 1.4 sequential reads)
-    let mut cursor = Cursor::new(bytes.as_ref());
-    cursor.seek(SeekFrom::Start(94)).map_err(|e| e.to_string())?;
+    let mut cursor = Cursor::new(bytes);
+    cursor
+        .seek(SeekFrom::Start(94))
+        .map_err(|e| e.to_string())?;
     let _header_size = read_u16_from_cursor(&mut cursor)?;
     let point_data_offset = read_u32_from_cursor(&mut cursor)? as u64;
     let num_vlrs = read_u32_from_cursor(&mut cursor)?;
@@ -496,15 +523,21 @@ pub fn parse_copc_header_core(bytes: &[u8]) -> Result<CopcInfo, String> {
 
     // LAS 1.4 uses 64-bit point count at offset 247
     let point_count: u64 = if version_major == 1 && version_minor == 4 {
-        cursor.seek(SeekFrom::Start(247)).map_err(|e| e.to_string())?;
+        cursor
+            .seek(SeekFrom::Start(247))
+            .map_err(|e| e.to_string())?;
         read_u64_from_cursor(&mut cursor)?
     } else {
-        cursor.seek(SeekFrom::Start(107)).map_err(|e| e.to_string())?;
+        cursor
+            .seek(SeekFrom::Start(107))
+            .map_err(|e| e.to_string())?;
         read_u32_from_cursor(&mut cursor)? as u64
     };
 
     // Scale/offset
-    cursor.seek(SeekFrom::Start(134)).map_err(|e| e.to_string())?;
+    cursor
+        .seek(SeekFrom::Start(134))
+        .map_err(|e| e.to_string())?;
     let x_scale = read_f64_from_cursor(&mut cursor)?;
     let y_scale = read_f64_from_cursor(&mut cursor)?;
     let z_scale = read_f64_from_cursor(&mut cursor)?;
@@ -513,7 +546,9 @@ pub fn parse_copc_header_core(bytes: &[u8]) -> Result<CopcInfo, String> {
     let z_offset = read_f64_from_cursor(&mut cursor)?;
 
     // Bounds
-    cursor.seek(SeekFrom::Start(182)).map_err(|e| e.to_string())?;
+    cursor
+        .seek(SeekFrom::Start(182))
+        .map_err(|e| e.to_string())?;
     let max_x = read_f64_from_cursor(&mut cursor)?;
     let max_y = read_f64_from_cursor(&mut cursor)?;
     let max_z = read_f64_from_cursor(&mut cursor)?;
@@ -523,14 +558,20 @@ pub fn parse_copc_header_core(bytes: &[u8]) -> Result<CopcInfo, String> {
 
     // Scan VLRs to find LASZIP VLR
     // Seek to header_size to start reading VLRs
-    cursor.seek(SeekFrom::Start(94)).map_err(|e| e.to_string())?;
+    cursor
+        .seek(SeekFrom::Start(94))
+        .map_err(|e| e.to_string())?;
     let header_size_val = read_u16_from_cursor(&mut cursor)?;
-    cursor.seek(SeekFrom::Start(header_size_val as u64)).map_err(|e| e.to_string())?;
+    cursor
+        .seek(SeekFrom::Start(header_size_val as u64))
+        .map_err(|e| e.to_string())?;
     let mut laszip_vlr: Option<laz::LazVlr> = None;
 
     for _ in 0..num_vlrs {
         let mut _reserved = [0u8; 2];
-        cursor.read_exact(&mut _reserved).map_err(|e| e.to_string())?;
+        cursor
+            .read_exact(&mut _reserved)
+            .map_err(|e| e.to_string())?;
         let mut user_id = [0u8; 16];
         cursor.read_exact(&mut user_id).map_err(|e| e.to_string())?;
         let record_id = read_u16_from_cursor(&mut cursor)?;
@@ -541,13 +582,14 @@ pub fn parse_copc_header_core(bytes: &[u8]) -> Result<CopcInfo, String> {
         cursor.read_exact(&mut data).map_err(|e| e.to_string())?;
 
         let uid_str = String::from_utf8_lossy(&user_id)
-            .trim_end_matches(|c: char| c == '\0')
+            .trim_end_matches('\0')
             .to_string();
 
         if record_id == 22204 && uid_str == "laszip encoded" {
-            laszip_vlr = Some(laz::LazVlr::read_from(data.as_slice()).map_err(|e| {
-                format!("Failed to parse LASZIP VLR: {}", e)
-            })?);
+            laszip_vlr = Some(
+                laz::LazVlr::read_from(data.as_slice())
+                    .map_err(|e| format!("Failed to parse LASZIP VLR: {}", e))?,
+            );
         }
 
         // COPC VLR (user_id="copc", record_id=1) — store for future use
@@ -561,13 +603,16 @@ pub fn parse_copc_header_core(bytes: &[u8]) -> Result<CopcInfo, String> {
     let laz_vlr = laszip_vlr.ok_or("LASZIP VLR not found in COPC file".to_string())?;
 
     // Read the chunk table from the point data section
-    cursor.seek(SeekFrom::Start(point_data_offset)).map_err(|e| e.to_string())?;
+    cursor
+        .seek(SeekFrom::Start(point_data_offset))
+        .map_err(|e| e.to_string())?;
 
     // Read chunk table from LAZ data
-    let chunk_table = read_chunk_table_from_laz(bytes, point_data_offset, &laz_vlr).unwrap_or_else(|_| {
-        // Chunk table parsing is non-critical; use fallback
-        Vec::new()
-    });
+    let chunk_table =
+        read_chunk_table_from_laz(bytes, point_data_offset, &laz_vlr).unwrap_or_else(|_| {
+            // Chunk table parsing is non-critical; use fallback
+            Vec::new()
+        });
 
     let total_bytes = bytes.len() as u64;
 
@@ -604,7 +649,9 @@ fn read_chunk_table_from_laz(
 
     // Read the 8-byte chunk table offset from start of compressed data
     let offset_to_chunk_table = i64::from_le_bytes(
-        compressed_slice[0..8].try_into().map_err(|_| "Failed to read chunk offset")?
+        compressed_slice[0..8]
+            .try_into()
+            .map_err(|_| "Failed to read chunk offset")?,
     );
 
     if offset_to_chunk_table <= 0 {
@@ -618,12 +665,9 @@ fn read_chunk_table_from_laz(
     }
 
     // Read version and count from the chunk table header
-    let _version = u32::from_le_bytes(
-        compressed_slice[ct_pos..ct_pos + 4].try_into().unwrap()
-    );
-    let _num_entries = u32::from_le_bytes(
-        compressed_slice[ct_pos + 4..ct_pos + 8].try_into().unwrap()
-    );
+    let _version = u32::from_le_bytes(compressed_slice[ct_pos..ct_pos + 4].try_into().unwrap());
+    let _num_entries =
+        u32::from_le_bytes(compressed_slice[ct_pos + 4..ct_pos + 8].try_into().unwrap());
 
     // Chunk entries are arithmetic-coded. We can't decode them without the laz crate's
     // internal decoder. Instead, compute boundaries from the data layout.
@@ -663,8 +707,10 @@ pub fn read_copc_chunk_core(
     header_bytes: &[u8],
 ) -> Result<LasPointCloud, String> {
     // Find LASZIP VLR from header
-    let mut cursor = Cursor::new(header_bytes.as_ref());
-    cursor.seek(SeekFrom::Start(94)).map_err(|e| e.to_string())?;
+    let mut cursor = Cursor::new(header_bytes);
+    cursor
+        .seek(SeekFrom::Start(94))
+        .map_err(|e| e.to_string())?;
     let header_size_val = read_u16_from_cursor(&mut cursor)?;
     let point_data_offset = read_u32_from_cursor(&mut cursor)? as u64;
     let num_vlrs = read_u32_from_cursor(&mut cursor)?;
@@ -678,12 +724,16 @@ pub fn read_copc_chunk_core(
     let y_offset = read_f64_le(header_bytes, 166);
     let z_offset = read_f64_le(header_bytes, 174);
 
-    cursor.seek(SeekFrom::Start(header_size_val as u64)).map_err(|e| e.to_string())?;
+    cursor
+        .seek(SeekFrom::Start(header_size_val as u64))
+        .map_err(|e| e.to_string())?;
 
     let mut laszip_vlr: Option<laz::LazVlr> = None;
     for _ in 0..num_vlrs {
         let mut reserved = [0u8; 2];
-        cursor.read_exact(&mut reserved).map_err(|e| e.to_string())?;
+        cursor
+            .read_exact(&mut reserved)
+            .map_err(|e| e.to_string())?;
         let mut user_id = [0u8; 16];
         cursor.read_exact(&mut user_id).map_err(|e| e.to_string())?;
         let record_id = read_u16_from_cursor(&mut cursor)?;
@@ -694,13 +744,14 @@ pub fn read_copc_chunk_core(
         cursor.read_exact(&mut data).map_err(|e| e.to_string())?;
 
         let uid_str = String::from_utf8_lossy(&user_id)
-            .trim_end_matches(|c: char| c == '\0')
+            .trim_end_matches('\0')
             .to_string();
 
         if record_id == 22204 && uid_str == "laszip encoded" {
-            laszip_vlr = Some(laz::LazVlr::read_from(data.as_slice()).map_err(|e| {
-                format!("Failed to parse LASZIP VLR: {}", e)
-            })?);
+            laszip_vlr = Some(
+                laz::LazVlr::read_from(data.as_slice())
+                    .map_err(|e| format!("Failed to parse LASZIP VLR: {}", e))?,
+            );
         }
     }
 
@@ -719,18 +770,16 @@ pub fn read_copc_chunk_core(
 
     let chunk_slice = &bytes[absolute_offset as usize..end];
     let point_size = laz_vlr.items_size() as usize;
-    let has_color = matches!(
-        point_format_id & 0x3F,
-        2 | 3 | 8
-    ) || laz_vlr
-        .items()
-        .iter()
-        .any(|item| matches!(item.item_type(), laz::LazItemType::RGB12 | laz::LazItemType::RGB14));
+    let has_color = matches!(point_format_id & 0x3F, 2 | 3 | 8)
+        || laz_vlr.items().iter().any(|item| {
+            matches!(
+                item.item_type(),
+                laz::LazItemType::RGB12 | laz::LazItemType::RGB14
+            )
+        });
 
-    let mut decompressor = laz::LasZipDecompressor::new(
-        Cursor::new(chunk_slice),
-        laz_vlr,
-    ).map_err(|e| format!("Failed to create decompressor for chunk: {}", e))?;
+    let mut decompressor = laz::LasZipDecompressor::new(Cursor::new(chunk_slice), laz_vlr)
+        .map_err(|e| format!("Failed to create decompressor for chunk: {}", e))?;
 
     let mut positions: Vec<f32> = Vec::with_capacity(expected_points * 3);
     let mut colors: Option<Vec<u8>> = if has_color {
@@ -805,7 +854,9 @@ pub fn read_copc_region(
 ) -> Result<LasPointCloud, SpatialErrorDetail> {
     // Parse header to get scale/offset and find LASZIP VLR
     if bytes.len() < 375 {
-        return Err(SpatialError::point_cloud_error("File too short for COPC header"));
+        return Err(SpatialError::point_cloud_error(
+            "File too short for COPC header",
+        ));
     }
 
     let info = parse_copc_header_core(bytes).map_err(SpatialError::point_cloud_error)?;
@@ -829,20 +880,22 @@ pub fn read_copc_region(
         // (This is a rough filter; in a real COPC implementation we'd use
         //  the hierarchy nodes for precise spatial filtering)
 
-        if let Ok(chunk_cloud) = read_copc_chunk_core(
-            bytes,
-            *offset,
-            *size,
-            *count as usize,
-            header_bytes,
-        ) {
+        if let Ok(chunk_cloud) =
+            read_copc_chunk_core(bytes, *offset, *size, *count as usize, header_bytes)
+        {
             // Filter points by bounding box
             for i in 0..chunk_cloud.point_count as usize {
                 let px = chunk_cloud.positions[i * 3] as f64;
                 let py = chunk_cloud.positions[i * 3 + 1] as f64;
                 let pz = chunk_cloud.positions[i * 3 + 2] as f64;
 
-                if px >= min_x && px <= max_x && py >= min_y && py <= max_y && pz >= min_z && pz <= max_z {
+                if px >= min_x
+                    && px <= max_x
+                    && py >= min_y
+                    && py <= max_y
+                    && pz >= min_z
+                    && pz <= max_z
+                {
                     all_positions.push(px as f32);
                     all_positions.push(py as f32);
                     all_positions.push(pz as f32);
@@ -1032,9 +1085,9 @@ mod tests {
 
     #[test]
     fn test_laz_status() {
-        assert!(!supports_laz());
+        assert!(supports_laz());
         let status = laz_status();
-        assert!(status.contains("not yet available"));
+        assert!(status.contains("ENABLED"));
     }
 
     #[test]
@@ -1093,7 +1146,7 @@ mod tests {
 
     /// Build a minimal COPC-like file (LAS 1.4 + LASZIP VLR + compressed data).
     fn build_test_copc_blob(points: &[(f64, f64, f64)], has_color: bool) -> Vec<u8> {
-        use laz::{LazItemRecordBuilder, LazItemType, LazVlr, LasZipCompressor};
+        use laz::{LasZipCompressor, LazItemRecordBuilder, LazItemType, LazVlr};
         use std::io::Cursor;
 
         let num_points = points.len() as u32;
@@ -1111,38 +1164,47 @@ mod tests {
                 .build()
         };
 
-        let point_format: u8 = if has_color { 2 | 0x80 } else { 0 | 0x80 };
+        let point_format: u8 = if has_color { 2 | 0x80 } else { 0x80 };
         let point_size = LazVlr::from_laz_items(laz_items.clone()).items_size() as u16;
 
         // Build raw point data
-        let raw_point_data: Vec<u8> = points.iter().flat_map(|&(x, y, z)| {
-            let mut p = vec![0u8; point_size as usize];
-            p[0..4].copy_from_slice(&(x as i32).to_le_bytes());
-            p[4..8].copy_from_slice(&(y as i32).to_le_bytes());
-            p[8..12].copy_from_slice(&(z as i32).to_le_bytes());
-            if has_color && p.len() >= 23 {
-                p[20] = 255; p[21] = 128; p[22] = 0;
-            }
-            p
-        }).collect();
+        let raw_point_data: Vec<u8> = points
+            .iter()
+            .flat_map(|&(x, y, z)| {
+                let mut p = vec![0u8; point_size as usize];
+                p[0..4].copy_from_slice(&(x as i32).to_le_bytes());
+                p[4..8].copy_from_slice(&(y as i32).to_le_bytes());
+                p[8..12].copy_from_slice(&(z as i32).to_le_bytes());
+                if has_color && p.len() >= 23 {
+                    p[20] = 255;
+                    p[21] = 128;
+                    p[22] = 0;
+                }
+                p
+            })
+            .collect();
 
         // Compress
         let mut compressed = Cursor::new(Vec::new());
         {
-            let mut compressor = LasZipCompressor::from_laz_items(&mut compressed, laz_items).unwrap();
+            let mut compressor =
+                LasZipCompressor::from_laz_items(&mut compressed, laz_items).unwrap();
             compressor.compress_many(&raw_point_data).unwrap();
             compressor.done().unwrap();
         }
         let compressed_data = compressed.into_inner();
 
         // Build LASZIP VLR data
-        let laz_vlr = LazVlr::from_laz_items(
-            if has_color {
-                LazItemRecordBuilder::new().add_item(LazItemType::Point10).add_item(LazItemType::RGB12).build()
-            } else {
-                LazItemRecordBuilder::new().add_item(LazItemType::Point10).build()
-            },
-        );
+        let laz_vlr = LazVlr::from_laz_items(if has_color {
+            LazItemRecordBuilder::new()
+                .add_item(LazItemType::Point10)
+                .add_item(LazItemType::RGB12)
+                .build()
+        } else {
+            LazItemRecordBuilder::new()
+                .add_item(LazItemType::Point10)
+                .build()
+        });
         let mut vlr_buf = Cursor::new(Vec::new());
         laz_vlr.write_to(&mut vlr_buf).unwrap();
         let vlr_data = vlr_buf.into_inner();
@@ -1155,8 +1217,12 @@ mod tests {
         let (mut min_x, mut min_y, mut min_z) = (f64::MAX, f64::MAX, f64::MAX);
         let (mut max_x, mut max_y, mut max_z) = (f64::MIN, f64::MIN, f64::MIN);
         for &(x, y, z) in points {
-            min_x = min_x.min(x); min_y = min_y.min(y); min_z = min_z.min(z);
-            max_x = max_x.max(x); max_y = max_y.max(y); max_z = max_z.max(z);
+            min_x = min_x.min(x);
+            min_y = min_y.min(y);
+            min_z = min_z.min(z);
+            max_x = max_x.max(x);
+            max_y = max_y.max(y);
+            max_z = max_z.max(z);
         }
 
         // Build LAS 1.4 header (375 bytes)
@@ -1170,7 +1236,7 @@ mod tests {
         buf[104] = point_format;
         buf[105..107].copy_from_slice(&point_size.to_le_bytes());
         buf[107..111].copy_from_slice(&num_points.to_le_bytes()); // 32-bit count too
-        // 64-bit point count at offset 247
+                                                                  // 64-bit point count at offset 247
         buf[247..255].copy_from_slice(&(num_points as u64).to_le_bytes());
         buf[134..142].copy_from_slice(&1.0_f64.to_le_bytes());
         buf[142..150].copy_from_slice(&1.0_f64.to_le_bytes());
@@ -1228,9 +1294,9 @@ mod tests {
 
         let info = parse_copc_header_core(&blob).unwrap();
         assert_eq!(info.bounds.0, -10.0); // min_x
-        assert_eq!(info.bounds.3, 10.0);  // max_x
-        assert_eq!(info.bounds.1, -5.0);  // min_y
-        assert_eq!(info.bounds.5, 20.0);  // max_z
+        assert_eq!(info.bounds.3, 10.0); // max_x
+        assert_eq!(info.bounds.1, -5.0); // min_y
+        assert_eq!(info.bounds.5, 20.0); // max_z
     }
 
     #[test]
