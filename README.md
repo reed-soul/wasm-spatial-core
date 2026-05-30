@@ -5,21 +5,18 @@
 **A high-performance WebAssembly engine that brings server-grade spatial computing to the browser.**
 
 [![CI](https://github.com/reed-soul/wasm-spatial-core/actions/workflows/ci.yml/badge.svg)](https://github.com/reed-soul/wasm-spatial-core/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/@anthropic-wasm/spatial-core)](https://www.npmjs.com/package/@anthropic-wasm/spatial-core)
+[![npm version](https://img.shields.io/npm/v/wasm-spatial-core)](https://www.npmjs.com/package/wasm-spatial-core)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Rust](https://img.shields.io/badge/Rust-🦀-orange.svg)](https://www.rust-lang.org)
+[![Rust](https://img.shields.io/badge/Rust-%23A73737-orange.svg?logo=rust&logoColor=white)](https://www.rust-lang.org)
 [![WebAssembly](https://img.shields.io/badge/WebAssembly-654FF0.svg?logo=webassembly&logoColor=white)](https://webassembly.org)
 
-<!-- stats -->
-![Lines](https://img.shields.io/badge/lines-6.5K-blue)
+![Lines](https://img.shields.io/badge/code-6.6K-blue)
 ![Tests](https://img.shields.io/badge/tests-108-success)
 ![Formats](https://img.shields.io/badge/formats-6-green)
 
+*Offload server-side spatial computing to the client — free the cloud.*
 
-*将服务端算力下放至客户端，释放云端压力*
-*Offload server-side computing to the client — free the cloud.*
-
-[Quick Start](#-quick-start) · [API Reference](#-api-reference) · [Roadmap](./PLAN.md) · [Contributing](#-contributing)
+[Quick Start](#-quick-start) · [API Reference](#-api-reference) · [Roadmap](./PLAN.md) · [Contributing](./CONTRIBUTING.md)
 
 </div>
 
@@ -37,9 +34,9 @@ Modern Web3D and GIS applications face a fundamental bottleneck:
 ```
 
 - **100 MB GeoJSON** needs server-side coordinate projection before rendering
-- **Point cloud scans** (LAS/LAZ) require decimation pipelines running on expensive cloud VMs
+- **Point cloud scans** (LAS/LAZ) require decimation pipelines running on cloud VMs
 - **BIM models** (IFC) must be pre-processed and converted server-side
-- Every user request adds latency, bandwidth costs, and cloud compute bills
+- Every request adds latency, bandwidth costs, and compute bills
 
 ## 💡 The Solution
 
@@ -79,23 +76,20 @@ Modern Web3D and GIS applications face a fundamental bottleneck:
 
 ## ✨ Features
 
-### Available Now (v0.1)
-
-- 🔄 **Batch Coordinate Projection** — WGS-84 ↔ GCJ-02, WGS-84 ↔ BD-09, WGS-84 ↔ Web Mercator (EPSG:3857)
+- 🔄 **Batch Coordinate Projection** — WGS-84 ↔ GCJ-02, WGS-84 ↔ BD-09, WGS-84 ↔ Web Mercator (EPSG:3857), WGS-84 ↔ CGCS2000
 - 📦 **GeoJSON Parser** — Parse large FeatureCollections into flat `Float64Array` buffers
-- 📡 **Streaming GeoJSON Parser** — Chunked processing with progress callbacks for large files
-- 🔍 **Spatial Index (R-Tree)** — Bounding box search, nearest-neighbor, K-nearest-neighbor queries
-- 🗺️ **Vector Tile Slicing** — Frontend MVT tile generation for offline tiling
-- 🌐 **Cesium Native Adapter** — WGS84 → Cartesian3 (ECEF), polygon triangulation (earcut), 3D Tiles (b3dm)
-- ☁️ **Point Cloud (LAS/PCD)** — Parse LAS headers & points, voxel grid & random decimation, PCD format support
-- 🌐 **COPC Range-Based Access** — LAS header-only parsing + point offset computation for range-based `fetch`
-- 🏗️ **IFC/BIM Geometry** (experimental) — Extract `IFCEXTRUDEDAREASOLID` mesh geometry from IFC-SPF text
+- 📡 **Streaming GeoJSON Parser** — Chunked processing with progress callbacks
+- 🔍 **Spatial Index (R-Tree)** — Bounding box search, nearest-neighbor, K-nearest-neighbor (point index + edge index)
+- 🗺️ **Vector Tile Slicing** — Frontend MVT tile generation from GeoJSON
+- 🌐 **Cesium Native Adapter** — WGS84 → Cartesian3 (ECEF), polygon triangulation, 3D Tiles (b3dm)
+- ☁️ **Point Cloud (LAS/PCD)** — Parse LAS headers & points, voxel grid & random decimation, COPC range-based access
+- 🏗️ **IFC/BIM Geometry** (experimental) — Extract `IFCEXTRUDEDAREASOLID` mesh geometry
 - 🔺 **glTF / GLB Writer** — Build glTF 2.0 scenes in WASM, export as GLB binary
 - 📐 **Spatial Analysis** — Point/line buffering, bounding box, centroid on WGS-84
 - ⚡ **Zero-Copy Architecture** — Data stays in WASM linear memory; JS gets typed array views
 - 📊 **GPU-Ready Output** — Interleaved vertex buffers, indexed geometry for WebGL2/WebGPU
 - 🧵 **Multi-threaded** (optional) — Web Workers + SharedArrayBuffer via Rayon
-- 🔒 **Memory Management** — `memoryInfo()` API, 100MB input size limit
+- 🔒 **Memory Management** — `memoryInfo()` API, 100 MB input size limit
 
 ---
 
@@ -104,18 +98,17 @@ Modern Web3D and GIS applications face a fundamental bottleneck:
 ### Installation
 
 ```bash
-npm install @anthropic-wasm/spatial-core
+npm install wasm-spatial-core
 ```
 
 ### Basic Usage
 
 ```typescript
-import { loadSpatialCore } from "@anthropic-wasm/spatial-core";
+import { loadSpatialCore } from "wasm-spatial-core";
 
 // Initialize the WASM module (call once)
 const core = await loadSpatialCore();
 
-// Print version
 console.log(core.version()); // "0.1.0"
 
 // ── Batch coordinate conversion ──────────────────────────────
@@ -134,43 +127,50 @@ console.log("GCJ-02:", gcj02);
 const mercator = core.batchWgs84ToMercator(wgs84Coords);
 console.log("Mercator:", mercator);
 
+// Zero-copy in-place transform (no allocation)
+const mutableCoords = new Float64Array([116.404, 39.915]);
+core.batchWgs84ToGcj02InPlace(mutableCoords);
+// mutableCoords is now in GCJ-02
+
 // ── GeoJSON parsing ──────────────────────────────────────────
 const geojson = await fetch("/data/buildings.geojson").then(r => r.text());
-
-// Count features (fast — useful for progress reporting)
 const count = core.countGeoJsonFeatures(geojson);
-console.log(`Parsing ${count} features...`);
-
-// Extract all coordinates as a flat Float64Array
 const coords = core.parseGeoJsonCoords(geojson);
-console.log(`Extracted ${coords.length / 2} coordinate pairs`);
 
 // Feed directly to WebGL
 gl.bufferData(gl.ARRAY_BUFFER, coords, gl.STATIC_DRAW);
 ```
 
-### Using with Cesium
+### Spatial Index
 
 ```typescript
-import { loadSpatialCore } from "@anthropic-wasm/spatial-core";
-
 const core = await loadSpatialCore();
-const geojson = await fetch("/large-dataset.geojson").then(r => r.text());
 
-// Parse & project in WASM — orders of magnitude faster than JS
-const coords = core.parseGeoJsonCoords(geojson);
-const mercatorCoords = core.batchWgs84ToMercator(coords);
+// Build from flat coordinate array
+const index = new core.SpatialIndex(coords);
 
-// Create Cesium entities from the projected coordinates
-for (let i = 0; i < mercatorCoords.length; i += 2) {
-  viewer.entities.add({
-    position: Cesium.Cartesian3.fromDegrees(
-      mercatorCoords[i],
-      mercatorCoords[i + 1]
-    ),
-    point: { pixelSize: 4 },
-  });
-}
+// Bounding box query
+const ids = index.searchBBox(116.0, 39.5, 117.0, 40.5);
+
+// Nearest neighbor
+const nearestId = index.nearestNeighbor(116.4, 39.9);
+
+// K nearest neighbors
+const kIds = index.kNearestNeighbors(116.4, 39.9, 5);
+```
+
+### Cesium Integration
+
+```typescript
+const core = await loadSpatialCore();
+const geojson = await fetch("/buildings.geojson").then(r => r.text());
+
+// Triangulate polygons for Cesium rendering
+const geometry = core.generateCesiumGeometry(geojson, "height");
+
+// Generate a b3dm 3D Tile
+const tile = core.generate3DTile(geojson, "height");
+const tileBytes = tile.toBytes();
 ```
 
 ---
@@ -186,35 +186,33 @@ for (let i = 0; i < mercatorCoords.length; i += 2) {
 ### Build
 
 ```bash
-# Clone the repository
 git clone https://github.com/reed-soul/wasm-spatial-core.git
 cd wasm-spatial-core
 
-# Build the standard single-threaded WASM package
-wasm-pack build --target web --release
+# Standard single-threaded build
+wasm-pack build --target web --release --out-dir pkg
+
+# With point cloud support
+wasm-pack build --target web --release --out-dir pkg -- --features point-cloud
 ```
 
-### Build with Multi-threading
-
-To enable Web Workers and `SharedArrayBuffer` for extreme performance, you must use the `nightly` Rust toolchain and the custom `build:wasm:mt` NPM script:
+### Multi-threaded Build
 
 ```bash
-# Ensure you have the nightly toolchain and rust-src component
 rustup toolchain install nightly
 rustup component add rust-src --toolchain nightly
 
-# Build the multi-threaded version
 cd npm
 npm run build:wasm:mt
 ```
 
-> **⚠️ IMPORTANT:** The multi-threaded version relies on `SharedArrayBuffer`. Your web server must be configured with the following HTTP headers:
+> ⚠️ **Multi-threading requires** `SharedArrayBuffer`. Configure your server with:
 > - `Cross-Origin-Opener-Policy: same-origin`
 > - `Cross-Origin-Embedder-Policy: require-corp`
-> 
-> You must also initialize the thread pool on the JS side before calling any parallel functions:
+>
+> Initialize the thread pool before calling parallel functions:
 > ```typescript
-> import { loadSpatialCore, initThreadPool } from "@anthropic-wasm/spatial-core";
+> import { loadSpatialCore, initThreadPool } from "wasm-spatial-core";
 > await loadSpatialCore();
 > await initThreadPool(navigator.hardwareConcurrency);
 > ```
@@ -227,9 +225,9 @@ npm run build:wasm:mt
 
 | Function | Description |
 |----------|-------------|
-| `batchWgs84ToGcj02(coords)` | WGS-84 → GCJ-02 (China) |
+| `batchWgs84ToGcj02(coords)` | WGS-84 → GCJ-02 |
 | `batchGcj02ToWgs84(coords)` | GCJ-02 → WGS-84 |
-| `batchWgs84ToBd09(coords)` | WGS-84 → BD-09 (Baidu) |
+| `batchWgs84ToBd09(coords)` | WGS-84 → BD-09 |
 | `batchBd09ToWgs84(coords)` | BD-09 → WGS-84 |
 | `batchGcj02ToBd09(coords)` | GCJ-02 → BD-09 |
 | `batchBd09ToGcj02(coords)` | BD-09 → GCJ-02 |
@@ -242,89 +240,89 @@ npm run build:wasm:mt
 
 | Function | Description |
 |----------|-------------|
-| `parseGeoJsonCoords(geojson)` | Extract all coordinates as flat `Float64Array` |
-| `countGeoJsonFeatures(geojson)` | Count features (fast pre-scan) |
-| `parseGeoJsonStream(input, chunkSize, onChunk)` | Streaming chunked parser with progress callback |
-| `parseGeoJsonPerFeature(input)` | Parse into per-feature coordinate arrays |
+| `parseGeoJsonCoords(input)` | Extract all coordinates as flat `Float64Array` |
+| `countGeoJsonFeatures(input)` | Count features (fast pre-scan) |
+| `parseGeoJsonStream(input, chunkSize, onChunk)` | Streaming parser with progress callback |
+| `parseGeoJsonPerFeature(input)` | Per-feature coordinate arrays |
 
 ### Spatial Index
 
-| Function | Description |
-|----------|-------------|
+| Class / Method | Description |
+|----------------|-------------|
 | `new SpatialIndex(coords)` | Build R-Tree from flat coordinate array |
-| `.searchBBox(minX, minY, maxX, maxY)` | Bounding box range query → `Uint32Array` of IDs |
-| `.nearestNeighbor(x, y)` | Find nearest point → ID or `null` |
-| `.kNearestNeighbors(x, y, k)` | K nearest neighbors → `Uint32Array` of IDs |
+| `.searchBBox(minX, minY, maxX, maxY)` | Bounding box range query → `Uint32Array` |
+| `.nearestNeighbor(x, y)` | Nearest point → ID or `undefined` |
+| `.kNearestNeighbors(x, y, k)` | K nearest → `Uint32Array` |
 | `.size()` | Total point count |
+| `new SpatialEdgeIndex(segments)` | Build R-Tree from line segments `[x0,y0,x1,y1,…]` |
+| `.searchBBox(minX, minY, maxX, maxY)` | Edge bbox query → `Uint32Array` |
+| `.nearestNeighbor(x, y)` | Nearest edge → ID or `undefined` |
 
 ### Vector Tiles
 
 | Function | Description |
 |----------|-------------|
-| `new VectorTileEngine(geojson, options)` | Create MVT tile engine from GeoJSON |
-| `.getTile(z, x, y)` | Get MVT (PBF) protobuf for tile → `Uint8Array` |
+| `new VectorTileEngine(geojson, options, layerName?)` | Create MVT engine |
+| `new VectorTileOptions()` | Tile generation options |
+| `.getTile(z, x, y)` | Get MVT PBF protobuf → `Uint8Array` |
 
 ### Cesium Adapter
 
 | Function | Description |
 |----------|-------------|
 | `batchWgs84ToCartesian3(coords)` | WGS84 `[lng,lat,…]` → Cartesian3 `[x,y,z,…]` |
-| `wgs84ToCartesian3Single(lng, lat, height)` | Single point → `[x, y, z]` |
-| `generateCesiumGeometry(geojson, heightProp?)` | Triangulate polygons → `CesiumMeshGeometry` |
-| `generate3DTile(geojson, options?)` | Generate 3D Tiles (b3dm) → `Cesium3DTile` |
+| `generateCesiumGeometry(geojson, heightProp?)` | Triangulate → `CesiumMeshGeometry` |
+| `generate3DTile(geojson, heightProp?)` | Generate b3dm tile → `Cesium3DTile` |
 
-### Point Cloud (LAS/PCD)
+### Point Cloud (LAS/PCD) *`--features point-cloud`*
 
 | Function | Description |
 |----------|-------------|
-| `parseLasHeader(bytes)` | Parse LAS header → `LasHeader` |
-| `parseLasPoints(bytes)` | Parse all LAS points → `LasPointCloud` |
-| `parsePcdAscii(text)` | Parse ASCII PCD → `PcdPointCloud` |
-| `parsePcdBinary(bytes)` | Parse binary PCD → `PcdPointCloud` |
+| `parseLasHeader(bytes)` | Parse LAS header |
+| `parseLasPoints(bytes)` | Parse all points |
+| `parseLasHeaderOnly(bytes)` | Header-only parse (COPC) |
+| `computeLasPointOffset(header, idx, format)` | Byte offset of Nth point |
+| `parseLasPointAt(bytes, offset, format)` | Parse single point |
+| `parsePcdAscii(text)` | Parse ASCII PCD |
+| `parsePcdBinary(bytes)` | Parse binary PCD |
 | `decimateVoxelGrid(positions, colors, gridSize)` | Voxel grid decimation |
 | `decimateRandom(positions, colors, targetCount)` | Random sampling |
 | `generateInterleavedVertexBuffer(positions, colors)` | GPU-ready interleaved buffer |
 | `generateIndexedGeometry(positions, indices)` | GPU-ready indexed buffers |
 
-### COPC (Range-Based Access)
-
-| Function | Description |
-|----------|-------------|
-| `parseLasHeaderOnly(bytes)` | Header-only parse for range-based access → `LasHeaderInfo` |
-| `computeLasPointOffset(header, pointIndex, format)` | Byte offset of Nth point |
-| `parseLasPointAt(bytes, offset, format)` | Parse single point at offset → `PointData` |
-
 ### IFC/BIM (Experimental)
 
 | Function | Description |
 |----------|-------------|
-| `parseIfcGeometry(ifcText)` | Extract meshes from IFC-SPF → `IfcGeometryResult` |
+| `parseIfcGeometry(text)` | Extract meshes from IFC-SPF → `IfcGeometryResult` |
 
 ### glTF / GLB
 
 | Function | Description |
 |----------|-------------|
-| `new GltfWriter()` | Create glTF scene builder |
-| `.addMesh(positions, indices, material?)` | Add triangle mesh |
-| `.addMeshWithBbox(positions, indices, bbox, material?)` | Add mesh with bounding box |
-| `.buildGlb()` | Export as GLB binary → `Uint8Array` |
+| `new GltfBuilder()` | Create scene builder |
+| `.addMaterial(r, g, b, a)` | Add material → material index |
+| `.addMesh(positions, indices, normals, materialIdx)` | Add triangle mesh |
+| `.toGlb()` | Export as GLB binary → `Uint8Array` |
+| `.toGltfJson()` | Export as glTF JSON string |
 
 ### Spatial Analysis
 
 | Function | Description |
 |----------|-------------|
-| `boundingBox(coords, dimensions)` | Compute bounding box → `[min, max]` |
-| `bufferPoints(coords, radius)` | Buffer points on a sphere → `[lng, lat, …]` |
-| `bufferLine(coords, radius)` | Buffer a line on a sphere → `[lng, lat, …]` |
-| `centroid(coords, dimensions)` | Compute centroid → `[x, y, …]` |
+| `bufferPoint(lng, lat, radius, segments?)` | Buffer a point → `Float64Array` |
+| `bufferLineString(coords, radius, segments?)` | Buffer a line → `Float64Array` |
+| `boundingBox(coords)` | Compute bbox → `[minLng, minLat, maxLng, maxLat]` |
+| `centroid(coords)` | Compute centroid → `[lng, lat]` |
 
 ### Utilities
 
 | Function | Description |
 |----------|-------------|
-| `version()` | Library version |
+| `version()` | Library version string |
 | `memoryInfo()` | WASM memory usage → `MemoryInfo` |
 | `cgcs2000IsWgs84Compatible()` | Returns `true` (sub-cm accuracy) |
+| `initThreadPool(numThreads)` | Init Rayon thread pool (multi-thread) |
 
 > All coordinate functions accept and return **flat** `Float64Array` in
 > `[lng, lat, lng, lat, …]` layout for maximum throughput and direct
@@ -342,8 +340,8 @@ Preliminary benchmarks on Apple M1 (Chrome 120, 1M coordinate pairs):
 | WGS84 → Mercator | ~800 ms | ~12 ms | **~67×** |
 | GeoJSON parse (50 MB) | ~3,500 ms | ~320 ms | **~11×** |
 
-*Benchmarks are indicative and will vary by hardware and browser. Formal
-benchmark suite coming in Phase 1.*
+> Benchmarks are indicative and will vary by hardware and browser.
+> Run `cargo bench` for local results.
 
 ---
 
@@ -351,20 +349,16 @@ benchmark suite coming in Phase 1.*
 
 See **[PLAN.md](./PLAN.md)** for the full development roadmap.
 
-All three phases completed ✅ — Phase 1 (MVP), Phase 2 (Ecosystem), Phase 3 (Heterogeneous Data), plus backlogged features (glTF, spatial analysis, COPC).
+All three phases completed ✅ — Phase 1 (MVP), Phase 2 (Ecosystem), Phase 3 (Heterogeneous Data), plus backlogged features.
 
 ---
 
 ## 🤝 Contributing
 
-Contributions are welcome! Whether it's:
+Contributions are welcome! See [**CONTRIBUTING.md**](./CONTRIBUTING.md) for details.
 
-- 🐛 Bug reports and feature requests
-- 📝 Documentation improvements
-- 🔧 Code contributions
-- 🧪 Benchmark data and real-world test cases
-
-Please see our [Contributing Guide](./CONTRIBUTING.md) (coming soon).
+- 🐛 [Report a bug](.github/ISSUE_TEMPLATE/bug_report.md)
+- 💡 [Request a feature](.github/ISSUE_TEMPLATE/feature_request.md)
 
 ---
 
