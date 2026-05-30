@@ -11,5 +11,5 @@ use wasm_spatial_core::version;
 
 #[wasm_bindgen_test]
 fn test_version_in_browser() {
-    assert_eq!(version(), "0.1.0");
+    assert_eq!(version(), "0.2.0-alpha.1");
 }
