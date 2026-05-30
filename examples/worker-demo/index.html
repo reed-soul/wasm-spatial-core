@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>wasm-spatial-core — Web Worker Multi-Threading Demo</title>
+    <style>
+        :root {
+            --bg: #0f1117;
+            --surface: #1a1d27;
+            --border: #2a2d3a;
+            --text: #e4e4e7;
+            --text-dim: #71717a;
+            --accent: #22d3ee;
+            --accent-dim: rgba(34, 211, 238, 0.15);
+            --green: #4ade80;
+            --red: #f87171;
+            --amber: #fbbf24;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 860px;
+            margin: 0 auto;
+            padding: 3rem 1.5rem;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+
+        h1 span { color: var(--accent); }
+
+        .subtitle {
+            color: var(--text-dim);
+            font-size: 0.85rem;
+            margin-bottom: 2rem;
+        }
+
+        .warning-banner {
+            background: rgba(251, 191, 36, 0.1);
+            border: 1px solid rgba(251, 191, 36, 0.3);
+            border-radius: 8px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 2rem;
+            font-size: 0.82rem;
+            color: var(--amber);
+            line-height: 1.7;
+        }
+
+        .warning-banner strong { color: #fde68a; }
+
+        .warning-banner code {
+            background: rgba(0,0,0,0.3);
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.78rem;
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .card h2 {
+            font-size: 0.95rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .card h2::before {
+            content: '';
+            display: inline-block;
+            width: 3px;
+            height: 16px;
+            background: var(--accent);
+            border-radius: 2px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+        }
+
+        label {
+            font-size: 0.8rem;
+            color: var(--text-dim);
+        }
+
+        select, input[type="number"] {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 0.4rem 0.75rem;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 0.82rem;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        button {
+            background: var(--accent);
+            color: var(--bg);
+            border: none;
+            padding: 0.5rem 1.25rem;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        button:hover { opacity: 0.85; }
+        button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        button.secondary {
+            background: var(--border);
+            color: var(--text);
+        }
+
+        .results {
+            margin-top: 1rem;
+        }
+
+        .result-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.6rem 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.82rem;
+        }
+
+        .result-row:last-child { border-bottom: none; }
+
+        .result-label { color: var(--text-dim); }
+
+        .result-value {
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .result-value.fast { color: var(--green); }
+        .result-value.slow { color: var(--red); }
+
+        .speedup {
+            margin-top: 0.75rem;
+            padding: 0.75rem 1rem;
+            background: var(--accent-dim);
+            border-radius: 6px;
+            font-size: 0.85rem;
+            text-align: center;
+            display: none;
+        }
+
+        .speedup.visible { display: block; }
+
+        .log {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.75rem;
+            font-size: 0.75rem;
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 1rem;
+            color: var(--text-dim);
+            line-height: 1.8;
+        }
+
+        .log-entry { white-space: pre-wrap; }
+        .log-entry.error { color: var(--red); }
+        .log-entry.success { color: var(--green); }
+
+        .status {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+            vertical-align: middle;
+        }
+
+        .status.pending { background: var(--text-dim); }
+        .status.running { background: var(--amber); animation: pulse 1s infinite; }
+        .status.done { background: var(--green); }
+        .status.error { background: var(--red); }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        @media (max-width: 640px) {
+            .grid-2 { grid-template-columns: 1fr; }
+        }
+
+        a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        a:hover { text-decoration: underline; }
+
+        footer {
+            margin-top: 3rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border);
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>wasm-spatial-core <span>Worker Demo</span></h1>
+        <p class="subtitle">Multi-threaded vs single-threaded coordinate projection performance</p>
+
+        <div class="warning-banner">
+            <strong>⚠️ Runtime Requirement</strong><br>
+            This demo uses <code>SharedArrayBuffer</code> which requires <strong>Cross-Origin Isolation</strong> headers.
+            Serve this file with:<br>
+            <code>Cross-Origin-Opener-Policy: same-origin</code><br>
+            <code>Cross-Origin-Embedder-Policy: require-corp</code><br><br>
+            Quick start:<br>
+            <code>npx http-server . --cors --coop --coep</code><br>
+            or use any static file server with those headers configured.
+        </div>
+
+        <div class="card">
+            <h2>Configuration</h2>
+            <div class="controls">
+                <div>
+                    <label>Points</label><br>
+                    <select id="pointCount">
+                        <option value="100000">100K</option>
+                        <option value="500000">500K</option>
+                        <option value="1000000" selected>1M</option>
+                        <option value="5000000">5M</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Transform</label><br>
+                    <select id="transformType">
+                        <option value="wgs84_to_gcj02">WGS-84 → GCJ-02</option>
+                        <option value="wgs84_to_bd09">WGS-84 → BD-09</option>
+                        <option value="wgs84_to_mercator">WGS-84 → Web Mercator</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Rayon Workers</label><br>
+                    <select id="workerCount">
+                        <option value="4" selected>4</option>
+                        <option value="2">2</option>
+                        <option value="8">8</option>
+                    </select>
+                </div>
+            </div>
+            <button id="runBtn" onclick="runBenchmark()">▶ Run Benchmark</button>
+            <button class="secondary" id="clearBtn" onclick="clearLog()">Clear Log</button>
+        </div>
+
+        <div class="grid-2">
+            <div class="card">
+                <h2>Single-Thread Results</h2>
+                <div class="results" id="singleResults">
+                    <div class="result-row">
+                        <span class="status pending" id="singleStatus"></span>
+                        <span class="result-label">Waiting…</span>
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <h2>Multi-Thread Results</h2>
+                <div class="results" id="multiResults">
+                    <div class="result-row">
+                        <span class="status pending" id="multiStatus"></span>
+                        <span class="result-label">Waiting…</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="speedup" id="speedup"></div>
+
+        <div class="card">
+            <h2>Console Log</h2>
+            <div class="log" id="log"></div>
+        </div>
+
+        <footer>
+            wasm-spatial-core · MIT License ·
+            <a href="https://github.com/reed-soul/wasm-spatial-core">GitHub</a>
+        </footer>
+    </div>
+
+    <script>
+        const logEl = document.getElementById('log');
+        const runBtn = document.getElementById('runBtn');
+
+        function log(msg, type = '') {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry' + (type ? ' ' + type : '');
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            logEl.appendChild(entry);
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        function clearLog() {
+            logEl.innerHTML = '';
+            document.getElementById('singleStatus').className = 'status pending';
+            document.getElementById('multiStatus').className = 'status pending';
+            document.getElementById('speedup').className = 'speedup';
+        }
+
+        function showResults(containerId, statusId, duration, opsPerSec) {
+            const container = document.getElementById(containerId);
+            const status = document.getElementById(statusId);
+            status.className = 'status done';
+            container.innerHTML = `
+                <div class="result-row">
+                    <span class="status done"></span>
+                    <span class="result-label">Duration</span>
+                    <span class="result-value">${duration.toFixed(2)} ms</span>
+                </div>
+                <div class="result-row">
+                    <span></span>
+                    <span class="result-label">Throughput</span>
+                    <span class="result-value">${(opsPerSec / 1000).toFixed(1)}K ops/s</span>
+                </div>
+            `;
+        }
+
+        function generateChinaCoords(n) {
+            const coords = new Float64Array(n * 2);
+            for (let i = 0; i < n; i++) {
+                coords[i * 2]     = 73.66 + Math.random() * (135.05 - 73.66); // lng
+                coords[i * 2 + 1] = 3.86  + Math.random() * (53.55  - 3.86);  // lat
+            }
+            return coords;
+        }
+
+        async function runBenchmark() {
+            runBtn.disabled = true;
+            clearLog();
+
+            const pointCount = parseInt(document.getElementById('pointCount').value);
+            const transformType = document.getElementById('transformType').value;
+            const numWorkers = parseInt(document.getElementById('workerCount').value);
+
+            log(`Generating ${pointCount.toLocaleString()} random China-region coordinates…`);
+            const coords = generateChinaCoords(pointCount);
+
+            let singleTime = null;
+            let multiTime = null;
+
+            // ── Single-threaded benchmark ──
+            try {
+                document.getElementById('singleStatus').className = 'status running';
+                log('Running single-threaded transform…');
+
+                // Build single-thread WASM in the worker
+                const singleWorker = new Worker('worker.js');
+                const singlePromise = new Promise((resolve, reject) => {
+                    singleWorker.onmessage = (e) => {
+                        if (e.data.type === 'result') resolve(e.data.duration);
+                        else if (e.data.type === 'log') log('[single] ' + e.data.message);
+                        else if (e.data.type === 'error') reject(new Error(e.data.message));
+                    };
+                    singleWorker.onerror = (e) => reject(e);
+                });
+
+                singleWorker.postMessage({
+                    type: 'init',
+                    numThreads: 0, // single-thread mode
+                    wasmUrl: `${location.origin || ''}/pkg/wasm_spatial_core_bg.wasm`,
+                    module: undefined,
+                });
+
+                // Wait for init
+                await new Promise(resolve => {
+                    const handler = (e) => {
+                        if (e.data.type === 'ready') {
+                            singleWorker.removeEventListener('message', handler);
+                            resolve();
+                        }
+                    };
+                    singleWorker.addEventListener('message', handler);
+                });
+
+                singleWorker.postMessage({
+                    type: 'transform',
+                    transformType,
+                    coords: coords.buffer.slice(0), // transferable copy
+                    pointCount,
+                });
+
+                singleTime = await singlePromise;
+                showResults('singleResults', 'singleStatus', singleTime, pointCount / (singleTime / 1000));
+                log(`Single-thread: ${singleTime.toFixed(2)} ms ✓`, 'success');
+                singleWorker.terminate();
+            } catch (err) {
+                document.getElementById('singleStatus').className = 'status error';
+                log(`Single-thread error: ${err.message}`, 'error');
+                singleTime = null;
+            }
+
+            // ── Multi-threaded benchmark ──
+            try {
+                document.getElementById('multiStatus').className = 'status running';
+                log(`Running multi-threaded transform with ${numWorkers} Rayon workers…`);
+
+                const multiWorker = new Worker('worker.js');
+                const multiPromise = new Promise((resolve, reject) => {
+                    multiWorker.onmessage = (e) => {
+                        if (e.data.type === 'result') resolve(e.data.duration);
+                        else if (e.data.type === 'log') log('[multi] ' + e.data.message);
+                        else if (e.data.type === 'error') reject(new Error(e.data.message));
+                    };
+                    multiWorker.onerror = (e) => reject(e);
+                });
+
+                multiWorker.postMessage({
+                    type: 'init',
+                    numThreads: numWorkers,
+                    wasmUrl: `${location.origin || ''}/pkg/wasm_spatial_core_bg.wasm`,
+                    module: undefined,
+                });
+
+                // Wait for init
+                await new Promise(resolve => {
+                    const handler = (e) => {
+                        if (e.data.type === 'ready') {
+                            multiWorker.removeEventListener('message', handler);
+                            resolve();
+                        }
+                    };
+                    multiWorker.addEventListener('message', handler);
+                });
+
+                multiWorker.postMessage({
+                    type: 'transform',
+                    transformType,
+                    coords: coords.buffer.slice(0),
+                    pointCount,
+                });
+
+                multiTime = await multiPromise;
+                showResults('multiResults', 'multiStatus', multiTime, pointCount / (multiTime / 1000));
+                log(`Multi-thread (${numWorkers} workers): ${multiTime.toFixed(2)} ms ✓`, 'success');
+                multiWorker.terminate();
+            } catch (err) {
+                document.getElementById('multiStatus').className = 'status error';
+                log(`Multi-thread error: ${err.message}`, 'error');
+                multiTime = null;
+            }
+
+            // ── Speedup comparison ──
+            if (singleTime !== null && multiTime !== null && multiTime > 0) {
+                const speedup = singleTime / multiTime;
+                const el = document.getElementById('speedup');
+                el.className = 'speedup visible';
+                el.innerHTML = `⚡ Multi-thread speedup: <strong>${speedup.toFixed(2)}×</strong> (${singleTime < multiTime ? 'single is faster — dataset too small for thread overhead' : `${((speedup - 1) * 100).toFixed(0)}% faster`})`;
+                log(`Speedup: ${speedup.toFixed(2)}×`);
+            }
+
+            runBtn.disabled = false;
+        }
+
+        // Check SharedArrayBuffer support
+        if (typeof SharedArrayBuffer === 'undefined') {
+            log('⚠️ SharedArrayBuffer is not available. This page must be served with COOP/COEP headers.', 'error');
+            log('Run: npx http-server . --cors --coop --coep', 'error');
+            runBtn.disabled = true;
+        } else {
+            log('✓ SharedArrayBuffer is available. Ready to benchmark.');
+        }
+    </script>
+</body>
+</html>
