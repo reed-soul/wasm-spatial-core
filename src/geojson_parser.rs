@@ -16,6 +16,177 @@ use geojson::{Feature, GeoJson, Geometry, Value as GeoValue};
 use js_sys::Float64Array;
 use wasm_bindgen::prelude::*;
 
+// ===========================================================================
+// GeoJSON Filtering
+// ===========================================================================
+
+/// Core: filter features by property value equality.
+pub fn filter_geojson_by_property_native(
+    input: &str,
+    key: &str,
+    value: &str,
+) -> Result<String, String> {
+    let geojson: GeoJson = input
+        .parse()
+        .map_err(|e| format!("Invalid GeoJSON: {}", e))?;
+    let features = collect_features(geojson);
+
+    let filtered: Vec<Feature> = features
+        .into_iter()
+        .filter(|f| {
+            if let Some(ref props) = f.properties {
+                if let Some(v) = props.get(key) {
+                    return match v {
+                        serde_json::Value::String(s) => s == value,
+                        serde_json::Value::Number(n) => {
+                            // Try numeric comparison
+                            if let Ok(nv) = value.parse::<f64>() {
+                                n.as_f64().is_some_and(|nf| (nf - nv).abs() < 1e-10)
+                            } else {
+                                n.to_string() == value
+                            }
+                        }
+                        serde_json::Value::Bool(b) => value == (if *b { "true" } else { "false" }),
+                        _ => false,
+                    };
+                }
+            }
+            false
+        })
+        .collect();
+
+    let fc = serde_json::json!({
+        "type": "FeatureCollection",
+        "features": filtered.iter().map(|f| serde_json::to_value(f).unwrap_or(serde_json::json!(null))).collect::<Vec<_>>()
+    });
+    serde_json::to_string(&fc).map_err(|e| format!("Serialization error: {}", e))
+}
+
+/// Core: filter features by bbox (keep features with at least one vertex inside bbox).
+pub fn filter_geojson_by_bbox_native(
+    input: &str,
+    min_lng: f64,
+    min_lat: f64,
+    max_lng: f64,
+    max_lat: f64,
+) -> Result<String, String> {
+    let geojson: GeoJson = input
+        .parse()
+        .map_err(|e| format!("Invalid GeoJSON: {}", e))?;
+    let features = collect_features(geojson);
+
+    let filtered: Vec<Feature> = features
+        .into_iter()
+        .filter(|f| {
+            if let Some(ref geom) = f.geometry {
+                let mut coords = Vec::new();
+                extract_coords(geom, &mut coords);
+                for chunk in coords.chunks_exact(2) {
+                    let lng = chunk[0];
+                    let lat = chunk[1];
+                    if lng >= min_lng && lng <= max_lng && lat >= min_lat && lat <= max_lat {
+                        return true;
+                    }
+                }
+            }
+            false
+        })
+        .collect();
+
+    let fc = serde_json::json!({
+        "type": "FeatureCollection",
+        "features": filtered.iter().map(|f| serde_json::to_value(f).unwrap_or(serde_json::json!(null))).collect::<Vec<_>>()
+    });
+    serde_json::to_string(&fc).map_err(|e| format!("Serialization error: {}", e))
+}
+
+/// Core: count features by property value (similar to SQL COUNT ... GROUP BY).
+pub fn count_geojson_by_property_native(input: &str, key: &str) -> Result<String, String> {
+    let geojson: GeoJson = input
+        .parse()
+        .map_err(|e| format!("Invalid GeoJSON: {}", e))?;
+    let features = collect_features(geojson);
+
+    let mut counts: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
+
+    for f in &features {
+        if let Some(ref props) = f.properties {
+            if let Some(v) = props.get(key) {
+                let key_str = match v {
+                    serde_json::Value::String(s) => s.clone(),
+                    serde_json::Value::Number(n) => n.to_string(),
+                    serde_json::Value::Bool(b) => (if *b { "true" } else { "false" }).to_string(),
+                    serde_json::Value::Null => "null".to_string(),
+                    _ => serde_json::to_string(v).unwrap_or_else(|_| "unknown".to_string()),
+                };
+                *counts.entry(key_str).or_insert(0) += 1;
+            }
+        }
+    }
+
+    serde_json::to_string(&counts).map_err(|e| format!("Serialization error: {}", e))
+}
+
+/// Filter GeoJSON features by property value.
+///
+/// # Arguments
+///
+/// * `input` — GeoJSON string (Feature or FeatureCollection)
+/// * `key` — Property name to filter on
+/// * `value` — Property value to match (string representation)
+///
+/// # Returns
+///
+/// Filtered GeoJSON FeatureCollection string.
+#[wasm_bindgen(js_name = "filterGeoJsonByProperty")]
+pub fn filter_geojson_by_property(input: &str, key: &str, value: &str) -> Result<String, JsValue> {
+    filter_geojson_by_property_native(input, key, value).map_err(|e| JsValue::from_str(&e))
+}
+
+/// Filter GeoJSON features by bounding box.
+///
+/// Keeps features that have at least one vertex inside the specified bbox.
+///
+/// # Arguments
+///
+/// * `input` — GeoJSON string
+/// * `min_lng` — Minimum longitude
+/// * `min_lat` — Minimum latitude
+/// * `max_lng` — Maximum longitude
+/// * `max_lat` — Maximum latitude
+///
+/// # Returns
+///
+/// Filtered GeoJSON FeatureCollection string.
+#[wasm_bindgen(js_name = "filterGeoJsonByBBox")]
+pub fn filter_geojson_by_bbox(
+    input: &str,
+    min_lng: f64,
+    min_lat: f64,
+    max_lng: f64,
+    max_lat: f64,
+) -> Result<String, JsValue> {
+    filter_geojson_by_bbox_native(input, min_lng, min_lat, max_lng, max_lat)
+        .map_err(|e| JsValue::from_str(&e))
+}
+
+/// Count GeoJSON features by property value (COUNT ... GROUP BY).
+///
+/// Returns a JSON object mapping property values to their counts.
+///
+/// # Arguments
+///
+/// * `input` — GeoJSON string
+/// * `key` — Property name to count by
+///
+/// # Returns
+///
+/// JSON string like `{"value1": 5, "value2": 3}`.
+#[wasm_bindgen(js_name = "countGeoJsonByProperty")]
+pub fn count_geojson_by_property(input: &str, key: &str) -> Result<String, JsValue> {
+    count_geojson_by_property_native(input, key).map_err(|e| JsValue::from_str(&e))
+}
+
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
@@ -831,5 +1002,86 @@ mod tests {
         assert_eq!(all_coords.len(), 6);
         assert_eq!(all_coords[0], 10.0);
         assert_eq!(all_coords[5], 60.0);
+    }
+
+    // ── GeoJSON filtering tests ────────────────────────────────
+
+    #[test]
+    fn test_filter_by_property_string() {
+        let geojson = r#"{
+            "type": "FeatureCollection",
+            "features": [
+                {"type": "Feature", "geometry": {"type": "Point", "coordinates": [116.4, 39.9]}, "properties": {"city": "Beijing"}},
+                {"type": "Feature", "geometry": {"type": "Point", "coordinates": [121.5, 31.2]}, "properties": {"city": "Shanghai"}},
+                {"type": "Feature", "geometry": {"type": "Point", "coordinates": [113.3, 23.1]}, "properties": {"city": "Beijing"}}
+            ]
+        }"#;
+        let result = filter_geojson_by_property_native(geojson, "city", "Beijing").unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        let features = parsed["features"].as_array().unwrap();
+        assert_eq!(features.len(), 2);
+    }
+
+    #[test]
+    fn test_filter_by_property_no_match() {
+        let geojson = r#"{
+            "type": "FeatureCollection",
+            "features": [
+                {"type": "Feature", "geometry": {"type": "Point", "coordinates": [116.4, 39.9]}, "properties": {"city": "Beijing"}}
+            ]
+        }"#;
+        let result = filter_geojson_by_property_native(geojson, "city", "Tokyo").unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        let features = parsed["features"].as_array().unwrap();
+        assert_eq!(features.len(), 0);
+    }
+
+    #[test]
+    fn test_filter_by_bbox() {
+        let geojson = r#"{
+            "type": "FeatureCollection",
+            "features": [
+                {"type": "Feature", "geometry": {"type": "Point", "coordinates": [116.4, 39.9]}, "properties": {}},
+                {"type": "Feature", "geometry": {"type": "Point", "coordinates": [121.5, 31.2]}, "properties": {}},
+                {"type": "Feature", "geometry": {"type": "LineString", "coordinates": [[110.0, 20.0], [115.0, 25.0]]}, "properties": {}}
+            ]
+        }"#;
+        // BBox covering Beijing area
+        let result = filter_geojson_by_bbox_native(geojson, 115.0, 38.0, 117.0, 41.0).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        let features = parsed["features"].as_array().unwrap();
+        assert_eq!(features.len(), 1); // Only Beijing point
+    }
+
+    #[test]
+    fn test_filter_by_bbox_linestring_touching() {
+        let geojson = r#"{
+            "type": "FeatureCollection",
+            "features": [
+                {"type": "Feature", "geometry": {"type": "LineString", "coordinates": [[110.0, 20.0], [116.4, 39.9], [121.5, 31.2]]}, "properties": {}}
+            ]
+        }"#;
+        // BBox that covers the middle vertex (116.4, 39.9)
+        let result = filter_geojson_by_bbox_native(geojson, 115.0, 38.0, 117.0, 41.0).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        let features = parsed["features"].as_array().unwrap();
+        assert_eq!(features.len(), 1); // LineString kept because one vertex is inside
+    }
+
+    #[test]
+    fn test_count_by_property() {
+        let geojson = r#"{
+            "type": "FeatureCollection",
+            "features": [
+                {"type": "Feature", "geometry": {"type": "Point", "coordinates": [116.4, 39.9]}, "properties": {"type": "residential"}},
+                {"type": "Feature", "geometry": {"type": "Point", "coordinates": [121.5, 31.2]}, "properties": {"type": "commercial"}},
+                {"type": "Feature", "geometry": {"type": "Point", "coordinates": [113.3, 23.1]}, "properties": {"type": "residential"}},
+                {"type": "Feature", "geometry": {"type": "Point", "coordinates": [104.1, 30.7]}, "properties": {"type": "residential"}}
+            ]
+        }"#;
+        let result = count_geojson_by_property_native(geojson, "type").unwrap();
+        let parsed: std::collections::HashMap<String, u32> = serde_json::from_str(&result).unwrap();
+        assert_eq!(*parsed.get("residential").unwrap(), 3);
+        assert_eq!(*parsed.get("commercial").unwrap(), 1);
     }
 }
