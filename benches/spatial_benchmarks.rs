@@ -20,8 +20,7 @@ const X_PI: f64 = std::f64::consts::PI * 3000.0 / 180.0;
 
 fn transform_lat(x: f64, y: f64) -> f64 {
     use std::f64::consts::PI;
-    let mut lat =
-        -100.0 + 2.0 * x + 3.0 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * x.abs().sqrt();
+    let mut lat = -100.0 + 2.0 * x + 3.0 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * x.abs().sqrt();
     lat += (20.0 * (6.0 * x * PI).sin() + 20.0 * (2.0 * x * PI).sin()) * 2.0 / 3.0;
     lat += (20.0 * (y * PI).sin() + 40.0 * (y / 3.0 * PI).sin()) * 2.0 / 3.0;
     lat += (160.0 * (y / 12.0 * PI).sin() + 320.0 * (y * PI / 30.0).sin()) * 2.0 / 3.0;
@@ -30,8 +29,7 @@ fn transform_lat(x: f64, y: f64) -> f64 {
 
 fn transform_lng(x: f64, y: f64) -> f64 {
     use std::f64::consts::PI;
-    let mut lng =
-        300.0 + x + 2.0 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * x.abs().sqrt();
+    let mut lng = 300.0 + x + 2.0 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * x.abs().sqrt();
     lng += (20.0 * (6.0 * x * PI).sin() + 20.0 * (2.0 * x * PI).sin()) * 2.0 / 3.0;
     lng += (20.0 * (x * PI).sin() + 40.0 * (x / 3.0 * PI).sin()) * 2.0 / 3.0;
     lng += (150.0 * (x / 12.0 * PI).sin() + 300.0 * (x / 30.0 * PI).sin()) * 2.0 / 3.0;
@@ -64,8 +62,7 @@ fn gcj02_to_bd09(lng: f64, lat: f64) -> (f64, f64) {
 
 fn wgs84_to_mercator(lng: f64, lat: f64) -> (f64, f64) {
     let x = lng.to_radians() * EARTH_RADIUS;
-    let y =
-        ((std::f64::consts::FRAC_PI_4 + lat.to_radians() / 2.0).tan()).ln() * EARTH_RADIUS;
+    let y = ((std::f64::consts::FRAC_PI_4 + lat.to_radians() / 2.0).tan()).ln() * EARTH_RADIUS;
     (x, y)
 }
 

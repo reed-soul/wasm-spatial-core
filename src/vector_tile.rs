@@ -4,11 +4,11 @@
 //! Parses GeoJSON once, then dynamically slices and encodes it into MVT (PBF)
 //! buffers based on `z, x, y` tile coordinates.
 
-use wasm_bindgen::prelude::*;
 use geojson::GeoJson;
 use geojsonvt::{GeoJSONVT, Options as GeoJsonVtOptions};
-use geozero::{GeozeroDatasource, geojson::GeoJsonString, mvt::MvtWriter};
-use geozero::mvt::{Tile, Message};
+use geozero::mvt::{Message, Tile};
+use geozero::{geojson::GeoJsonString, mvt::MvtWriter, GeozeroDatasource};
+use wasm_bindgen::prelude::*;
 
 /// Options for vector tile generation.
 #[wasm_bindgen]
@@ -113,8 +113,8 @@ impl VectorTileEngine {
         // into tile pixel space (extent 4096).
         // MvtWriter implements PropertyProcessor, so GeoJSON feature properties
         // are automatically encoded as MVT tags.
-        let mut mvt_writer = MvtWriter::new_unscaled(4096)
-            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let mut mvt_writer =
+            MvtWriter::new_unscaled(4096).map_err(|e| JsValue::from_str(&e.to_string()))?;
 
         geojson_data
             .process(&mut mvt_writer)
@@ -224,8 +224,8 @@ mod tests {
     #[test]
     fn test_mvt_properties_encoded() {
         let opts = VectorTileOptions::new();
-        let mut engine = VectorTileEngine::new(SAMPLE_GEOJSON, opts, Some("test_layer".to_string()))
-            .unwrap();
+        let mut engine =
+            VectorTileEngine::new(SAMPLE_GEOJSON, opts, Some("test_layer".to_string())).unwrap();
 
         // z=10, x=868, y=387 — tile containing Beijing area
         let tile = engine.index.tile(10, 868, 387);
@@ -254,8 +254,8 @@ mod tests {
     #[test]
     fn test_mvt_custom_layer_name() {
         let opts = VectorTileOptions::new();
-        let mut engine = VectorTileEngine::new(SAMPLE_GEOJSON, opts, Some("custom_layer".to_string()))
-            .unwrap();
+        let mut engine =
+            VectorTileEngine::new(SAMPLE_GEOJSON, opts, Some("custom_layer".to_string())).unwrap();
 
         let tile = engine.index.tile(10, 868, 387);
         if tile.feature_collection.features.is_empty() {

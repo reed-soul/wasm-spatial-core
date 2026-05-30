@@ -13,13 +13,13 @@
 //!
 //! © 2026 智启未来 (Zhiqi Weilai) — Qingxi
 
+mod cesium_adapter;
 mod coordinate;
 mod geojson_parser;
 mod geojson_streaming;
 mod spatial_index;
-mod vector_tile;
-mod cesium_adapter;
 mod utils;
+mod vector_tile;
 
 use wasm_bindgen::prelude::*;
 

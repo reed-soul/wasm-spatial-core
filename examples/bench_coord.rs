@@ -17,8 +17,7 @@ const X_PI: f64 = std::f64::consts::PI * 3000.0 / 180.0;
 #[inline(always)]
 fn transform_lat(x: f64, y: f64) -> f64 {
     let pi = std::f64::consts::PI;
-    let mut lat = -100.0 + 2.0 * x + 3.0 * y + 0.2 * y * y + 0.1 * x * y
-        + 0.2 * x.abs().sqrt();
+    let mut lat = -100.0 + 2.0 * x + 3.0 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * x.abs().sqrt();
     lat += (20.0 * (6.0 * x * pi).sin() + 20.0 * (2.0 * x * pi).sin()) * 2.0 / 3.0;
     lat += (20.0 * (y * pi).sin() + 40.0 * (y / 3.0 * pi).sin()) * 2.0 / 3.0;
     lat += (160.0 * (y / 12.0 * pi).sin() + 320.0 * (y * pi / 30.0).sin()) * 2.0 / 3.0;
@@ -42,7 +41,9 @@ fn out_of_china(lng: f64, lat: f64) -> bool {
 
 #[inline(always)]
 fn wgs84_to_gcj02(lng: f64, lat: f64) -> (f64, f64) {
-    if out_of_china(lng, lat) { return (lng, lat); }
+    if out_of_china(lng, lat) {
+        return (lng, lat);
+    }
     let mut d_lat = transform_lat(lng - 105.0, lat - 35.0);
     let mut d_lng = transform_lng(lng - 105.0, lat - 35.0);
     let rad_lat = lat.to_radians();
@@ -78,12 +79,7 @@ fn generate_china_coords(n: usize) -> Vec<f64> {
     coords
 }
 
-fn bench_transform(
-    name: &str,
-    coords: &[f64],
-    f: fn(f64, f64) -> (f64, f64),
-    iterations: usize,
-) {
+fn bench_transform(name: &str, coords: &[f64], f: fn(f64, f64) -> (f64, f64), iterations: usize) {
     let mut buf = coords.to_vec();
     let n = coords.len() / 2;
 
@@ -119,9 +115,19 @@ fn main() {
     println!("=== wasm-spatial-core — Coordinate Transform Benchmarks (Native aarch64) ===\n");
 
     for &n in &[1_000usize, 10_000, 100_000, 1_000_000] {
-        println!("--- {} points ({:.1} MB) ---", n, (n * 2 * 8) as f64 / 1_048_576.0);
+        println!(
+            "--- {} points ({:.1} MB) ---",
+            n,
+            (n * 2 * 8) as f64 / 1_048_576.0
+        );
         let coords = generate_china_coords(n);
-        let iterations = if n <= 10_000 { 100 } else if n <= 100_000 { 10 } else { 3 };
+        let iterations = if n <= 10_000 {
+            100
+        } else if n <= 100_000 {
+            10
+        } else {
+            3
+        };
 
         bench_transform("WGS-84 → GCJ-02", &coords, wgs84_to_gcj02, iterations);
         bench_transform("WGS-84 → BD-09", &coords, gcj02_to_bd09, iterations);

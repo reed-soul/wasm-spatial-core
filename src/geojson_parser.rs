@@ -10,9 +10,9 @@
 //! happen entirely within WASM linear memory. The output `Float64Array`
 //! is a view onto WASM memory that JS can read without an additional copy.
 
-use wasm_bindgen::prelude::*;
-use js_sys::Float64Array;
 use geojson::{GeoJson, Geometry, Value as GeoValue};
+use js_sys::Float64Array;
+use wasm_bindgen::prelude::*;
 
 // ---------------------------------------------------------------------------
 // Internal helpers

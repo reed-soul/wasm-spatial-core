@@ -7,10 +7,10 @@
 //! that are currently within the camera's viewport, avoiding the
 //! overhead of processing millions of out-of-view vertices.
 
-use wasm_bindgen::prelude::*;
 use js_sys::{Float64Array, Uint32Array};
-use rstar::{RTree, AABB};
 use rstar::primitives::{GeomWithData, Line};
+use rstar::{RTree, AABB};
+use wasm_bindgen::prelude::*;
 
 type Point2D = [f64; 2];
 type IndexedPoint = GeomWithData<Point2D, u32>;
@@ -31,7 +31,7 @@ impl SpatialIndex {
         let len = coords.length() as usize;
         let mut buf = vec![0.0; len];
         coords.copy_to(&mut buf);
-        
+
         let mut points = Vec::with_capacity(len / 2);
         for (i, chunk) in buf.chunks_exact(2).enumerate() {
             let pt = [chunk[0], chunk[1]];
@@ -57,7 +57,7 @@ impl SpatialIndex {
         result_array.copy_from(&results);
         result_array
     }
-    
+
     /// Get the total number of points in the index.
     #[wasm_bindgen]
     pub fn size(&self) -> u32 {
@@ -139,13 +139,7 @@ impl SpatialEdgeIndex {
     ///
     /// An edge matches if its bounding box intersects the query envelope.
     #[wasm_bindgen(js_name = "searchBBox")]
-    pub fn search_bbox(
-        &self,
-        min_x: f64,
-        min_y: f64,
-        max_x: f64,
-        max_y: f64,
-    ) -> Uint32Array {
+    pub fn search_bbox(&self, min_x: f64, min_y: f64, max_x: f64, max_y: f64) -> Uint32Array {
         let envelope = AABB::from_corners([min_x, min_y], [max_x, max_y]);
         let mut results = Vec::new();
 
@@ -255,10 +249,7 @@ mod tests {
 
         // Use a larger query box that fully contains edges 0 and 2
         let envelope = AABB::from_corners([-1.0, -1.0], [16.0, 16.0]);
-        let mut ids: Vec<u32> = tree
-            .locate_in_envelope(&envelope)
-            .map(|e| e.data)
-            .collect();
+        let mut ids: Vec<u32> = tree.locate_in_envelope(&envelope).map(|e| e.data).collect();
         ids.sort();
 
         assert!(ids.contains(&0), "Edge 0 should be in bbox");
@@ -298,18 +289,13 @@ mod tests {
 
     #[test]
     fn test_edge_index_single_edge() {
-        let edges = vec![
-            IndexedEdge::new(Line::new([0.0, 0.0], [100.0, 100.0]), 0),
-        ];
+        let edges = vec![IndexedEdge::new(Line::new([0.0, 0.0], [100.0, 100.0]), 0)];
         let tree = RTree::bulk_load(edges);
         assert_eq!(tree.size(), 1);
 
         // Envelope must fully contain the edge's bounding box
         let envelope = AABB::from_corners([-1.0, -1.0], [101.0, 101.0]);
-        let results: Vec<u32> = tree
-            .locate_in_envelope(&envelope)
-            .map(|e| e.data)
-            .collect();
+        let results: Vec<u32> = tree.locate_in_envelope(&envelope).map(|e| e.data).collect();
         assert_eq!(results, vec![0]);
 
         let nearest = tree.nearest_neighbor(&[50.0, 50.0]).unwrap();
