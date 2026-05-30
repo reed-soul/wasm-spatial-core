@@ -30,6 +30,12 @@ pub struct VectorTileOptions {
     pub generate_id: bool,
 }
 
+impl Default for VectorTileOptions {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[wasm_bindgen]
 impl VectorTileOptions {
     #[wasm_bindgen(constructor)]

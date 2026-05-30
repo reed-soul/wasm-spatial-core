@@ -26,9 +26,11 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: "1.90"
           targets: wasm32-unknown-unknown
           components: clippy, rustfmt
+
+      - name: Verify MSRV (1.90)
+        run: rustup toolchain install 1.90.0 --target wasm32-unknown-unknown && cargo +1.90.0 build --lib
 
       - name: Cache cargo registry & build
         uses: actions/cache@v4
@@ -127,7 +129,6 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: "1.90"
           targets: wasm32-unknown-unknown
 
       - name: Install nightly toolchain (multi-thread)
