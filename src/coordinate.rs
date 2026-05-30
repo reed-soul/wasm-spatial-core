@@ -383,8 +383,192 @@ pub fn batch_wgs84_to_cgcs2000(coords: &Float64Array) -> Float64Array {
 }
 
 // ===========================================================================
-// Unit tests
+// Geohash encoding/decoding
 // ===========================================================================
+
+/// Base32 encoding characters for Geohash (0-9, b-z excluding a, i, l, o).
+const GEOHASH_BASE32: &[u8; 32] = b"0123456789bcdefghjkmnpqrstuvwxyz";
+
+/// Decode a single Base32 Geohash character to its 5-bit value.
+fn geohash_char_to_bits(c: char) -> Option<u8> {
+    GEOHASH_BASE32.iter().position(|&b| b == c as u8).map(|i| i as u8)
+}
+
+/// Encode (longitude, latitude) to a Geohash string with given precision (1-12).
+#[wasm_bindgen(js_name = "geohashEncode")]
+pub fn geohash_encode(lng: f64, lat: f64, precision: u8) -> String {
+    let precision = precision.clamp(1, 12) as usize;
+
+    let mut lat_min = -90.0_f64;
+    let mut lat_max = 90.0_f64;
+    let mut lng_min = -180.0_f64;
+    let mut lng_max = 180.0_f64;
+
+    let mut bits = 0u8;
+    let mut bit_count = 0u8;
+    let mut hash = String::with_capacity(precision);
+
+    for _ in 0..precision {
+        for _ in 0..5 {
+            if bit_count % 2 == 0 {
+                // Longitude bit
+                let mid = (lng_min + lng_max) / 2.0;
+                if lng >= mid {
+                    bits = (bits << 1) | 1;
+                    lng_min = mid;
+                } else {
+                    bits <<= 1;
+                    lng_max = mid;
+                }
+            } else {
+                // Latitude bit
+                let mid = (lat_min + lat_max) / 2.0;
+                if lat >= mid {
+                    bits = (bits << 1) | 1;
+                    lat_min = mid;
+                } else {
+                    bits <<= 1;
+                    lat_max = mid;
+                }
+            }
+            bit_count += 1;
+        }
+        hash.push(GEOHASH_BASE32[bits as usize] as char);
+        bits = 0;
+    }
+
+    hash
+}
+
+/// Decode a Geohash string into `[longitude, latitude, width, height]`.
+///
+/// Returns a `Float64Array` with:
+/// - `[0]` center longitude
+/// - `[1]` center latitude
+/// - `[2]` bounding box width in degrees
+/// - `[3]` bounding box height in degrees
+#[wasm_bindgen(js_name = "geohashDecode")]
+pub fn geohash_decode(hash: &str) -> js_sys::Float64Array {
+    let mut lat_min = -90.0_f64;
+    let mut lat_max = 90.0_f64;
+    let mut lng_min = -180.0_f64;
+    let mut lng_max = 180.0_f64;
+
+    for c in hash.chars() {
+        if let Some(bits) = geohash_char_to_bits(c) {
+            for i in (0..5).rev() {
+                let bit = (bits >> i) & 1;
+                // Alternates: even index = lng, odd index = lat
+                // First bit of first char is lng
+                let char_pos = hash.chars().position(|x| x == c).unwrap_or(0);
+                let total_bit_idx = char_pos * 5 + (4 - i);
+                if total_bit_idx % 2 == 0 {
+                    let mid = (lng_min + lng_max) / 2.0;
+                    if bit == 1 {
+                        lng_min = mid;
+                    } else {
+                        lng_max = mid;
+                    }
+                } else {
+                    let mid = (lat_min + lat_max) / 2.0;
+                    if bit == 1 {
+                        lat_min = mid;
+                    } else {
+                        lat_max = mid;
+                    }
+                }
+            }
+        }
+    }
+
+    let arr = js_sys::Float64Array::new_with_length(4);
+    arr.copy_from(&[
+        (lng_min + lng_max) / 2.0,
+        (lat_min + lat_max) / 2.0,
+        lng_max - lng_min,
+        lat_max - lat_min,
+    ]);
+    arr
+}
+
+/// Core decode function returning (lng, lat, width, height) — testable without WASM.
+fn geohash_decode_core(hash: &str) -> (f64, f64, f64, f64) {
+    let mut lat_min = -90.0_f64;
+    let mut lat_max = 90.0_f64;
+    let mut lng_min = -180.0_f64;
+    let mut lng_max = 180.0_f64;
+    let mut is_lng = true;
+
+    for c in hash.chars() {
+        if let Some(bits) = geohash_char_to_bits(c) {
+            for i in (0..5).rev() {
+                let bit = (bits >> i) & 1;
+                if is_lng {
+                    let mid = (lng_min + lng_max) / 2.0;
+                    if bit == 1 {
+                        lng_min = mid;
+                    } else {
+                        lng_max = mid;
+                    }
+                } else {
+                    let mid = (lat_min + lat_max) / 2.0;
+                    if bit == 1 {
+                        lat_min = mid;
+                    } else {
+                        lat_max = mid;
+                    }
+                }
+                is_lng = !is_lng;
+            }
+        }
+    }
+
+    (
+        (lng_min + lng_max) / 2.0,
+        (lat_min + lat_max) / 2.0,
+        lng_max - lng_min,
+        lat_max - lat_min,
+    )
+}
+
+/// Core geohash neighbors function — returns 8 neighbor hashes, testable without WASM.
+fn geohash_neighbors_core(hash: &str) -> Vec<String> {
+    let (_, _, w, h) = geohash_decode_core(hash);
+    let precision = hash.len().max(1);
+
+    // Decode center, then compute neighbor cell centers from bounding box
+    let (lng, lat, _, _) = geohash_decode_core(hash);
+    let half_w = w / 2.0;
+    let half_h = h / 2.0;
+
+    // Use points just outside the cell boundary to encode neighbors
+    // The epsilon ensures we cross into the adjacent cell
+    let eps = 1e-10;
+
+    vec![
+        geohash_encode(lng, lat + half_h + eps, precision as u8),            // N
+        geohash_encode(lng + half_w + eps, lat + half_h + eps, precision as u8), // NE
+        geohash_encode(lng + half_w + eps, lat, precision as u8),          // E
+        geohash_encode(lng + half_w + eps, lat - half_h - eps, precision as u8), // SE
+        geohash_encode(lng, lat - half_h - eps, precision as u8),            // S
+        geohash_encode(lng - half_w - eps, lat - half_h - eps, precision as u8), // SW
+        geohash_encode(lng - half_w - eps, lat, precision as u8),          // W
+        geohash_encode(lng - half_w - eps, lat + half_h + eps, precision as u8), // NW
+    ]
+}
+
+/// Get the 8 neighboring Geohash cells (N, NE, E, SE, S, SW, W, NW).
+///
+/// Returns a `JsValue` (Array) of 8 Geohash strings.
+#[wasm_bindgen(js_name = "geohashNeighbors")]
+pub fn geohash_neighbors(hash: &str) -> js_sys::Array {
+    let neighbors = geohash_neighbors_core(hash);
+    let arr = js_sys::Array::new_with_length(8);
+    for (i, h) in neighbors.iter().enumerate() {
+        arr.set(i as u32, JsValue::from_str(h));
+    }
+    arr
+}
 
 #[cfg(test)]
 mod tests {
@@ -469,6 +653,66 @@ mod tests {
         // NYC should pass through unchanged
         assert!((coords[2] - (-73.9857)).abs() < 1e-10);
         assert!((coords[3] - 40.7484).abs() < 1e-10);
+    }
+
+    // ── Geohash tests ──────────────────────────────────────────
+
+    #[test]
+    fn test_geohash_beijing() {
+        // Beijing (116.4, 39.9) → "wx4g0" at precision 5
+        let hash = geohash_encode(116.404, 39.915, 5);
+        assert_eq!(hash, "wx4g0", "Beijing geohash should be wx4g0, got {}", hash);
+    }
+
+    #[test]
+    fn test_geohash_shanghai() {
+        // Shanghai (121.47, 31.23) at precision 5
+        let hash = geohash_encode(121.4737, 31.2304, 5);
+        assert_eq!(hash, "wtw3s", "Shanghai geohash should be wtw3s, got {}", hash);
+    }
+
+    #[test]
+    fn test_geohash_precision_1() {
+        // Precision 1: whole world
+        let hash = geohash_encode(0.0, 0.0, 1);
+        assert_eq!(hash.len(), 1);
+        assert_eq!(hash, "s"); // equator + prime meridian
+    }
+
+    #[test]
+    fn test_geohash_precision_clamped() {
+        let h1 = geohash_encode(116.4, 39.9, 0);
+        let h2 = geohash_encode(116.4, 39.9, 20);
+        assert_eq!(h1.len(), 1);
+        assert_eq!(h2.len(), 12);
+    }
+
+    #[test]
+    fn test_geohash_roundtrip() {
+        let (lng, lat, w, h) = geohash_decode_core("wx4g0");
+        // Beijing is within ±0.05 degrees of the decoded center
+        assert!(
+            (lng - 116.4).abs() < 0.05,
+            "lng = {lng}, expected ~116.4"
+        );
+        assert!(
+            (lat - 39.9).abs() < 0.05,
+            "lat = {lat}, expected ~39.9"
+        );
+        // Width and height should be reasonable for precision 5
+        assert!(w > 0.0 && w < 5.0, "width = {w}");
+        assert!(h > 0.0 && h < 5.0, "height = {h}");
+    }
+
+    #[test]
+    fn test_geohash_neighbors_count() {
+        let neighbors = geohash_neighbors_core("wx4g0");
+        assert_eq!(neighbors.len(), 8);
+        // All neighbors should be distinct
+        let unique: std::collections::HashSet<&str> = neighbors.iter().map(|s| s.as_str()).collect();
+        assert_eq!(unique.len(), 8, "All 8 neighbors should be distinct");
+        // Original hash should not be among its neighbors
+        assert!(!neighbors.contains(&"wx4g0".to_string()));
     }
 
     // ── CGCS2000 ──────────────────────────────────────────────
