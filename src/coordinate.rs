@@ -573,6 +573,126 @@ pub fn geohash_neighbors(hash: &str) -> js_sys::Array {
     arr
 }
 
+// ---------------------------------------------------------------------------
+// Coordinate Sorting & Gridding
+// ---------------------------------------------------------------------------
+
+/// Core: sort coordinate pairs by longitude, keeping lng,lat together.
+pub(crate) fn sort_coords_by_lng_native(coords: &[f64]) -> Vec<f64> {
+    let mut indexed: Vec<(f64, f64)> = coords.chunks_exact(2).map(|p| (p[0], p[1])).collect();
+    indexed.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+    indexed.into_iter().flat_map(|(x, y)| [x, y]).collect()
+}
+
+/// Core: sort coordinate pairs by latitude.
+pub(crate) fn sort_coords_by_lat_native(coords: &[f64]) -> Vec<f64> {
+    let mut indexed: Vec<(f64, f64)> = coords.chunks_exact(2).map(|p| (p[0], p[1])).collect();
+    indexed.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+    indexed.into_iter().flat_map(|(x, y)| [x, y]).collect()
+}
+
+/// Core: grid index — assign each point to a grid cell.
+/// Returns grid IDs as spatial hash: `row * max_col + col`.
+/// Grid IDs are Float64 to be compatible with WASM API expectations.
+pub(crate) fn grid_index_native(coords: &[f64], cell_size_deg: f64) -> Vec<f64> {
+    if coords.is_empty() || cell_size_deg <= 0.0 {
+        return Vec::new();
+    }
+
+    // Find bounds
+    let pair_count = coords.len() / 2;
+    let mut min_x = f64::MAX;
+    let mut min_y = f64::MAX;
+    let mut max_x = f64::MIN;
+    let mut max_y = f64::MIN;
+    for i in 0..pair_count {
+        let x = coords[i * 2];
+        let y = coords[i * 2 + 1];
+        min_x = min_x.min(x);
+        min_y = min_y.min(y);
+        max_x = max_x.max(x);
+        max_y = max_y.max(y);
+    }
+
+    let n_cols = ((max_x - min_x) / cell_size_deg).ceil() as u64 + 1;
+
+    let mut result = Vec::with_capacity(pair_count);
+    for i in 0..pair_count {
+        let x = coords[i * 2];
+        let y = coords[i * 2 + 1];
+        let col = ((x - min_x) / cell_size_deg).floor() as u64;
+        let row = ((y - min_y) / cell_size_deg).floor() as u64;
+        let id = (row * n_cols + col) as f64;
+        result.push(id);
+    }
+
+    result
+}
+
+/// Sort coordinate pairs by longitude (keeping lng,lat pairs together).
+///
+/// # Arguments
+///
+/// * `coords` — Flat `Float64Array` `[lng0, lat0, lng1, lat1, …]`
+///
+/// # Returns
+///
+/// New sorted `Float64Array`.
+#[wasm_bindgen(js_name = "sortCoordsByLng")]
+pub fn sort_coords_by_lng(coords: &Float64Array) -> Float64Array {
+    let len = coords.length() as usize;
+    let mut buf = vec![0.0; len];
+    coords.copy_to(&mut buf);
+
+    let result = sort_coords_by_lng_native(&buf);
+    let out = Float64Array::new_with_length(result.len() as u32);
+    out.copy_from(&result);
+    out
+}
+
+/// Sort coordinate pairs by latitude (keeping lng,lat pairs together).
+///
+/// # Arguments
+///
+/// * `coords` — Flat `Float64Array` `[lng0, lat0, lng1, lat1, …]`
+///
+/// # Returns
+///
+/// New sorted `Float64Array`.
+#[wasm_bindgen(js_name = "sortCoordsByLat")]
+pub fn sort_coords_by_lat(coords: &Float64Array) -> Float64Array {
+    let len = coords.length() as usize;
+    let mut buf = vec![0.0; len];
+    coords.copy_to(&mut buf);
+
+    let result = sort_coords_by_lat_native(&buf);
+    let out = Float64Array::new_with_length(result.len() as u32);
+    out.copy_from(&result);
+    out
+}
+
+/// Assign each point to a spatial grid cell.
+///
+/// # Arguments
+///
+/// * `coords` — Flat `Float64Array` `[lng0, lat0, lng1, lat1, …]`
+/// * `cell_size_deg` — Grid cell size in degrees
+///
+/// # Returns
+///
+/// `Float64Array` with one grid ID per point. Points in the same cell get the same ID.
+#[wasm_bindgen(js_name = "gridIndex")]
+pub fn grid_index(coords: &Float64Array, cell_size_deg: f64) -> Float64Array {
+    let len = coords.length() as usize;
+    let mut buf = vec![0.0; len];
+    coords.copy_to(&mut buf);
+
+    let result = grid_index_native(&buf, cell_size_deg);
+    let out = Float64Array::new_with_length(result.len() as u32);
+    out.copy_from(&result);
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -731,5 +851,63 @@ mod tests {
         let original = coords.clone();
         batch_wgs84_to_cgcs2000_in_place(&mut coords);
         assert_eq!(coords, original, "CGCS2000 should be identity");
+    }
+
+    // ── Sorting tests ────────────────────────────────────────
+
+    #[test]
+    fn test_sort_by_lng() {
+        let coords = &[121.5, 31.2, 116.4, 39.9, 104.1, 30.7];
+        let result = sort_coords_by_lng_native(coords);
+        // Sorted by lng: 104.1, 116.4, 121.5
+        assert_eq!(result[0], 104.1);
+        assert_eq!(result[2], 116.4);
+        assert_eq!(result[4], 121.5);
+        // Lat should follow its lng
+        assert_eq!(result[1], 30.7);
+        assert_eq!(result[3], 39.9);
+        assert_eq!(result[5], 31.2);
+    }
+
+    #[test]
+    fn test_sort_by_lat() {
+        let coords = &[121.5, 31.2, 116.4, 39.9, 104.1, 30.7];
+        let result = sort_coords_by_lat_native(coords);
+        // Sorted by lat: 30.7, 31.2, 39.9
+        assert_eq!(result[1], 30.7);
+        assert_eq!(result[3], 31.2);
+        assert_eq!(result[5], 39.9);
+    }
+
+    // ── Grid index tests ─────────────────────────────────────
+
+    #[test]
+    fn test_grid_index_basic() {
+        let coords = &[0.0, 0.0, 0.5, 0.5, 1.5, 1.5, 1.5, 0.5];
+        let ids = grid_index_native(coords, 1.0);
+        assert_eq!(ids.len(), 4);
+        // (0,0) and (0.5,0.5) should be in the same cell
+        assert_eq!(ids[0], ids[1]);
+        // (1.5,1.5) and (1.5,0.5) should be in different cells (different rows)
+        assert_ne!(ids[2], ids[3]);
+        // (1.5,0.5) and (0.5,0.5) should be in different cells (different cols)
+        assert_ne!(ids[1], ids[3]);
+    }
+
+    #[test]
+    fn test_grid_index_empty() {
+        let coords: &[f64] = &[];
+        let ids = grid_index_native(coords, 1.0);
+        assert!(ids.is_empty());
+    }
+
+    #[test]
+    fn test_grid_index_single_cell() {
+        // All points in the same cell
+        let coords = &[0.1, 0.1, 0.2, 0.3, 0.4, 0.5];
+        let ids = grid_index_native(coords, 1.0);
+        assert_eq!(ids.len(), 3);
+        assert_eq!(ids[0], ids[1]);
+        assert_eq!(ids[1], ids[2]);
     }
 }
