@@ -1,8 +1,8 @@
 //! Spatial Analysis
 //!
-//! Basic spatial operations (buffer, bounding box, centroid).
-//! Operates on WGS-84 coordinates and returns flat typed arrays
-//! suitable for direct GPU upload.
+//! Basic spatial operations (buffer, bounding box, centroid, geodesic
+//! calculations). Operates on WGS-84 coordinates and returns flat typed
+//! arrays suitable for direct GPU upload.
 
 use geo::CoordsIter;
 #[cfg(test)]
@@ -13,11 +13,11 @@ use wasm_bindgen::prelude::*;
 // Internal helpers
 // ===========================================================================
 
-/// Haversine distance in meters between two WGS-84 points.
-#[cfg(test)]
-fn haversine_distance(lat1: f64, lng1: f64, lat2: f64, lng2: f64) -> f64 {
-    const R: f64 = 6_371_000.0; // Earth radius in meters
+/// Earth radius in meters (WGS-84 mean).
+const EARTH_RADIUS_M: f64 = 6_371_000.0;
 
+/// Haversine distance in meters between two WGS-84 points.
+fn haversine_distance_internal(lat1: f64, lng1: f64, lat2: f64, lng2: f64) -> f64 {
     let lat1_r = lat1.to_radians();
     let lat2_r = lat2.to_radians();
     let dlat = lat2_r - lat1_r;
@@ -27,7 +27,7 @@ fn haversine_distance(lat1: f64, lng1: f64, lat2: f64, lng2: f64) -> f64 {
         + lat1_r.cos() * lat2_r.cos() * (dlng / 2.0).sin() * (dlng / 2.0).sin();
     let c = 2.0 * a.sqrt().atan2((1.0 - a).sqrt());
 
-    R * c
+    EARTH_RADIUS_M * c
 }
 
 /// Build a `LineString` from a flat `Float64Array` `[lng0, lat0, lng1, lat1, ...]`.
@@ -65,6 +65,109 @@ fn circle_polygon(lng: f64, lat: f64, radius_meters: f64, segments: usize) -> Ve
     }
 
     out
+}
+
+// ===========================================================================
+// Geodesic Calculations
+// ===========================================================================
+
+/// Calculate the Haversine distance between two WGS-84 points in meters.
+///
+/// # Arguments
+/// - `lng1`: Longitude of point 1 in degrees.
+/// - `lat1`: Latitude of point 1 in degrees.
+/// - `lng2`: Longitude of point 2 in degrees.
+/// - `lat2`: Latitude of point 2 in degrees.
+///
+/// Returns the great-circle distance in meters.
+#[wasm_bindgen(js_name = "haversineDistance")]
+pub fn haversine_distance(lng1: f64, lat1: f64, lng2: f64, lat2: f64) -> f64 {
+    haversine_distance_internal(lat1, lng1, lat2, lng2)
+}
+
+/// Calculate the initial bearing (forward azimuth) from point 1 to point 2.
+///
+/// Returns the bearing in degrees [0, 360), where 0 = North, 90 = East,
+/// 180 = South, 270 = West.
+///
+/// # Arguments
+/// - `lng1`: Longitude of origin in degrees.
+/// - `lat1`: Latitude of origin in degrees.
+/// - `lng2`: Longitude of destination in degrees.
+/// - `lat2`: Latitude of destination in degrees.
+#[wasm_bindgen(js_name = "bearing")]
+pub fn bearing(lng1: f64, lat1: f64, lng2: f64, lat2: f64) -> f64 {
+    let lat1_r = lat1.to_radians();
+    let lat2_r = lat2.to_radians();
+    let dlng = (lng2 - lng1).to_radians();
+
+    let x = dlng.sin() * lat2_r.cos();
+    let y = lat1_r.cos() * lat2_r.sin() - lat1_r.sin() * lat2_r.cos() * dlng.cos();
+
+    let bearing_rad = x.atan2(y);
+    let bearing_deg = bearing_rad.to_degrees();
+
+    // Normalize to [0, 360)
+    ((bearing_deg % 360.0) + 360.0) % 360.0
+}
+
+/// Calculate the destination point given a start point, bearing, and distance.
+///
+/// Uses the direct geodesic problem solution.
+///
+/// # Arguments
+/// - `lng`: Origin longitude in degrees.
+/// - `lat`: Origin latitude in degrees.
+/// - `bearing_deg`: Bearing in degrees (0 = North, 90 = East).
+/// - `distance_m`: Distance in meters.
+///
+/// Returns `Float64Array` `[lng, lat]` of the destination point.
+#[wasm_bindgen(js_name = "destination")]
+pub fn destination(lng: f64, lat: f64, bearing_deg: f64, distance_m: f64) -> js_sys::Float64Array {
+    let lat_r = lat.to_radians();
+    let bearing_r = bearing_deg.to_radians();
+    let angular_dist = distance_m / EARTH_RADIUS_M;
+
+    let dest_lat = (lat_r.sin() * angular_dist.cos()
+        + lat_r.cos() * angular_dist.sin() * bearing_r.cos())
+    .asin();
+
+    let dest_lng = (bearing_r.sin() * angular_dist.sin() * lat_r.cos())
+        .atan2(angular_dist.cos() - lat_r.sin() * dest_lat.sin());
+
+    let dest_lat_deg = dest_lat.to_degrees();
+    let dest_lng_deg = lng + dest_lng.to_degrees();
+
+    let arr = js_sys::Float64Array::new_with_length(2);
+    arr.copy_from(&[dest_lng_deg, dest_lat_deg]);
+    arr
+}
+
+/// Calculate the midpoint between two WGS-84 points on the great circle.
+///
+/// # Arguments
+/// - `lng1`: Longitude of point 1 in degrees.
+/// - `lat1`: Latitude of point 1 in degrees.
+/// - `lng2`: Longitude of point 2 in degrees.
+/// - `lat2`: Latitude of point 2 in degrees.
+///
+/// Returns `Float64Array` `[lng, lat]` of the midpoint.
+#[wasm_bindgen(js_name = "midpoint")]
+pub fn midpoint(lng1: f64, lat1: f64, lng2: f64, lat2: f64) -> js_sys::Float64Array {
+    let lat1_r = lat1.to_radians();
+    let lat2_r = lat2.to_radians();
+    let dlng = (lng2 - lng1).to_radians();
+
+    let bx = lat2_r.cos() * dlng.cos();
+    let by = lat2_r.cos() * dlng.sin();
+
+    let lat_m = (lat1_r.sin() + lat2_r.sin()).atan2((lat1_r.cos() + bx).hypot(by));
+
+    let lng_m = lng1 + (by.atan2(lat1_r.cos() + bx)).to_degrees();
+
+    let arr = js_sys::Float64Array::new_with_length(2);
+    arr.copy_from(&[lng_m, lat_m.to_degrees()]);
+    arr
 }
 
 // ===========================================================================
@@ -226,7 +329,7 @@ mod tests {
     #[test]
     fn test_haversine_distance() {
         // Beijing to Shanghai ~1068 km
-        let dist = haversine_distance(39.9042, 116.4074, 31.2304, 121.4737);
+        let dist = haversine_distance_internal(39.9042, 116.4074, 31.2304, 121.4737);
         assert!(
             (dist - 1_068_000.0).abs() < 20_000.0,
             "Distance off by too much: {}",
@@ -236,8 +339,126 @@ mod tests {
 
     #[test]
     fn test_haversine_zero_distance() {
-        let dist = haversine_distance(39.0, 116.0, 39.0, 116.0);
+        let dist = haversine_distance_internal(39.0, 116.0, 39.0, 116.0);
         assert!(dist.abs() < 0.01);
+    }
+
+    // ── Bearing tests ─────────────────────────────────────────────
+
+    #[test]
+    fn test_bearing_north() {
+        // From (0,0) to (0,1) = due North = 0°
+        let b = bearing(0.0, 0.0, 0.0, 1.0);
+        assert!((b - 0.0).abs() < 0.1, "Expected ~0°, got {}", b);
+    }
+
+    #[test]
+    fn test_bearing_east() {
+        // From (0,0) to (1,0) at equator = due East ≈ 90°
+        let b = bearing(0.0, 0.0, 1.0, 0.0);
+        assert!((b - 90.0).abs() < 0.1, "Expected ~90°, got {}", b);
+    }
+
+    #[test]
+    fn test_bearing_beijing_shanghai() {
+        // Beijing (116.4, 39.9) → Shanghai (121.5, 31.2) ≈ South-East
+        let b = bearing(116.4074, 39.9042, 121.4737, 31.2304);
+        assert!(b > 120.0 && b < 180.0, "Expected SE bearing, got {}", b);
+    }
+
+    // ── Destination tests ────────────────────────────────────────
+
+    #[test]
+    fn test_destination_north_100km() {
+        let result = native_destination(0.0, 0.0, 0.0, 100_000.0);
+        assert!(
+            (result[1] - 0.8983).abs() < 0.01,
+            "Expected lat ~0.8983, got {}",
+            result[1]
+        );
+        assert!(
+            (result[0] - 0.0).abs() < 0.01,
+            "Expected lng ~0, got {}",
+            result[0]
+        );
+    }
+
+    #[test]
+    fn test_destination_roundtrip() {
+        let start_lng = 116.4074;
+        let start_lat = 39.9042;
+        let result = native_destination(start_lng, start_lat, 90.0, 50_000.0);
+        let end_lng = result[0];
+        let end_lat = result[1];
+        assert!(end_lng > start_lng);
+        assert!(
+            (end_lat - start_lat).abs() < 0.01,
+            "Lat should be ~same: {} vs {}",
+            end_lat,
+            start_lat
+        );
+    }
+
+    // ── Midpoint tests ───────────────────────────────────────────
+
+    #[test]
+    fn test_midpoint_equator() {
+        let result = native_midpoint(0.0, 0.0, 10.0, 0.0);
+        assert!(
+            (result[0] - 5.0).abs() < 0.01,
+            "Expected lng ~5, got {}",
+            result[0]
+        );
+        assert!(
+            (result[1] - 0.0).abs() < 0.01,
+            "Expected lat ~0, got {}",
+            result[1]
+        );
+    }
+
+    #[test]
+    fn test_midpoint_north() {
+        let result = native_midpoint(0.0, 0.0, 0.0, 10.0);
+        assert!(
+            (result[1] - 5.0).abs() < 0.1,
+            "Expected lat ~5, got {}",
+            result[1]
+        );
+    }
+
+    // ── Native helpers for geodesic functions ─────────────────────
+
+    fn native_destination(lng: f64, lat: f64, bearing_deg: f64, distance_m: f64) -> [f64; 2] {
+        let lat_r = lat.to_radians();
+        let bearing_r = bearing_deg.to_radians();
+        let angular_dist = distance_m / EARTH_RADIUS_M;
+
+        let dest_lat = (lat_r.sin() * angular_dist.cos()
+            + lat_r.cos() * angular_dist.sin() * bearing_r.cos())
+        .asin();
+
+        let dest_lng = (bearing_r.sin() * angular_dist.sin() * lat_r.cos())
+            .atan2(angular_dist.cos() - lat_r.sin() * dest_lat.sin());
+
+        let dest_lat_deg = dest_lat.to_degrees();
+        let dest_lng_deg = lng + dest_lng.to_degrees();
+
+        [dest_lng_deg, dest_lat_deg]
+    }
+
+    fn native_midpoint(lng1: f64, lat1: f64, lng2: f64, lat2: f64) -> [f64; 2] {
+        let lat1_r = lat1.to_radians();
+        let lat2_r = lat2.to_radians();
+        let dlng = (lng2 - lng1).to_radians();
+
+        let bx = lat2_r.cos() * dlng.cos();
+        let by = lat2_r.cos() * dlng.sin();
+
+        let lat_m = (lat1_r.sin() + lat2_r.sin()).atan2((lat1_r.cos() + bx).hypot(by));
+
+        let lng_m = lng1 + (by.atan2(lat1_r.cos() + bx)).to_degrees();
+
+        [lng_m, lat_m.to_degrees()]
     }
 
     // ── Point buffer tests ────────────────────────────────────────
