@@ -10,9 +10,9 @@
 [![Rust](https://img.shields.io/badge/Rust-%23A73737-orange.svg?logo=rust&logoColor=white)](https://www.rust-lang.org)
 [![WebAssembly](https://img.shields.io/badge/WebAssembly-654FF0.svg?logo=webassembly&logoColor=white)](https://webassembly.org)
 
-![Lines](https://img.shields.io/badge/code-11K-blue)
-![Tests](https://img.shields.io/badge/tests-240%2B-success)
-![Formats](https://img.shields.io/badge/formats-6-green)
+![Lines](https://img.shields.io/badge/code-20K-blue)
+![Tests](https://img.shields.io/badge/tests-340%2B-success)
+![Formats](https://img.shields.io/badge/formats-8-green)
 
 *Offload server-side spatial computing to the client — free the cloud.*
 
@@ -74,6 +74,27 @@ Modern Web3D and GIS applications face a fundamental bottleneck:
 | **Offline** | ❌ Requires connection | ✅ Works offline |
 | **Scalability** | Limited by server capacity | Scales with user count |
 
+### 🎯 Killer Feature: Point Cloud → 3D Tiles in the Browser
+
+> Drag a LAS/LAZ file into the browser → get a Cesium-ready 3D Tiles tileset.
+> **Zero server, zero upload, zero dependencies.**
+
+```typescript
+import { loadSpatialCore } from "wasm-spatial-core";
+const core = await loadSpatialCore();
+
+// Parse → index → tileset — all in-browser
+const points = core.parseLasPoints(lasBytes);
+const octree = core.buildOctree(points.positions(), 50000, 10);
+const tileset = core.generateTileset(points.positions(), 50000, 10, points.colors());
+
+// Feed to Cesium — done!
+viewer.scene.primitives.add(new Cesium.C3DTileset({ url: tilesetUrl }));
+```
+
+**[Three.js Demo](https://reed-soul.github.io/wasm-spatial-core/examples/threejs-pointcloud/index.html)** — Zero-dep 3D point cloud viewer
+**[Cesium Demo](https://reed-soul.github.io/wasm-spatial-core/examples/cesium-pointcloud/index.html)** — Point cloud on 3D globe
+
 ---
 
 ## ✨ Features
@@ -90,6 +111,8 @@ Modern Web3D and GIS applications face a fundamental bottleneck:
 - 🌳 **Octree Spatial Index** — 8-way recursive spatial partitioning for point clouds, index-based reordering, WASM-exportable query API
 - 🧱 **3D Tiles Point Cloud (pnts)** — Encode point clouds to Cesium-compatible `.pnts` binary format with optional RGB colors
 - 🗺️ **tileset.json Generator** — Full 3D Tiles tileset hierarchy from octree, with box boundingVolume and level-scaled geometricError
+- 🎯 **View-Dependent LOD** — Screen-space error computation + camera-driven visible tile selection
+- 📊 **Memory Estimation** — `octreeMemoryUsage()` for planning large point cloud workloads
 - 🏗️ **IFC/BIM Geometry** (experimental) — Extract `IFCEXTRUDEDAREASOLID` mesh geometry
 - 🔺 **glTF / GLB Writer** — Build glTF 2.0 scenes in WASM, export as GLB binary
 - 📐 **Spatial Analysis** — Point/line buffering, bounding box, centroid, haversine distance, bearing, destination, midpoint on WGS-84
@@ -111,6 +134,8 @@ Hosted on GitHub Pages (updated automatically when `master` is pushed):
 |------|-----|
 | **Hub** (multi-tab playground) | https://reed-soul.github.io/wasm-spatial-core/examples/index.html |
 | Interactive GeoJSON + CRS + R-tree | https://reed-soul.github.io/wasm-spatial-core/examples/demo/index.html |
+| **Three.js Point Cloud** | https://reed-soul.github.io/wasm-spatial-core/examples/threejs-pointcloud/index.html |
+| **Cesium 3D Tiles Point Cloud** | https://reed-soul.github.io/wasm-spatial-core/examples/cesium-pointcloud/index.html |
 | WASM vs JS benchmark | https://reed-soul.github.io/wasm-spatial-core/bench/browser/index.html |
 
 Run locally: `npm run demo` (builds `pkg/` and serves on port 8080).
@@ -512,16 +537,29 @@ Preliminary benchmarks on Apple M1 (Chrome 120, 1M coordinate pairs):
 
 See **[PLAN.md](./PLAN.md)** and **[ROADMAP_V1.md](./ROADMAP_V1.md)** for the full development roadmap.
 
-All three phases completed ✅ — Phase 1 (MVP), Phase 2 (Ecosystem), Phase 3 (Heterogeneous Data), plus backlogged features.
+- ✅ **Phase A**: Point cloud core pipeline (LAZ, streaming, octree, pnts, tileset, demos) — **COMPLETE**
+- ✅ **Phase B1-B2**: LOD optimization, screen-space error, view-dependent loading — **COMPLETE**
+- 🔜 **Phase B3-B4**: WebWorker parallelism, Draco compression
+- 🔜 **Phase C**: E57, PLY/OBJ, COPC full support
 
-### LAZ Support
+### Point Cloud Support Status
 
-The `laz` crate (v0.12.1) compiles successfully to `wasm32-unknown-unknown`. LAZ decompression is not yet integrated but the path forward is clear:
-1. Add `laz` as an optional `laz` feature
-2. Implement LAZ decompression in `PointCloudStreamer`
-3. Add COPC chunk table parsing for indexed random access
+| Feature | Status |
+|---------|--------|
+| LAS parsing (Format 0-3) | ✅ Supported |
+| LAZ decompression | ✅ `laz` crate integrated |
+| COPC header + chunk table | ✅ Supported |
+| Auto-detection (LAS/LAZ) | ✅ `parsePointCloudAuto()` |
+| Octree spatial index | ✅ 1M points < 3s |
+| pnts tile encoding | ✅ Full binary format |
+| tileset.json generation | ✅ Recursive hierarchy |
+| View-dependent LOD | ✅ SSE-based selection |
+| Streaming (range read) | ✅ `PointCloudStreamer` |
+| Three.js demo | ✅ Zero-dep viewer |
+| Cesium demo | ✅ Globe rendering |
+| Draco compression | 🔜 Future |
 
-Use `supportsLaz()` and `lazStatus()` WASM exports to check runtime support.
+Use `supportsLaz()` and `lazStatus()` WASM exports to check runtime LAZ support.
 
 ---
 
