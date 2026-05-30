@@ -1188,6 +1188,140 @@ pub fn batch_utm_to_wgs84_inplace(coords: &Float64Array) {
     coords.copy_from(&result);
 }
 
+// ===========================================================================
+// CRS Description Tools
+// ===========================================================================
+
+/// Return a JSON array of supported coordinate reference systems.
+///
+/// Each entry contains `code`, `name`, `description`.
+#[wasm_bindgen(js_name = "getSupportedCrs")]
+pub fn get_supported_crs() -> String {
+    r#"[
+  {"code":"EPSG:4326","name":"WGS 84","description":"World Geodetic System 1984 — global GPS standard"},
+  {"code":"EPSG:3857","name":"Web Mercator","description":"Spherical Mercator projection used by most web maps (Google, OSM, Mapbox)"},
+  {"code":"EPSG:4490","name":"CGCS2000","description":"China Geodetic Coordinate System 2000 — national standard"},
+  {"code":"GCJ-02","name":"GCJ-02 (Mars)","description":"Chinese government mandated offset applied by Amap, Tencent Maps"},
+  {"code":"BD-09","name":"BD-09","description":"Baidu's proprietary coordinate system — further offset from GCJ-02"}
+]"#
+    .to_string()
+}
+
+/// Return JSON info for a specific CRS code.
+///
+/// # Arguments
+/// - `code`: CRS code string, e.g. `"EPSG:4326"`, `"GCJ-02"`, `"BD-09"`.
+///
+/// # Returns
+/// JSON object with `name`, `description`, `bounds`, `unit`.
+#[wasm_bindgen(js_name = "crsInfo")]
+pub fn crs_info(code: &str) -> String {
+    match code {
+        "EPSG:4326" | "WGS84" | "WGS-84" => r#"{
+  "name":"WGS 84",
+  "code":"EPSG:4326",
+  "description":"World Geodetic System 1984 — global GPS standard",
+  "bounds":{"minLng":-180.0,"minLat":-90.0,"maxLng":180.0,"maxLat":90.0},
+  "unit":"degree"
+}"#
+        .to_string(),
+        "EPSG:3857" | "WebMercator" | "Web Mercator" => r#"{
+  "name":"Web Mercator",
+  "code":"EPSG:3857",
+  "description":"Spherical Mercator projection used by most web maps (Google, OSM, Mapbox)",
+  "bounds":{"minLng":-180.0,"minLat":-85.05,"maxLng":180.0,"maxLat":85.05},
+  "unit":"meter"
+}"#
+        .to_string(),
+        "EPSG:4490" | "CGCS2000" => r#"{
+  "name":"CGCS2000",
+  "code":"EPSG:4490",
+  "description":"China Geodetic Coordinate System 2000 — national standard",
+  "bounds":{"minLng":73.66,"minLat":3.86,"maxLng":135.05,"maxLat":53.55},
+  "unit":"degree"
+}"#
+        .to_string(),
+        "GCJ-02" | "GCJ02" => r#"{
+  "name":"GCJ-02 (Mars)",
+  "code":"GCJ-02",
+  "description":"Chinese government mandated offset applied by Amap, Tencent Maps",
+  "bounds":{"minLng":73.66,"minLat":3.86,"maxLng":135.05,"maxLat":53.55},
+  "unit":"degree"
+}"#
+        .to_string(),
+        "BD-09" | "BD09" => r#"{
+  "name":"BD-09",
+  "code":"BD-09",
+  "description":"Baidu's proprietary coordinate system — further offset from GCJ-02",
+  "bounds":{"minLng":73.66,"minLat":3.86,"maxLng":135.05,"maxLat":53.55},
+  "unit":"degree"
+}"#
+        .to_string(),
+        _ => format!(r#"{{
+  "name":"Unknown",
+  "code":"{}",
+  "description":"Unsupported coordinate reference system",
+  "bounds":null,
+  "unit":null
+}}"#, code),
+    }
+}
+
+/// Check whether a coordinate falls within China's approximate bounding box.
+///
+/// Uses the same bounds as the GCJ-02 offset check: lng ∈ [73.66, 135.05],
+/// lat ∈ [3.86, 53.55].
+///
+/// # Arguments
+/// - `lng`: Longitude in degrees.
+/// - `lat`: Latitude in degrees.
+///
+/// # Returns
+/// `true` if the coordinate is within China's approximate territory.
+#[wasm_bindgen(js_name = "isInChina")]
+pub fn is_in_china(lng: f64, lat: f64) -> bool {
+    !out_of_china(lng, lat)
+}
+
+/// Recommend the best CRS for a geographic region.
+///
+/// # Arguments
+/// - `min_lng`, `min_lat`, `max_lng`, `max_lat`: Bounding box in degrees.
+///
+/// # Returns
+/// JSON string with `crs` (recommended CRS code) and `reason`.
+#[wasm_bindgen(js_name = "bestCrsForRegion")]
+pub fn best_crs_for_region(min_lng: f64, min_lat: f64, max_lng: f64, max_lat: f64) -> String {
+    // China bounding box check
+    let china_min_lng = 73.66;
+    let china_max_lng = 135.05;
+    let china_min_lat = 3.86;
+    let china_max_lat = 53.55;
+
+    let center_lng = (min_lng + max_lng) / 2.0;
+    let center_lat = (min_lat + max_lat) / 2.0;
+
+    let in_china = center_lng >= china_min_lng
+        && center_lng <= china_max_lng
+        && center_lat >= china_min_lat
+        && center_lat <= china_max_lat;
+
+    if !in_china {
+        // Check if it's a large region → Web Mercator, otherwise WGS84
+        let lng_span = max_lng - min_lng;
+        let lat_span = max_lat - min_lat;
+        if lng_span > 10.0 || lat_span > 10.0 {
+            return r#"{"crs":"EPSG:3857","reason":"Large global/regional area — Web Mercator best for web mapping"}"#.to_string();
+        }
+        return r#"{"crs":"EPSG:4326","reason":"Standard WGS84 for global coordinates"}"#.to_string();
+    }
+
+    // Within China — recommend based on map provider context
+    // If area is within typical Chinese web map ranges → GCJ-02 (most common)
+    // Note: BD-09 is only for Baidu Maps specifically, so GCJ-02 is the safer default
+    r#"{"crs":"GCJ-02","reason":"Region within China — GCJ-02 (Mars) is the standard for Chinese web maps (Amap, Tencent)"}"#.to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1669,5 +1803,59 @@ mod tests {
                 lat2
             );
         }
+    }
+
+    // ── CRS description tests ──────────────────────────────────────
+
+    #[test]
+    fn test_get_supported_crs() {
+        let json = get_supported_crs();
+        assert!(json.contains("EPSG:4326"));
+        assert!(json.contains("GCJ-02"));
+        assert!(json.contains("BD-09"));
+        assert!(json.contains("EPSG:3857"));
+    }
+
+    #[test]
+    fn test_crs_info_wgs84() {
+        let json = crs_info("EPSG:4326");
+        assert!(json.contains("WGS 84"));
+        assert!(json.contains("degree"));
+        assert!(!json.contains("Unknown"));
+    }
+
+    #[test]
+    fn test_crs_info_unknown() {
+        let json = crs_info("FOO:9999");
+        assert!(json.contains("Unknown"));
+        assert!(json.contains("FOO:9999"));
+    }
+
+    #[test]
+    fn test_is_in_china_beijing() {
+        assert!(is_in_china(116.4, 39.9));
+    }
+
+    #[test]
+    fn test_is_in_china_new_york() {
+        assert!(!is_in_china(-74.0, 40.7));
+    }
+
+    #[test]
+    fn test_best_crs_china() {
+        let result = best_crs_for_region(116.0, 39.0, 117.0, 40.0);
+        assert!(result.contains("GCJ-02"), "China region should recommend GCJ-02: {}", result);
+    }
+
+    #[test]
+    fn test_best_crs_global() {
+        let result = best_crs_for_region(-180.0, -90.0, 180.0, 90.0);
+        assert!(result.contains("EPSG:3857"), "Large global area should recommend Web Mercator: {}", result);
+    }
+
+    #[test]
+    fn test_best_crs_small_global() {
+        let result = best_crs_for_region(-1.0, 50.0, 1.0, 52.0);
+        assert!(result.contains("EPSG:4326"), "Small non-China area should recommend WGS84: {}", result);
     }
 }
