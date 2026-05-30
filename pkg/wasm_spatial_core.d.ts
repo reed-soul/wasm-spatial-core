@@ -349,6 +349,10 @@ export class Octree {
     free(): void;
     [Symbol.dispose](): void;
     /**
+     * Leaf count.
+     */
+    leafCount(): number;
+    /**
      * Bounding box of node at `index` as a `Float64Array` of 6 values.
      */
     nodeBounds(index: number): Float64Array;
@@ -972,6 +976,7 @@ export function bufferPoint(lng: number, lat: number, radius_meters: number, seg
  * Build an octree from a flat `[x, y, z, ...]` position buffer.
  *
  * The input buffer is **not** modified (a copy is made internally).
+ * Points with NaN/Infinity coordinates are silently filtered.
  *
  * # Arguments
  * * `positions` — `Float32Array` of `[x, y, z, ...]` triples.
@@ -1118,6 +1123,11 @@ export function computeLasPointOffset(header_info: LasHeaderInfo, point_index: n
  * WASM export: compute byte range for a region of points.
  */
 export function computeRegionByteRange(point_offset: number, point_record_length: number, start_index: number, count: number): object;
+
+/**
+ * WASM export: compute screen-space error.
+ */
+export function computeScreenSpaceError(geometric_error: number, distance: number, fov: number, screen_height: number): number;
 
 /**
  * Compute an approximate concave hull using alpha shape (simplified).
@@ -1510,6 +1520,11 @@ export function getInputSizeLimit(): number;
 export function getSupportedCrs(): string;
 
 /**
+ * WASM export: get visible tiles for a camera position.
+ */
+export function getVisibleTiles(positions: Float32Array, camera_x: number, camera_y: number, camera_z: number, camera_fov: number, screen_width: number, screen_height: number, max_points_per_node?: number | null, max_depth?: number | null, sse_threshold?: number | null): Uint32Array;
+
+/**
  * Assign each point to a spatial grid cell.
  *
  * # Arguments
@@ -1612,6 +1627,16 @@ export function midpoint(lng1: number, lat1: number, lng2: number, lat2: number)
  * New `Float64Array` with coordinates mapped to [0,1].
  */
 export function normalizeCoords(coords: Float64Array, target_bounds: Float64Array): Float64Array;
+
+/**
+ * WASM export: estimate octree memory usage.
+ */
+export function octreeMemoryUsage(node_count: number, internal_count: number, point_count: number): number;
+
+/**
+ * WASM binding: Parse COPC header and return info as JSON object.
+ */
+export function parseCopcHeader(bytes: Uint8Array): object;
 
 /**
  * Parse a GeoJSON string and return **all** coordinate pairs as a flat
@@ -1804,6 +1829,18 @@ export function parseLasPoints(bytes: Uint8Array): LasPointCloud;
 export function parseLasPointsWithProgress(bytes: Uint8Array, on_progress: Function): LasPointCloud;
 
 /**
+ * WASM binding for LAZ point decompression.
+ *
+ * Parses a LAZ compressed file and returns decompressed points.
+ */
+export function parseLazPoints(bytes: Uint8Array): LasPointCloud;
+
+/**
+ * Parse LAZ points with a JS progress callback. Reports every 10,000 points.
+ */
+export function parseLazPointsStream(bytes: Uint8Array, on_progress: Function): LasPointCloud;
+
+/**
  * Parse ASCII PCD format text into a point cloud.
  */
 export function parsePcdAscii(text: string): PcdPointCloud;
@@ -1812,6 +1849,20 @@ export function parsePcdAscii(text: string): PcdPointCloud;
  * Parse binary PCD format bytes into a point cloud.
  */
 export function parsePcdBinary(bytes: Uint8Array): PcdPointCloud;
+
+/**
+ * Unified entry point: automatically detects LAS/LAZ/COPC format and parses points.
+ *
+ * # Format Detection
+ *
+ * - **LAS**: `LASF` magic, version ≤ 1.3, no compression bit
+ * - **LAZ**: `LASF` magic, any version, compression bit set at byte 104
+ * - **COPC**: `LASF` magic, version 1.4, compression bit set, COPC VLR present
+ *
+ * All three formats use the same decompression path internally. COPC adds
+ * spatial indexing but falls back to full decompression for the auto path.
+ */
+export function parsePointCloudAuto(bytes: Uint8Array): LasPointCloud;
 
 /**
  * Parse Well-Known Binary (WKB) data into a flat `Float64Array`.
@@ -1904,6 +1955,19 @@ export function polygonUnion(ring1: Float64Array, ring2: Float64Array): Float64A
  * - `coords`: Flat `Float64Array` `[lng0,lat0, lng1,lat1, ...]`.
  */
 export function polylineLength(coords: Float64Array): number;
+
+/**
+ * WASM binding: Read a single COPC chunk.
+ */
+export function readCopcChunk(bytes: Uint8Array, chunk_offset: number, chunk_size: number, expected_points: number, header_bytes: Uint8Array): LasPointCloud;
+
+/**
+ * WASM binding: Read COPC points from a bounding box region.
+ *
+ * Iterates through all chunks, decompresses each one, and filters
+ * points that fall within the specified bounding box.
+ */
+export function readCopcRegion(bytes: Uint8Array, min_x: number, min_y: number, min_z: number, max_x: number, max_y: number, max_z: number): LasPointCloud;
 
 /**
  * Remove a property key from all features of a GeoJSON FeatureCollection.
@@ -2017,9 +2081,6 @@ export function sortCoordsByLng(coords: Float64Array): Float64Array;
 
 /**
  * Check if LAZ (compressed LAS) is supported.
- *
- * Currently returns `false`. LAZ support requires the `laz-rs` crate which
- * has native dependencies that may not compile to `wasm32-unknown-unknown`.
  */
 export function supportsLaz(): boolean;
 
@@ -2214,7 +2275,7 @@ export interface InitOutput {
     readonly boundingBox: (a: number) => number;
     readonly bufferLineString: (a: number, b: number, c: number) => number;
     readonly bufferPoint: (a: number, b: number, c: number, d: number) => number;
-    readonly buildOctree: (a: number, b: number, c: number, d: number) => number;
+    readonly buildOctree: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly buildTin: (a: number, b: number) => void;
     readonly centroid: (a: number) => number;
     readonly cesium3dtile_batchTableJson: (a: number, b: number) => void;
@@ -2232,6 +2293,7 @@ export interface InitOutput {
     readonly computeBoundsMulti: (a: number) => number;
     readonly computeLasPointOffset: (a: number, b: number, c: number) => number;
     readonly computeRegionByteRange: (a: number, b: number, c: number, d: number) => number;
+    readonly computeScreenSpaceError: (a: number, b: number, c: number, d: number) => number;
     readonly concaveHull: (a: number, b: number) => number;
     readonly contains: (a: number, b: number, c: number) => number;
     readonly convexHull: (a: number) => number;
@@ -2269,6 +2331,7 @@ export interface InitOutput {
     readonly getAllocatedBytes: () => number;
     readonly getInputSizeLimit: () => number;
     readonly getSupportedCrs: (a: number) => void;
+    readonly getVisibleTiles: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => number;
     readonly gltfbuilder_addMaterial: (a: number, b: number, c: number, d: number, e: number) => number;
     readonly gltfbuilder_addMesh: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly gltfbuilder_new: () => number;
@@ -2318,7 +2381,9 @@ export interface InitOutput {
     readonly mvtlayerdecoded_featureCount: (a: number) => number;
     readonly mvtlayerdecoded_name: (a: number, b: number) => void;
     readonly normalizeCoords: (a: number, b: number) => number;
+    readonly octreeMemoryUsage: (a: number, b: number, c: number) => number;
     readonly octree_depth: (a: number) => number;
+    readonly octree_leafCount: (a: number) => number;
     readonly octree_nodeBounds: (a: number, b: number) => number;
     readonly octree_nodeChildren: (a: number, b: number) => number;
     readonly octree_nodeCount: (a: number) => number;
@@ -2326,6 +2391,7 @@ export interface InitOutput {
     readonly octree_nodePointCount: (a: number, b: number) => number;
     readonly octree_rootBounds: (a: number) => number;
     readonly octree_total_points: (a: number) => number;
+    readonly parseCopcHeader: (a: number, b: number, c: number) => void;
     readonly parseGeoJsonCoords: (a: number, b: number, c: number) => void;
     readonly parseGeoJsonFeatures: (a: number, b: number, c: number) => void;
     readonly parseGeoJsonLazy: (a: number, b: number, c: number) => void;
@@ -2338,8 +2404,11 @@ export interface InitOutput {
     readonly parseLasPointAt: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly parseLasPoints: (a: number, b: number, c: number) => void;
     readonly parseLasPointsWithProgress: (a: number, b: number, c: number, d: number) => void;
+    readonly parseLazPoints: (a: number, b: number, c: number) => void;
+    readonly parseLazPointsStream: (a: number, b: number, c: number, d: number) => void;
     readonly parsePcdAscii: (a: number, b: number, c: number) => void;
     readonly parsePcdBinary: (a: number, b: number, c: number) => void;
+    readonly parsePointCloudAuto: (a: number, b: number, c: number) => void;
     readonly parseWkb: (a: number, b: number) => void;
     readonly parseWkt: (a: number, b: number, c: number) => void;
     readonly pointcloudstreamer_new: () => number;
@@ -2356,6 +2425,8 @@ export interface InitOutput {
     readonly polygonIntersects: (a: number, b: number) => number;
     readonly polygonUnion: (a: number, b: number) => number;
     readonly polylineLength: (a: number, b: number) => void;
+    readonly readCopcChunk: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
+    readonly readCopcRegion: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => void;
     readonly removeProperty: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly renameProperty: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
     readonly rhumbBearing: (a: number, b: number, c: number, d: number) => number;
@@ -2373,7 +2444,6 @@ export interface InitOutput {
     readonly spatialindex_new: (a: number) => number;
     readonly spatialindex_searchBBox: (a: number, b: number, c: number, d: number, e: number) => number;
     readonly spatialindex_size: (a: number) => number;
-    readonly supportsLaz: () => number;
     readonly tilesetresult_tile: (a: number, b: number) => number;
     readonly tilesetresult_tileBounds: (a: number, b: number) => number;
     readonly tilesetresult_tileUri: (a: number, b: number, c: number) => void;
@@ -2400,6 +2470,7 @@ export interface InitOutput {
     readonly version: (a: number) => void;
     readonly vincentyDistance: (a: number, b: number, c: number, d: number) => number;
     readonly wgs84ToUtm: (a: number, b: number) => number;
+    readonly supportsLaz: () => number;
     readonly lasheader_boundsMaxX: (a: number) => number;
     readonly lasheader_boundsMaxY: (a: number) => number;
     readonly lasheader_boundsMaxZ: (a: number) => number;
@@ -2427,10 +2498,10 @@ export interface InitOutput {
     readonly tinresult_vertexCount: (a: number) => number;
     readonly tinresult_triangleCount: (a: number) => number;
     readonly pcdpointcloud_pointCount: (a: number) => number;
-    readonly pcdpointcloud_positions: (a: number) => number;
+    readonly tinresult_indices: (a: number) => number;
     readonly tinresult_positions: (a: number) => number;
     readonly ifcmesh_positions: (a: number) => number;
-    readonly tinresult_indices: (a: number) => number;
+    readonly pcdpointcloud_positions: (a: number) => number;
     readonly ifcmesh_indices: (a: number) => number;
     readonly __wbg_pcdpointcloud_free: (a: number, b: number) => void;
     readonly pcdpointcloud_colors: (a: number) => number;
