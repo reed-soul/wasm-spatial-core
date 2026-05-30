@@ -60,6 +60,19 @@ export {
   // parseLasPoints,
   // decimateVoxelGrid,
   // decimateRandom,
+  // parsePcdAscii,
+  // parsePcdBinary,
+  // generateInterleavedVertexBuffer,
+  // generateIndexedGeometry,
+  // parseLasPointsWithProgress,
+  // decimateVoxelGridWithProgress,
+  // ── glTF / GLB Writer ──────────────────────────────────────
+  // GltfBuilder,
+  // ── Spatial Analysis ───────────────────────────────────────
+  // bufferPoint,
+  // bufferLineString,
+  // boundingBox,
+  // centroid,
   // ── Multi-threading ────────────────────────────────────────
   initThreadPool,
 } from "./wasm_spatial_core.js";

@@ -81,13 +81,15 @@ Modern Web3D and GIS applications face a fundamental bottleneck:
 - 🔍 **Spatial Index (R-Tree)** — Bounding box search, nearest-neighbor, K-nearest-neighbor queries
 - 🗺️ **Vector Tile Slicing** — Frontend MVT tile generation via `geojsonvt` + `geozero`
 - 🌐 **Cesium Native Adapter** — WGS84 → Cartesian3 (ECEF), polygon triangulation (earcut)
+- ☁️ **Point Cloud (LAS)** — Parse LAS headers & points, voxel grid & random decimation, PCD format support
+- 🔺 **glTF / GLB Writer** — Build glTF 2.0 scenes in WASM, export as GLB binary
+- 📐 **Spatial Analysis** — Point/line buffering, bounding box, centroid on WGS-84
 - ⚡ **Zero-Copy Architecture** — Data stays in WASM linear memory; JS gets typed array views
-- 📊 **GPU-Ready Output** — Flat `[x, y, x, y, …]` buffers upload directly to WebGL vertex attributes
+- 📊 **GPU-Ready Output** — Interleaved vertex buffers, indexed geometry for WebGL2/WebGPU
 - 🧵 **Multi-threaded** (optional) — Web Workers + SharedArrayBuffer via Rayon
 
 ### Planned
 
-- ☁️ LAS/LAZ point cloud parsing & decimation
 - 🏗️ IFC/BIM geometry extraction
 
 ---

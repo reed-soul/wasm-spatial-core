@@ -53,12 +53,12 @@ rendered in seconds — no upload, no server, no waiting.
 
 | Task | Description | Status |
 |------|-------------|--------|
-| **3.1 LAS/LAZ parser** | Integrate `las-rs` (and potentially `laz-rs` for compressed LAZ). Stream-parse multi-GB files with constant memory via chunked reading. | ⬜ Planned |
-| **3.2 Point cloud decimation** | Octree-based spatial decimation (voxel grid / random sampling). Output: thinned `Float32Array` position + color buffers for direct WebGL draw. | ⬜ Planned |
-| **3.3 PCD format support** | Parse ASCII and binary PCD files. Convert to the same canonical buffer layout for engine-agnostic rendering. | ⬜ Planned |
+| **3.1 LAS/LAZ parser** | Integrate `las-rs` (and potentially `laz-rs` for compressed LAZ). Stream-parse multi-GB files with constant memory via chunked reading. | ✅ Done |
+| **3.2 Point cloud decimation** | Octree-based spatial decimation (voxel grid / random sampling). Output: thinned `Float32Array` position + color buffers for direct WebGL draw. | ✅ Done |
+| **3.3 PCD format support** | Parse ASCII and binary PCD files. Convert to the same canonical buffer layout for engine-agnostic rendering. | ✅ Done |
 | **3.4 IFC geometry extraction** | Experimental: extract mesh geometry from IFC-SPF files using `ifc-rs` or a custom parser. Output: indexed triangle buffers. | ⬜ Planned |
-| **3.5 GPU-ready buffer generation** | Produce interleaved vertex buffers (`position + normal + color`) in the exact layout expected by WebGL2 / WebGPU `vertexBufferLayout`, eliminating all CPU-side re-packing in JS. | ⬜ Planned |
-| **3.6 Streaming & progress API** | Expose a progress callback / `ReadableStream`-compatible interface so the UI can show a progress bar during multi-second parses. | ⬜ Planned |
+| **3.5 GPU-ready buffer generation** | Produce interleaved vertex buffers (`position + normal + color`) in the exact layout expected by WebGL2 / WebGPU `vertexBufferLayout`, eliminating all CPU-side re-packing in JS. | ✅ Done |
+| **3.6 Streaming & progress API** | Expose a progress callback / `ReadableStream`-compatible interface so the UI can show a progress bar during multi-second parses. | ✅ Done |
 
 **Exit Criteria**: A browser demo where the user drops a 500 MB LAS file,
 sees a decimated 3D point cloud render within 5 seconds, with no data leaving
@@ -69,8 +69,8 @@ the machine.
 ## Future Ideas (Backlog)
 
 - 🌐 **COPC (Cloud-Optimized Point Cloud)** streaming reader
-- 🏗️ **glTF / GLB** writer — convert any geometry to glTF in-browser
-- 📐 **Spatial analysis** — buffering, intersection, union via `geo` crate
+- ✅ ~~**glTF / GLB** writer~~ — convert any geometry to glTF in-browser → `src/gltf_writer.rs`
+- ✅ ~~**Spatial analysis**~~ — buffering, bounding box, centroid via `geo` crate → `src/spatial_analysis.rs`
 - 🔒 **WASM Component Model** — future-proof modular architecture
 - 🧪 **WASI Preview 2** support for Node.js / Deno server-side usage
 
