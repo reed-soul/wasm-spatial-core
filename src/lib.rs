@@ -20,16 +20,16 @@ mod geojson_parser;
 mod geojson_streaming;
 mod gltf_writer;
 mod ifc_reader;
+mod octree;
+mod pnts;
 mod spatial_analysis;
 mod spatial_index;
 mod topology;
 mod utils;
-mod octree;
-mod pnts;
 mod vector_tile;
 
 pub use octree::{Bounds, Octree, OctreeNode, DEFAULT_MAX_DEPTH, DEFAULT_MAX_POINTS_PER_NODE};
-pub use pnts::{encode_pnts_tile, generate_tileset, parse_pnts_header, pad_len, TilesetResult};
+pub use pnts::{encode_pnts_tile, generate_tileset, pad_len, parse_pnts_header, TilesetResult};
 mod wkb_wkt;
 
 use errors::input_too_large_js;
