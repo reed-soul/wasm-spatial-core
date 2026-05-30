@@ -2387,6 +2387,213 @@ fn eigen_vector_3x3_symmetric(cov: &[f64; 6]) -> (f64, f64, f64) {
 }
 
 // ===========================================================================
+// Point Cloud Statistics
+// ===========================================================================
+
+/// Compute comprehensive statistics for a point cloud.
+///
+/// Returns a JSON string with:
+/// - `pointCount`: Number of points
+/// - `bounds`: `{ minX, minY, minZ, maxX, maxY, maxZ }`
+/// - `centroid`: `[cx, cy, cz]`
+/// - `averagePointSpacing`: Average nearest-neighbor distance (sampled)
+/// - `density`: Points per cubic meter
+///
+/// For large point clouds (>100K points), nearest-neighbor computation
+/// is sampled to keep performance reasonable.
+#[wasm_bindgen(js_name = "pointCloudStats")]
+pub fn point_cloud_stats(positions: &js_sys::Float32Array) -> Result<String, SpatialErrorDetail> {
+    let positions = positions.to_vec();
+    point_cloud_stats_core(&positions).map_err(SpatialError::point_cloud_error)
+}
+
+/// Core implementation of point cloud statistics (pure Rust, testable).
+pub(crate) fn point_cloud_stats_core(positions: &[f32]) -> Result<String, String> {
+    let point_count = positions.len() / 3;
+
+    if point_count == 0 {
+        return Err("Cannot compute stats: no points".to_string());
+    }
+
+    // Compute bounds and centroid
+    let mut min_x = f64::MAX;
+    let mut min_y = f64::MAX;
+    let mut min_z = f64::MAX;
+    let mut max_x = f64::MIN;
+    let mut max_y = f64::MIN;
+    let mut max_z = f64::MIN;
+    let mut sum_x = 0.0_f64;
+    let mut sum_y = 0.0_f64;
+    let mut sum_z = 0.0_f64;
+
+    for i in (0..positions.len()).step_by(3) {
+        let x = positions[i] as f64;
+        let y = positions[i + 1] as f64;
+        let z = positions[i + 2] as f64;
+
+        min_x = min_x.min(x);
+        min_y = min_y.min(y);
+        min_z = min_z.min(z);
+        max_x = max_x.max(x);
+        max_y = max_y.max(y);
+        max_z = max_z.max(z);
+
+        sum_x += x;
+        sum_y += y;
+        sum_z += z;
+    }
+
+    let cx = sum_x / point_count as f64;
+    let cy = sum_y / point_count as f64;
+    let cz = sum_z / point_count as f64;
+
+    // Compute bounding volume
+    let dx = (max_x - min_x).max(0.001);
+    let dy = (max_y - min_y).max(0.001);
+    let dz = (max_z - min_z).max(0.001);
+    let volume = dx * dy * dz;
+    let density = point_count as f64 / volume;
+
+    // Average nearest-neighbor distance (sampled for large clouds)
+    let sample_size = 1000.min(point_count);
+    let step = point_count / sample_size;
+    let mut total_nn_dist = 0.0_f64;
+    let mut nn_count = 0_usize;
+
+    for si in 0..sample_size {
+        let idx = si * step * 3;
+        if idx + 3 > positions.len() {
+            break;
+        }
+        let px = positions[idx] as f64;
+        let py = positions[idx + 1] as f64;
+        let pz = positions[idx + 2] as f64;
+
+        let mut min_dist_sq = f64::MAX;
+        // Search for nearest neighbor (avoid self)
+        for j in (0..positions.len()).step_by(3) {
+            if j == idx {
+                continue;
+            }
+            let dx = positions[j] as f64 - px;
+            let dy = positions[j + 1] as f64 - py;
+            let dz = positions[j + 2] as f64 - pz;
+            let dist_sq = dx * dx + dy * dy + dz * dz;
+            if dist_sq < min_dist_sq {
+                min_dist_sq = dist_sq;
+            }
+        }
+
+        if min_dist_sq < f64::MAX {
+            total_nn_dist += min_dist_sq.sqrt();
+            nn_count += 1;
+        }
+    }
+
+    let avg_spacing = if nn_count > 0 {
+        total_nn_dist / nn_count as f64
+    } else {
+        0.0
+    };
+
+    let stats = serde_json::json!({
+        "pointCount": point_count,
+        "bounds": {
+            "minX": min_x,
+            "minY": min_y,
+            "minZ": min_z,
+            "maxX": max_x,
+            "maxY": max_y,
+            "maxZ": max_z,
+        },
+        "centroid": [cx, cy, cz],
+        "averagePointSpacing": avg_spacing,
+        "density": density,
+    });
+
+    Ok(stats.to_string())
+}
+
+/// Compute axis-aligned bounding box of a point cloud.
+///
+/// Returns a Float64Array `[min_x, min_y, min_z, max_x, max_y, max_z]`.
+#[wasm_bindgen(js_name = "pointCloudBounds")]
+pub fn point_cloud_bounds(positions: &js_sys::Float32Array) -> js_sys::Float64Array {
+    let positions = positions.to_vec();
+    let (min_x, min_y, min_z, max_x, max_y, max_z) = point_cloud_bounds_core(&positions);
+    let arr = js_sys::Float64Array::new_with_length(6);
+    arr.set_index(0, min_x);
+    arr.set_index(1, min_y);
+    arr.set_index(2, min_z);
+    arr.set_index(3, max_x);
+    arr.set_index(4, max_y);
+    arr.set_index(5, max_z);
+    arr
+}
+
+/// Core bounds computation.
+pub(crate) fn point_cloud_bounds_core(positions: &[f32]) -> (f64, f64, f64, f64, f64, f64) {
+    let mut min_x = f64::MAX;
+    let mut min_y = f64::MAX;
+    let mut min_z = f64::MAX;
+    let mut max_x = f64::MIN;
+    let mut max_y = f64::MIN;
+    let mut max_z = f64::MIN;
+
+    for i in (0..positions.len()).step_by(3) {
+        let x = positions[i] as f64;
+        let y = positions[i + 1] as f64;
+        let z = positions[i + 2] as f64;
+        min_x = min_x.min(x);
+        min_y = min_y.min(y);
+        min_z = min_z.min(z);
+        max_x = max_x.max(x);
+        max_y = max_y.max(y);
+        max_z = max_z.max(z);
+    }
+
+    (min_x, min_y, min_z, max_x, max_y, max_z)
+}
+
+/// Compute the centroid (geometric center) of a point cloud.
+///
+/// Returns a Float64Array `[cx, cy, cz]`.
+#[wasm_bindgen(js_name = "pointCloudCentroid")]
+pub fn point_cloud_centroid(positions: &js_sys::Float32Array) -> js_sys::Float64Array {
+    let positions = positions.to_vec();
+    let (cx, cy, cz) = point_cloud_centroid_core(&positions);
+    let arr = js_sys::Float64Array::new_with_length(3);
+    arr.set_index(0, cx);
+    arr.set_index(1, cy);
+    arr.set_index(2, cz);
+    arr
+}
+
+/// Core centroid computation.
+pub(crate) fn point_cloud_centroid_core(positions: &[f32]) -> (f64, f64, f64) {
+    if positions.len() < 3 {
+        return (0.0, 0.0, 0.0);
+    }
+
+    let point_count = positions.len() / 3;
+    let mut sum_x = 0.0_f64;
+    let mut sum_y = 0.0_f64;
+    let mut sum_z = 0.0_f64;
+
+    for i in (0..positions.len()).step_by(3) {
+        sum_x += positions[i] as f64;
+        sum_y += positions[i + 1] as f64;
+        sum_z += positions[i + 2] as f64;
+    }
+
+    (
+        sum_x / point_count as f64,
+        sum_y / point_count as f64,
+        sum_z / point_count as f64,
+    )
+}
+
+// ===========================================================================
 // Tests
 // ===========================================================================
 
@@ -3490,5 +3697,126 @@ DATA ascii
         let las_blob = build_test_las_blob(&points, false);
         let cloud = parse_point_cloud_auto(&las_blob).unwrap();
         assert_eq!(cloud.point_count, 2);
+    }
+
+    // ===========================================================================
+    // Point Cloud Statistics Tests
+    // ===========================================================================
+
+    #[test]
+    fn test_point_cloud_bounds_empty() {
+        let positions: Vec<f32> = vec![];
+        let (min_x, min_y, min_z, max_x, max_y, max_z) = point_cloud_bounds_core(&positions);
+        assert_eq!(min_x, f64::MAX);
+        assert_eq!(min_y, f64::MAX);
+        assert_eq!(min_z, f64::MAX);
+        assert_eq!(max_x, f64::MIN);
+        assert_eq!(max_y, f64::MIN);
+        assert_eq!(max_z, f64::MIN);
+    }
+
+    #[test]
+    fn test_point_cloud_bounds_single() {
+        let positions = vec![5.0_f32, -3.0, 10.0];
+        let (min_x, min_y, min_z, max_x, max_y, max_z) = point_cloud_bounds_core(&positions);
+        assert_eq!(min_x, 5.0);
+        assert_eq!(min_y, -3.0);
+        assert_eq!(min_z, 10.0);
+        assert_eq!(max_x, 5.0);
+        assert_eq!(max_y, -3.0);
+        assert_eq!(max_z, 10.0);
+    }
+
+    #[test]
+    fn test_point_cloud_bounds_multiple() {
+        let positions = vec![
+            1.0_f32, 2.0, 3.0,
+            -5.0, 10.0, 0.0,
+            8.0, -1.0, 6.0,
+        ];
+        let (min_x, min_y, min_z, max_x, max_y, max_z) = point_cloud_bounds_core(&positions);
+        assert_eq!(min_x, -5.0);
+        assert_eq!(max_x, 8.0);
+        assert_eq!(min_y, -1.0);
+        assert_eq!(max_y, 10.0);
+        assert_eq!(min_z, 0.0);
+        assert_eq!(max_z, 6.0);
+    }
+
+    #[test]
+    fn test_point_cloud_centroid() {
+        let positions = vec![
+            0.0_f32, 0.0, 0.0,
+            2.0, 0.0, 0.0,
+            0.0, 4.0, 0.0,
+            0.0, 0.0, 6.0,
+        ];
+        let (cx, cy, cz) = point_cloud_centroid_core(&positions);
+        assert!((cx - 0.5).abs() < 1e-6);
+        assert!((cy - 1.0).abs() < 1e-6);
+        assert!((cz - 1.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_point_cloud_centroid_empty() {
+        let positions: Vec<f32> = vec![];
+        let (cx, cy, cz) = point_cloud_centroid_core(&positions);
+        assert_eq!(cx, 0.0);
+        assert_eq!(cy, 0.0);
+        assert_eq!(cz, 0.0);
+    }
+
+    #[test]
+    fn test_point_cloud_stats_basic() {
+        let positions = vec![
+            0.0_f32, 0.0, 0.0,
+            10.0, 0.0, 0.0,
+            0.0, 10.0, 0.0,
+            0.0, 0.0, 10.0,
+        ];
+        let stats_json = point_cloud_stats_core(&positions).unwrap();
+        let stats: serde_json::Value = serde_json::from_str(&stats_json).unwrap();
+
+        assert_eq!(stats["pointCount"], 4);
+        assert_eq!(stats["bounds"]["minX"], 0.0);
+        assert_eq!(stats["bounds"]["maxX"], 10.0);
+        assert_eq!(stats["bounds"]["minY"], 0.0);
+        assert_eq!(stats["bounds"]["maxY"], 10.0);
+        assert_eq!(stats["bounds"]["minZ"], 0.0);
+        assert_eq!(stats["bounds"]["maxZ"], 10.0);
+
+        // Centroid should be (2.5, 2.5, 2.5)
+        let centroid = stats["centroid"].as_array().unwrap();
+        assert!((centroid[0].as_f64().unwrap() - 2.5).abs() < 1e-6);
+        assert!((centroid[1].as_f64().unwrap() - 2.5).abs() < 1e-6);
+        assert!((centroid[2].as_f64().unwrap() - 2.5).abs() < 1e-6);
+
+        // Density: 4 points / (10*10*10) = 0.004
+        assert!((stats["density"].as_f64().unwrap() - 0.004).abs() < 1e-6);
+
+        // Average spacing should be > 0
+        assert!(stats["averagePointSpacing"].as_f64().unwrap() > 0.0);
+    }
+
+    #[test]
+    fn test_point_cloud_stats_empty_error() {
+        let positions: Vec<f32> = vec![];
+        let result = point_cloud_stats_core(&positions);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("no points"));
+    }
+
+    #[test]
+    fn test_point_cloud_stats_json_valid() {
+        let positions = vec![1.0_f32, 2.0, 3.0, 4.0, 5.0, 6.0];
+        let stats_json = point_cloud_stats_core(&positions).unwrap();
+        let stats: serde_json::Value = serde_json::from_str(&stats_json).unwrap();
+
+        assert!(stats.is_object());
+        assert!(stats.get("pointCount").is_some());
+        assert!(stats.get("bounds").is_some());
+        assert!(stats.get("centroid").is_some());
+        assert!(stats.get("density").is_some());
+        assert!(stats.get("averagePointSpacing").is_some());
     }
 }
