@@ -616,6 +616,281 @@ pub fn generate_tileset_js(
 }
 
 // ===========================================================================
+// LOD: Screen-Space Error & Visible Tile Selection
+// ===========================================================================
+
+/// Compute the screen-space error (SSE) for a tile given camera parameters.
+///
+/// SSE = geometricError / (distance × 2 × tan(fov / 2)) × screenHeight
+///
+/// # Arguments
+/// * `geometric_error` — The tile's geometric error value (from tileset).
+/// * `distance` — Distance from camera to the tile's bounding volume center.
+/// * `fov` — Camera vertical field of view in **radians**.
+/// * `screen_height` — Screen height in pixels.
+///
+/// # Returns
+/// SSE in pixels. Higher = more visual error = need to refine (load children).
+pub fn compute_screen_space_error(
+    geometric_error: f64,
+    distance: f64,
+    fov: f64,
+    screen_height: f64,
+) -> f64 {
+    if distance <= 0.0 || screen_height <= 0.0 || fov <= 0.0 {
+        return f64::INFINITY; // Undefined → always refine
+    }
+    let pixel_size = 2.0 * (fov * 0.5).tan() / screen_height;
+    geometric_error / (distance * pixel_size)
+}
+
+/// WASM export: compute screen-space error.
+#[wasm_bindgen(js_name = "computeScreenSpaceError")]
+pub fn compute_screen_space_error_js(
+    geometric_error: f64,
+    distance: f64,
+    fov: f64,
+    screen_height: f64,
+) -> f64 {
+    compute_screen_space_error(geometric_error, distance, fov, screen_height)
+}
+
+/// Default SSE threshold in pixels. Tiles whose SSE falls below this
+/// are considered "good enough" and children are not loaded.
+const DEFAULT_SSE_THRESHOLD: f64 = 1.0;
+
+/// Determine which tiles should be loaded given camera parameters.
+///
+/// Traverses the tileset octree from root, computing SSE for each node.
+/// If SSE < threshold → the tile is sufficient, add to visible set.
+/// If SSE >= threshold → need to refine, descend into children.
+///
+/// # Arguments
+/// * `octree` — Built octree.
+/// * `camera_x`, `camera_y`, `camera_z` — Camera world position.
+/// * `camera_fov` — Vertical field of view in **radians**.
+/// * `screen_width`, `screen_height` — Viewport dimensions in pixels.
+/// * `sse_threshold` — SSE threshold in pixels (default: 1.0).
+///
+/// # Returns
+/// Indices of leaf nodes whose tiles should be loaded.
+pub fn get_visible_tiles(
+    octree: &Octree,
+    camera_x: f64,
+    camera_y: f64,
+    camera_z: f64,
+    camera_fov: f64,
+    _screen_width: f64,
+    screen_height: f64,
+    sse_threshold: Option<f64>,
+) -> Vec<usize> {
+    let threshold = sse_threshold.unwrap_or(DEFAULT_SSE_THRESHOLD);
+    let mut visible = Vec::new();
+    traverse_lod(octree, 0, camera_x, camera_y, camera_z, camera_fov, screen_height, threshold, &mut visible);
+    visible
+}
+
+fn traverse_lod(
+    octree: &Octree,
+    node_idx: usize,
+    cam_x: f64,
+    cam_y: f64,
+    cam_z: f64,
+    fov: f64,
+    screen_height: f64,
+    sse_threshold: f64,
+    visible: &mut Vec<usize>,
+) {
+    let node = &octree.nodes[node_idx];
+    let bounds = node.bounds;
+
+    // Node center.
+    let cx = (bounds[0] + bounds[3]) * 0.5;
+    let cy = (bounds[1] + bounds[4]) * 0.5;
+    let cz = (bounds[2] + bounds[5]) * 0.5;
+
+    // Distance from camera to node center.
+    let dx = cx - cam_x;
+    let dy = cy - cam_y;
+    let dz = cz - cam_z;
+    let distance = (dx * dx + dy * dy + dz * dz).sqrt().max(1e-10);
+
+    // Geometric error for this node.
+    let geo_error = compute_geometric_error(&bounds, node.level);
+
+    // Screen-space error in pixels.
+    let sse = compute_screen_space_error(geo_error, distance, fov, screen_height);
+
+    if sse < sse_threshold || node.is_leaf() {
+        // This tile is good enough (or we're at a leaf) — load it.
+        if node.point_count > 0 {
+            visible.push(node_idx);
+        }
+    } else {
+        // Need to refine — descend into children.
+        if let Some(children) = node.children.as_deref() {
+            for &child_idx in children {
+                if child_idx < octree.nodes.len() {
+                    traverse_lod(
+                        octree,
+                        child_idx,
+                        cam_x, cam_y, cam_z,
+                        fov, screen_height,
+                        sse_threshold,
+                        visible,
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// WASM export: get visible tiles for a camera position.
+#[wasm_bindgen(js_name = "getVisibleTiles")]
+pub fn get_visible_tiles_js(
+    positions: &[f32],
+    camera_x: f64,
+    camera_y: f64,
+    camera_z: f64,
+    camera_fov: f64,
+    screen_width: f64,
+    screen_height: f64,
+    max_points_per_node: Option<u32>,
+    max_depth: Option<u32>,
+    sse_threshold: Option<f64>,
+) -> js_sys::Uint32Array {
+    let max_pts = max_points_per_node.unwrap_or(DEFAULT_MAX_POINTS_PER_NODE);
+    let max_d = max_depth.unwrap_or(crate::octree::DEFAULT_MAX_DEPTH);
+    let mut buf = positions.to_vec();
+    let octree = Octree::build(&mut buf, max_pts, max_d);
+
+    let visible = get_visible_tiles(
+        &octree, camera_x, camera_y, camera_z,
+        camera_fov, screen_width, screen_height, sse_threshold,
+    );
+
+    let result = js_sys::Uint32Array::new_with_length(visible.len() as u32);
+    for (i, &idx) in visible.iter().enumerate() {
+        result.set_index(i as u32, idx as u32);
+    }
+    result
+}
+
+// ===========================================================================
+// LOD tests
+// ===========================================================================
+
+#[cfg(test)]
+mod lod_tests {
+    use super::*;
+
+    fn make_positions(triples: &[[f32; 3]]) -> Vec<f32> {
+        let mut v = Vec::with_capacity(triples.len() * 3);
+        for &[x, y, z] in triples {
+            v.extend_from_slice(&[x, y, z]);
+        }
+        v
+    }
+
+    #[test]
+    fn test_sse_basic() {
+        // geoError=1.0, distance=100.0, fov=60° (π/3), screen=1080
+        let sse = compute_screen_space_error(1.0, 100.0, std::f64::consts::FRAC_PI_3, 1080.0);
+        // Expected: 1.0 / (100 * 2 * tan(30°) / 1080) = 1.0 / (100 * 1.1547 / 1080)
+        // = 1.0 / 0.1069 ≈ 9.36
+        assert!(sse > 8.0 && sse < 10.0, "SSE should be ~9.36, got {sse}");
+    }
+
+    #[test]
+    fn test_sse_decreases_with_distance() {
+        let sse_near = compute_screen_space_error(10.0, 10.0, std::f64::consts::FRAC_PI_3, 1080.0);
+        let sse_far = compute_screen_space_error(10.0, 1000.0, std::f64::consts::FRAC_PI_3, 1080.0);
+        assert!(sse_far < sse_near, "SSE should decrease with distance");
+    }
+
+    #[test]
+    fn test_sse_increases_with_geo_error() {
+        let sse_small = compute_screen_space_error(1.0, 100.0, std::f64::consts::FRAC_PI_3, 1080.0);
+        let sse_large = compute_screen_space_error(10.0, 100.0, std::f64::consts::FRAC_PI_3, 1080.0);
+        assert!(sse_large > sse_small, "SSE should increase with geometric error");
+    }
+
+    #[test]
+    fn test_sse_zero_distance() {
+        let sse = compute_screen_space_error(1.0, 0.0, std::f64::consts::FRAC_PI_3, 1080.0);
+        assert!(sse.is_infinite(), "Zero distance should yield infinite SSE");
+    }
+
+    #[test]
+    fn test_sse_zero_screen() {
+        let sse = compute_screen_space_error(1.0, 100.0, std::f64::consts::FRAC_PI_3, 0.0);
+        assert!(sse.is_infinite(), "Zero screen height should yield infinite SSE");
+    }
+
+    #[test]
+    fn test_visible_tiles_close_camera_loads_more() {
+        // 100 points spread in a cube.
+        let triples: Vec<[f32; 3]> = (0..100)
+            .map(|i| {
+                [
+                    ((i % 10) as f32 - 5.0) * 2.0,
+                    (((i / 10) % 10) as f32 - 5.0) * 2.0,
+                    0.0f32,
+                ]
+            })
+            .collect();
+        let mut positions = make_positions(&triples);
+        let tree = Octree::build(&mut positions, 10, 5);
+
+        let fov = std::f64::consts::FRAC_PI_3; // 60°
+
+        // Far camera — should load fewer tiles (root or few children).
+        let far_tiles = get_visible_tiles(&tree, 0.0, 0.0, 10000.0, fov, 1920.0, 1080.0, None);
+        // Close camera — should load more tiles (more refinement).
+        let close_tiles = get_visible_tiles(&tree, 0.0, 0.0, 1.0, fov, 1920.0, 1080.0, None);
+
+        assert!(
+            close_tiles.len() >= far_tiles.len(),
+            "Close camera should load >= tiles as far camera: close={}, far={}",
+            close_tiles.len(),
+            far_tiles.len()
+        );
+    }
+
+    #[test]
+    fn test_visible_tiles_empty_octree() {
+        let mut positions: Vec<f32> = vec![];
+        let tree = Octree::build(&mut positions, 10, 5);
+        let visible = get_visible_tiles(&tree, 0.0, 0.0, 0.0, std::f64::consts::FRAC_PI_3, 1920.0, 1080.0, None);
+        assert!(visible.is_empty());
+    }
+
+    #[test]
+    fn test_visible_tiles_threshold_effect() {
+        // 50 points spread.
+        let triples: Vec<[f32; 3]> = (0..50)
+            .map(|i| [(i % 5) as f32, ((i / 5) % 5) as f32, (i / 25) as f32])
+            .collect();
+        let mut positions = make_positions(&triples);
+        let tree = Octree::build(&mut positions, 5, 5);
+
+        let fov = std::f64::consts::FRAC_PI_3;
+
+        // High threshold (lenient) → fewer tiles loaded.
+        let lenient = get_visible_tiles(&tree, 0.0, 0.0, 5.0, fov, 1920.0, 1080.0, Some(100.0));
+        // Low threshold (strict) → more tiles loaded.
+        let strict = get_visible_tiles(&tree, 0.0, 0.0, 5.0, fov, 1920.0, 1080.0, Some(0.1));
+
+        assert!(
+            strict.len() >= lenient.len(),
+            "Strict threshold should load >= tiles: strict={}, lenient={}",
+            strict.len(),
+            lenient.len()
+        );
+    }
+}
+
+// ===========================================================================
 // tileset tests
 // ===========================================================================
 
