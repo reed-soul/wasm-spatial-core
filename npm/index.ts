@@ -51,6 +51,15 @@ export {
   batchWgs84ToCartesian3,
   CesiumMeshGeometry,
   generateCesiumGeometry,
+  Cesium3DTile,
+  generate3DTile,
+  // ── Point Cloud (requires `point-cloud` feature) ──────────
+  // LasHeader,
+  // LasPointCloud,
+  // parseLasHeader,
+  // parseLasPoints,
+  // decimateVoxelGrid,
+  // decimateRandom,
   // ── Multi-threading ────────────────────────────────────────
   initThreadPool,
 } from "./wasm_spatial_core.js";
