@@ -358,6 +358,47 @@ impl Octree {
     }
 }
 
+/// Estimate the memory usage of an octree structure (in bytes).
+///
+/// This is an upper-bound estimate for the Rust-side data structures:
+/// - Each `OctreeNode`:
+///   - `bounds`: 6 × f64 = 48 bytes
+///   - `point_start`: usize = 8 bytes
+///   - `point_count`: u32 = 4 bytes
+///   - `children`: Option<Box<[usize; 8]>> → if internal: 8 + 64 (Box ptr + array) = 72 bytes; if leaf: 0 (None)
+///   - `level`: u32 = 4 bytes
+///   - alignment padding ≈ 4 bytes
+///   - **Internal node ≈ 140 bytes, Leaf node ≈ 72 bytes**
+/// - The positions buffer: `point_count × 3 × sizeof(f32)` = point_count × 12 bytes
+/// - The nodes Vec overhead: ~32 bytes
+///
+/// # Arguments
+/// * `node_count` — Total number of octree nodes (internal + leaf).
+/// * `internal_count` — Number of internal nodes (those with children).
+/// * `point_count` — Total number of points indexed.
+///
+/// # Returns
+/// Estimated memory in bytes.
+pub fn octree_memory_usage(node_count: u32, internal_count: u32, point_count: u32) -> usize {
+    // Internal node ≈ 140 bytes (includes Box<[usize; 8]> heap alloc)
+    let internal_bytes = internal_count as usize * 140;
+    // Leaf node ≈ 72 bytes (no children)
+    let leaf_count = node_count as usize - internal_count as usize;
+    let leaf_bytes = leaf_count * 72;
+    // Positions buffer
+    let positions_bytes = point_count as usize * 3 * 4; // f32
+    // Vec overhead, reorder_map, etc.
+    let overhead = 64;
+
+    internal_bytes + leaf_bytes + positions_bytes + overhead
+}
+
+/// WASM export: estimate octree memory usage.
+#[wasm_bindgen(js_name = "octreeMemoryUsage")]
+pub fn octree_memory_usage_js(node_count: u32, internal_count: u32, point_count: u32) -> usize {
+    octree_memory_usage(node_count, internal_count, point_count)
+}
+
 // ===========================================================================
 // WASM exports
 // ===========================================================================
@@ -425,6 +466,12 @@ impl WasmOctree {
             }
             arr
         })
+    }
+
+    /// Leaf count.
+    #[wasm_bindgen(js_name = "leafCount")]
+    pub fn leaf_count(&self) -> u32 {
+        self.inner.leaf_count()
     }
 }
 
@@ -659,5 +706,21 @@ mod tests {
             "1M point build took {:?}",
             elapsed
         );
+    }
+
+    #[test]
+    fn test_memory_usage_estimate() {
+        // 1 root + 8 children = 9 nodes, 1 internal, 8 leaves, 8 points.
+        let bytes = octree_memory_usage(9, 1, 8);
+        // 1 internal * 140 + 8 leaves * 72 + 8 * 12 + 64 = 140 + 576 + 96 + 64 = 876
+        assert_eq!(bytes, 876);
+    }
+
+    #[test]
+    fn test_memory_usage_large() {
+        // 1M points, 20 internal nodes, 21 leaf nodes.
+        let bytes = octree_memory_usage(41, 20, 1_000_000);
+        // 20 * 140 + 21 * 72 + 1_000_000 * 12 + 64 = 2800 + 1512 + 12_000_000 + 64
+        assert_eq!(bytes, 12_004_376);
     }
 }
