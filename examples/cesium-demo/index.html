@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>wasm-spatial-core — Phase 2 Pipeline Demo</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --accent: #58a6ff;
+      --green: #3fb950;
+      --orange: #d29922;
+      --red: #f85149;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      padding: 24px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    h1 { font-size: 1.4rem; margin-bottom: 4px; }
+    h2 { font-size: 1rem; color: var(--accent); margin: 20px 0 8px; }
+    .subtitle { color: var(--muted); font-size: 0.85rem; margin-bottom: 20px; }
+
+    .pipeline {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+    .step {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px;
+      text-align: center;
+      font-size: 0.75rem;
+      transition: border-color 0.3s;
+    }
+    .step.active { border-color: var(--accent); }
+    .step.done { border-color: var(--green); }
+    .step .name { font-weight: bold; margin-bottom: 4px; }
+    .step .time { color: var(--muted); font-size: 0.7rem; }
+    .step .arrow { color: var(--muted); }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+    .stat {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px;
+      text-align: center;
+    }
+    .stat .value { font-size: 1.4rem; font-weight: bold; color: var(--accent); }
+    .stat .label { font-size: 0.7rem; color: var(--muted); margin-top: 2px; }
+
+    .canvas-wrap {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 20px;
+    }
+    canvas { width: 100%; border-radius: 4px; background: #010409; }
+
+    .controls {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    button {
+      background: #21262d;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.8rem;
+    }
+    button:hover { background: #30363d; border-color: var(--accent); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    button.primary { background: #1f6feb; border-color: #1f6feb; }
+
+    .log {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px;
+      max-height: 200px;
+      overflow-y: auto;
+      font-size: 0.75rem;
+      line-height: 1.5;
+    }
+    .log .line { color: var(--muted); }
+    .log .line.ok { color: var(--green); }
+    .log .line.info { color: var(--accent); }
+    .log .line.warn { color: var(--orange); }
+
+    .bbox-inputs {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .bbox-inputs label {
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    .bbox-inputs input {
+      background: #010409;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 6px;
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 0.8rem;
+      width: 100%;
+    }
+
+    @media (max-width: 700px) {
+      .pipeline { grid-template-columns: repeat(3, 1fr); }
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+      .bbox-inputs { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<h1>🌍 wasm-spatial-core</h1>
+<p class="subtitle">Phase 2 Pipeline Demo — GeoJSON → GCJ02 Projection → Spatial Index → Triangulation → b3dm Output</p>
+
+<!-- Pipeline Steps -->
+<div class="pipeline">
+  <div class="step" id="step1"><div class="name">1. Parse GeoJSON</div><div class="time" id="t1">—</div></div>
+  <div class="step" id="step2"><div class="name">2. WGS84→GCJ02</div><div class="time" id="t2">—</div></div>
+  <div class="step" id="step3"><div class="name">3. Spatial Index</div><div class="time" id="t3">—</div></div>
+  <div class="step" id="step4"><div class="name">4. Triangulate</div><div class="time" id="t4">—</div></div>
+  <div class="step" id="step5"><div class="name">5. b3dm Output</div><div class="time" id="t5">—</div></div>
+</div>
+
+<!-- Stats -->
+<div class="stats-grid">
+  <div class="stat"><div class="value" id="statFeatures">—</div><div class="label">Features</div></div>
+  <div class="stat"><div class="value" id="statCoords">—</div><div class="label">Coordinates</div></div>
+  <div class="stat"><div class="value" id="statFiltered">—</div><div class="label">Filtered (BBox)</div></div>
+  <div class="stat"><div class="value" id="statTriangles">—</div><div class="label">Triangles</div></div>
+</div>
+
+<!-- Controls -->
+<div class="controls">
+  <button class="primary" id="btnRun" onclick="runPipeline()">▶ Run Full Pipeline</button>
+  <button onclick="resetPipeline()">↺ Reset</button>
+  <button onclick="zoomIn()">🔍+ Zoom In</button>
+  <button onclick="zoomOut()">🔍− Zoom Out</button>
+</div>
+
+<!-- BBox Filter -->
+<h2>Viewport BBox Filter</h2>
+<div class="bbox-inputs">
+  <div><label>MinLng</label><input id="minLng" type="number" step="0.1" value="73.0" /></div>
+  <div><label>MinLat</label><input id="minLat" type="number" step="0.1" value="18.0" /></div>
+  <div><label>MaxLng</label><input id="maxLng" type="number" step="0.1" value="135.0" /></div>
+  <div><label>MaxLat</label><input id="maxLat" type="number" step="0.1" value="53.0" /></div>
+</div>
+
+<!-- Canvas -->
+<div class="canvas-wrap">
+  <canvas id="canvas" width="1060" height="600"></canvas>
+</div>
+
+<!-- b3dm Info -->
+<h2>b3dm Tile Info</h2>
+<div class="stats-grid" id="b3dmInfo" style="grid-template-columns: repeat(3, 1fr);">
+  <div class="stat"><div class="value" id="b3dmSize">—</div><div class="label">b3dm Size (bytes)</div></div>
+  <div class="stat"><div class="value" id="b3dmPositions">—</div><div class="label">Position Vertices</div></div>
+  <div class="stat"><div class="value" id="b3dmIndices">—</div><div class="label">Index Count</div></div>
+</div>
+
+<!-- Log -->
+<h2>Log</h2>
+<div class="log" id="log"></div>
+
+<script>
+// ===================================================================
+// Demo Data: ~1000 Chinese cities + ~50 simplified province polygons
+// ===================================================================
+
+const CITIES = [
+  // Major cities (10)
+  {name:"北京",lng:116.407,lat:39.904,pop:21.5},{name:"上海",lng:121.474,lat:31.230,pop:24.9},
+  {name:"广州",lng:113.264,lat:23.129,pop:18.7},{name:"深圳",lng:114.058,lat:22.543,pop:17.6},
+  {name:"成都",lng:104.066,lat:30.573,pop:16.3},{name:"重庆",lng:106.551,lat:29.563,pop:32.1},
+  {name:"武汉",lng:114.305,lat:30.593,pop:12.3},{name:"杭州",lng:120.155,lat:30.274,pop:12.2},
+  {name:"南京",lng:118.797,lat:32.061,pop:9.3},{name:"天津",lng:117.201,lat:39.084,pop:13.9},
+  // Generate 990 more cities programmatically
+];
+
+// Seed-based pseudo-random for deterministic demo data
+function mulberry32(a) {
+  return function() {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    var t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  }
+}
+
+const rng = mulberry32(42);
+const cityNames = [
+  "石家庄","太原","呼和浩特","沈阳","长春","哈尔滨","济南","青岛","郑州","长沙",
+  "南昌","福州","厦门","南宁","海口","贵阳","昆明","拉萨","西安","兰州",
+  "西宁","银川","乌鲁木齐","大连","苏州","无锡","宁波","温州","佛山","东莞",
+  "珠海","惠州","中山","徐州","常州","南通","扬州","烟台","潍坊","洛阳",
+  "襄阳","宜昌","岳阳","株洲","绵阳","南充","宜宾","遵义","桂林","北海",
+  "三亚","泸州","景德镇","九江","赣州","吉安","芜湖","蚌埠","淮南","马鞍山",
+  "安庆","黄山","阜阳","宿州","滁州","六安","宣城","池州","亳州","淮北",
+  "漳州","泉州","莆田","龙岩","三明","南平","宁德","漯河","许昌","开封",
+  "新乡","焦作","安阳","濮阳","鹤壁","商丘","周口","驻马店","信阳","南阳",
+  "平顶山","三门峡","济源","黄石","十堰","荆州","黄冈","咸宁","鄂州","孝感",
+  "荆门","随州","恩施","仙桃","天门","潜江","湘潭","衡阳","邵阳","永州",
+  "怀化","娄底","郴州","益阳","张家界","常德","湘西","韶关","汕头","揭阳",
+  "潮州","梅州","河源","清远","云浮","阳江","湛江","茂名","肇庆","江门",
+  "柳州","百色","河池","来宾","崇左","防城港","钦州","玉林","贵港","梧州",
+  "贺州","曲靖","玉溪","保山","昭通","丽江","普洱","临沧","大理","楚雄",
+  "红河","文山","德宏","西双版纳","攀枝花","泸州","乐山","广元","达州","巴中",
+  "雅安","广安","遂宁","内江","自贡","眉山","资阳","德阳","广汉","都江堰",
+  "彭州","邛崃","崇州","简阳","江油","阆中","华蓥","峨眉山","万源","阆中",
+  "秦皇岛","唐山","保定","邯郸","廊坊","沧州","衡水","张家口","承德","任丘",
+  "泊头","河间","邢台","沙河","武安","迁安","遵化","涿州","高碑店","三河",
+  "黄骅","定州","新乐","晋中","运城","临汾","长治","晋城","忻州","吕梁",
+  "大同","朔州","阳泉","包头","赤峰","通辽","鄂尔多斯","乌海","呼伦贝尔","巴彦淖尔",
+  "乌兰察布","锡林郭勒","阿拉善","兴安盟","抚顺","本溪","丹东","锦州","营口","阜新",
+  "辽阳","盘锦","铁岭","朝阳","葫芦岛","鞍山","吉林","四平","辽源","通化",
+  "白山","松原","白城","延边","齐齐哈尔","牡丹江","佳木斯","大庆","鸡西","双鸭山",
+  "伊春","七台河","鹤岗","黑河","绥化","大兴安岭","威海","日照","临沂","枣庄",
+  "泰安","德州","聊城","滨州","菏泽","淄博","东营","莱芜","诸城","青州",
+  "寿光","高密","昌邑","安丘","即墨","胶州","平度","莱西","荣成","乳山",
+  "龙口","莱阳","蓬莱","招远","栖霞","海阳","诸城","邹城","曲阜","兖州",
+  "滕州","肥城","新泰","邹平","博兴","临清","禹城","乐陵","夏津","武城",
+  "庆云","宁津","齐河","平原","陵县","临邑","商河","济阳","平阴","长清",
+  "章丘","历城","槐荫","天桥","市中","历下","高新","南山","莱芜","钢城",
+  "平阴","商河","济阳","胶南","黄岛","崂山","城阳","即墨","平度","莱西",
+  "栖霞","福山","牟平","莱山","芝罘","龙口","莱阳","招远","蓬莱","长岛",
+  "海阳","栖霞","莱州","高密","诸城","安丘","昌邑","青州","寿光","临朐",
+  "昌乐","广饶","垦利","利津","河口","东营","广饶","寿光","青州","临朐",
+  "昌乐","安丘","高密","诸城","五莲","莒县","沂水","沂南","费县","平邑",
+  "蒙阴","兰陵","郯城","临沭","兰山","罗庄","河东","河东","河津","永济",
+  "闻喜","夏县","绛县","垣曲","平陆","芮城","风陵渡","万荣","新绛","稷山",
+  "侯马","霍州","汾西","蒲县","隰县","大宁","永和","吉县","乡宁","浮山",
+  "古县","安泽","洪洞","曲沃","翼城","襄汾","侯马","霍州","古交","娄烦",
+  "阳曲","尖草坪","杏花岭","迎泽","万柏林","晋源","小店","清徐","盂县","平定",
+  "壶关","长子","屯留","潞城","黎城","平顺","壶关","武乡","沁县","襄垣",
+  "高平","阳城","陵川","沁水","泽州","城区","盐湖","临猗","万荣","闻喜",
+  "稷山","新绛","绛县","垣曲","夏县","平陆","芮城","永济","河津","侯马",
+  "曲沃","翼城","襄汾","洪洞","古县","安泽","浮山","吉县","乡宁","大宁",
+  "隰县","永和","蒲县","汾西","霍州","中阳","柳林","石楼","交口","方山",
+  "岚县","兴县","临县","离石","文水","交城","汾阳","孝义","平遥","祁县",
+  "太谷","榆社","左权","和顺","昔阳","寿阳","榆次","小店","清徐","阳曲",
+  "娄烦","古交","浑源","灵丘","广灵","左云","大同县","阳高","天镇","大同",
+  "右玉","平鲁","山阴","应县","怀仁","朔城","忻府","定襄","五台","代县",
+  "繁峙","宁武","静乐","神池","五寨","岢岚","河曲","保德","偏关","原平",
+  "侯马","霍州","曲沃","翼城","襄汾","洪洞","古县","安泽","浮山","吉县",
+  "乡宁","大宁","隰县","永和","蒲县","汾西","霍州","孝义","汾阳","文水",
+  "交城","兴县","临县","方山","岚县","离石","中阳","柳林","石楼","交口",
+  "娄烦","古交","阳曲","清徐","小店","尖草坪","杏花岭","迎泽","万柏林","晋源",
+  "盂县","平定","郊区","城区","矿区","潞州","上党","屯留","潞城","襄垣",
+  "沁源","沁县","武乡","黎城","平顺","壶关","长子","高平","阳城","陵川",
+  "沁水","泽州","城区","盐湖","临猗","万荣","稷山","新绛","绛县","垣曲",
+  "夏县","平陆","芮城","永济","河津","闻喜","侯马","曲沃","翼城","襄汾",
+  "洪洞","古县","安泽","浮山","吉县","乡宁","大宁","隰县","永和","蒲县",
+  "汾西","霍州","离石","文水","交城","汾阳","孝义","中阳","柳林","石楼",
+  "交口","方山","岚县","兴县","临县","娄烦","古交","阳曲","清徐","尖草坪",
+  "杏花岭","迎泽","万柏林","晋源","小店","平遥","祁县","太谷","榆社","左权",
+  "和顺","昔阳","寿阳","榆次","城区","矿区","南郊","新荣","云冈","平城",
+  "云州","阳高","天镇","广灵","灵丘","浑源","左云","朔城","平鲁","山阴",
+  "应县","右玉","怀仁","繁峙","代县","五台","定襄","忻府","原平","宁武",
+  "静乐","神池","五寨","岢岚","河曲","保德","偏关","轩岗","忻州","定襄",
+  "五台","原平","代县","繁峙","宁武","静乐","神池","五寨","岢岚","河曲",
+  "保德","偏关","五寨","岢岚","河曲","保德","偏关","永和","大宁","隰县",
+  "蒲县","汾西","霍州","侯马","曲沃","翼城","襄汾","洪洞","古县","安泽",
+  "浮山","吉县","乡宁","侯马","霍州","曲沃","翼城","襄汾","洪洞","古县",
+  "安泽","浮山","吉县","乡宁","隰县","永和","大宁","蒲县","汾西","古交",
+  "娄烦","阳曲","清徐","尖草坪","杏花岭","迎泽","万柏林","晋源","小店","榆次",
+  "太谷","祁县","平遥","介休","灵石","榆社","左权","和顺","昔阳","寿阳",
+  "潞州","上党","屯留","潞城","壶关","长子","襄垣","黎城","平顺","沁源",
+  "沁县","武乡","高平","阳城","陵川","沁水","泽州","盐湖","临猗","万荣",
+  "稷山","新绛","绛县","垣曲","夏县","平陆","芮城","永济","河津","闻喜",
+  "永济","河津","闻喜","夏县","平陆","芮城","垣曲","绛县","新绛","稷山",
+  "临猗","万荣","侯马","曲沃","翼城","襄汾","洪洞","古县","安泽","浮山",
+  "吉县","乡宁","隰县","永和","大宁","蒲县","汾西","霍州","孝义","汾阳",
+  "文水","交城","离石","中阳","柳林","石楼","交口","方山","岚县","兴县",
+  "临县","古交","娄烦","阳曲","清徐","尖草坪","杏花岭","迎泽","万柏林","晋源",
+  "小店","阳高","天镇","广灵","灵丘","浑源","左云","大同","平城","云冈",
+  "新荣","云州","阳高","天镇","广灵","灵丘","浑源","左云","朔城","平鲁",
+  "山阴","应县","右玉","怀仁","繁峙","代县","五台","定襄","忻府","原平",
+  "宁武","静乐","神池","五寨","岢岚","河曲","保德","偏关","榆次","太谷",
+  "祁县","平遥","介休","灵石","榆社","左权","和顺","昔阳","寿阳","盂县",
+  "平定","城区","矿区","潞州","上党","屯留","潞城","壶关","长子","襄垣",
+  "黎城","平顺","沁源","沁县","武乡","高平","阳城","陵川","沁水","泽州",
+  "盐湖","永济","河津","闻喜","夏县","平陆","芮城","垣曲","绛县","新绛",
+  "稷山","临猗","万荣","侯马","曲沃","翼城","襄汾","洪洞","古县","安泽",
+  "浮山","吉县","乡宁","隰县","永和","大宁","蒲县","汾西","霍州","孝义",
+  "汾阳","文水","交城","离石","中阳","柳林","石楼","交口","方山","岚县",
+  "兴县","临县","古交","娄烦","阳曲","清徐","小店","尖草坪","杏花岭","迎泽",
+  "万柏林","晋源","榆次","太谷","祁县","平遥","介休","灵石","榆社","左权",
+  "和顺","昔阳","寿阳","盂县","平定","城区","矿区","潞州","上党","屯留",
+  "潞城","壶关","长子","襄垣","黎城","平顺","沁源","沁县","武乡","高平",
+  "阳城","陵川","沁水","泽州","城区","矿区","南郊","新荣","云冈","平城",
+  "云州","阳高","天镇","广灵","灵丘","浑源","左云","朔城","平鲁","山阴",
+  "应县","右玉","怀仁","宁武","静乐","神池","五寨","岢岚","河曲","保德",
+  "偏关","繁峙","代县","五台","定襄","忻府","原平","城区","矿区","郊区",
+  "盐湖","永济","河津","闻喜","夏县","平陆","芮城","垣曲","绛县","新绛",
+  "稷山","临猗","万荣","侯马","曲沃","翼城","襄汾","洪洞","古县","安泽",
+  "浮山","吉县","乡宁","隰县","永和","大宁","蒲县","汾西","霍州","孝义",
+  "汾阳","文水","交城","离石","中阳","柳林","石楼","交口","方山","岚县",
+  "兴县","临县","城区","矿区","南郊","新荣","云冈","平城","云州","城区",
+  "矿区","郊区","城区","矿区","郊区","潞州","上党","屯留","潞城","长子",
+  "襄垣","黎城","平顺","沁源","沁县","武乡","高平","阳城","陵川","沁水",
+  "泽州","城区","郊区","盐湖","临猗","万荣","稷山","新绛","绛县","垣曲",
+  "夏县","平陆","芮城","永济","河津","闻喜","侯马","曲沃","翼城","襄汾",
+  "洪洞","古县","安泽","浮山","吉县","乡宁","隰县","永和","大宁","蒲县",
+  "汾西","霍州","孝义","汾阳","文水","交城","离石","中阳","柳林","石楼",
+  "交口","方山","岚县","兴县","临县","古交","娄烦","阳曲","清徐","尖草坪",
+  "杏花岭","迎泽","万柏林","晋源","小店","榆次","太谷","祁县","平遥","介休",
+  "灵石","榆社","左权","和顺","昔阳","寿阳","盂县","平定"
+];
+
+// Generate ~1000 cities deterministically
+(function generateCities() {
+  for (let i = 10; i < 1000; i++) {
+    const nameIdx = i % cityNames.length;
+    CITIES.push({
+      name: cityNames[nameIdx] || `City${i}`,
+      lng: 73 + rng() * 62,
+      lat: 18 + rng() * 35,
+      pop: Math.round(5 + rng() * 500) / 10
+    });
+  }
+})();
+
+// Simplified province boundary polygons (≈50 provinces, very rough outlines)
+const PROVINCES = [
+  {name:"新疆",coords:[[73.5,39.5],[80,44],[87,49],[96,47],[91,43],[80,36.5]]},
+  {name:"西藏",coords:[[79,32],[84,35.5],[92,36],[98,34],[99,30],[94,28.5],[88,27.5],[80,30]]},
+  {name:"青海",coords:[[89.5,36],[93,38.5],[100,38.5],[103,36],[101,33],[96,32],[91,32.5]]},
+  {name:"内蒙古",coords:[[97,42],[104,42],[111,42],[112,45],[117,47],[120,50],[126,51.5],[126,49],[122,44.5],[115,45],[111,43],[105,42]]},
+  {name:"黑龙江",coords:[[121.5,53.5],[128,53],[131,48],[130,46],[126,45],[123.5,46],[121,48]]},
+  {name:"吉林",coords:[[122,46],[126,45],[130,44],[131,43],[130,42],[126,41.5],[123,42],[122,43.5]]},
+  {name:"辽宁",coords:[[119,43],[123,42],[125,41],[125,39.5],[122,39],[119.5,40]]},
+  {name:"甘肃",coords:[[93,36.5],[100,38.5],[104,37],[107,37.5],[106,34],[104,33],[100,33],[96,32],[93,33]]},
+  {name:"河北",coords:[[114,42],[117,41],[119.5,40],[119,38],[117,37],[115,38],[114,40]]},
+  {name:"山东",coords:[[115,37.5],[118,38],[121,37.5],[122.5,37],[121,36],[119,35.5],[117,36]]},
+  {name:"河南",coords:[[110.5,36],[113,35],[115.5,34.5],[116,33.5],[114,32.5],[112,33],[110,34]]},
+  {name:"山西",coords:[[110.5,40],[113,40],[114.5,39],[114,37],[112,35.5],[110.5,36]]},
+  {name:"陕西",coords:[[105.5,39.5],[109,39.5],[111,38],[110.5,35.5],[108,33],[106,33.5]]},
+  {name:"四川",coords:[[98,33],[104,33],[107,32],[108,30],[106,27],[102,26.5],[98,28]]},
+  {name:"湖北",coords:[[108.5,33],[111.5,33],[115,32],[116,31],[115,30],[112,29.5],[109,30]]},
+  {name:"湖南",coords:[[109,30],[112,29.5],[114,29.5],[114,27],[112.5,25],[110,25.5],[109,27.5]]},
+  {name:"江西",coords:[[114,29.5],[117,29],[118,27.5],[117,25.5],[115,24.5],[114,25.5]]},
+  {name:"安徽",coords:[[115,34.5],[118,34],[119.5,32.5],[119,31],[117,30],[115.5,31]]},
+  {name:"江苏",coords:[[116.5,35],[119.5,35.5],[121.5,34],[122,32],[120,31],[118,32]]},
+  {name:"浙江",coords:[[118,31],[120,31],[122,30],[122,28.5],[121,27.5],[119,28.5]]},
+  {name:"福建",coords:[[116.5,27],[118.5,26.5],[120.5,26],[120,24.5],[118,24],[116.5,25]]},
+  {name:"广东",coords:[[109.5,25.5],[112,25],[115,24.5],[117,23.5],[117,22],[115,21],[113,21.5],[110,21.5]]},
+  {name:"广西",coords:[[104.5,24.5],[107,24.5],[109,22],[109,21.5],[108,20.5],[106,21.5]]},
+  {name:"海南",coords:[[108.6,20],[110.5,20],[110.9,19.5],[109.5,18.2],[108.6,18.5]]},
+  {name:"云南",coords:[[97.5,28.5],[101,28.5],[104,24.5],[106,22.5],[103,21.5],[100,22],[98,23.5]]},
+  {name:"贵州",coords:[[103.5,28.5],[107,28.5],[109,27.5],[109,25.5],[108,24.5],[105,25.5]]},
+  {name:"重庆",coords:[[105.5,32],[108,32],[108.5,30],[107,29],[105.5,29]]},
+  {name:"宁夏",coords:[[104.5,39],[106.5,39],[107,37],[106.5,36],[105,35.5],[104.5,37]]},
+  {name:"台湾",coords:[[120.5,25.3],[121.8,25],[122,23.5],[121,22],[120.2,22.5]]},
+  {name:"香港",coords:[[113.8,22.5],[114.4,22.5],[114.4,22.2],[113.8,22.2]]},
+  {name:"澳门",coords:[[113.5,22.2],[113.6,22.2],[113.6,22.1],[113.5,22.1]]},
+  {name:"北京",coords:[[115.7,40.5],[117.4,40.5],[117.4,39.4],[115.7,39.4]]},
+  {name:"天津",coords:[[116.7,39.5],[118,39.5],[118,38.6],[117.3,38.6]]},
+  {name:"上海",coords:[[120.8,31.8],[122.2,31.8],[122.2,30.7],[121.5,30.7]]},
+  {name:"南海诸岛",coords:[[110,16],[115,16],[118,14],[116,10],[112,8],[108,10],[107,14]]},
+  // Fill up to ~50 with sub-regions
+  {name:"伊犁",coords:[[80,43.5],[83,44.5],[86,44],[85,43],[82,42.5]]},
+  {name:"阿勒泰",coords:[[85.5,47],[88.5,48],[91,47.5],[90,46],[87,46]]},
+  {name:"塔城",coords:[[82,46.5],[85,47],[87,46.5],[86,45],[83,45]]},
+  {name:"喀什",coords:[[74,39],[77,40],[80,39.5],[79,38],[76,38]]},
+  {name:"阿里",coords:[[79,33],[82,34],[84,33.5],[82,31.5],[79,31]]},
+  {name:"日喀则",coords:[[84,29],[88,29],[90,28],[88,27],[85,27.5]]},
+  {name:"林芝",coords:[[92,30],[96,30],[98,29],[97,28],[94,28]]},
+  {name:"海西",coords:[[90,37.5],[96,37.5],[98,36],[95,35],[91,36]]},
+  {name:"海东",coords:[[101,37],[103,37],[103.5,36],[102,36]]},
+  {name:"阿拉善",coords:[[99,42],[106,42],[108,39],[105,38],[100,39]]},
+  {name:"呼伦贝尔",coords:[[115,49.5],[121,50],[126,51],[126,49.5],[120,49]]},
+  {name:"锡林郭勒",coords:[[111,44],[116,44],[120,46],[120,43.5],[116,42],[112,42.5]]},
+  {name:"大兴安岭",coords:[[121,52],[127,52],[127,51],[123,51]]},
+  {name:"延边",coords:[[127.5,43],[130,43],[131,42],[129,41.5],[127.5,42]]},
+];
+
+// Build GeoJSON FeatureCollection
+function buildDemoGeoJSON() {
+  const features = [];
+
+  // Cities as Points
+  for (const c of CITIES) {
+    features.push({
+      type: "Feature",
+      properties: { name: c.name, population: c.pop },
+      geometry: { type: "Point", coordinates: [c.lng, c.lat] }
+    });
+  }
+
+  // Provinces as Polygons (close the ring)
+  for (const p of PROVINCES) {
+    const ring = [...p.coords];
+    ring.push(ring[0]); // close
+    features.push({
+      type: "Feature",
+      properties: { name: p.name, type: "province" },
+      geometry: { type: "Polygon", coordinates: [ring] }
+    });
+  }
+
+  return { type: "FeatureCollection", features };
+}
+
+// ===================================================================
+// WASM bridge (pure JS fallback for demo — no actual WASM compilation)
+// ===================================================================
+
+// GCJ-02 coordinate transform (JS implementation for demo)
+function transformGCJ02(lng, lat) {
+  const a = 6378245.0, ee = 0.00669342162;
+  let dLat = transformLat(lng - 105.0, lat - 35.0);
+  let dLng = transformLng(lng - 105.0, lat - 35.0);
+  const radLat = lat / 180.0 * Math.PI;
+  let magic = Math.sin(radLat);
+  magic = 1 - ee * magic * magic;
+  const sqrtMagic = Math.sqrt(magic);
+  dLat = (dLat * 180.0) / ((a * (1 - ee)) / (magic * sqrtMagic) * Math.PI);
+  dLng = (dLng * 180.0) / (a / sqrtMagic * Math.cos(radLat) * Math.PI);
+  return [lng + dLng, lat + dLat];
+}
+
+function transformLat(x, y) {
+  let ret = -100.0 + 2.0*x + 3.0*y + 0.2*y*y + 0.1*x*y + 0.2*Math.sqrt(Math.abs(x));
+  ret += (20.0*Math.sin(6.0*x*Math.PI) + 20.0*Math.sin(2.0*x*Math.PI)) * 2.0/3.0;
+  ret += (20.0*Math.sin(y*Math.PI) + 40.0*Math.sin(y/3.0*Math.PI)) * 2.0/3.0;
+  ret += (160.0*Math.sin(y/12.0*Math.PI) + 320.0*Math.sin(y*Math.PI/30.0)) * 2.0/3.0;
+  return ret;
+}
+
+function transformLng(x, y) {
+  let ret = 300.0 + x + 2.0*y + 0.1*x*x + 0.1*x*y + 0.1*Math.sqrt(Math.abs(x));
+  ret += (20.0*Math.sin(6.0*x*Math.PI) + 20.0*Math.sin(2.0*x*Math.PI)) * 2.0/3.0;
+  ret += (20.0*Math.sin(x*Math.PI) + 40.0*Math.sin(x/3.0*Math.PI)) * 2.0/3.0;
+  ret += (150.0*Math.sin(x/12.0*Math.PI) + 300.0*Math.sin(x/30.0*Math.PI)) * 2.0/3.0;
+  return ret;
+}
+
+// Simple R-Tree-like spatial index (grid-based for demo)
+class SimpleSpatialIndex {
+  constructor(features, cellSize = 2) {
+    this.cells = new Map();
+    this.cellSize = cellSize;
+    for (let i = 0; i < features.length; i++) {
+      const f = features[i];
+      const c = f.geometry.coordinates[0];
+      const key = `${Math.floor(c[0]/cellSize)},${Math.floor(c[1]/cellSize)}`;
+      if (!this.cells.has(key)) this.cells.set(key, []);
+      this.cells.get(key).push(i);
+    }
+  }
+  queryBBox(minLng, minLat, maxLng, maxLat) {
+    const result = new Set();
+    const minCX = Math.floor(minLng / this.cellSize);
+    const maxCX = Math.floor(maxLng / this.cellSize);
+    const minCY = Math.floor(minLat / this.cellSize);
+    const maxCY = Math.floor(maxLat / this.cellSize);
+    for (let cx = minCX; cx <= maxCX; cx++) {
+      for (let cy = minCY; cy <= maxCY; cy++) {
+        const cell = this.cells.get(`${cx},${cy}`);
+        if (cell) cell.forEach(id => result.add(id));
+      }
+    }
+    return [...result];
+  }
+}
+
+// Simple earcut triangulation (JS implementation)
+function earcut(coords) {
+  const n = coords.length / 2;
+  if (n < 3) return [];
+  const indices = [];
+  let count = 0;
+  for (let i = 1; i < n - 1; i++) {
+    indices.push(0, i, i + 1);
+    count++;
+  }
+  return indices;
+}
+
+// Mock b3dm header generation
+function generateB3DM(positions, indices) {
+  const magic = new Uint8Array([0x62, 0x33, 0x64, 0x6D]); // "b3dm"
+  const version = new Uint8Array(4); new DataView(version.buffer).setUint32(0, 1, true);
+  const ftJson = JSON.stringify({BATCH_LENGTH:1,POSITIONS:{byteOffset:0,componentType:5126,count:positions.length/3,type:"SCALAR"}});
+  const ftJsonBytes = new TextEncoder().encode(ftJson);
+  const ftJsonPadded = align4(ftJsonBytes.length);
+  const bodyLen = positions.length * 4 + indices.length * 4;
+  const bodyPadded = align4(bodyLen);
+  const totalLen = 28 + ftJsonPadded + bodyPadded;
+  const buf = new Uint8Array(totalLen);
+  buf.set(magic, 0);
+  buf.set(version, 4);
+  const dv = new DataView(buf.buffer);
+  dv.setUint32(8, totalLen, true);
+  dv.setUint32(12, ftJsonPadded, true);
+  dv.setUint32(16, bodyPadded, true);
+  dv.setUint32(20, 0, true);
+  dv.setUint32(24, 0, true);
+  buf.set(ftJsonBytes, 28);
+  for (let i = 0; i < ftJsonPadded - ftJsonBytes.length; i++) buf[28 + ftJsonBytes.length + i] = 0x20;
+  return { bytes: buf, size: totalLen, positionCount: positions.length / 3, indexCount: indices.length };
+}
+
+function align4(n) { return (n + 3) & ~3; }
+
+// ===================================================================
+// Pipeline execution
+// ===================================================================
+
+let state = { geojson: null, projected: null, index: null, filtered: null, triangles: null, b3dm: null, zoom: 1 };
+
+function log(msg, cls = "") {
+  const el = document.getElementById("log");
+  const div = document.createElement("div");
+  div.className = "line " + cls;
+  div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+function markStep(n, timeMs) {
+  const el = document.getElementById("step" + n);
+  el.classList.add("done");
+  document.getElementById("t" + n).textContent = timeMs.toFixed(1) + "ms";
+  el.classList.add("active");
+  setTimeout(() => el.classList.remove("active"), 500);
+}
+
+async function runPipeline() {
+  document.getElementById("btnRun").disabled = true;
+  resetPipeline();
+
+  const geojson = buildDemoGeoJSON();
+  state.geojson = geojson;
+
+  // Step 1: Parse GeoJSON
+  log(`Parsing GeoJSON: ${geojson.features.length} features...`, "info");
+  let t0 = performance.now();
+  await tick();
+  const parseMs = performance.now() - t0;
+  markStep(1, parseMs);
+  log(`✓ Parse complete (${parseMs.toFixed(1)}ms)`, "ok");
+
+  // Step 2: WGS84 → GCJ02
+  log("Projecting WGS84 → GCJ02...", "info");
+  t0 = performance.now();
+  const projected = [];
+  let totalCoords = 0;
+  for (const f of geojson.features) {
+    const geom = f.geometry;
+    if (geom.type === "Point") {
+      const [lng, lat] = geom.coordinates;
+      const [plng, plat] = transformGCJ02(lng, lat);
+      projected.push({ ...f, projected: [plng, plat] });
+      totalCoords += 2;
+    } else if (geom.type === "Polygon") {
+      const ring = geom.coordinates[0];
+      const projectedRing = ring.map(([lng, lat]) => {
+        totalCoords += 2;
+        return transformGCJ02(lng, lat);
+      });
+      projected.push({ ...f, projected: projectedRing });
+    }
+  }
+  state.projected = projected;
+  await tick();
+  const projMs = performance.now() - t0;
+  markStep(2, projMs);
+  log(`✓ Projection complete (${projMs.toFixed(1)}ms, ${totalCoords} coords)`, "ok");
+
+  // Step 3: Spatial Index
+  log("Building spatial index...", "info");
+  t0 = performance.now();
+  const index = new SimpleSpatialIndex(geojson.features);
+  state.index = index;
+  await tick();
+  const idxMs = performance.now() - t0;
+  markStep(3, idxMs);
+  log(`✓ Index built (${idxMs.toFixed(1)}ms)`, "ok");
+
+  // BBox query
+  const minLng = parseFloat(document.getElementById("minLng").value);
+  const minLat = parseFloat(document.getElementById("minLat").value);
+  const maxLng = parseFloat(document.getElementById("maxLng").value);
+  const maxLat = parseFloat(document.getElementById("maxLat").value);
+  log(`Querying BBox [${minLng}, ${minLat}] → [${maxLng}, ${maxLat}]...`, "info");
+  t0 = performance.now();
+  const filteredIds = index.queryBBox(minLng, minLat, maxLng, maxLat);
+  state.filtered = filteredIds;
+  await tick();
+  const queryMs = performance.now() - t0;
+  log(`✓ Found ${filteredIds.length} features in viewport (${queryMs.toFixed(1)}ms)`, "ok");
+
+  // Step 4: Triangulate
+  log("Triangulating polygons...", "info");
+  t0 = performance.now();
+  let allPositions = [];
+  let allIndices = [];
+  let indexOffset = 0;
+  for (const id of filteredIds) {
+    const f = projected[id];
+    if (f && f.projected && Array.isArray(f.projected[0])) {
+      // Polygon
+      const flatCoords = [];
+      for (const [x, y] of f.projected) { flatCoords.push(x, y); }
+      const tris = earcut(flatCoords);
+      for (let i = 0; i < f.projected.length; i++) {
+        allPositions.push(f.projected[i][0], f.projected[i][1]);
+      }
+      for (const idx of tris) allIndices.push(idx + indexOffset);
+      indexOffset += f.projected.length;
+    }
+  }
+  state.triangles = { positions: allPositions, indices: allIndices };
+  await tick();
+  const triMs = performance.now() - t0;
+  markStep(4, triMs);
+  log(`✓ Triangulated: ${allIndices.length / 3} triangles (${triMs.toFixed(1)}ms)`, "ok");
+
+  // Step 5: b3dm output
+  log("Generating b3dm tile...", "info");
+  t0 = performance.now();
+  const b3dm = generateB3DM(new Float32Array(allPositions), new Uint32Array(allIndices));
+  state.b3dm = b3dm;
+  await tick();
+  const b3dmMs = performance.now() - t0;
+  markStep(5, b3dmMs);
+  log(`✓ b3dm generated: ${b3dm.size} bytes (${b3dmMs.toFixed(1)}ms)`, "ok");
+
+  // Update stats
+  document.getElementById("statFeatures").textContent = geojson.features.length.toLocaleString();
+  document.getElementById("statCoords").textContent = totalCoords.toLocaleString();
+  document.getElementById("statFiltered").textContent = filteredIds.length.toLocaleString();
+  document.getElementById("statTriangles").textContent = (allIndices.length / 3).toLocaleString();
+  document.getElementById("b3dmSize").textContent = b3dm.size.toLocaleString();
+  document.getElementById("b3dmPositions").textContent = b3dm.positionCount.toLocaleString();
+  document.getElementById("b3dmIndices").textContent = b3dm.indexCount.toLocaleString();
+
+  // Draw
+  drawCanvas();
+  log("Pipeline complete ✓", "ok");
+  document.getElementById("btnRun").disabled = false;
+}
+
+function tick() { return new Promise(r => setTimeout(r, 0)); }
+
+function resetPipeline() {
+  for (let i = 1; i <= 5; i++) {
+    const el = document.getElementById("step" + i);
+    el.classList.remove("done", "active");
+    document.getElementById("t" + i).textContent = "—";
+  }
+  ["statFeatures","statCoords","statFiltered","statTriangles","b3dmSize","b3dmPositions","b3dmIndices"]
+    .forEach(id => document.getElementById(id).textContent = "—");
+  document.getElementById("log").innerHTML = "";
+  state = { geojson: null, projected: null, index: null, filtered: null, triangles: null, b3dm: null, zoom: 1 };
+  const canvas = document.getElementById("canvas");
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+// ===================================================================
+// Canvas rendering
+// ===================================================================
+
+function lngLatToCanvas(lng, lat, zoom) {
+  const canvas = document.getElementById("canvas");
+  const [minLng, minLat] = [73, 15];
+  const [maxLng, maxLat] = [136, 55];
+  const rangeX = maxLng - minLng;
+  const rangeY = maxLat - minLat;
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2;
+  const scaleX = canvas.width / rangeX * zoom;
+  const scaleY = canvas.height / rangeY * zoom;
+  const x = cx + (lng - (minLng + rangeX / 2)) * scaleX;
+  const y = cy - (lat - (minLat + rangeY / 2)) * scaleY;
+  return [x, y];
+}
+
+function drawCanvas() {
+  const canvas = document.getElementById("canvas");
+  const ctx = canvas.getContext("2d");
+  const W = canvas.width, H = canvas.height;
+  const zoom = state.zoom;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Grid
+  ctx.strokeStyle = "#21262d";
+  ctx.lineWidth = 0.5;
+  for (let lng = 75; lng <= 135; lng += 5) {
+    const [x1, y1] = lngLatToCanvas(lng, 15, zoom);
+    const [x2, y2] = lngLatToCanvas(lng, 55, zoom);
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  }
+  for (let lat = 20; lat <= 50; lat += 5) {
+    const [x1, y1] = lngLatToCanvas(73, lat, zoom);
+    const [x2, y2] = lngLatToCanvas(136, lat, zoom);
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  }
+
+  // Province polygons (filled triangles)
+  if (state.triangles && state.triangles.positions.length > 0) {
+    ctx.fillStyle = "rgba(56, 139, 253, 0.12)";
+    ctx.strokeStyle = "rgba(56, 139, 253, 0.4)";
+    ctx.lineWidth = 0.5;
+    const pos = state.triangles.positions;
+    const idx = state.triangles.indices;
+    for (let i = 0; i < idx.length; i += 3) {
+      const [x0, y0] = lngLatToCanvas(pos[idx[i]*2], pos[idx[i]*2+1], zoom);
+      const [x1, y1] = lngLatToCanvas(pos[idx[i+1]*2], pos[idx[i+1]*2+1], zoom);
+      const [x2, y2] = lngLatToCanvas(pos[idx[i+2]*2], pos[idx[i+2]*2+1], zoom);
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.lineTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+  }
+
+  // Province outlines (from projected data)
+  if (state.projected) {
+    ctx.strokeStyle = "rgba(88, 166, 255, 0.3)";
+    ctx.lineWidth = 0.8;
+    for (const f of state.projected) {
+      if (Array.isArray(f.projected[0])) {
+        ctx.beginPath();
+        for (let i = 0; i < f.projected.length; i++) {
+          const [x, y] = lngLatToCanvas(f.projected[i][0], f.projected[i][1], zoom);
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+        ctx.stroke();
+      }
+    }
+  }
+
+  // Cities
+  if (state.projected) {
+    const filteredSet = new Set(state.filtered || []);
+    for (let i = 0; i < state.projected.length; i++) {
+      const f = state.projected[i];
+      if (f.geometry.type !== "Point") continue;
+      const [lng, lat] = f.projected;
+      const [x, y] = lngLatToCanvas(lng, lat, zoom);
+      const inView = filteredSet.has(i);
+      const r = Math.min(1.5 + (f.properties.population || 1) / 20, 4);
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fillStyle = inView ? "rgba(63, 185, 80, 0.9)" : "rgba(139, 148, 158, 0.4)";
+      ctx.fill();
+    }
+  }
+
+  // BBox rectangle
+  const minLng = parseFloat(document.getElementById("minLng").value);
+  const minLat = parseFloat(document.getElementById("minLat").value);
+  const maxLng = parseFloat(document.getElementById("maxLng").value);
+  const maxLat = parseFloat(document.getElementById("maxLat").value);
+  const [bx0, by0] = lngLatToCanvas(minLng, maxLat, zoom);
+  const [bx1, by1] = lngLatToCanvas(maxLng, minLat, zoom);
+  ctx.strokeStyle = "rgba(248, 81, 73, 0.6)";
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([6, 4]);
+  ctx.strokeRect(bx0, by0, bx1 - bx0, by1 - by0);
+  ctx.setLineDash([]);
+  ctx.fillStyle = "rgba(248, 81, 73, 0.06)";
+  ctx.fillRect(bx0, by0, bx1 - bx0, by1 - by0);
+
+  // Labels for major cities
+  if (state.projected) {
+    ctx.font = "10px monospace";
+    ctx.fillStyle = "rgba(230, 237, 243, 0.7)";
+    for (let i = 0; i < Math.min(10, state.projected.length); i++) {
+      const f = state.projected[i];
+      if (f.geometry.type !== "Point") continue;
+      const [lng, lat] = f.projected;
+      const [x, y] = lngLatToCanvas(lng, lat, zoom);
+      ctx.fillText(f.properties.name, x + 5, y - 3);
+    }
+  }
+}
+
+function zoomIn() { state.zoom = Math.min(state.zoom * 1.3, 5); drawCanvas(); }
+function zoomOut() { state.zoom = Math.max(state.zoom / 1.3, 0.5); drawCanvas(); }
+
+// Redraw on bbox change
+document.querySelectorAll(".bbox-inputs input").forEach(el => {
+  el.addEventListener("change", () => {
+    if (state.projected && state.index) {
+      const minLng = parseFloat(document.getElementById("minLng").value);
+      const minLat = parseFloat(document.getElementById("minLat").value);
+      const maxLng = parseFloat(document.getElementById("maxLng").value);
+      const maxLat = parseFloat(document.getElementById("maxLat").value);
+      state.filtered = state.index.queryBBox(minLng, minLat, maxLng, maxLat);
+      document.getElementById("statFiltered").textContent = state.filtered.length.toLocaleString();
+      drawCanvas();
+    }
+  });
+});
+</script>
+</body>
+</html>
