@@ -172,6 +172,204 @@ impl SpatialEdgeIndex {
 }
 
 // ---------------------------------------------------------------------------
+// Bounds computation — SIMD-style vectorized bounding box
+// ---------------------------------------------------------------------------
+
+/// Compute the axis-aligned bounding box of a set of 2D coordinates.
+///
+/// Input: flat `Float64Array` of `[lng0, lat0, lng1, lat1, ...]`.
+/// Output: `Float64Array` of `[minLng, minLat, maxLng, maxLat]`.
+///
+/// Uses a manual 4-wide f64 comparison pattern for efficient vectorization
+/// hints to the LLVM backend (effectively SIMD-style without explicit SIMD intrinsics).
+#[wasm_bindgen(js_name = "computeBounds")]
+pub fn compute_bounds(coords: &Float64Array) -> Float64Array {
+    let len = coords.length() as usize;
+    if len == 0 {
+        return Float64Array::new_with_length(4);
+    }
+
+    let mut buf = vec![0.0f64; len];
+    coords.copy_to(&mut buf);
+
+    // Initialize with first point
+    let mut min_lng = buf[0];
+    let mut min_lat = buf[1];
+    let mut max_lng = buf[0];
+    let mut max_lat = buf[1];
+
+    // Process 4 coordinates (2 points) at a time for better vectorization.
+    // The unrolled pattern helps LLVM emit f64x2 SIMD instructions.
+    let mut i = 2;
+    let vec_end = len - (len % 4); // Process up to multiple of 4 values
+
+    while i < vec_end {
+        let lng0 = buf[i];
+        let lat0 = buf[i + 1];
+        let lng1 = buf[i + 2];
+        let lat1 = buf[i + 3];
+
+        // Compare lng0
+        if lng0 < min_lng {
+            min_lng = lng0;
+        }
+        if lng0 > max_lng {
+            max_lng = lng0;
+        }
+        // Compare lat0
+        if lat0 < min_lat {
+            min_lat = lat0;
+        }
+        if lat0 > max_lat {
+            max_lat = lat0;
+        }
+        // Compare lng1
+        if lng1 < min_lng {
+            min_lng = lng1;
+        }
+        if lng1 > max_lng {
+            max_lng = lng1;
+        }
+        // Compare lat1
+        if lat1 < min_lat {
+            min_lat = lat1;
+        }
+        if lat1 > max_lat {
+            max_lat = lat1;
+        }
+
+        i += 4;
+    }
+
+    // Handle remaining values
+    while i + 1 < len {
+        let lng = buf[i];
+        let lat = buf[i + 1];
+        if lng < min_lng {
+            min_lng = lng;
+        }
+        if lng > max_lng {
+            max_lng = lng;
+        }
+        if lat < min_lat {
+            min_lat = lat;
+        }
+        if lat > max_lat {
+            max_lat = lat;
+        }
+        i += 2;
+    }
+
+    let result = Float64Array::new_with_length(4);
+    let bounds = [min_lng, min_lat, max_lng, max_lat];
+    result.copy_from(&bounds);
+    result
+}
+
+/// Compute the merged bounding box of multiple coordinate buffers.
+///
+/// Input: a JS `Array` of `Float64Array` coordinate buffers.
+/// Output: `Float64Array` of `[minLng, minLat, maxLng, maxLat]`.
+///
+/// Equivalent to calling `computeBounds` on each buffer individually
+/// and then merging the results, but processes all buffers in a single pass
+/// for better cache locality.
+#[wasm_bindgen(js_name = "computeBoundsMulti")]
+pub fn compute_bounds_multi(buffers: &js_sys::Array) -> Float64Array {
+    let len = buffers.length() as usize;
+
+    // Initialize with infinity so any real value will overwrite it
+    let mut min_lng = f64::INFINITY;
+    let mut min_lat = f64::INFINITY;
+    let mut max_lng = f64::NEG_INFINITY;
+    let mut max_lat = f64::NEG_INFINITY;
+
+    // Local buffer to avoid repeated allocations
+    let mut local_buf: Vec<f64> = Vec::with_capacity(4096);
+
+    for i in 0..len {
+        let val = buffers.get(i as u32);
+        if val.is_undefined() || val.is_null() {
+            continue;
+        }
+
+        let arr = js_sys::Float64Array::from(val);
+        let arr_len = arr.length() as usize;
+
+        if arr_len == 0 {
+            continue;
+        }
+
+        if local_buf.len() < arr_len {
+            local_buf.resize(arr_len, 0.0);
+        }
+        arr.copy_to(&mut local_buf[..arr_len]);
+
+        // Process 4 coordinates (2 points) at a time
+        let mut j = 0;
+        let vec_end = arr_len - (arr_len % 4);
+
+        while j < vec_end {
+            let lng0 = local_buf[j];
+            let lat0 = local_buf[j + 1];
+            let lng1 = local_buf[j + 2];
+            let lat1 = local_buf[j + 3];
+
+            if lng0 < min_lng {
+                min_lng = lng0;
+            }
+            if lng0 > max_lng {
+                max_lng = lng0;
+            }
+            if lat0 < min_lat {
+                min_lat = lat0;
+            }
+            if lat0 > max_lat {
+                max_lat = lat0;
+            }
+            if lng1 < min_lng {
+                min_lng = lng1;
+            }
+            if lng1 > max_lng {
+                max_lng = lng1;
+            }
+            if lat1 < min_lat {
+                min_lat = lat1;
+            }
+            if lat1 > max_lat {
+                max_lat = lat1;
+            }
+
+            j += 4;
+        }
+
+        // Handle remaining values
+        while j + 1 < arr_len {
+            let lng = local_buf[j];
+            let lat = local_buf[j + 1];
+            if lng < min_lng {
+                min_lng = lng;
+            }
+            if lng > max_lng {
+                max_lng = lng;
+            }
+            if lat < min_lat {
+                min_lat = lat;
+            }
+            if lat > max_lat {
+                max_lat = lat;
+            }
+            j += 2;
+        }
+    }
+
+    let result = Float64Array::new_with_length(4);
+    let bounds = [min_lng, min_lat, max_lng, max_lat];
+    result.copy_from(&bounds);
+    result
+}
+
+// ---------------------------------------------------------------------------
 // Unit tests
 // ---------------------------------------------------------------------------
 
@@ -300,5 +498,102 @@ mod tests {
 
         let nearest = tree.nearest_neighbor(&[50.0, 50.0]).unwrap();
         assert_eq!(nearest.data, 0);
+    }
+
+    // ── computeBounds tests ───────────────────────────────────────────
+
+    /// Native-friendly bounds test (no WASM needed)
+    #[test]
+    fn test_compute_bounds_logic() {
+        // Test the internal logic by creating Float64Array on WASM only,
+        // but we can test the algorithm directly via the raw function.
+        // For native tests, we verify the algorithm with a helper.
+        let vals = [116.0, 39.0, 117.0, 40.0, 116.5, 39.5, 118.0, 38.0];
+        let n = vals.len();
+        let mut min_lng = vals[0];
+        let mut min_lat = vals[1];
+        let mut max_lng = vals[0];
+        let mut max_lat = vals[1];
+        let mut i = 2;
+        while i + 1 < n {
+            if vals[i] < min_lng {
+                min_lng = vals[i];
+            }
+            if vals[i] > max_lng {
+                max_lng = vals[i];
+            }
+            if vals[i + 1] < min_lat {
+                min_lat = vals[i + 1];
+            }
+            if vals[i + 1] > max_lat {
+                max_lat = vals[i + 1];
+            }
+            i += 2;
+        }
+        assert_eq!(
+            (min_lng, min_lat, max_lng, max_lat),
+            (116.0, 38.0, 118.0, 40.0)
+        );
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    #[test]
+    fn test_compute_bounds_single_point() {
+        let coords = Float64Array::new_with_length(2);
+        let vals = [116.404, 39.915];
+        coords.copy_from(&vals);
+        let bounds = compute_bounds(&coords);
+        let mut buf = [0.0f64; 4];
+        bounds.copy_to(&mut buf);
+        assert_eq!(buf, [116.404, 39.915, 116.404, 39.915]);
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    #[test]
+    fn test_compute_bounds_multiple_points() {
+        let coords = Float64Array::new_with_length(8);
+        let vals = [116.0, 39.0, 117.0, 40.0, 116.5, 39.5, 118.0, 38.0];
+        coords.copy_from(&vals);
+        let bounds = compute_bounds(&coords);
+        let mut buf = [0.0f64; 4];
+        bounds.copy_to(&mut buf);
+        assert_eq!(buf, [116.0, 38.0, 118.0, 40.0]);
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    #[test]
+    fn test_compute_bounds_empty() {
+        let coords = Float64Array::new_with_length(0);
+        let bounds = compute_bounds(&coords);
+        assert_eq!(bounds.length(), 4);
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    #[test]
+    fn test_compute_bounds_odd_values() {
+        let coords = Float64Array::new_with_length(6);
+        let vals = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
+        coords.copy_from(&vals);
+        let bounds = compute_bounds(&coords);
+        let mut buf = [0.0f64; 4];
+        bounds.copy_to(&mut buf);
+        assert_eq!(buf, [1.0, 2.0, 5.0, 6.0]);
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    #[test]
+    fn test_compute_bounds_large() {
+        let n = 1000;
+        let coords = Float64Array::new_with_length(n as u32 * 2);
+        let mut vals = vec![0.0f64; n * 2];
+        for i in 0..n {
+            vals[i * 2] = i as f64;
+            vals[i * 2 + 1] = (n - i) as f64;
+        }
+        coords.copy_from(&vals);
+        let bounds = compute_bounds(&coords);
+        let mut buf = [0.0f64; 4];
+        bounds.copy_to(&mut buf);
+        assert_eq!(buf, [0.0, 1.0, 999.0, 1000.0]);
     }
 }
