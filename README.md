@@ -11,7 +11,7 @@
 [![WebAssembly](https://img.shields.io/badge/WebAssembly-654FF0.svg?logo=webassembly&logoColor=white)](https://webassembly.org)
 
 ![Lines](https://img.shields.io/badge/code-6.6K-blue)
-![Tests](https://img.shields.io/badge/tests-108-success)
+![Tests](https://img.shields.io/badge/tests-131-success)
 ![Formats](https://img.shields.io/badge/formats-6-green)
 
 *Offload server-side spatial computing to the client — free the cloud.*
@@ -85,7 +85,8 @@ Modern Web3D and GIS applications face a fundamental bottleneck:
 - ☁️ **Point Cloud (LAS/PCD)** — Parse LAS headers & points, voxel grid & random decimation, COPC range-based access
 - 🏗️ **IFC/BIM Geometry** (experimental) — Extract `IFCEXTRUDEDAREASOLID` mesh geometry
 - 🔺 **glTF / GLB Writer** — Build glTF 2.0 scenes in WASM, export as GLB binary
-- 📐 **Spatial Analysis** — Point/line buffering, bounding box, centroid on WGS-84
+- 📐 **Spatial Analysis** — Point/line buffering, bounding box, centroid, haversine distance, bearing, destination, midpoint on WGS-84
+- 📐 **Topology Analysis** — Polygon area (spherical excess), polyline length, Douglas-Peucker simplification, point-in-ring
 - ⚡ **Zero-Copy Architecture** — Data stays in WASM linear memory; JS gets typed array views
 - 📊 **GPU-Ready Output** — Interleaved vertex buffers, indexed geometry for WebGL2/WebGPU
 - 🧵 **Multi-threaded** (optional) — Web Workers + SharedArrayBuffer via Rayon
@@ -244,6 +245,8 @@ npm run build:wasm:mt
 | `countGeoJsonFeatures(input)` | Count features (fast pre-scan) |
 | `parseGeoJsonStream(input, chunkSize, onChunk)` | Streaming parser with progress callback |
 | `parseGeoJsonPerFeature(input)` | Per-feature coordinate arrays |
+| `parseGeoJsonProperties(input)` | Extract all feature properties as JSON string |
+| `parseGeoJsonFeatures(input)` | Structured per-feature result → `GeoJsonFeaturesResult` |
 
 ### Spatial Index
 
@@ -306,10 +309,24 @@ npm run build:wasm:mt
 | `.toGlb()` | Export as GLB binary → `Uint8Array` |
 | `.toGltfJson()` | Export as glTF JSON string |
 
+### Topology Analysis
+
+| Function | Description |
+|----------|-------------|
+| `polygonArea(coords)` | Polygon area (m²) via spherical excess formula |
+| `areaWithHoles(rings, ringSizes)` | Polygon area with holes |
+| `polylineLength(coords)` | Line/polygon length (m) via Haversine |
+| `simplifyDouglasPeucker(coords, tolerance)` | Douglas-Peucker simplification → `Float64Array` |
+| `isPointInRing(px, py, ring)` | Point-in-polygon via ray-casting → `bool` |
+
 ### Spatial Analysis
 
 | Function | Description |
 |----------|-------------|
+| `haversineDistance(lng1, lat1, lng2, lat2)` | Great-circle distance (m) |
+| `bearing(lng1, lat1, lng2, lat2)` | Forward azimuth (degrees, 0=N) |
+| `destination(lng, lat, bearing, distance)` | Direct geodesic → `[lng, lat]` |
+| `midpoint(lng1, lat1, lng2, lat2)` | Great-circle midpoint → `[lng, lat]` |
 | `bufferPoint(lng, lat, radius, segments?)` | Buffer a point → `Float64Array` |
 | `bufferLineString(coords, radius, segments?)` | Buffer a line → `Float64Array` |
 | `boundingBox(coords)` | Compute bbox → `[minLng, minLat, maxLng, maxLat]` |

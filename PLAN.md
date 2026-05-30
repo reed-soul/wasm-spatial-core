@@ -74,8 +74,17 @@ Potential future directions (not committed):
 - 🌐 **Full COPC streaming** — LAZ decompression + hierarchical LOD (requires heavy deps)
 - 🏗️ **Full IFC support** — integrate `ifc-rs` for comprehensive BIM data access
 - 🗺️ **TopoJSON support** — arc-based topology format
-- 📐 **Geodesic calculations** — distance, bearing, great-circle interpolation
 - 🧮 **Projection grid files** — NTv2 / ProjDB for high-accuracy local projections
+
+---
+
+## v0.2.0-alpha.1 — Enhancements
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| **Topology analysis** | Polygon area (spherical excess), polyline length (Haversine), Douglas-Peucker simplification, point-in-ring ray-casting, area with holes. | ✅ Done |
+| **GeoJSON feature properties** | `parseGeoJsonProperties()` and `parseGeoJsonFeatures()` for structured per-feature access with coordinates, offsets, counts, and types. | ✅ Done |
+| **Geodesic calculations** | `haversineDistance`, `bearing`, `destination`, `midpoint` — full great-circle navigation primitives. | ✅ Done |
 
 ---
 
@@ -83,8 +92,8 @@ Potential future directions (not committed):
 
 | Metric | Value |
 |--------|-------|
-| Source lines | ~5600+ |
-| Unit tests | 100 |
+| Source lines | ~6800+ |
+| Unit tests | 131 |
 | Integration tests | 8 |
 | Supported formats | GeoJSON, MVT, LAS, PCD, IFC, glTF/GLB |
 | Coordinate systems | WGS-84, GCJ-02, BD-09, CGCS2000, Web Mercator |
