@@ -21,6 +21,7 @@ mod gltf_writer;
 mod ifc_reader;
 mod spatial_analysis;
 mod spatial_index;
+mod topology;
 mod utils;
 mod vector_tile;
 
@@ -145,7 +146,7 @@ mod tests {
 
     #[test]
     fn test_version() {
-        assert_eq!(version(), "0.1.0");
+        assert_eq!(version(), "0.2.0-alpha.1");
     }
 
     #[test]
