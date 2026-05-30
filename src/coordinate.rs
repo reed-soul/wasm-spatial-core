@@ -335,6 +335,54 @@ pub fn batch_mercator_to_wgs84(coords: &Float64Array) -> Float64Array {
 }
 
 // ===========================================================================
+// Pipeline transforms — two-step convenience operations
+// ===========================================================================
+
+#[inline(always)]
+/// WGS-84 → GCJ-02 → Web Mercator (single step)
+fn wgs84_to_gcj02_mercator_pt(lng: f64, lat: f64) -> (f64, f64) {
+    let (g_lng, g_lat) = wgs84_to_gcj02_pt(lng, lat);
+    wgs84_to_mercator_pt(g_lng, g_lat)
+}
+
+#[inline(always)]
+/// WGS-84 → BD-09 → Web Mercator (single step)
+fn wgs84_to_bd09_mercator_pt(lng: f64, lat: f64) -> (f64, f64) {
+    let (b_lng, b_lat) = wgs84_to_bd09_pt(lng, lat);
+    wgs84_to_mercator_pt(b_lng, b_lat)
+}
+
+// ── In-place pipeline variants ─────────────────────────────────
+
+/// **[Zero-Copy]** In-place WGS-84 → GCJ-02 → Web Mercator.
+///
+/// Most common pipeline for Chinese web map applications.
+#[wasm_bindgen(js_name = "batchWgs84ToGcj02MercatorInPlace")]
+pub fn batch_wgs84_to_gcj02_mercator_in_place(coords: &mut [f64]) {
+    transform_slice_in_place(coords, wgs84_to_gcj02_mercator_pt);
+}
+
+/// **[Zero-Copy]** In-place WGS-84 → BD-09 → Web Mercator.
+#[wasm_bindgen(js_name = "batchWgs84ToBd09MercatorInPlace")]
+pub fn batch_wgs84_to_bd09_mercator_in_place(coords: &mut [f64]) {
+    transform_slice_in_place(coords, wgs84_to_bd09_mercator_pt);
+}
+
+// ── Copy-based pipeline variants ────────────────────────────────
+
+/// Batch WGS-84 → GCJ-02 → Web Mercator. Returns a **new** `Float64Array`.
+#[wasm_bindgen(js_name = "batchWgs84ToGcj02Mercator")]
+pub fn batch_wgs84_to_gcj02_mercator(coords: &Float64Array) -> Float64Array {
+    transform_batch_copy(coords, wgs84_to_gcj02_mercator_pt)
+}
+
+/// Batch WGS-84 → BD-09 → Web Mercator. Returns a **new** `Float64Array`.
+#[wasm_bindgen(js_name = "batchWgs84ToBd09Mercator")]
+pub fn batch_wgs84_to_bd09_mercator(coords: &Float64Array) -> Float64Array {
+    transform_batch_copy(coords, wgs84_to_bd09_mercator_pt)
+}
+
+// ===========================================================================
 // CGCS2000 (China Geodetic Coordinate System 2000)
 // ===========================================================================
 
@@ -693,6 +741,153 @@ pub fn grid_index(coords: &Float64Array, cell_size_deg: f64) -> Float64Array {
     out
 }
 
+// ===========================================================================
+// Coordinate Normalization
+// ===========================================================================
+
+/// Compute bounds from coordinate data: `[minLng, minLat, maxLng, maxLat]`.
+fn compute_bounds_native(coords: &[f64]) -> [f64; 4] {
+    let pair_count = coords.len() / 2;
+    if pair_count == 0 {
+        return [0.0, 0.0, 0.0, 0.0];
+    }
+    let mut min_lng = f64::MAX;
+    let mut min_lat = f64::MAX;
+    let mut max_lng = f64::MIN;
+    let mut max_lat = f64::MIN;
+    for i in 0..pair_count {
+        let lng = coords[i * 2];
+        let lat = coords[i * 2 + 1];
+        min_lng = min_lng.min(lng);
+        min_lat = min_lat.min(lat);
+        max_lng = max_lng.max(lng);
+        max_lat = max_lat.max(lat);
+    }
+    [min_lng, min_lat, max_lng, max_lat]
+}
+
+/// Core: normalize coordinates to [0,1] range using given bounds.
+/// bounds: `[minLng, minLat, maxLng, maxLat]`.
+pub(crate) fn normalize_coords_native(coords: &[f64], bounds: Option<&[f64]>) -> Vec<f64> {
+    let pair_count = coords.len() / 2;
+    if pair_count == 0 {
+        return Vec::new();
+    }
+    let b = bounds
+        .map(|b| {
+            let mut arr = [0.0f64; 4];
+            arr.copy_from_slice(b);
+            arr
+        })
+        .unwrap_or_else(|| compute_bounds_native(coords));
+    let range_x = b[2] - b[0]; // maxLng - minLng
+    let range_y = b[3] - b[1]; // maxLat - minLat
+
+    let mut out = Vec::with_capacity(coords.len());
+    for i in 0..pair_count {
+        let x = if range_x.abs() < 1e-12 {
+            0.5
+        } else {
+            (coords[i * 2] - b[0]) / range_x
+        };
+        let y = if range_y.abs() < 1e-12 {
+            0.5
+        } else {
+            (coords[i * 2 + 1] - b[1]) / range_y
+        };
+        out.push(x);
+        out.push(y);
+    }
+    out
+}
+
+/// Core: denormalize coordinates from [0,1] back to original range.
+/// bounds: `[minLng, minLat, maxLng, maxLat]`.
+pub(crate) fn denormalize_coords_native(normals: &[f64], bounds: &[f64]) -> Vec<f64> {
+    let pair_count = normals.len() / 2;
+    if pair_count == 0 {
+        return Vec::new();
+    }
+    let range_x = bounds[2] - bounds[0];
+    let range_y = bounds[3] - bounds[1];
+
+    let mut out = Vec::with_capacity(normals.len());
+    for i in 0..pair_count {
+        let x = if range_x.abs() < 1e-12 {
+            bounds[0]
+        } else {
+            normals[i * 2] * range_x + bounds[0]
+        };
+        let y = if range_y.abs() < 1e-12 {
+            bounds[1]
+        } else {
+            normals[i * 2 + 1] * range_y + bounds[1]
+        };
+        out.push(x);
+        out.push(y);
+    }
+    out
+}
+
+/// Normalize coordinates to [0,1] range.
+///
+/// # Arguments
+///
+/// * `coords` — Flat `Float64Array` `[lng0, lat0, lng1, lat1, …]`
+/// * `target_bounds` — Optional `Float64Array` `[minLng, minLat, maxLng, maxLat]`.
+///   If not provided, bounds are computed automatically from the data.
+///
+/// # Returns
+///
+/// New `Float64Array` with coordinates mapped to [0,1].
+#[wasm_bindgen(js_name = "normalizeCoords")]
+pub fn normalize_coords(coords: &Float64Array, target_bounds: &Float64Array) -> Float64Array {
+    let len = coords.length() as usize;
+    let mut buf = vec![0.0; len];
+    coords.copy_to(&mut buf);
+
+    let has_bounds = target_bounds.length() >= 4;
+    let bounds_opt = if has_bounds {
+        let blen = target_bounds.length() as usize;
+        let mut bbuf = vec![0.0; blen];
+        target_bounds.copy_to(&mut bbuf[..]);
+        Some(bbuf)
+    } else {
+        None
+    };
+
+    let result = normalize_coords_native(&buf, bounds_opt.as_deref());
+    let out = Float64Array::new_with_length(result.len() as u32);
+    out.copy_from(&result);
+    out
+}
+
+/// Denormalize coordinates from [0,1] back to geographic coordinates.
+///
+/// # Arguments
+///
+/// * `normals` — Flat `Float64Array` of normalized coordinates in [0,1].
+/// * `source_bounds` — `Float64Array` `[minLng, minLat, maxLng, maxLat]`.
+///
+/// # Returns
+///
+/// New `Float64Array` with denormalized geographic coordinates.
+#[wasm_bindgen(js_name = "denormalizeCoords")]
+pub fn denormalize_coords(normals: &Float64Array, source_bounds: &Float64Array) -> Float64Array {
+    let nlen = normals.length() as usize;
+    let mut nbuf = vec![0.0; nlen];
+    normals.copy_to(&mut nbuf);
+
+    let blen = source_bounds.length() as usize;
+    let mut bbuf = vec![0.0; blen];
+    source_bounds.copy_to(&mut bbuf);
+
+    let result = denormalize_coords_native(&nbuf, &bbuf);
+    let out = Float64Array::new_with_length(result.len() as u32);
+    out.copy_from(&result);
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -909,5 +1104,135 @@ mod tests {
         assert_eq!(ids.len(), 3);
         assert_eq!(ids[0], ids[1]);
         assert_eq!(ids[1], ids[2]);
+    }
+
+    // ── Pipeline transform tests ──────────────────────────────
+
+    #[test]
+    fn test_wgs84_to_gcj02_mercator_equals_two_step() {
+        let lng = 116.404;
+        let lat = 39.915;
+
+        // Pipeline: WGS84 → GCJ02 → Mercator in one step
+        let (pipeline_x, pipeline_y) = wgs84_to_gcj02_mercator_pt(lng, lat);
+
+        // Two separate steps
+        let (g_lng, g_lat) = wgs84_to_gcj02_pt(lng, lat);
+        let (two_x, two_y) = wgs84_to_mercator_pt(g_lng, g_lat);
+
+        assert!(
+            (pipeline_x - two_x).abs() < 1e-10,
+            "Pipeline x = {}, two-step x = {}",
+            pipeline_x,
+            two_x
+        );
+        assert!(
+            (pipeline_y - two_y).abs() < 1e-10,
+            "Pipeline y = {}, two-step y = {}",
+            pipeline_y,
+            two_y
+        );
+    }
+
+    #[test]
+    fn test_wgs84_to_bd09_mercator_equals_two_step() {
+        let lng = 116.404;
+        let lat = 39.915;
+
+        let (pipeline_x, pipeline_y) = wgs84_to_bd09_mercator_pt(lng, lat);
+
+        let (b_lng, b_lat) = wgs84_to_bd09_pt(lng, lat);
+        let (two_x, two_y) = wgs84_to_mercator_pt(b_lng, b_lat);
+
+        assert!(
+            (pipeline_x - two_x).abs() < 1e-10,
+            "BD09 pipeline x mismatch"
+        );
+        assert!(
+            (pipeline_y - two_y).abs() < 1e-10,
+            "BD09 pipeline y mismatch"
+        );
+    }
+
+    #[test]
+    fn test_pipeline_in_place_gcj02_mercator() {
+        let mut coords = vec![116.404, 39.915];
+        let original_lng = coords[0];
+        let original_lat = coords[1];
+        batch_wgs84_to_gcj02_mercator_in_place(&mut coords);
+
+        // After pipeline: coords should be in Mercator
+        assert!(
+            coords[0].abs() > 1e6,
+            "Mercator X should be large, got {}",
+            coords[0]
+        );
+        assert!(
+            coords[1].abs() > 1e6,
+            "Mercator Y should be large, got {}",
+            coords[1]
+        );
+
+        // Verify equals two-step
+        let (g_lng, g_lat) = wgs84_to_gcj02_pt(original_lng, original_lat);
+        let (expected_x, expected_y) = wgs84_to_mercator_pt(g_lng, g_lat);
+        assert!((coords[0] - expected_x).abs() < 1e-10);
+        assert!((coords[1] - expected_y).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_pipeline_out_of_china_passthrough() {
+        // NYC should be WGS84 → Mercator directly (no GCJ02 offset)
+        let (x, y) = wgs84_to_gcj02_mercator_pt(-73.9857, 40.7484);
+        let (expected_x, expected_y) = wgs84_to_mercator_pt(-73.9857, 40.7484);
+        assert!((x - expected_x).abs() < 1e-10);
+        assert!((y - expected_y).abs() < 1e-10);
+    }
+
+    // ── Coordinate normalization tests ──────────────────────────
+
+    #[test]
+    fn test_normalize_coords_basic() {
+        // Coordinates covering 100-120 lng, 30-40 lat
+        let coords = vec![100.0, 30.0, 120.0, 40.0, 110.0, 35.0];
+        let bounds = vec![100.0, 30.0, 120.0, 40.0]; // [minLng, minLat, maxLng, maxLat]
+        let result = normalize_coords_native(&coords, Some(&bounds));
+
+        assert!((result[0] - 0.0).abs() < 1e-10); // minLng → 0
+        assert!((result[1] - 0.0).abs() < 1e-10); // minLat → 0
+        assert!((result[2] - 1.0).abs() < 1e-10); // maxLng → 1
+        assert!((result[3] - 1.0).abs() < 1e-10); // maxLat → 1
+        assert!((result[4] - 0.5).abs() < 1e-10); // midLng → 0.5
+        assert!((result[5] - 0.5).abs() < 1e-10); // midLat → 0.5
+    }
+
+    #[test]
+    fn test_denormalize_coords_roundtrip() {
+        let coords = vec![100.0, 30.0, 120.0, 40.0, 110.0, 35.0];
+        let bounds = vec![100.0, 30.0, 120.0, 40.0];
+
+        let normalized = normalize_coords_native(&coords, Some(&bounds));
+        let denormalized = denormalize_coords_native(&normalized, &bounds);
+
+        for i in 0..coords.len() {
+            assert!(
+                (coords[i] - denormalized[i]).abs() < 1e-10,
+                "Roundtrip failed at index {}: {} vs {}",
+                i,
+                coords[i],
+                denormalized[i]
+            );
+        }
+    }
+
+    #[test]
+    fn test_normalize_auto_bounds() {
+        let coords = vec![100.0, 30.0, 120.0, 40.0, 110.0, 35.0];
+        let result = normalize_coords_native(&coords, None);
+
+        // Without explicit bounds, min/max from data should be used
+        assert!((result[0] - 0.0).abs() < 1e-10);
+        assert!((result[2] - 1.0).abs() < 1e-10);
+        assert!((result[4] - 0.5).abs() < 1e-10);
     }
 }
