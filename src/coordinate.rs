@@ -948,27 +948,21 @@ fn wgs84_to_utm_pt(lng: f64, lat: f64) -> (u32, f64, f64, bool) {
     let m4 = 35.0 * UTM_E3 / 3072.0;
 
     let m = UTM_A
-        * (m1 * lat_rad - m2 * (2.0 * lat_rad).sin()
-            + m3 * (4.0 * lat_rad).sin()
+        * (m1 * lat_rad - m2 * (2.0 * lat_rad).sin() + m3 * (4.0 * lat_rad).sin()
             - m4 * (6.0 * lat_rad).sin());
 
     let easting = UTM_K0
         * n
         * (a + a3 / 6.0 * (1.0 - lat_tan2 + c)
-            + a5 / 120.0
-                * (5.0 - 18.0 * lat_tan2 + lat_tan4 + 72.0 * c - 58.0 * UTM_EP))
+            + a5 / 120.0 * (5.0 - 18.0 * lat_tan2 + lat_tan4 + 72.0 * c - 58.0 * UTM_EP))
         + 500000.0;
 
     let mut northing = UTM_K0
-        * (m
-            + n
-                * lat_tan
-                * (a2 / 2.0
-                    + a4 / 24.0
-                        * (5.0 - lat_tan2 + 9.0 * c + 4.0 * c * c)
-                    + a6 / 720.0
-                        * (61.0 - 58.0 * lat_tan2 + lat_tan4 + 600.0 * c
-                            - 330.0 * UTM_EP)));
+        * (m + n
+            * lat_tan
+            * (a2 / 2.0
+                + a4 / 24.0 * (5.0 - lat_tan2 + 9.0 * c + 4.0 * c * c)
+                + a6 / 720.0 * (61.0 - 58.0 * lat_tan2 + lat_tan4 + 600.0 * c - 330.0 * UTM_EP)));
 
     if !is_north {
         northing += 10000000.0;
@@ -983,7 +977,11 @@ fn utm_to_wgs84_pt(zone: u32, easting: f64, northing: f64, is_north: bool) -> (f
     use std::f64::consts::PI;
 
     let x = easting - 500000.0;
-    let y = if is_north { northing } else { northing - 10000000.0 };
+    let y = if is_north {
+        northing
+    } else {
+        northing - 10000000.0
+    };
 
     let m = y / UTM_K0;
 
@@ -1026,19 +1024,14 @@ fn utm_to_wgs84_pt(zone: u32, easting: f64, northing: f64, is_north: bool) -> (f
 
     let lat = p_rad
         - (p_tan / r)
-            * (d2 / 2.0
-                - d4 / 24.0
-                    * (5.0 + 3.0 * p_tan2 + 10.0 * c - 4.0 * c2 - 9.0 * UTM_EP)
+            * (d2 / 2.0 - d4 / 24.0 * (5.0 + 3.0 * p_tan2 + 10.0 * c - 4.0 * c2 - 9.0 * UTM_EP)
                 + d6 / 720.0
                     * (61.0 + 90.0 * p_tan2 + 298.0 * c + 45.0 * p_tan4
                         - 252.0 * UTM_EP
                         - 3.0 * c2));
 
     let mut lng = (d - d3 / 6.0 * (1.0 + 2.0 * p_tan2 + c)
-        + d5 / 120.0
-            * (5.0 - 2.0 * c + 28.0 * p_tan2 - 3.0 * c2
-                + 8.0 * UTM_EP
-                + 24.0 * p_tan4))
+        + d5 / 120.0 * (5.0 - 2.0 * c + 28.0 * p_tan2 - 3.0 * c2 + 8.0 * UTM_EP + 24.0 * p_tan4))
         / p_cos;
 
     let central_lon = (zone as f64 - 1.0) * 6.0 - 180.0 + 3.0;
@@ -1069,7 +1062,12 @@ fn utm_to_wgs84_pt(zone: u32, easting: f64, northing: f64, is_north: bool) -> (f
 pub fn wgs84_to_utm(lng: f64, lat: f64) -> js_sys::Float64Array {
     let (zone, easting, northing, is_north) = wgs84_to_utm_pt(lng, lat);
     let out = Float64Array::new_with_length(4);
-    out.copy_from(&[zone as f64, easting, northing, if is_north { 1.0 } else { 0.0 }]);
+    out.copy_from(&[
+        zone as f64,
+        easting,
+        northing,
+        if is_north { 1.0 } else { 0.0 },
+    ]);
     out
 }
 
@@ -1086,7 +1084,12 @@ pub fn wgs84_to_utm(lng: f64, lat: f64) -> js_sys::Float64Array {
 ///
 /// `Float64Array` with `[longitude, latitude]` in degrees.
 #[wasm_bindgen(js_name = "utmToWgs84")]
-pub fn utm_to_wgs84(zone: u32, easting: f64, northing: f64, is_north: bool) -> js_sys::Float64Array {
+pub fn utm_to_wgs84(
+    zone: u32,
+    easting: f64,
+    northing: f64,
+    is_north: bool,
+) -> js_sys::Float64Array {
     let (lng, lat) = utm_to_wgs84_pt(zone, easting, northing, is_north);
     let out = Float64Array::new_with_length(2);
     out.copy_from(&[lng, lat]);
@@ -1558,7 +1561,10 @@ mod tests {
         assert!(is_north);
         // Reference (utm Python library): E=447945.313411, N=4417612.695667
         assert!((easting - 447945.313411).abs() < 1.0, "easting = {easting}");
-        assert!((northing - 4417612.695667).abs() < 1.0, "northing = {northing}");
+        assert!(
+            (northing - 4417612.695667).abs() < 1.0,
+            "northing = {northing}"
+        );
     }
 
     #[test]
@@ -1569,7 +1575,10 @@ mod tests {
         assert!(is_north);
         // Reference: E=699337.048889, N=5710164.575906
         assert!((easting - 699337.048889).abs() < 1.0, "easting = {easting}");
-        assert!((northing - 5710164.575906).abs() < 1.0, "northing = {northing}");
+        assert!(
+            (northing - 5710164.575906).abs() < 1.0,
+            "northing = {northing}"
+        );
     }
 
     #[test]
@@ -1580,7 +1589,10 @@ mod tests {
         assert!(!is_north);
         // Reference: E=334339.335626, N=6251036.578858 (includes 10M offset)
         assert!((easting - 334339.335626).abs() < 1.0, "easting = {easting}");
-        assert!((northing - 6251036.578858).abs() < 1.0, "northing = {northing}");
+        assert!(
+            (northing - 6251036.578858).abs() < 1.0,
+            "northing = {northing}"
+        );
     }
 
     #[test]
@@ -1609,7 +1621,7 @@ mod tests {
     fn test_batch_wgs84_to_utm_zone_count() {
         // Verify zone assignment for multiple points
         let coords: Vec<(f64, f64)> = vec![
-            (116.391, 39.907), // Beijing zone 50
+            (116.391, 39.907),  // Beijing zone 50
             (-0.1275, 51.5074), // London zone 30
             (151.209, -33.868), // Sydney zone 56
         ];
@@ -1633,7 +1645,7 @@ mod tests {
             (116.391, 39.907),
             (-0.1275, 51.5074),
             (151.209, -33.868),
-            (0.0, 0.0), // Equator & prime meridian
+            (0.0, 0.0),   // Equator & prime meridian
             (45.0, 45.0), // Arbitrary mid-latitude
         ];
 
