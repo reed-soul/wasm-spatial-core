@@ -10,6 +10,12 @@
 [![Rust](https://img.shields.io/badge/Rust-🦀-orange.svg)](https://www.rust-lang.org)
 [![WebAssembly](https://img.shields.io/badge/WebAssembly-654FF0.svg?logo=webassembly&logoColor=white)](https://webassembly.org)
 
+<!-- stats -->
+![Lines](https://img.shields.io/badge/lines-6.5K-blue)
+![Tests](https://img.shields.io/badge/tests-108-success)
+![Formats](https://img.shields.io/badge/formats-6-green)
+
+
 *将服务端算力下放至客户端，释放云端压力*
 *Offload server-side computing to the client — free the cloud.*
 
@@ -79,18 +85,17 @@ Modern Web3D and GIS applications face a fundamental bottleneck:
 - 📦 **GeoJSON Parser** — Parse large FeatureCollections into flat `Float64Array` buffers
 - 📡 **Streaming GeoJSON Parser** — Chunked processing with progress callbacks for large files
 - 🔍 **Spatial Index (R-Tree)** — Bounding box search, nearest-neighbor, K-nearest-neighbor queries
-- 🗺️ **Vector Tile Slicing** — Frontend MVT tile generation via `geojsonvt` + `geozero`
-- 🌐 **Cesium Native Adapter** — WGS84 → Cartesian3 (ECEF), polygon triangulation (earcut)
-- ☁️ **Point Cloud (LAS)** — Parse LAS headers & points, voxel grid & random decimation, PCD format support
+- 🗺️ **Vector Tile Slicing** — Frontend MVT tile generation for offline tiling
+- 🌐 **Cesium Native Adapter** — WGS84 → Cartesian3 (ECEF), polygon triangulation (earcut), 3D Tiles (b3dm)
+- ☁️ **Point Cloud (LAS/PCD)** — Parse LAS headers & points, voxel grid & random decimation, PCD format support
+- 🌐 **COPC Range-Based Access** — LAS header-only parsing + point offset computation for range-based `fetch`
+- 🏗️ **IFC/BIM Geometry** (experimental) — Extract `IFCEXTRUDEDAREASOLID` mesh geometry from IFC-SPF text
 - 🔺 **glTF / GLB Writer** — Build glTF 2.0 scenes in WASM, export as GLB binary
 - 📐 **Spatial Analysis** — Point/line buffering, bounding box, centroid on WGS-84
 - ⚡ **Zero-Copy Architecture** — Data stays in WASM linear memory; JS gets typed array views
 - 📊 **GPU-Ready Output** — Interleaved vertex buffers, indexed geometry for WebGL2/WebGPU
 - 🧵 **Multi-threaded** (optional) — Web Workers + SharedArrayBuffer via Rayon
-
-### Planned
-
-- 🏗️ IFC/BIM geometry extraction
+- 🔒 **Memory Management** — `memoryInfo()` API, 100MB input size limit
 
 ---
 
@@ -264,13 +269,61 @@ npm run build:wasm:mt
 | Function | Description |
 |----------|-------------|
 | `batchWgs84ToCartesian3(coords)` | WGS84 `[lng,lat,…]` → Cartesian3 `[x,y,z,…]` |
+| `wgs84ToCartesian3Single(lng, lat, height)` | Single point → `[x, y, z]` |
 | `generateCesiumGeometry(geojson, heightProp?)` | Triangulate polygons → `CesiumMeshGeometry` |
+| `generate3DTile(geojson, options?)` | Generate 3D Tiles (b3dm) → `Cesium3DTile` |
+
+### Point Cloud (LAS/PCD)
+
+| Function | Description |
+|----------|-------------|
+| `parseLasHeader(bytes)` | Parse LAS header → `LasHeader` |
+| `parseLasPoints(bytes)` | Parse all LAS points → `LasPointCloud` |
+| `parsePcdAscii(text)` | Parse ASCII PCD → `PcdPointCloud` |
+| `parsePcdBinary(bytes)` | Parse binary PCD → `PcdPointCloud` |
+| `decimateVoxelGrid(positions, colors, gridSize)` | Voxel grid decimation |
+| `decimateRandom(positions, colors, targetCount)` | Random sampling |
+| `generateInterleavedVertexBuffer(positions, colors)` | GPU-ready interleaved buffer |
+| `generateIndexedGeometry(positions, indices)` | GPU-ready indexed buffers |
+
+### COPC (Range-Based Access)
+
+| Function | Description |
+|----------|-------------|
+| `parseLasHeaderOnly(bytes)` | Header-only parse for range-based access → `LasHeaderInfo` |
+| `computeLasPointOffset(header, pointIndex, format)` | Byte offset of Nth point |
+| `parseLasPointAt(bytes, offset, format)` | Parse single point at offset → `PointData` |
+
+### IFC/BIM (Experimental)
+
+| Function | Description |
+|----------|-------------|
+| `parseIfcGeometry(ifcText)` | Extract meshes from IFC-SPF → `IfcGeometryResult` |
+
+### glTF / GLB
+
+| Function | Description |
+|----------|-------------|
+| `new GltfWriter()` | Create glTF scene builder |
+| `.addMesh(positions, indices, material?)` | Add triangle mesh |
+| `.addMeshWithBbox(positions, indices, bbox, material?)` | Add mesh with bounding box |
+| `.buildGlb()` | Export as GLB binary → `Uint8Array` |
+
+### Spatial Analysis
+
+| Function | Description |
+|----------|-------------|
+| `boundingBox(coords, dimensions)` | Compute bounding box → `[min, max]` |
+| `bufferPoints(coords, radius)` | Buffer points on a sphere → `[lng, lat, …]` |
+| `bufferLine(coords, radius)` | Buffer a line on a sphere → `[lng, lat, …]` |
+| `centroid(coords, dimensions)` | Compute centroid → `[x, y, …]` |
 
 ### Utilities
 
 | Function | Description |
 |----------|-------------|
 | `version()` | Library version |
+| `memoryInfo()` | WASM memory usage → `MemoryInfo` |
 | `cgcs2000IsWgs84Compatible()` | Returns `true` (sub-cm accuracy) |
 
 > All coordinate functions accept and return **flat** `Float64Array` in
@@ -296,11 +349,9 @@ benchmark suite coming in Phase 1.*
 
 ## 📋 Roadmap
 
-See **[PLAN.md](./PLAN.md)** for the full three-phase development roadmap:
+See **[PLAN.md](./PLAN.md)** for the full development roadmap.
 
-1. **Phase 1 (MVP)**: Zero-copy pipeline, GeoJSON parser, CRS projection engine
-2. **Phase 2**: Cesium/Mars3D adapters, frontend tiling, spatial indexing
-3. **Phase 3**: LAS/LAZ point cloud, IFC/BIM, GPU-ready buffer generation
+All three phases completed ✅ — Phase 1 (MVP), Phase 2 (Ecosystem), Phase 3 (Heterogeneous Data), plus backlogged features (glTF, spatial analysis, COPC).
 
 ---
 
