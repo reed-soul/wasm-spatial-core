@@ -26,6 +26,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: "1.90"
           targets: wasm32-unknown-unknown
           components: clippy, rustfmt
 
@@ -130,6 +131,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: "1.90"
           targets: wasm32-unknown-unknown
 
       - name: Install nightly toolchain (multi-thread)
