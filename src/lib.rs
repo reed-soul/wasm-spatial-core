@@ -21,6 +21,9 @@ mod spatial_index;
 mod utils;
 mod vector_tile;
 
+#[cfg(feature = "point-cloud")]
+mod point_cloud;
+
 use wasm_bindgen::prelude::*;
 
 /// Initialize the WASM module. Call this once before any other function.
