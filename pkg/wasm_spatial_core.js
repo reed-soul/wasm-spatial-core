@@ -666,6 +666,14 @@ export class Octree {
         return ret >>> 0;
     }
     /**
+     * Leaf count.
+     * @returns {number}
+     */
+    leafCount() {
+        const ret = wasm.octree_leafCount(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
      * Bounding box of node at `index` as a `Float64Array` of 6 values.
      * @param {number} index
      * @returns {Float64Array}
@@ -1916,6 +1924,7 @@ export function bufferPoint(lng, lat, radius_meters, segments) {
  * Build an octree from a flat `[x, y, z, ...]` position buffer.
  *
  * The input buffer is **not** modified (a copy is made internally).
+ * Points with NaN/Infinity coordinates are silently filtered.
  *
  * # Arguments
  * * `positions` — `Float32Array` of `[x, y, z, ...]` triples.
@@ -1927,10 +1936,21 @@ export function bufferPoint(lng, lat, radius_meters, segments) {
  * @returns {Octree}
  */
 export function buildOctree(positions, max_points_per_node, max_depth) {
-    const ptr0 = passArrayF32ToWasm0(positions, wasm.__wbindgen_export);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.buildOctree(ptr0, len0, isLikeNone(max_points_per_node) ? Number.MAX_SAFE_INTEGER : (max_points_per_node) >>> 0, isLikeNone(max_depth) ? Number.MAX_SAFE_INTEGER : (max_depth) >>> 0);
-    return Octree.__wrap(ret);
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArrayF32ToWasm0(positions, wasm.__wbindgen_export);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.buildOctree(retptr, ptr0, len0, isLikeNone(max_points_per_node) ? Number.MAX_SAFE_INTEGER : (max_points_per_node) >>> 0, isLikeNone(max_depth) ? Number.MAX_SAFE_INTEGER : (max_depth) >>> 0);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return Octree.__wrap(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
 }
 
 /**
@@ -2116,6 +2136,19 @@ export function computeBoundsMulti(buffers) {
     } finally {
         heap[stack_pointer++] = undefined;
     }
+}
+
+/**
+ * WASM export: compute screen-space error.
+ * @param {number} geometric_error
+ * @param {number} distance
+ * @param {number} fov
+ * @param {number} screen_height
+ * @returns {number}
+ */
+export function computeScreenSpaceError(geometric_error, distance, fov, screen_height) {
+    const ret = wasm.computeScreenSpaceError(geometric_error, distance, fov, screen_height);
+    return ret;
 }
 
 /**
@@ -2891,6 +2924,27 @@ export function getSupportedCrs() {
 }
 
 /**
+ * WASM export: get visible tiles for a camera position.
+ * @param {Float32Array} positions
+ * @param {number} camera_x
+ * @param {number} camera_y
+ * @param {number} camera_z
+ * @param {number} camera_fov
+ * @param {number} screen_width
+ * @param {number} screen_height
+ * @param {number | null} [max_points_per_node]
+ * @param {number | null} [max_depth]
+ * @param {number | null} [sse_threshold]
+ * @returns {Uint32Array}
+ */
+export function getVisibleTiles(positions, camera_x, camera_y, camera_z, camera_fov, screen_width, screen_height, max_points_per_node, max_depth, sse_threshold) {
+    const ptr0 = passArrayF32ToWasm0(positions, wasm.__wbindgen_export);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.getVisibleTiles(ptr0, len0, camera_x, camera_y, camera_z, camera_fov, screen_width, screen_height, isLikeNone(max_points_per_node) ? Number.MAX_SAFE_INTEGER : (max_points_per_node) >>> 0, isLikeNone(max_depth) ? Number.MAX_SAFE_INTEGER : (max_depth) >>> 0, !isLikeNone(sse_threshold), isLikeNone(sse_threshold) ? 0 : sse_threshold);
+    return takeObject(ret);
+}
+
+/**
  * Assign each point to a spatial grid cell.
  *
  * # Arguments
@@ -3047,6 +3101,18 @@ export function normalizeCoords(coords, target_bounds) {
         heap[stack_pointer++] = undefined;
         heap[stack_pointer++] = undefined;
     }
+}
+
+/**
+ * WASM export: estimate octree memory usage.
+ * @param {number} node_count
+ * @param {number} internal_count
+ * @param {number} point_count
+ * @returns {number}
+ */
+export function octreeMemoryUsage(node_count, internal_count, point_count) {
+    const ret = wasm.octreeMemoryUsage(node_count, internal_count, point_count);
+    return ret >>> 0;
 }
 
 /**
@@ -4106,6 +4172,9 @@ function __wbg_get_imports() {
         },
         __wbg_set_f614f6a0608d1d1d: function(arg0, arg1, arg2) {
             getObject(arg0)[arg1 >>> 0] = takeObject(arg2);
+        },
+        __wbg_set_index_9fd290d1cce481b3: function(arg0, arg1, arg2) {
+            getObject(arg0)[arg1 >>> 0] = arg2 >>> 0;
         },
         __wbg_stack_3b0d974bbf31e44f: function(arg0, arg1) {
             const ret = getObject(arg1).stack;
