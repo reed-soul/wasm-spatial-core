@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>wasm-spatial-core — Cesium Point Cloud Demo</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --accent: #58a6ff;
+      --green: #3fb950;
+      --orange: #d29922;
+      --red: #f85149;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-shrink: 0;
+    }
+    header h1 {
+      font-size: 1.1rem;
+      background: linear-gradient(135deg, var(--accent), #f0883e);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    header .subtitle {
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+    .main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+    .sidebar {
+      width: 300px;
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+    }
+    .panel-title {
+      font-weight: 600;
+      font-size: 0.85rem;
+      margin-bottom: 8px;
+      color: var(--accent);
+    }
+    .token-input {
+      width: 100%;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 8px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      font-family: monospace;
+    }
+    .token-input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: 8px;
+      padding: 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: var(--accent);
+      background: rgba(88, 166, 255, 0.05);
+      color: var(--accent);
+    }
+    .drop-zone .icon {
+      font-size: 2rem;
+      margin-bottom: 8px;
+      display: block;
+    }
+    .progress-bar {
+      width: 100%;
+      height: 6px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--green));
+      border-radius: 3px;
+      transition: width 0.3s;
+      width: 0%;
+    }
+    .progress-text {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+    .file-info {
+      font-size: 0.8rem;
+      color: var(--muted);
+      line-height: 1.8;
+    }
+    .file-info .value {
+      color: var(--text);
+      font-weight: 500;
+    }
+    label {
+      font-size: 0.8rem;
+      color: var(--muted);
+      display: block;
+      margin-bottom: 4px;
+    }
+    input[type="number"] {
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      width: 80px;
+      margin-bottom: 8px;
+    }
+    button {
+      background: linear-gradient(135deg, #238636, #2ea043);
+      border: none;
+      color: white;
+      padding: 8px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 600;
+      width: 100%;
+    }
+    button:hover { opacity: 0.9; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .canvas-container {
+      flex: 1;
+      position: relative;
+    }
+    #cesiumContainer {
+      width: 100%;
+      height: 100%;
+    }
+    footer {
+      padding: 8px 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 24px;
+      font-size: 0.75rem;
+      color: var(--muted);
+      flex-shrink: 0;
+    }
+    footer .stat-value {
+      color: var(--text);
+      font-weight: 500;
+    }
+    .note {
+      font-size: 0.75rem;
+      color: var(--orange);
+      margin-top: 8px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🌍 wasm-spatial-core</h1>
+  <span class="subtitle">Cesium 3D Tiles Point Cloud Demo</span>
+</header>
+
+<div class="main">
+  <aside class="sidebar">
+    <!-- Cesium Token -->
+    <div class="panel">
+      <div class="panel-title">🔑 Cesium Ion Token</div>
+      <label>Access Token (required for Cesium)</label>
+      <input type="password" id="tokenInput" class="token-input" placeholder="Paste your Cesium Ion access token">
+      <button id="initCesiumBtn">Initialize Cesium</button>
+      <div class="note">
+        Get a free token at <a href="https://ion.cesium.com/tokens" target="_blank" style="color:var(--accent)">ion.cesium.com/tokens</a>
+      </div>
+    </div>
+
+    <!-- Upload -->
+    <div id="uploadPanel" class="panel" style="display:none">
+      <div class="panel-title">📁 Upload LAS File</div>
+      <div id="dropZone" class="drop-zone">
+        <span class="icon">📂</span>
+        Drag & drop a .las file here<br>
+        or click to browse
+      </div>
+      <input type="file" id="fileInput" accept=".las" style="display:none">
+      <div id="progressContainer" style="display:none">
+        <div class="progress-bar">
+          <div id="progressFill" class="progress-bar-fill"></div>
+        </div>
+        <div id="progressText" class="progress-text">Initializing...</div>
+      </div>
+    </div>
+
+    <!-- File info -->
+    <div id="fileInfoPanel" class="panel" style="display:none">
+      <div class="panel-title">📊 File Info</div>
+      <div id="fileInfo" class="file-info"></div>
+    </div>
+
+    <!-- Octree params -->
+    <div id="octreePanel" class="panel" style="display:none">
+      <div class="panel-title">🌳 Octree / Tiling</div>
+      <label>Max Points Per Node</label>
+      <input type="number" id="maxPointsPerNode" value="50000" min="100" max="1000000" step="1000">
+      <button id="rebuildBtn">Rebuild & Load</button>
+    </div>
+  </aside>
+
+  <div class="canvas-container">
+    <div id="cesiumContainer"></div>
+  </div>
+</div>
+
+<footer>
+  <span>Points: <span id="pointCountValue" class="stat-value">0</span></span>
+  <span>Tiles: <span id="tileCountValue" class="stat-value">0</span></span>
+  <span>Status: <span id="statusValue" class="stat-value">Waiting for token...</span></span>
+</footer>
+
+<!-- Cesium from CDN -->
+<script src="https://cesium.com/downloads/cesiumjs/releases/1.119/Build/Cesium/Cesium.js"></script>
+<link href="https://cesium.com/downloads/cesiumjs/releases/1.119/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+
+<script type="module">
+let wasm = null;
+let viewer = null;
+let tileset = null;
+
+// =========================================================================
+// WASM Loading
+// =========================================================================
+
+async function loadWasm() {
+  try {
+    const module = await import('https://unpkg.com/wasm-spatial-core@0.2.0/pkg/wasm_spatial_core.js');
+    await module.default();
+    wasm = module;
+    return true;
+  } catch (e) {
+    console.warn('CDN load failed, trying local:', e);
+  }
+  try {
+    const module = await import('../pkg/wasm_spatial_core.js');
+    await module.default();
+    wasm = module;
+    return true;
+  } catch (e) {
+    alert('Failed to load WASM module. Run `wasm-pack build` first.');
+    return false;
+  }
+}
+
+// =========================================================================
+// Cesium Initialization
+// =========================================================================
+
+function initCesium(token) {
+  Cesium.Ion.defaultAccessToken = token;
+
+  viewer = new Cesium.Viewer('cesiumContainer', {
+    terrainProvider: Cesium.createWorldTerrain(),
+    animation: false,
+    timeline: false,
+    baseLayerPicker: false,
+    fullscreenButton: false,
+    geocoder: false,
+    homeButton: true,
+    infoBox: false,
+    selectionIndicator: false,
+    skyBox: false,
+    skyAtmosphere: false,
+    contextOptions: {
+      webgl: { alpha: true }
+    },
+  });
+
+  // Dark background
+  viewer.scene.backgroundColor = Cesium.Color.BLACK;
+  viewer.scene.globe.baseColor = Cesium.Color.BLACK;
+
+  document.getElementById('uploadPanel').style.display = 'block';
+  document.getElementById('octreePanel').style.display = 'block';
+  setStatus('Cesium ready');
+}
+
+// =========================================================================
+// LAS Processing & 3D Tiles Loading
+// =========================================================================
+
+async function processLasFile(file) {
+  setStatus('Reading file...');
+  setProgress(0, 'Reading file...');
+
+  const bytes = new Uint8Array(await file.arrayBuffer());
+
+  setStatus('Parsing LAS header...');
+  setProgress(10, 'Parsing header...');
+
+  const header = wasm.parseLasHeader(bytes.slice(0, 230));
+  if (!header) {
+    alert('Failed to parse LAS header.');
+    return;
+  }
+
+  setStatus(`Parsing ${header.numPoints().toLocaleString()} points...`);
+  setProgress(20, 'Parsing points...');
+
+  const cloud = wasm.parseLasPointsWithProgress(bytes, (p, t) => {
+    setProgress(20 + Math.floor((p / t) * 50), `Parsed ${p.toLocaleString()} / ${t.toLocaleString()}`);
+  });
+
+  if (!cloud) {
+    alert('Failed to parse LAS points.');
+    return;
+  }
+
+  const positions = Array.from(cloud.positions());
+  const colorsObj = cloud.colors();
+  const rgbBytes = colorsObj ? Array.from(colorsObj) : null;
+
+  setStatus('Building octree & generating tiles...');
+  setProgress(75, 'Building octree...');
+
+  const maxPts = parseInt(document.getElementById('maxPointsPerNode').value) || 50000;
+  const tilesetResult = wasm.generateTileset(
+    new Float32Array(positions),
+    maxPts,
+    21,
+    rgbBytes ? new Uint8Array(rgbBytes) : null,
+  );
+
+  setProgress(90, 'Creating blob URLs...');
+
+  // Create blob URLs for each tile
+  const tileCount = tilesetResult.tileCount();
+  const blobUrls = [];
+  for (let i = 0; i < tileCount; i++) {
+    const tileData = tilesetResult.tile(i);
+    const blob = new Blob([tileData], { type: 'application/octet-stream' });
+    blobUrls.push(URL.createObjectURL(blob));
+  }
+
+  // Build tileset.json with blob URLs
+  const tilesetJson = tilesetResult.tilesetJson();
+  const modifiedJson = replaceTileUris(tilesetJson, blobUrls);
+
+  setProgress(95, 'Loading into Cesium...');
+
+  // Remove old tileset
+  if (tileset) {
+    viewer.scene.primitives.remove(tileset);
+  }
+
+  // Load tileset from modified JSON
+  const blob = new Blob([modifiedJson], { type: 'application/json' });
+  const tilesetUrl = URL.createObjectURL(blob);
+
+  try {
+    tileset = await Cesium.C3DTileset.fromUrl(tilesetUrl);
+    viewer.scene.primitives.add(tileset);
+
+    // Fly to the tileset
+    viewer.zoomTo(tileset);
+
+    setStatus('Point cloud loaded');
+    setProgress(100, 'Done!');
+  } catch (e) {
+    console.error('Failed to load tileset:', e);
+    setStatus('Error loading tileset');
+  }
+
+  // Update UI
+  document.getElementById('pointCountValue').textContent = positions.length / 3;
+  document.getElementById('tileCountValue').textContent = tileCount;
+
+  document.getElementById('fileInfoPanel').style.display = 'block';
+  document.getElementById('fileInfo').innerHTML = `
+    <div>File: <span class="value">${file.name}</span></div>
+    <div>Points: <span class="value">${header.numPoints().toLocaleString()}</span></div>
+    <div>Version: <span class="value">${header.versionMajor()}.${header.versionMinor()}</span></div>
+    <div>Tiles: <span class="value">${tileCount}</span></div>
+  `;
+
+  setTimeout(() => {
+    document.getElementById('progressContainer').style.display = 'none';
+  }, 2000);
+}
+
+function replaceTileUris(jsonStr, blobUrls) {
+  let modified = jsonStr;
+  blobUrls.forEach((url, i) => {
+    modified = modified.replace(`"tile_${i}.pnts"`, `"${url}"`);
+  });
+  return modified;
+}
+
+// =========================================================================
+// UI Helpers
+// =========================================================================
+
+function setStatus(text) {
+  document.getElementById('statusValue').textContent = text;
+}
+
+function setProgress(pct, text) {
+  const container = document.getElementById('progressContainer');
+  container.style.display = 'block';
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressText').textContent = text;
+}
+
+// =========================================================================
+// Events
+// =========================================================================
+
+document.getElementById('initCesiumBtn').addEventListener('click', async () => {
+  const token = document.getElementById('tokenInput').value.trim();
+  if (!token) {
+    alert('Please enter a Cesium Ion access token.');
+    return;
+  }
+  const ok = await loadWasm();
+  if (!ok) return;
+  initCesium(token);
+});
+
+document.getElementById('dropZone').addEventListener('click', () => {
+  document.getElementById('fileInput').click();
+});
+
+document.getElementById('fileInput').addEventListener('change', (e) => {
+  if (e.target.files.length > 0) processLasFile(e.target.files[0]);
+});
+
+document.getElementById('dropZone').addEventListener('dragover', (e) => {
+  e.preventDefault();
+  e.currentTarget.classList.add('drag-over');
+});
+
+document.getElementById('dropZone').addEventListener('dragleave', () => {
+  document.getElementById('dropZone').classList.remove('drag-over');
+});
+
+document.getElementById('dropZone').addEventListener('drop', (e) => {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  if (e.dataTransfer.files.length > 0) {
+    const file = e.dataTransfer.files[0];
+    if (!file.name.toLowerCase().endsWith('.las')) {
+      alert('Please drop a .las file');
+      return;
+    }
+    processLasFile(file);
+  }
+});
+
+document.getElementById('rebuildBtn').addEventListener('click', async () => {
+  if (!wasm || !viewer) return;
+  const fileInput = document.getElementById('fileInput');
+  if (fileInput.files.length > 0) {
+    await processLasFile(fileInput.files[0]);
+  }
+});
+</script>
+
+</body>
+</html>
