@@ -309,9 +309,7 @@
     <span class="badge badge-blue">Zero dependencies</span>
   </div>
   <div class="note" id="initNote">
-    💡 All demos run entirely in your browser. Run
-    <code>wasm-pack build --target web --release --out-dir pkg</code> first,
-    then serve with any static file server.
+    💡 演示在浏览器内运行。首次打开需下载约 <strong>1MB</strong> WASM（Wi‑Fi 通常数秒，手机 4G 可能 15～40 秒）。
   </div>
 </div>
 
@@ -615,17 +613,53 @@ import init, {
 } from '../pkg/wasm_spatial_core.js';
 
 // ── WASM Init ────────────────────────────────────────────────
+const WASM_SIZE_HINT = '~1 MB';
+const WASM_INIT_TIMEOUT_MS = 120_000; // 2 min (slow mobile networks)
+
 let wasmReady = false;
+const qsResult = document.getElementById('qsResult');
+const initNote = document.getElementById('initNote');
+
+function setLoadingStatus(message) {
+  qsResult.innerHTML = `<span class="spinner"></span> ${message}`;
+}
+
+setLoadingStatus(
+  `正在加载 WASM（${WASM_SIZE_HINT}）… 通常 3～15 秒，慢网络可能 30～60 秒`,
+);
+
+const initStarted = performance.now();
+
 try {
-  await init();
+  await Promise.race([
+    init(),
+    new Promise((_, reject) => {
+      setTimeout(
+        () =>
+          reject(
+            new Error(
+              '加载超时：请检查网络，或确认站点已部署 pkg/ 目录（见控制台 Network）',
+            ),
+          ),
+        WASM_INIT_TIMEOUT_MS,
+      );
+    }),
+  ]);
   wasmReady = true;
   const ver = version();
+  const elapsed = ((performance.now() - initStarted) / 1000).toFixed(1);
   document.getElementById('versionBadge').textContent = `v${ver}`;
-  document.getElementById('qsResult').innerHTML = `<span style="color:var(--green)">✓ WASM loaded successfully</span> — version <strong>${ver}</strong>`;
+  qsResult.innerHTML = `<span style="color:var(--green)">✓ WASM 已就绪</span> — version <strong>${ver}</strong>（${elapsed}s）`;
+  initNote.innerHTML =
+    `✅ 引擎已加载。若刚才较慢，多为首次下载 WASM；可点击 Run Quick Start Demo 试用。`;
 } catch (e) {
-  document.getElementById('initNote').innerHTML =
-    `❌ Failed to load WASM: <code>${e.message}</code><br>Run <code>wasm-pack build --target web --release --out-dir pkg</code> first.`;
-  document.getElementById('qsResult').innerHTML = `<span style="color:var(--red)">❌ WASM load failed</span>`;
+  console.error('WASM init failed:', e);
+  const elapsed = ((performance.now() - initStarted) / 1000).toFixed(1);
+  initNote.innerHTML =
+    `❌ WASM 加载失败（${elapsed}s）：<code>${e.message}</code><br>` +
+    `常见原因：① <code>pkg/wasm_spatial_core_bg.wasm</code> 404（站点未包含 WASM）；② 网络中断。` +
+    `请打开开发者工具 Network 查看 wasm 是否 200。`;
+  qsResult.innerHTML = `<span style="color:var(--red)">❌ 无法启动演示（WASM 未加载）</span>`;
 }
 
 // ── Tab Navigation ────────────────────────────────────────────

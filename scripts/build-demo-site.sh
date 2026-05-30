@@ -20,6 +20,13 @@ rm -rf "$OUT"
 mkdir -p "$OUT"
 
 cp -r pkg "$OUT/pkg"
+# wasm-pack writes pkg/.gitignore with "*" — breaks gh-pages deploy (files never committed).
+rm -f "$OUT/pkg/.gitignore"
+if [[ ! -f "$OUT/pkg/wasm_spatial_core_bg.wasm" ]]; then
+  echo "error: $OUT/pkg/wasm_spatial_core_bg.wasm missing after copy" >&2
+  exit 1
+fi
+echo "WASM size: $(du -h "$OUT/pkg/wasm_spatial_core_bg.wasm" | cut -f1)"
 cp -r examples "$OUT/examples"
 mkdir -p "$OUT/bench"
 cp -r bench/browser "$OUT/bench/browser"
