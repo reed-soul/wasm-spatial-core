@@ -44,7 +44,7 @@ fn parse_wkt_core(input: &str) -> Result<Vec<f64>, String> {
             return Ok(vec![]);
         }
         let content = extract_parens_str(trimmed)?;
-        let nums = parse_coord_string(&content)?;
+        let nums = parse_coord_string(content)?;
         if nums.len() < 2 {
             return Err("POINT requires at least 2 coordinates".to_string());
         }
@@ -57,7 +57,7 @@ fn parse_wkt_core(input: &str) -> Result<Vec<f64>, String> {
         let mut coords = Vec::new();
         // Try parenthesized form: ((x y), (x y))
         if content.starts_with('(') {
-            let groups = split_paren_groups(&content);
+            let groups = split_paren_groups(content);
             for g in groups {
                 let nums = parse_coord_string(g.trim())?;
                 if nums.len() >= 2 {
@@ -66,7 +66,7 @@ fn parse_wkt_core(input: &str) -> Result<Vec<f64>, String> {
                 }
             }
         } else {
-            let nums = parse_coord_string(&content)?;
+            let nums = parse_coord_string(content)?;
             for c in nums.chunks_exact(2) {
                 coords.push(c[0]);
                 coords.push(c[1]);
@@ -78,7 +78,7 @@ fn parse_wkt_core(input: &str) -> Result<Vec<f64>, String> {
             return Ok(vec![]);
         }
         let content = extract_parens_str(trimmed)?;
-        let nums = parse_coord_string(&content)?;
+        let nums = parse_coord_string(content)?;
         let mut out = Vec::with_capacity(nums.len());
         for c in nums.chunks_exact(2) {
             out.push(c[0]);
@@ -91,7 +91,7 @@ fn parse_wkt_core(input: &str) -> Result<Vec<f64>, String> {
         }
         let content = extract_parens_str(trimmed)?;
         let mut coords = Vec::new();
-        let rings = split_paren_groups(&content);
+        let rings = split_paren_groups(content);
         for ring in rings {
             let nums = parse_coord_string(ring.trim())?;
             for c in nums.chunks_exact(2) {
@@ -198,7 +198,9 @@ pub fn to_wkt(coords: &Float64Array, geometry_type: &str) -> Result<String, JsVa
             } else if n == 1 {
                 Ok(format!("POINT({} {})", buf[0], buf[1]))
             } else {
-                Err(JsValue::from_str("POINT requires exactly 1 coordinate pair"))
+                Err(JsValue::from_str(
+                    "POINT requires exactly 1 coordinate pair",
+                ))
             }
         }
         "MULTIPOINT" => {
@@ -304,7 +306,9 @@ fn parse_wkb_linestring(buf: &[u8], offset: usize, is_le: bool) -> Result<Vec<f6
     let npoints = read_u32(&buf[offset..offset + 4], is_le) as usize;
     let needed = offset + 4 + npoints * 16;
     if buf.len() < needed {
-        return Err(JsValue::from_str("WKB LINESTRING too short for coordinates"));
+        return Err(JsValue::from_str(
+            "WKB LINESTRING too short for coordinates",
+        ));
     }
     let mut coords = Vec::with_capacity(npoints * 2);
     for i in 0..npoints {
@@ -389,7 +393,9 @@ pub fn to_wkb(coords: &Float64Array, geometry_type: &str) -> Result<js_sys::Uint
     let wkb: Vec<u8> = match gt.as_str() {
         "POINT" => {
             if n != 1 {
-                return Err(JsValue::from_str("POINT requires exactly 1 coordinate pair"));
+                return Err(JsValue::from_str(
+                    "POINT requires exactly 1 coordinate pair",
+                ));
             }
             let mut out = Vec::with_capacity(21);
             out.push(1); // little-endian
@@ -541,7 +547,10 @@ fn parse_wkb_native(bytes: &[u8]) -> Result<Vec<f64>, String> {
             if bytes.len() < 21 {
                 return Err("POINT too short".to_string());
             }
-            Ok(vec![read_f64(&bytes[5..13], is_le), read_f64(&bytes[13..21], is_le)])
+            Ok(vec![
+                read_f64(&bytes[5..13], is_le),
+                read_f64(&bytes[13..21], is_le),
+            ])
         }
         2 => {
             // LINESTRING
@@ -638,16 +647,21 @@ mod tests {
 
     #[test]
     fn test_to_wkt_point() {
-        let coords = vec![116.4, 39.9];
-        // Test internal logic by checking the expected output pattern
-        let pairs: Vec<String> = coords.chunks_exact(2).map(|c| format!("{} {}", c[0], c[1])).collect();
+        let coords: &[f64] = &[116.4, 39.9];
+        let pairs: Vec<String> = coords
+            .chunks_exact(2)
+            .map(|c| format!("{} {}", c[0], c[1]))
+            .collect();
         assert_eq!(format!("POINT({})", pairs[0]), "POINT(116.4 39.9)");
     }
 
     #[test]
     fn test_to_wkt_linestring() {
-        let coords = vec![0.0, 0.0, 10.0, 10.0, 20.0, 0.0];
-        let pairs: Vec<String> = coords.chunks_exact(2).map(|c| format!("{} {}", c[0], c[1])).collect();
+        let coords: &[f64] = &[0.0, 0.0, 10.0, 10.0, 20.0, 0.0];
+        let pairs: Vec<String> = coords
+            .chunks_exact(2)
+            .map(|c| format!("{} {}", c[0], c[1]))
+            .collect();
         assert_eq!(
             format!("LINESTRING({})", pairs.join(", ")),
             "LINESTRING(0 0, 10 10, 20 0)"
@@ -656,8 +670,11 @@ mod tests {
 
     #[test]
     fn test_to_wkt_polygon() {
-        let coords = vec![0.0, 0.0, 10.0, 0.0, 10.0, 10.0, 0.0, 10.0, 0.0, 0.0];
-        let pairs: Vec<String> = coords.chunks_exact(2).map(|c| format!("{} {}", c[0], c[1])).collect();
+        let coords: &[f64] = &[0.0, 0.0, 10.0, 0.0, 10.0, 10.0, 0.0, 10.0, 0.0, 0.0];
+        let pairs: Vec<String> = coords
+            .chunks_exact(2)
+            .map(|c| format!("{} {}", c[0], c[1]))
+            .collect();
         assert_eq!(
             format!("POLYGON(({}))", pairs.join(", ")),
             "POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))"
