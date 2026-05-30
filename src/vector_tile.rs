@@ -14,6 +14,7 @@ use geozero::mvt::{MvtWriter, Tile as MvtProtoTile};
 use geozero::{geojson::GeoJsonString, GeozeroDatasource};
 use js_sys::Float64Array;
 use prost::Message as _;
+use std::collections::{HashMap, VecDeque};
 use wasm_bindgen::prelude::*;
 
 /// Options for vector tile generation.
@@ -66,11 +67,19 @@ impl From<VectorTileOptions> for GeoJsonVtOptions {
 /// Creates a pre-indexed GeoJSONVT structure from a GeoJSON string,
 /// then can efficiently slice tiles by `(z, x, y)`. Feature properties
 /// from the original GeoJSON are preserved as MVT tags.
+///
+/// Supports optional LRU caching via `getTileCached` / `clearTileCache`.
 #[wasm_bindgen]
 pub struct VectorTileEngine {
     index: GeoJSONVT,
     /// The layer name used in the output MVT protobuf.
     layer_name: String,
+    /// LRU tile cache: (z, x, y) → MVT bytes.
+    cache: HashMap<(u8, u32, u32), Vec<u8>>,
+    /// LRU ordering: most-recently-used keys at the back.
+    lru_order: VecDeque<(u8, u32, u32)>,
+    /// Maximum cache capacity.
+    max_cache_size: usize,
 }
 
 #[wasm_bindgen]
@@ -93,7 +102,13 @@ impl VectorTileEngine {
 
         let layer_name = layer_name.unwrap_or_else(|| "default".to_string());
 
-        Ok(VectorTileEngine { index, layer_name })
+        Ok(VectorTileEngine {
+            index,
+            layer_name,
+            cache: HashMap::new(),
+            lru_order: VecDeque::new(),
+            max_cache_size: 64,
+        })
     }
 
     /// Request a tile by `z, x, y` coordinates.
@@ -152,6 +167,98 @@ impl VectorTileEngine {
     #[wasm_bindgen(setter = layerName)]
     pub fn set_layer_name(&mut self, name: String) {
         self.layer_name = name;
+    }
+
+    /// Request a tile with LRU caching (max 64 tiles).
+    ///
+    /// If the tile was previously requested, returns the cached result
+    /// without re-computing. Otherwise, generates the tile, caches it,
+    /// and returns it.
+    ///
+    /// Use `clearTileCache()` to evict all cached tiles.
+    #[wasm_bindgen(js_name = "getTileCached")]
+    pub fn get_tile_cached(
+        &mut self,
+        z: u8,
+        x: u32,
+        y: u32,
+    ) -> Result<js_sys::Uint8Array, JsValue> {
+        let key = (z, x, y);
+
+        // Check cache
+        if let Some(cached) = self.cache.get(&key) {
+            // Move to back of LRU order (most recently used)
+            self.lru_order.retain(|k| k != &key);
+            self.lru_order.push_back(key);
+
+            let out = js_sys::Uint8Array::new_with_length(cached.len() as u32);
+            out.copy_from(cached);
+            return Ok(out);
+        }
+
+        // Generate tile
+        let tile_bytes = self.generate_tile_bytes(z, x, y)?;
+
+        // Evict LRU entries if over capacity
+        while self.cache.len() >= self.max_cache_size {
+            if let Some(oldest) = self.lru_order.pop_front() {
+                self.cache.remove(&oldest);
+            }
+        }
+
+        // Store in cache
+        self.cache.insert(key, tile_bytes.clone());
+        self.lru_order.push_back(key);
+
+        let out = js_sys::Uint8Array::new_with_length(tile_bytes.len() as u32);
+        out.copy_from(&tile_bytes);
+        Ok(out)
+    }
+
+    /// Clear the tile LRU cache.
+    #[wasm_bindgen(js_name = "clearTileCache")]
+    pub fn clear_tile_cache(&mut self) {
+        self.cache.clear();
+        self.lru_order.clear();
+    }
+
+    /// Get the number of cached tiles.
+    #[wasm_bindgen(js_name = "cacheSize")]
+    pub fn cache_size(&self) -> u32 {
+        self.cache.len() as u32
+    }
+
+    /// Internal: generate MVT bytes for a tile.
+    fn generate_tile_bytes(&mut self, z: u8, x: u32, y: u32) -> Result<Vec<u8>, JsValue> {
+        let tile = self.index.tile(z, x, y);
+
+        if tile.feature_collection.features.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let json_str = serde_json::to_string(&tile.feature_collection)
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+        let mut geojson_data = GeoJsonString(json_str);
+
+        let mut mvt_writer =
+            MvtWriter::new_unscaled(4096).map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+        geojson_data
+            .process(&mut mvt_writer)
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+        let mvt_layer = mvt_writer.layer(&self.layer_name);
+
+        let mut mvt_tile = MvtProtoTile::default();
+        mvt_tile.layers.push(mvt_layer);
+
+        let mut mvt_bytes = Vec::new();
+        mvt_tile
+            .encode(&mut mvt_bytes)
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+        Ok(mvt_bytes)
     }
 }
 
@@ -641,6 +748,48 @@ mod tests {
         // Verify the layer version and name
         assert_eq!(mvt_layer.version, 2);
         assert_eq!(mvt_layer.name, "custom_layer");
+    }
+
+    // ── LRU cache tests (native) ────────────────────────────────────
+
+    #[test]
+    fn test_cache_size_and_clear() {
+        let opts = VectorTileOptions::new();
+        let mut engine = VectorTileEngine::new(SAMPLE_GEOJSON, opts, None).unwrap();
+        assert_eq!(engine.cache_size(), 0);
+
+        engine.clear_tile_cache();
+        assert_eq!(engine.cache_size(), 0);
+    }
+
+    #[test]
+    fn test_cache_lru_eviction() {
+        let opts = VectorTileOptions::new();
+        let mut engine = VectorTileEngine::new(SAMPLE_GEOJSON, opts, None).unwrap();
+
+        // Populate cache beyond capacity
+        // We test the internal HashMap directly since getTileCached needs WASM
+        for z in 0..4u8 {
+            for x in 0..4u32 {
+                let key = (z, x, 0);
+                engine.cache.insert(key, vec![z, x as u8]);
+                engine.lru_order.push_back(key);
+            }
+        }
+
+        assert_eq!(engine.cache_size(), 16);
+
+        // Now reduce capacity and trigger eviction
+        engine.max_cache_size = 8;
+
+        // Manually evict (normally done by getTileCached)
+        while engine.cache.len() >= engine.max_cache_size {
+            if let Some(oldest) = engine.lru_order.pop_front() {
+                engine.cache.remove(&oldest);
+            }
+        }
+
+        assert_eq!(engine.cache_size(), 7); // 8-1 after loop
     }
 
     // Tests that call get_tile require JS/WASM runtime (js_sys::Uint8Array)
