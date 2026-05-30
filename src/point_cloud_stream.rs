@@ -1279,7 +1279,7 @@ mod tests {
     fn test_copc_chunk_reading() {
         let points = vec![(10.0, 20.0, 30.0), (40.0, 50.0, 60.0)];
         let blob = build_test_copc_blob(&points, false);
-        let header_bytes = &blob[..std::cmp::min(375, blob.len())];
+        let _header_bytes = &blob[..std::cmp::min(375, blob.len())];
 
         let info = parse_copc_header_core(&blob).unwrap();
         assert!(!info.chunk_table.is_empty());
