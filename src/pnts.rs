@@ -199,7 +199,7 @@ fn pad_to_4(s: &str) -> String {
 }
 
 /// Compute padded length for a value that needs 4-byte alignment.
-fn pad_len(len: u32) -> u32 {
+pub fn pad_len(len: u32) -> u32 {
     len + (4 - len % 4) % 4
 }
 
@@ -344,7 +344,7 @@ mod tests {
 // tileset.json generator
 // ===========================================================================
 
-use crate::octree::{Bounds, DEFAULT_MAX_POINTS_PER_NODE, Octree, OctreeNode};
+use crate::octree::{Bounds, DEFAULT_MAX_POINTS_PER_NODE, Octree};
 
 /// Result of generating a tileset from an octree.
 #[derive(Debug, Clone)]
@@ -579,10 +579,15 @@ fn build_tile_node(octree: &Octree, node_idx: usize, tile_uris: &[String]) -> St
         String::new()
     };
 
-    format!(
-        r#"{{"boundingVolume":{{{},"geometricError":{}{}}}{}"#,
-        bounding_volume, geo_error, content_json, children_json
-    )
+    // Build the node JSON: {"boundingVolume":{"box":[...]},"geometricError":N,...}
+    let mut json = String::from(r#"{"boundingVolume":{"#);
+    json.push_str(&bounding_volume);
+    json.push_str(r#"},"geometricError":"#);
+    json.push_str(&geo_error.to_string());
+    json.push_str(&content_json);
+    json.push_str(&children_json);
+    json.push('}');
+    json
 }
 
 /// Compute geometric error for a node at a given depth level.
@@ -729,7 +734,7 @@ mod tileset_tests {
         assert!(result.tile_count() > 0);
 
         // Verify each tile has colors in the FT binary.
-        let leaf_nodes: Vec<&OctreeNode> = tree.leaves().collect();
+        let leaf_nodes: Vec<&crate::octree::OctreeNode> = tree.leaves().collect();
         for (i, tile_data) in result.tiles.iter().enumerate() {
             let (header, _) = parse_pnts_header(tile_data).unwrap();
             if i < leaf_nodes.len() {
