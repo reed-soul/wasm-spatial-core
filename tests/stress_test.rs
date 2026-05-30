@@ -9,11 +9,11 @@
 //!
 //! For CI, only the quick tests (non-ignored) run by default.
 
-use wasm_spatial_core::test_exports::{
-    geojson_feature_collection_native, polygon_intersection_native, deduplicate_coords_native,
-    parse_geojson_coords, count_geojson_features,
-};
 use wasm_spatial_core::batch_wgs84_to_gcj02_in_place;
+use wasm_spatial_core::test_exports::{
+    count_geojson_features, deduplicate_coords_native, geojson_feature_collection_native,
+    parse_geojson_coords, polygon_intersection_native,
+};
 
 use rand::Rng;
 
@@ -170,18 +170,28 @@ fn test_large_polygon_intersection() {
         let s = 1.0;
 
         let ring1 = vec![
-            cx1 - s, cy1 - s,
-            cx1 + s, cy1 - s,
-            cx1 + s, cy1 + s,
-            cx1 - s, cy1 + s,
-            cx1 - s, cy1 - s,
+            cx1 - s,
+            cy1 - s,
+            cx1 + s,
+            cy1 - s,
+            cx1 + s,
+            cy1 + s,
+            cx1 - s,
+            cy1 + s,
+            cx1 - s,
+            cy1 - s,
         ];
         let ring2 = vec![
-            cx2 - s, cy2 - s,
-            cx2 + s, cy2 - s,
-            cx2 + s, cy2 + s,
-            cx2 - s, cy2 + s,
-            cx2 - s, cy2 - s,
+            cx2 - s,
+            cy2 - s,
+            cx2 + s,
+            cy2 - s,
+            cx2 + s,
+            cy2 + s,
+            cx2 - s,
+            cy2 + s,
+            cx2 - s,
+            cy2 - s,
         ];
 
         let result = polygon_intersection_native(&ring1, &ring2);
@@ -191,7 +201,12 @@ fn test_large_polygon_intersection() {
     }
 
     // With offset up to 2 and size 2, should have significant overlap
-    assert!(intersect_count > n / 4, "Expected at least 25% intersections, got {}/{}", intersect_count, n);
+    assert!(
+        intersect_count > n / 4,
+        "Expected at least 25% intersections, got {}/{}",
+        intersect_count,
+        n
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -233,7 +248,10 @@ fn test_large_point_deduplication() {
         deduped_pairs
     );
     // But should keep at least the original unique points
-    assert!(deduped_pairs >= n, "Should keep at least original unique points");
+    assert!(
+        deduped_pairs >= n,
+        "Should keep at least original unique points"
+    );
 }
 
 // ---------------------------------------------------------------------------
