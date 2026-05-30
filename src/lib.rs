@@ -24,6 +24,7 @@ mod spatial_analysis;
 mod spatial_index;
 mod topology;
 mod utils;
+mod octree;
 mod vector_tile;
 mod wkb_wkt;
 
