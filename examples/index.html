@@ -325,6 +325,7 @@
     <button class="tab-btn" data-tab="geojson">📦 GeoJSON Pipeline</button>
     <button class="tab-btn" data-tab="pointcloud">☁️ Point Cloud</button>
     <button class="tab-btn" data-tab="benchmark">⏱️ Benchmark</button>
+    <button class="tab-btn" data-tab="china-cities">🇨🇳 China Cities</button>
   </div>
 </div>
 
@@ -549,6 +550,30 @@ console.<span class="fn">log</span>(<span class="fn">version</span>()); <span cl
     <div class="panel full">
       <div class="panel-title">📈 Visual Comparison</div>
       <div id="benchChart"></div>
+    </div>
+  </div>
+</div><!-- /.benchmark grid -->
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!--  TAB 6: CHINA CITIES MAP                                      -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="tab-china-cities">
+  <div class="grid">
+    <div class="panel">
+      <div class="panel-title">🇨🇳 China Cities — Interactive Spatial Demo</div>
+      <p style="margin:0.5rem 0;color:var(--dim)">Load 100 real Chinese cities and explore spatial operations.</p>
+      <button class="primary" onclick="runChinaCitiesDemo()" style="margin-top:0.5rem;width:100%">🗺️ Load Cities & Render Map</button>
+      <div style="margin-top:0.75rem">
+        <label>🧭 Nearest Neighbor (click to set center, then find):</label>
+        <button class="primary" onclick="chinaNearestNeighbor()" style="width:100%;margin-top:0.25rem">Find Nearest City</button>
+      </div>
+      <div class="result" id="chinaInfo" style="margin-top:0.5rem;min-height:60px">
+        Click a city on the map or use "Find Nearest".
+      </div>
+    </div>
+    <div class="panel" style="position:relative">
+      <canvas id="chinaMapCanvas" width="700" height="500" style="border:1px solid var(--border);border-radius:8px;background:#0a1628;width:100%;cursor:crosshair"></canvas>
+      <div id="chinaMapTooltip" style="position:absolute;display:none;background:rgba(0,0,0,0.85);color:#fff;padding:6px 10px;border-radius:6px;font-size:13px;pointer-events:none;white-space:nowrap;z-index:10"></div>
     </div>
   </div>
 </div>
@@ -1216,6 +1241,220 @@ Points: <strong>${count.toLocaleString()}</strong>
     <div style="margin-top:1rem;font-size:0.85rem;color:var(--muted)">
       ⚡ WASM is <strong style="color:var(--accent)">${speedup}×</strong> faster for ${opName} on ${count.toLocaleString()} coordinates
     </div>`;
+};
+
+// ═══════════════════════════════════════════════════════════════
+//  TAB 6: CHINA CITIES MAP
+// ═══════════════════════════════════════════════════════════════
+let chinaCities = [];
+let chinaBounds = null;
+let chinaIndex = null;
+let chinaCenter = [116.4, 39.9];
+
+window.runChinaCitiesDemo = async function() {
+  if (!wasmReady) return;
+  const info = document.getElementById('chinaInfo');
+
+  // Load city data
+  const resp = await fetch('data/china_cities.json');
+  chinaCities = await resp.json();
+  info.innerHTML = `Loaded <strong>${chinaCities.length}</strong> cities. Building spatial index…`;
+
+  // Build coordinate arrays
+  const coords = new Float64Array(chinaCities.length * 2);
+  chinaCities.forEach((c, i) => { coords[i*2] = c.lng; coords[i*2+1] = c.lat; });
+
+  // Compute bounds
+  const bounds = computeBounds(coords);
+  chinaBounds = bounds;
+
+  // Build spatial index
+  chinaIndex = new SpatialIndex(coords, 16);
+
+  info.innerHTML = `✓ Indexed <strong>${chinaCities.length}</strong> cities.<br>` +
+    `Bounds: [${fmt(bounds.minX,2)}, ${fmt(bounds.minY,2)}] → [${fmt(bounds.maxX,2)}, ${fmt(bounds.maxY,2)}]<br>` +
+    `<span style="color:var(--dim)">Hover over cities on the map for details. Click to set center.</span>`;
+
+  // Render map
+  renderChinaMap();
+};
+
+function renderChinaMap() {
+  const canvas = document.getElementById('chinaMapCanvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const b = chinaBounds;
+
+  // Background
+  ctx.fillStyle = '#0a1628';
+  ctx.fillRect(0, 0, W, H);
+
+  // Margin
+  const mx = 40, my = 30;
+  const pw = W - mx*2, ph = H - my*2;
+  const dx = b.maxX - b.minX, dy = b.maxY - b.minY;
+  const scale = Math.min(pw / dx, ph / dy);
+
+  // Projection functions
+  const toX = lng => mx + (lng - b.minX) * scale;
+  const toY = lat => my + (H - my - my) - (lat - b.minY) * scale;
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(100,180,255,0.08)';
+  ctx.lineWidth = 1;
+  for (let lng = 75; lng <= 140; lng += 5) {
+    const x = toX(lng);
+    ctx.beginPath(); ctx.moveTo(x, my); ctx.lineTo(x, H-my); ctx.stroke();
+    ctx.fillStyle = 'rgba(100,180,255,0.2)';
+    ctx.font = '10px monospace';
+    ctx.fillText(`${lng}°`, x-12, H-my+15);
+  }
+  for (let lat = 15; lat <= 55; lat += 5) {
+    const y = toY(lat);
+    ctx.beginPath(); ctx.moveTo(mx, y); ctx.lineTo(W-mx, y); ctx.stroke();
+    ctx.fillStyle = 'rgba(100,180,255,0.2)';
+    ctx.font = '10px monospace';
+    ctx.fillText(`${lat}°`, mx-30, y+4);
+  }
+
+  // Draw cities — size by population
+  const maxPop = Math.max(...chinaCities.map(c => c.pop));
+  chinaCities.forEach((city, i) => {
+    const x = toX(city.lng), y = toY(city.lat);
+    const r = 2 + (city.pop / maxPop) * 6;
+
+    // Glow
+    const grad = ctx.createRadialGradient(x, y, 0, x, y, r * 3);
+    grad.addColorStop(0, 'rgba(255,200,50,0.3)');
+    grad.addColorStop(1, 'rgba(255,200,50,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(x, y, r*3, 0, Math.PI*2); ctx.fill();
+
+    // Point
+    ctx.fillStyle = city.pop > 1500 ? '#ff6b6b' : city.pop > 800 ? '#ffa94d' : '#69db7c';
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
+
+    // Label for top 20
+    if (city.pop > 800) {
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.font = '10px sans-serif';
+      ctx.fillText(city.name, x + r + 3, y + 3);
+    }
+  });
+
+  // Draw bbox query area
+  drawBboxQuery(ctx, toX, toY, mx, my, W-mx, H-my);
+}
+
+function drawBboxQuery(ctx, toX, toY, mx, my, pw, ph) {
+  // Highlight cities in a sample bbox (e.g. eastern China)
+  const x1 = toX(105), y1 = toY(30), x2 = toX(122), y2 = toY(25);
+  ctx.strokeStyle = 'rgba(100,200,255,0.4)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4,4]);
+  ctx.strokeRect(x1, y1, x2-x1, y2-y1);
+  ctx.setLineDash([]);
+  ctx.fillStyle = 'rgba(100,200,255,0.06)';
+  ctx.fillRect(x1, y1, x2-x1, y2-y1);
+
+  // Count cities in bbox
+  if (chinaIndex) {
+    const count = chinaIndex.queryBbox(105, 25, 122, 30).count();
+    ctx.fillStyle = 'rgba(100,200,255,0.6)';
+    ctx.font = '12px monospace';
+    ctx.fillText(`${count} cities`, x1+4, y1-6);
+  }
+}
+
+// Mouse interaction
+document.getElementById('chinaMapCanvas')?.addEventListener('mousemove', function(e) {
+  const rect = this.getBoundingClientRect();
+  const scaleX = this.width / rect.width;
+  const scaleY = this.height / rect.height;
+  const mx = (e.clientX - rect.left) * scaleX;
+  const my = (e.clientY - rect.top) * scaleY;
+
+  if (!chinaBounds || !chinaCities.length) return;
+  const b = chinaBounds;
+  const W = this.width, H = this.height;
+  const pad = 40;
+  const pw = W - pad*2, ph = H - pad*2;
+  const dx = b.maxX - b.minX, dy = b.maxY - b.minY;
+  const scale = Math.min(pw / dx, ph / dy);
+  const toX = lng => pad + (lng - b.minX) * scale;
+  const toY = lat => (H - pad*2) - (lat - b.minY) * scale + pad;
+
+  // Find nearest city
+  let minDist = Infinity, nearest = null;
+  chinaCities.forEach(c => {
+    const cx = toX(c.lng), cy = toY(c.lat);
+    const d = (mx-cx)**2 + (my-cy)**2;
+    if (d < minDist) { minDist = d; nearest = c; }
+  });
+
+  const tooltip = document.getElementById('chinaMapTooltip');
+  if (nearest && minDist < 400) {
+    tooltip.style.display = 'block';
+    tooltip.style.left = (e.clientX - this.getBoundingClientRect().left + 15) + 'px';
+    tooltip.style.top = (e.clientY - this.getBoundingClientRect().top - 10) + 'px';
+    tooltip.innerHTML = `<strong>${nearest.name}</strong><br>` +
+      `📍 ${fmt(nearest.lng,3)}, ${fmt(nearest.lat,3)}<br>` +
+      `👥 ${(nearest.pop/10000).toFixed(1)}M`;
+  } else {
+    tooltip.style.display = 'none';
+  }
+});
+
+document.getElementById('chinaMapCanvas')?.addEventListener('click', function(e) {
+  if (!chinaBounds || !chinaCities.length) return;
+  const rect = this.getBoundingClientRect();
+  const scaleX = this.width / rect.width;
+  const scaleY = this.height / rect.height;
+  const mx = (e.clientX - rect.left) * scaleX;
+  const my = (e.clientY - rect.top) * scaleY;
+
+  const b = chinaBounds;
+  const W = this.width, H = this.height;
+  const pad = 40;
+  const pw = W - pad*2, ph = H - pad*2;
+  const dx = b.maxX - b.minX, dy = b.maxY - b.minY;
+  const scale = Math.min(pw / dx, ph / dy);
+  const toLng = x => b.minX + (x - pad) / scale;
+  const toLat = y => b.minY + ((H - pad*2) - (y - pad)) / scale;
+
+  chinaCenter = [toLng(mx), toLat(my)];
+  document.getElementById('chinaInfo').innerHTML =
+    `📍 Center set to <strong>[${fmt(chinaCenter[0],2)}, ${fmt(chinaCenter[1],2)}]</strong><br>` +
+    `<span style="color:var(--dim)">Click "Find Nearest City" to search.</span>`;
+});
+
+window.chinaNearestNeighbor = function() {
+  if (!chinaIndex || !chinaCities.length) {
+    document.getElementById('chinaInfo').innerHTML = '⚠️ Run "Load Cities" first!';
+    return;
+  }
+  const [lng, lat] = chinaCenter;
+  const t0 = performance.now();
+  const result = chinaIndex.nearestNeighbor(lng, lat);
+  const dt = performance.now() - t0;
+
+  if (result.count() === 0) {
+    document.getElementById('chinaInfo').innerHTML = 'No cities found.';
+    return;
+  }
+
+  // Get the nearest city name
+  const nearest = chinaCities.reduce((best, c) => {
+    const d = (c.lng - lng)**2 + (c.lat - lat)**2;
+    return d < best.d ? {city: c, d} : best;
+  }, {city: chinaCities[0], d: Infinity}).city;
+
+  document.getElementById('chinaInfo').innerHTML =
+    `🏁 <strong>Nearest city</strong>: ${nearest.city.name}<br>` +
+    `📍 [${fmt(nearest.city.lng,3)}, ${fmt(nearest.city.lat,3)}]<br>` +
+    `👥 Population: ${(nearest.city.pop/10000).toFixed(1)}M<br>` +
+    `📏 Distance: ~${Math.sqrt((nearest.city.lng-lng)**2 + (nearest.city.lat-lat)**2) * 111:.0f} km<br>` +
+    `<span style="color:var(--dim)">Query: (${fmt(lng,2)}, ${fmt(lat,2)}) in ${dt.toFixed(2)}ms</span>`;
 };
 
 </script>
