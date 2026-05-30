@@ -16,6 +16,8 @@
 
 *Offload server-side spatial computing to the client — free the cloud.*
 
+**[🌐 在线体验 Live Demo](https://reed-soul.github.io/wasm-spatial-core/examples/index.html)** — 手机 / 电脑浏览器打开即可试用（坐标转换、GeoJSON、性能对比）
+
 [Quick Start](#-quick-start) · [Live Demo](#-live-demo) · [API Reference](#-api-reference) · [Roadmap](./PLAN.md) · [Contributing](./CONTRIBUTING.md)
 
 </div>
@@ -100,18 +102,30 @@ Modern Web3D and GIS applications face a fundamental bottleneck:
 
 ## 🌐 Live Demo
 
-在浏览器中直接体验 WASM 引擎（坐标转换、GeoJSON、空间索引、性能对比等）：
+**主入口（推荐，可收藏）：**  
+**https://cdn.jsdelivr.net/gh/reed-soul/wasm-spatial-core@gh-pages/examples/index.html**
 
 | 演示 | 链接 |
 |------|------|
-| **演示中心**（推荐） | [reed-soul.github.io/wasm-spatial-core/examples/index.html](https://reed-soul.github.io/wasm-spatial-core/examples/index.html) |
-| 完整交互 demo | […/examples/demo/index.html](https://reed-soul.github.io/wasm-spatial-core/examples/demo/index.html) |
-| WASM vs JS 基准 | […/bench/browser/index.html](https://reed-soul.github.io/wasm-spatial-core/bench/browser/index.html) |
+| 演示中心（多 Tab 试用） | https://cdn.jsdelivr.net/gh/reed-soul/wasm-spatial-core@gh-pages/examples/index.html |
+| 完整交互 demo | https://cdn.jsdelivr.net/gh/reed-soul/wasm-spatial-core@gh-pages/examples/demo/index.html |
+| WASM vs JS 基准 | https://cdn.jsdelivr.net/gh/reed-soul/wasm-spatial-core@gh-pages/bench/browser/index.html |
 
-由 GitHub Actions 在 push 到 `master` 时自动部署；首次使用请在仓库 **Settings → Pages → Source: GitHub Actions** 中启用。  
-也可部署到 Vercel（见 [docs/DEMO_SITE.md](./docs/DEMO_SITE.md)）。
+### 若 GitHub Pages 仍是 404
 
-本地预览：`bash scripts/build-demo-site.sh && npx http-server _site -p 8080 -c-1`
+**临时可用（无需设置）：** https://cdn.jsdelivr.net/gh/reed-soul/wasm-spatial-core@gh-pages/examples/index.html  
+
+**正式域名**需在 GitHub 打开 Pages（只需一次）：
+
+1. 打开 https://github.com/reed-soul/wasm-spatial-core/settings/pages  
+2. **Build and deployment → Source** 选 **Deploy from a branch**  
+3. **Branch** 选 **`gh-pages`**，文件夹选 **`/ (root)`**，点 **Save**  
+4. 等 1～3 分钟后再访问上面的链接  
+
+之后每次合并到 `master`，CI 会自动更新 `gh-pages`。  
+也可用 Vercel 部署，见 [docs/DEMO_SITE.md](./docs/DEMO_SITE.md)。
+
+本地预览：`npm run demo` 或 `bash scripts/build-demo-site.sh && npx http-server _site -p 8080 -c-1`
 
 ---
 
