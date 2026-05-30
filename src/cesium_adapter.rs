@@ -7,6 +7,8 @@ use geojson::{GeoJson, Value};
 use std::f64::consts::PI;
 use wasm_bindgen::prelude::*;
 
+use crate::validate_input_size;
+
 #[cfg(feature = "multi-thread")]
 use rayon::prelude::*;
 
@@ -44,6 +46,11 @@ pub fn wgs84_to_cartesian3_single(lng: f64, lat: f64, height: f64) -> (f64, f64,
 /// Batch convert a flat array of `[lng, lat, ...]` into `[x, y, z, ...]`.
 #[wasm_bindgen(js_name = "batchWgs84ToCartesian3")]
 pub fn batch_wgs84_to_cartesian3(coords: &[f64]) -> js_sys::Float64Array {
+    assert!(
+        coords.len().is_multiple_of(2),
+        "Coordinates length must be even (pairs of lng/lat), got {}",
+        coords.len()
+    );
     let point_count = coords.len() / 2;
     let mut out = vec![0.0; point_count * 3];
 
@@ -109,6 +116,7 @@ pub fn generate_cesium_geometry(
     geojson_str: &str,
     height_property: Option<String>,
 ) -> Result<CesiumMeshGeometry, JsValue> {
+    validate_input_size(geojson_str.len(), "GeoJSON input")?;
     let geojson = geojson_str
         .parse::<GeoJson>()
         .map_err(|e: geojson::Error| JsValue::from_str(&e.to_string()))?;
