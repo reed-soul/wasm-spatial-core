@@ -140,7 +140,7 @@ pub fn count_geojson_by_property_native(input: &str, key: &str) -> Result<String
 /// Filtered GeoJSON FeatureCollection string.
 #[wasm_bindgen(js_name = "filterGeoJsonByProperty")]
 pub fn filter_geojson_by_property(input: &str, key: &str, value: &str) -> Result<String, JsValue> {
-    filter_geojson_by_property_native(input, key, value).map_err(|e| JsValue::from_str(&e))
+    filter_geojson_by_property_native(input, key, value).map_err(crate::errors::parse_js)
 }
 
 /// Filter GeoJSON features by bounding box.
@@ -167,7 +167,7 @@ pub fn filter_geojson_by_bbox(
     max_lat: f64,
 ) -> Result<String, JsValue> {
     filter_geojson_by_bbox_native(input, min_lng, min_lat, max_lng, max_lat)
-        .map_err(|e| JsValue::from_str(&e))
+        .map_err(crate::errors::parse_js)
 }
 
 /// Count GeoJSON features by property value (COUNT ... GROUP BY).
@@ -184,7 +184,7 @@ pub fn filter_geojson_by_bbox(
 /// JSON string like `{"value1": 5, "value2": 3}`.
 #[wasm_bindgen(js_name = "countGeoJsonByProperty")]
 pub fn count_geojson_by_property(input: &str, key: &str) -> Result<String, JsValue> {
-    count_geojson_by_property_native(input, key).map_err(|e| JsValue::from_str(&e))
+    count_geojson_by_property_native(input, key).map_err(crate::errors::parse_js)
 }
 
 // ---------------------------------------------------------------------------
@@ -439,7 +439,7 @@ pub fn geojson_from_coords(coords: &Float64Array, geometry_type: &str) -> Result
     match geometry_type {
         "Point" | "LineString" | "Polygon" | "MultiPoint" => {}
         _ => {
-            return Err(JsValue::from_str(&format!(
+            return Err(crate::errors::invalid_input_js(format!(
                 "Unsupported geometry type: {}",
                 geometry_type
             )));
@@ -712,7 +712,7 @@ pub fn parse_geojson_properties(input: &str) -> Result<String, SpatialErrorDetai
 /// Modified GeoJSON string with the property added to every feature.
 #[wasm_bindgen(js_name = "addProperty")]
 pub fn add_property(input: &str, key: &str, value: &str) -> Result<String, JsValue> {
-    add_property_native(input, key, value).map_err(|e| JsValue::from_str(&e))
+    add_property_native(input, key, value).map_err(crate::errors::parse_js)
 }
 
 fn add_property_native(input: &str, key: &str, value: &str) -> Result<String, String> {
@@ -755,7 +755,7 @@ fn add_property_native(input: &str, key: &str, value: &str) -> Result<String, St
 /// Modified GeoJSON string with the property renamed.
 #[wasm_bindgen(js_name = "renameProperty")]
 pub fn rename_property(input: &str, old_key: &str, new_key: &str) -> Result<String, JsValue> {
-    rename_property_native(input, old_key, new_key).map_err(|e| JsValue::from_str(&e))
+    rename_property_native(input, old_key, new_key).map_err(crate::errors::parse_js)
 }
 
 fn rename_property_native(input: &str, old_key: &str, new_key: &str) -> Result<String, String> {
@@ -794,7 +794,7 @@ fn rename_property_native(input: &str, old_key: &str, new_key: &str) -> Result<S
 /// Modified GeoJSON string with the property removed.
 #[wasm_bindgen(js_name = "removeProperty")]
 pub fn remove_property(input: &str, key: &str) -> Result<String, JsValue> {
-    remove_property_native(input, key).map_err(|e| JsValue::from_str(&e))
+    remove_property_native(input, key).map_err(crate::errors::parse_js)
 }
 
 fn remove_property_native(input: &str, key: &str) -> Result<String, String> {

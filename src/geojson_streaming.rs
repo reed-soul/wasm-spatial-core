@@ -119,7 +119,7 @@ pub fn parse_geojson_stream(
     // Parse the FeatureCollection
     let geojson: geojson::GeoJson = input
         .parse()
-        .map_err(|e| JsValue::from_str(&format!("GeoJSON parse error: {e}")))?;
+        .map_err(|e| crate::errors::parse_js(format!("GeoJSON parse error: {e}")))?;
 
     let features = match geojson {
         geojson::GeoJson::FeatureCollection(fc) => fc.features,
@@ -179,7 +179,7 @@ pub fn parse_geojson_stream(
 pub fn parse_geojson_per_feature(input: &str) -> Result<js_sys::Array, JsValue> {
     let geojson: geojson::GeoJson = input
         .parse()
-        .map_err(|e| JsValue::from_str(&format!("GeoJSON parse error: {e}")))?;
+        .map_err(|e| crate::errors::parse_js(format!("GeoJSON parse error: {e}")))?;
 
     let features = match geojson {
         geojson::GeoJson::FeatureCollection(fc) => fc.features,
@@ -816,7 +816,7 @@ pub fn parse_geojson_lazy(input: &str) -> Result<LazyGeoJsonIter, JsValue> {
     // Quick validation: must be valid JSON starting with `{`
     let trimmed = input.trim_start();
     if !trimmed.starts_with('{') {
-        return Err(JsValue::from_str(
+        return Err(crate::errors::invalid_input_js(
             "Input must be a JSON object (FeatureCollection)",
         ));
     }
@@ -824,7 +824,7 @@ pub fn parse_geojson_lazy(input: &str) -> Result<LazyGeoJsonIter, JsValue> {
     // Validate it's parseable JSON
     let _: serde_json::Value = input
         .parse()
-        .map_err(|e| JsValue::from_str(&format!("Invalid JSON: {e}")))?;
+        .map_err(|e| crate::errors::parse_js(format!("Invalid JSON: {e}")))?;
 
     // Count features without building DOM
     let total = count_features_raw(input) as u32;

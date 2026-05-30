@@ -14,7 +14,7 @@ Thanks for your interest in improving this project! This guide covers everything
 
 | Tool | Version | Install |
 |------|---------|---------|
-| [Rust](https://rustup.rs/) | stable (1.75+) | `rustup default stable` |
+| [Rust](https://rustup.rs/) | stable **≥ 1.90** (`rust-version` in `Cargo.toml`) | `rustup default stable` |
 | [wasm-pack](https://rustwasm.github.io/wasm-pack/) | latest | `curl https://rustwasm.github.io/wasm-pack/installer/init.sh \| sSf \| sh` |
 | [Node.js](https://nodejs.org/) | ≥ 18 | [nodejs.org](https://nodejs.org/) |
 
@@ -30,7 +30,18 @@ rustup component add rust-src --toolchain nightly
 git clone https://github.com/reed-soul/wasm-spatial-core.git
 cd wasm-spatial-core
 cargo build
+wasm-pack build --target web --release --out-dir pkg   # required for examples/ demos
 ```
+
+The `pkg/` directory is listed in `.gitignore` and is **not** stored in git. CI builds it on every run; locally you must run `wasm-pack build` before opening browser examples.
+
+---
+
+## Error handling (API)
+
+WASM exports that return `Result<_, JsValue>` should use helpers in `src/errors.rs` (`parse_js`, `invalid_input_js`, `tile_js`, etc.) so JavaScript receives `{ name: "SpatialError", code, message }`.
+
+Prefer `Result<_, SpatialErrorDetail>` in new Rust-only APIs; convert with `.map_err(Into::into)` at the wasm boundary.
 
 ---
 
@@ -53,6 +64,15 @@ RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals' \
 
 # Run unit & integration tests
 cargo test --all-features
+
+# Large-scale stress tests (ignored in CI; run before releases)
+cargo test -- --ignored
+
+# WASM bindgen tests (Node.js harness; CI uses this)
+wasm-pack test --node --release -- --test web
+
+# Optional: real browser (requires Chrome + chromedriver)
+wasm-pack test --chrome --headless --release -- --test web
 
 # Run benchmarks
 cargo bench

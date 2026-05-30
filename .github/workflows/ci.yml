@@ -2,10 +2,10 @@ name: CI & Publish
 
 on:
   push:
-    branches: [main]
+    branches: [master]
     tags: ["v*"]
   pull_request:
-    branches: [main]
+    branches: [master]
 
 permissions:
   contents: read
@@ -53,6 +53,9 @@ jobs:
       - name: Build WASM package (default features)
         run: wasm-pack build --target web --release --out-dir pkg
 
+      - name: Run WASM integration tests (Node.js harness)
+        run: wasm-pack test --node --release -- --test web
+
       - name: Upload WASM artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -65,7 +68,7 @@ jobs:
   demo:
     name: Deploy Demo to GitHub Pages
     needs: rust
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read

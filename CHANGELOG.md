@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `npm/package-lock.json` for reproducible `npm/` wrapper installs.
+
+### Fixed
+
+- WASM error paths now use structured `SpatialError` objects (`parse_js`, `tile_js`, …) instead of plain strings across GeoJSON, MVT, WKT/WKB, streaming, and validation APIs.
+
+- CI and GitHub Pages now trigger on the `master` default branch (was `main`).
+- `cargo fmt` drift in `spatial_analysis.rs`.
+- Browser test `tests/web.rs` version assertion now tracks `CARGO_PKG_VERSION`.
+- Documentation version strings updated to `0.2.0`; README feature list deduplicated.
+
+### Changed
+
+- Stop tracking `pkg/` in git (build via `wasm-pack` or CI artifacts).
+- Declare `rust-version = "1.90"` in `Cargo.toml`.
+- CI runs `wasm-pack test --node --release -- --test web` (wasm32 harness + version smoke test).
+- Removed unused `transform_slice_in_place_simd` dead code.
+- `SECURITY.md` updated for 0.2.x support and accurate `unsafe` policy.
+
 ## [0.2.0] - 2026-05-30
 
 ### Added
