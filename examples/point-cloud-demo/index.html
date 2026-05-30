@@ -272,10 +272,10 @@
       <div class="panel-title">📁 Upload LAS File</div>
       <div id="dropZone" class="drop-zone">
         <span class="icon">📂</span>
-        Drag & drop a .las file here<br>
+        Drag & drop a .las or .laz file here<br>
         or click to browse
       </div>
-      <input type="file" id="fileInput" accept=".las" style="display:none">
+      <input type="file" id="fileInput" accept=".las,.laz" style="display:none">
       <div id="progressContainer" class="progress-container">
         <div class="progress-bar">
           <div id="progressFill" class="progress-bar-fill"></div>
@@ -326,7 +326,7 @@
   <div class="canvas-container">
     <div id="hint" class="hint">
       <span class="icon">☁️</span>
-      Load a .las file to view point cloud
+      Load a .las or .laz file to view point cloud
     </div>
     <div id="loadingOverlay" class="loading-overlay">
       <div class="spinner"></div>
@@ -580,11 +580,20 @@ async function processLasFile(file) {
   showLoading(`Parsing ${currentHeader.numPoints.toLocaleString()} points...`);
   setProgress(20, 'Parsing points...');
 
-  // Parse points with progress
-  const cloud = wasm.parseLasPointsWithProgress(bytes, (processed, total) => {
-    const pct = 20 + Math.floor((processed / total) * 50);
-    setProgress(pct, `Parsed ${processed.toLocaleString()} / ${total.toLocaleString()} points`);
-  });
+  // Auto-detect format (LAS/LAZ/COPC) and parse with progress
+  const isLaz = currentHeader.pointFormatId() >= 128;
+  let cloud;
+  if (isLaz) {
+    cloud = wasm.parseLazPointsStream(bytes, (processed, total) => {
+      const pct = 20 + Math.floor((processed / total) * 50);
+      setProgress(pct, `Decompressing ${processed.toLocaleString()} / ${total.toLocaleString()} points`);
+    });
+  } else {
+    cloud = wasm.parseLasPointsWithProgress(bytes, (processed, total) => {
+      const pct = 20 + Math.floor((processed / total) * 50);
+      setProgress(pct, `Parsed ${processed.toLocaleString()} / ${total.toLocaleString()} points`);
+    });
+  }
 
   if (!cloud) {
     showError('Failed to parse LAS points.');
@@ -756,8 +765,9 @@ function setupEvents() {
     dropZone.classList.remove('drag-over');
     if (e.dataTransfer.files.length > 0) {
       const file = e.dataTransfer.files[0];
-      if (!file.name.toLowerCase().endsWith('.las')) {
-        showError('Please drop a .las file');
+      const name = file.name.toLowerCase();
+      if (!name.endsWith('.las') && !name.endsWith('.laz')) {
+        showError('Please drop a .las or .laz file');
         return;
       }
       processLasFile(file);
@@ -813,7 +823,7 @@ function setupEvents() {
     console.log('wasm-spatial-core loaded, version:', wasm.version());
     document.getElementById('dropZone').innerHTML = `
       <span class="icon">📂</span>
-      Drag & drop a .las file here<br>
+      Drag & drop a .las or .laz file here<br>
       or click to browse<br>
       <small style="color:var(--muted);margin-top:8px;display:block">
         WASM v${wasm.version()} loaded ✓
