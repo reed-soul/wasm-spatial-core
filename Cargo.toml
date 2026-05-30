@@ -22,8 +22,10 @@ single-thread = []
 # Multi-thread mode: extreme performance via Web Workers + SharedArrayBuffer.
 # ⚠️ Requires COOP/COEP HTTP headers on the hosting server.
 multi-thread = ["rayon", "wasm-bindgen-rayon"]
-# Point cloud support (LAS/LAZ parsing + voxel grid decimation)
+# Point cloud support (LAS parsing + voxel grid decimation)
 point-cloud = []
+# LAZ/COPC compressed point cloud support (optional — adds ~400KB to WASM)
+laz-support = ["point-cloud", "dep:laz"]
 
 [dependencies]
 wasm-bindgen = "0.2"
@@ -41,7 +43,7 @@ mvt = "0.13.0"
 geozero = { version = "0.15.1", features = ["with-mvt", "with-geojson"] }
 earcutr = "0.5.0"
 prost = "0.14"
-laz = "0.12.1"
+laz = { version = "0.12.1", optional = true }
 byteorder = "1.5"
 
 [dependencies.web-sys]

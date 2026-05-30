@@ -50,14 +50,18 @@ pub use coordinate::{
 
 #[cfg(feature = "point-cloud")]
 pub use point_cloud::{
-    parse_las_header_core, parse_las_points_core, parse_laz_points_core, random_decimate_core,
+    parse_las_header_core, parse_las_points_core, random_decimate_core,
     read_f64_le, read_u16_le, read_u32_le, voxel_grid_decimate_core,
 };
 
+#[cfg(feature = "laz-support")]
+pub use point_cloud::parse_laz_points_core;
+
 #[cfg(feature = "point-cloud")]
-pub use point_cloud_stream::{
-    compute_region_byte_range, laz_status, supports_laz, PointCloudStreamer,
-};
+pub use point_cloud_stream::compute_region_byte_range;
+
+#[cfg(feature = "laz-support")]
+pub use point_cloud_stream::{laz_status, supports_laz, PointCloudStreamer};
 
 pub use ifc_reader::{parse_ifc_geometry_core, IfcGeometryResult, IfcMesh};
 
