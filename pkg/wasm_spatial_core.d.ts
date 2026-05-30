@@ -264,6 +264,48 @@ export class MvtLayer {
 }
 
 /**
+ * WASM-accessible octree handle.
+ */
+export class Octree {
+    private constructor();
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * Bounding box of node at `index` as a `Float64Array` of 6 values.
+     */
+    nodeBounds(index: number): Float64Array;
+    /**
+     * Children indices of node at `index`, or `null` if leaf.
+     */
+    nodeChildren(index: number): Array<any> | undefined;
+    /**
+     * Total number of nodes (internal + leaf).
+     */
+    nodeCount(): number;
+    /**
+     * Depth level of node at `index`.
+     */
+    nodeLevel(index: number): number;
+    /**
+     * Point count of node at `index`.
+     */
+    nodePointCount(index: number): number;
+    /**
+     * Root bounding box as a `Float64Array` of 6 values:
+     * `[min_x, min_y, min_z, max_x, max_y, max_z]`.
+     */
+    rootBounds(): Float64Array;
+    /**
+     * Maximum tree depth.
+     */
+    readonly depth: number;
+    /**
+     * Total number of indexed points.
+     */
+    readonly totalPoints: number;
+}
+
+/**
  * A spatial index for 2D line segments using an R-Tree.
  *
  * Indexes individual edges (line segments) from LineString geometries.
@@ -337,6 +379,39 @@ export class SpatialIndex {
      * Get the total number of points in the index.
      */
     size(): number;
+}
+
+/**
+ * WASM-accessible tileset result handle.
+ */
+export class TilesetResult {
+    private constructor();
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * Get tile binary data as `Uint8Array`.
+     */
+    tile(index: number): Uint8Array;
+    /**
+     * Tile bounding box as `Float64Array`.
+     */
+    tileBounds(index: number): Float64Array;
+    /**
+     * Get tile URI string.
+     */
+    tileUri(index: number): string | undefined;
+    /**
+     * The tileset.json content.
+     */
+    tilesetJson(): string;
+    /**
+     * Number of tiles.
+     */
+    readonly tileCount: number;
+    /**
+     * Total bytes across all tiles.
+     */
+    readonly totalBytes: number;
 }
 
 /**
@@ -694,6 +769,18 @@ export function bufferLineString(coords: Float64Array, radius_meters: number, se
 export function bufferPoint(lng: number, lat: number, radius_meters: number, segments?: number | null): Float64Array;
 
 /**
+ * Build an octree from a flat `[x, y, z, ...]` position buffer.
+ *
+ * The input buffer is **not** modified (a copy is made internally).
+ *
+ * # Arguments
+ * * `positions` — `Float32Array` of `[x, y, z, ...]` triples.
+ * * `max_points_per_node` — Max points per leaf (default: 50 000).
+ * * `max_depth` — Max tree depth (default: 21).
+ */
+export function buildOctree(positions: Float32Array, max_points_per_node?: number | null, max_depth?: number | null): Octree;
+
+/**
  * Build a TIN from scattered 3D points using the Bowyer-Watson algorithm.
  *
  * # Arguments
@@ -957,6 +1044,18 @@ export function destination(lng: number, lat: number, bearing_deg: number, dista
 export function disjoint(ring1: Float64Array, ring2: Float64Array): boolean;
 
 /**
+ * Encode a point cloud tile into 3D Tiles Point Cloud (pnts) binary format.
+ *
+ * # Arguments
+ * * `positions` — `Float32Array` of `[x, y, z, ...]`.
+ * * `center_x`, `center_y`, `center_z` — Tile center coordinates.
+ * * `colors` — Optional `Uint8Array` of `[r, g, b, ...]`.
+ *
+ * Returns a `Uint8Array` containing the complete `.pnts` binary.
+ */
+export function encodePntsTile(positions: Float32Array, center_x: number, center_y: number, center_z: number, colors?: Uint8Array | null): Uint8Array;
+
+/**
  * Filter GeoJSON features by bounding box.
  *
  * Keeps features that have at least one vertex inside the specified bbox.
@@ -1003,6 +1102,11 @@ export function generate3DTile(geojson_str: string, height_property?: string | n
  * Generate triangulated mesh from GeoJSON Polygons/MultiPolygons.
  */
 export function generateCesiumGeometry(geojson_str: string, height_property?: string | null): CesiumMeshGeometry;
+
+/**
+ * WASM export: generate a tileset from octree and point data.
+ */
+export function generateTileset(positions: Float32Array, max_points_per_node?: number | null, max_depth?: number | null, colors?: Uint8Array | null): TilesetResult;
 
 /**
  * Generate a GeoJSON FeatureCollection string from multiple features.
@@ -1667,6 +1771,7 @@ export interface InitOutput {
     readonly __wbg_memoryinfo_free: (a: number, b: number) => void;
     readonly __wbg_mvtfeature_free: (a: number, b: number) => void;
     readonly __wbg_mvtlayer_free: (a: number, b: number) => void;
+    readonly __wbg_octree_free: (a: number, b: number) => void;
     readonly __wbg_set_vectortileoptions_buffer: (a: number, b: number) => void;
     readonly __wbg_set_vectortileoptions_extent: (a: number, b: number) => void;
     readonly __wbg_set_vectortileoptions_generate_id: (a: number, b: number) => void;
@@ -1677,6 +1782,7 @@ export interface InitOutput {
     readonly __wbg_set_vectortileoptions_tolerance: (a: number, b: number) => void;
     readonly __wbg_spatialedgeindex_free: (a: number, b: number) => void;
     readonly __wbg_spatialindex_free: (a: number, b: number) => void;
+    readonly __wbg_tilesetresult_free: (a: number, b: number) => void;
     readonly __wbg_validationresult_free: (a: number, b: number) => void;
     readonly __wbg_vectortileengine_free: (a: number, b: number) => void;
     readonly __wbg_vectortileoptions_free: (a: number, b: number) => void;
@@ -1714,6 +1820,7 @@ export interface InitOutput {
     readonly boundingBox: (a: number) => number;
     readonly bufferLineString: (a: number, b: number, c: number) => number;
     readonly bufferPoint: (a: number, b: number, c: number, d: number) => number;
+    readonly buildOctree: (a: number, b: number, c: number, d: number) => number;
     readonly buildTin: (a: number, b: number) => void;
     readonly centroid: (a: number) => number;
     readonly cesium3dtile_batchTableJson: (a: number, b: number) => void;
@@ -1739,10 +1846,12 @@ export interface InitOutput {
     readonly denormalizeCoords: (a: number, b: number) => number;
     readonly destination: (a: number, b: number, c: number, d: number) => number;
     readonly disjoint: (a: number, b: number) => number;
+    readonly encodePntsTile: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
     readonly filterGeoJsonByBBox: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
     readonly filterGeoJsonByProperty: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
     readonly generate3DTile: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly generateCesiumGeometry: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly generateTileset: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
     readonly geoJsonFeatureCollection: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly geoJsonFromCoords: (a: number, b: number, c: number, d: number) => void;
     readonly geohashDecode: (a: number, b: number) => number;
@@ -1788,6 +1897,14 @@ export interface InitOutput {
     readonly mvtlayerdecoded_featureCount: (a: number) => number;
     readonly mvtlayerdecoded_name: (a: number, b: number) => void;
     readonly normalizeCoords: (a: number, b: number) => number;
+    readonly octree_depth: (a: number) => number;
+    readonly octree_nodeBounds: (a: number, b: number) => number;
+    readonly octree_nodeChildren: (a: number, b: number) => number;
+    readonly octree_nodeCount: (a: number) => number;
+    readonly octree_nodeLevel: (a: number, b: number) => number;
+    readonly octree_nodePointCount: (a: number, b: number) => number;
+    readonly octree_rootBounds: (a: number) => number;
+    readonly octree_total_points: (a: number) => number;
     readonly parseGeoJsonCoords: (a: number, b: number, c: number) => void;
     readonly parseGeoJsonFeatures: (a: number, b: number, c: number) => void;
     readonly parseGeoJsonLazy: (a: number, b: number, c: number) => void;
@@ -1819,6 +1936,12 @@ export interface InitOutput {
     readonly spatialindex_new: (a: number) => number;
     readonly spatialindex_searchBBox: (a: number, b: number, c: number, d: number, e: number) => number;
     readonly spatialindex_size: (a: number) => number;
+    readonly tilesetresult_tile: (a: number, b: number) => number;
+    readonly tilesetresult_tileBounds: (a: number, b: number) => number;
+    readonly tilesetresult_tileUri: (a: number, b: number, c: number) => void;
+    readonly tilesetresult_tile_count: (a: number) => number;
+    readonly tilesetresult_tilesetJson: (a: number, b: number) => void;
+    readonly tilesetresult_total_bytes: (a: number) => number;
     readonly tinInterpolate: (a: number, b: number, c: number) => number;
     readonly toWkb: (a: number, b: number, c: number, d: number) => void;
     readonly toWkt: (a: number, b: number, c: number, d: number) => void;
