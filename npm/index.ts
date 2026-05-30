@@ -117,9 +117,21 @@ export {
   computeRegionByteRange,
   supportsLaz,
   lazStatus,
+  parsePointCloudAuto,
   // ── Point Cloud Normals ──────────────────────────────────
   estimateNormals,
   flipNormals,
+  // ── Octree ────────────────────────────────────────────────
+  buildOctree,
+  Octree,
+  octreeMemoryUsage,
+  // ── 3D Tiles Point Cloud (pnts) ──────────────────────────
+  encodePntsTile,
+  generateTileset,
+  TilesetResult,
+  // ── LOD ───────────────────────────────────────────────────
+  computeScreenSpaceError,
+  getVisibleTiles,
   // ── IFC/BIM (Experimental) ────────────────────────────────
   parseIfcGeometry,
   IfcGeometryResult,
