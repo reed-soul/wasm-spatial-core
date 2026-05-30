@@ -27,6 +27,13 @@ export {
   // ── Pipeline Transforms (combined conversions) ────────────
   batchWgs84ToGcj02Mercator,
   batchWgs84ToBd09Mercator,
+  // ── UTM Projection ───────────────────────────────────────
+  wgs84ToUtm,
+  utmToWgs84,
+  batchWgs84ToUtm,
+  batchUtmToWgs84,
+  batchWgs84ToUtmInPlace,
+  batchUtmToWgs84InPlace,
   // ── Zero-copy in-place API ─────────────────────────────────
   batchWgs84ToGcj02InPlace,
   batchGcj02ToWgs84InPlace,
@@ -59,6 +66,10 @@ export {
   filterGeoJsonByProperty,
   filterGeoJsonByBBox,
   countGeoJsonByProperty,
+  // ── GeoJSON Editing ──────────────────────────────────────
+  addProperty,
+  renameProperty,
+  removeProperty,
   // ── GeoJSON Streaming ──────────────────────────────────────
   parseGeoJsonStream,
   parseGeoJsonPerFeature,
@@ -101,6 +112,9 @@ export {
   colorizeByHeight,
   colorizeByIntensity,
   applyColorRamp,
+  // ── Point Cloud Normals ──────────────────────────────────
+  estimateNormals,
+  flipNormals,
   // ── IFC/BIM (Experimental) ────────────────────────────────
   parseIfcGeometry,
   IfcGeometryResult,
