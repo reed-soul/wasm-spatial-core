@@ -313,7 +313,7 @@ fn parse_ply_ascii(data: &str, header: &PlyHeader) -> Result<PlyResult, String> 
         if vertex_lines_parsed >= header.vertex_count {
             // We're past vertex data — faces or other elements
             if values.len() >= 1 {
-                if let Ok(n) = values[0].parse::<u32>() {
+                if let Ok(_n) = values[0].parse::<u32>() {
                     // This is a face with n vertices — count it
                 }
             }
