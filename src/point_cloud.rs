@@ -761,6 +761,71 @@ pub fn parse_laz_points_stream(
 }
 
 // ===========================================================================
+// Auto-detect: parsePointCloudAuto
+// ===========================================================================
+
+/// Detect point cloud format from header bytes.
+///
+/// Returns "las", "laz", or "copc".
+fn detect_point_cloud_format(bytes: &[u8]) -> Result<&'static str, String> {
+    if bytes.len() < 230 {
+        return Err("Data too short to detect format".to_string());
+    }
+    if &bytes[0..4] != b"LASF" {
+        return Err(format!(
+            "Invalid LAS/LAZ magic: expected b\"LASF\", got {:?}",
+            &bytes[0..4]
+        ));
+    }
+
+    // Check version: COPC uses LAS 1.4 (major=1, minor=4)
+    let major = bytes[24];
+    let minor = bytes[25];
+    let is_copc = major == 1 && minor == 4;
+
+    // Check compression bit at offset 104 (per LAS spec)
+    let point_format = bytes[104];
+    let is_compressed = point_format & 0x80 != 0;
+
+    if is_copc && is_compressed {
+        Ok("copc")
+    } else if is_compressed {
+        Ok("laz")
+    } else {
+        Ok("las")
+    }
+}
+
+/// Unified entry point: automatically detects LAS/LAZ/COPC format and parses points.
+///
+/// # Format Detection
+///
+/// - **LAS**: `LASF` magic, version ≤ 1.3, no compression bit
+/// - **LAZ**: `LASF` magic, any version, compression bit set at byte 104
+/// - **COPC**: `LASF` magic, version 1.4, compression bit set, COPC VLR present
+///
+/// All three formats use the same decompression path internally. COPC adds
+/// spatial indexing but falls back to full decompression for the auto path.
+#[wasm_bindgen(js_name = "parsePointCloudAuto")]
+pub fn parse_point_cloud_auto(bytes: &[u8]) -> Result<LasPointCloud, SpatialErrorDetail> {
+    if bytes.len() > DEFAULT_MAX_INPUT_SIZE {
+        return Err(SpatialError::InputTooLarge.with_detail(format!(
+            "Input is {} bytes, max is {}",
+            bytes.len(),
+            DEFAULT_MAX_INPUT_SIZE
+        )));
+    }
+
+    let format = detect_point_cloud_format(bytes).map_err(SpatialError::point_cloud_error)?;
+
+    match format {
+        "las" => parse_las_points_core(bytes).map_err(SpatialError::point_cloud_error),
+        "laz" | "copc" => parse_laz_points_core(bytes).map_err(SpatialError::point_cloud_error),
+        _ => Err(SpatialError::point_cloud_error("Unknown format")),
+    }
+}
+
+// ===========================================================================
 // Decimation WASM API (thin wrappers)
 // ===========================================================================
 
@@ -3252,5 +3317,53 @@ DATA ascii
                 laz_cloud.positions[i]
             );
         }
+    }
+
+    // ── Auto-detect tests ───────────────────────────────────────────
+
+    #[test]
+    fn test_auto_detect_las() {
+        let points = vec![(1.0, 2.0, 3.0)];
+        let las_blob = build_test_las_blob(&points, false);
+        assert_eq!(detect_point_cloud_format(&las_blob).unwrap(), "las");
+    }
+
+    #[test]
+    fn test_auto_detect_laz() {
+        let points = vec![(1.0, 2.0, 3.0)];
+        let laz_blob = build_test_laz_blob(&points, false);
+        assert_eq!(detect_point_cloud_format(&laz_blob).unwrap(), "laz");
+    }
+
+    #[test]
+    fn test_auto_detect_too_short() {
+        let result = detect_point_cloud_format(&[0u8; 10]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_auto_detect_bad_magic() {
+        let mut blob = build_test_las_blob(&[(1.0, 2.0, 3.0)], false);
+        blob[0..4].copy_from_slice(b"XASX");
+        let result = detect_point_cloud_format(&blob);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_point_cloud_auto_las() {
+        let points = vec![(10.0, 20.0, 30.0), (40.0, 50.0, 60.0)];
+        let las_blob = build_test_las_blob(&points, false);
+        let cloud = parse_point_cloud_auto(&las_blob).unwrap();
+        assert_eq!(cloud.point_count, 2);
+        assert_eq!(cloud.positions[0], 10.0);
+    }
+
+    #[test]
+    fn test_parse_point_cloud_auto_laz() {
+        let points = vec![(10.0, 20.0, 30.0), (40.0, 50.0, 60.0)];
+        let laz_blob = build_test_laz_blob(&points, false);
+        let cloud = parse_point_cloud_auto(&laz_blob).unwrap();
+        assert_eq!(cloud.point_count, 2);
+        assert_eq!(cloud.positions[0], 10.0);
     }
 }
