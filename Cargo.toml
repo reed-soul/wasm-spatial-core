@@ -60,6 +60,8 @@ codegen-units = 1      # Single codegen unit for max optimization
 strip = true           # Strip debug info
 
 [package.metadata.wasm-pack.profile.release]
+# wasm-opt = false for local builds (avoids binary dependency).
+# CI release builds should use wasm-opt = ["-Oz"] for max compression.
 wasm-opt = false
 
 [[bench]]
