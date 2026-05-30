@@ -11,7 +11,7 @@
 [![WebAssembly](https://img.shields.io/badge/WebAssembly-654FF0.svg?logo=webassembly&logoColor=white)](https://webassembly.org)
 
 ![Lines](https://img.shields.io/badge/code-11K-blue)
-![Tests](https://img.shields.io/badge/tests-195-success)
+![Tests](https://img.shields.io/badge/tests-240%2B-success)
 ![Formats](https://img.shields.io/badge/formats-6-green)
 
 *Offload server-side spatial computing to the client — free the cloud.*
@@ -78,7 +78,6 @@ Modern Web3D and GIS applications face a fundamental bottleneck:
 
 - 🔄 **Batch Coordinate Projection** — WGS-84 ↔ GCJ-02, WGS-84 ↔ BD-09, WGS-84 ↔ Web Mercator (EPSG:3857), WGS-84 ↔ CGCS2000
 - 📦 **GeoJSON Parser & Writer** — Parse and generate GeoJSON FeatureCollections from/to flat `Float64Array` buffers
-- 📦 **GeoJSON Parser** — Parse large FeatureCollections into flat `Float64Array` buffers
 - 📡 **Streaming GeoJSON Parser** — Chunked processing with progress callbacks
 - 📖 **Lazy GeoJSON Parser** — O(single feature) memory via manual JSON state machine — no full DOM parse
 - 🔍 **Spatial Index (R-Tree)** — Bounding box search, nearest-neighbor, K-nearest-neighbor (point index + edge index)
@@ -115,7 +114,7 @@ import { loadSpatialCore } from "wasm-spatial-core";
 // Initialize the WASM module (call once)
 const core = await loadSpatialCore();
 
-console.log(core.version()); // "0.1.0"
+console.log(core.version()); // "0.2.0"
 
 // ── Batch coordinate conversion ──────────────────────────────
 // Flat array: [lng0, lat0, lng1, lat1, ...]
@@ -185,11 +184,13 @@ const tileBytes = tile.toBytes();
 
 ### Prerequisites
 
-- [Rust](https://rustup.rs/) (stable)
+- [Rust](https://rustup.rs/) stable **≥ 1.90** (see `rust-version` in `Cargo.toml`)
 - [wasm-pack](https://rustwasm.github.io/wasm-pack/installer/)
 - [Node.js](https://nodejs.org/) ≥ 18
 
 ### Build
+
+`pkg/` is **not** committed to git — build it locally (or use the npm package) before running `examples/` demos.
 
 ```bash
 git clone https://github.com/reed-soul/wasm-spatial-core.git

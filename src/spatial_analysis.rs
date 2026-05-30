@@ -1044,20 +1044,16 @@ mod tests {
             centers.len()
         );
         // Centers should be near the two group centroids (order may vary)
-        let is_beijing = (centers[0] - 116.4).abs() < 0.1
-            && (centers[1] - 39.9).abs() < 0.1;
-        let is_shanghai = (centers[0] - 121.47).abs() < 0.1
-            && (centers[1] - 31.23).abs() < 0.1;
+        let is_beijing = (centers[0] - 116.4).abs() < 0.1 && (centers[1] - 39.9).abs() < 0.1;
+        let is_shanghai = (centers[0] - 121.47).abs() < 0.1 && (centers[1] - 31.23).abs() < 0.1;
         assert!(
             is_beijing || is_shanghai,
             "First center should be near Beijing or Shanghai, got ({}, {})",
             centers[0],
             centers[1]
         );
-        let is_beijing2 = (centers[2] - 116.4).abs() < 0.1
-            && (centers[3] - 39.9).abs() < 0.1;
-        let is_shanghai2 = (centers[2] - 121.47).abs() < 0.1
-            && (centers[3] - 31.23).abs() < 0.1;
+        let is_beijing2 = (centers[2] - 116.4).abs() < 0.1 && (centers[3] - 39.9).abs() < 0.1;
+        let is_shanghai2 = (centers[2] - 121.47).abs() < 0.1 && (centers[3] - 31.23).abs() < 0.1;
         assert!(
             is_beijing2 || is_shanghai2,
             "Second center should be near Beijing or Shanghai, got ({}, {})",

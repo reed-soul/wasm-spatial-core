@@ -4,7 +4,8 @@
 
 | Version | Supported |
 |---------|-----------|
-| 0.1.x   | ✅        |
+| 0.2.x   | ✅        |
+| 0.1.x   | ✅ (critical fixes only) |
 
 ## Reporting a Vulnerability
 
@@ -22,9 +23,9 @@ Please do **not** open a public issue for security vulnerabilities.
 `wasm-spatial-core` is designed with defense-in-depth:
 
 - **WASM Sandbox** — All code runs inside the browser's WebAssembly sandbox with no filesystem or network access.
-- **Input Size Limits** — All public APIs enforce a 100 MB input size cap via `validate_input_size()`. Large inputs are rejected before processing.
+- **Input Size Limits** — All public APIs enforce a configurable input size cap (default 100 MB) via `validate_input_size()` / `setInputSizeLimit()`. Large inputs are rejected before processing.
 - **No Network Requests** — The library makes zero outbound HTTP requests. All data processing is local.
-- **No Unsafe Code** — The codebase uses no `unsafe` blocks (by policy — clippy lint enforced).
+- **Minimal `unsafe`** — Almost all code is safe Rust. A small `unsafe` block exists in `gltf_writer.rs` for byte-slice casting in GLB assembly; it is not used on untrusted paths without prior validation.
 - **No Filesystem Access** — WASM linear memory is the only data store; no files are read or written.
 
 ## Known Limitations
