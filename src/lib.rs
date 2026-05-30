@@ -48,6 +48,19 @@ pub use ifc_reader::{parse_ifc_geometry_core, IfcGeometryResult, IfcMesh};
 
 use wasm_bindgen::prelude::*;
 
+// Dynamic input size limit — thread-safe via LazyLock + RwLock.
+use std::sync::{LazyLock, RwLock};
+
+static INPUT_SIZE_LIMIT: LazyLock<RwLock<usize>> =
+    LazyLock::new(|| RwLock::new(100 * 1024 * 1024));
+
+/// Get the current input size limit.
+pub(crate) fn get_current_input_limit() -> usize {
+    INPUT_SIZE_LIMIT.read().map(|v| *v).unwrap_or(DEFAULT_MAX_INPUT_SIZE)
+}
+
+
+
 /// Initialize the WASM module. Call this once before any other function.
 ///
 /// Sets up the panic hook for better error messages in the browser console.
@@ -65,7 +78,47 @@ pub fn version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
 
-/// Memory usage information for the WASM module.
+// ---------------------------------------------------------------------------
+// Dynamic Input Size Limit
+// ---------------------------------------------------------------------------
+
+/// Dynamically set the maximum allowed input size in bytes.
+///
+/// Default is 100 MB. Set to 0 to disable the limit.
+///
+/// # Example (JS)
+/// ```js
+/// core.setInputSizeLimit(50 * 1024 * 1024); // 50 MB
+/// ```
+#[wasm_bindgen(js_name = "setInputSizeLimit")]
+pub fn set_input_size_limit(bytes: usize) {
+    if let Ok(mut val) = INPUT_SIZE_LIMIT.write() {
+        *val = bytes;
+    }
+}
+
+/// Get the current input size limit in bytes.
+///
+/// Returns 100 MB (104,857,600) if not changed.
+#[wasm_bindgen(js_name = "getInputSizeLimit")]
+pub fn get_input_size_limit() -> usize {
+    get_current_input_limit()
+}
+
+/// Get the approximate number of allocated bytes in WASM linear memory.
+///
+/// This reads the current `memory.buffer.byteLength`. Note that WASM memory
+/// only grows (never shrinks), so this value is the peak allocation size.
+///
+/// Returns 0 on non-WASM targets.
+#[wasm_bindgen(js_name = "getAllocatedBytes")]
+pub fn get_allocated_bytes() -> usize {
+    wasm_memory_total()
+}
+
+// ---------------------------------------------------------------------------
+// Memory Info
+// ---------------------------------------------------------------------------
 ///
 /// Provides insight into WASM linear memory allocation, useful for monitoring
 /// large spatial data processing workloads.
@@ -127,16 +180,17 @@ fn wasm_memory_total() -> usize {
     }
 }
 
-/// Maximum allowed input size: 100 MB.
-pub(crate) const MAX_INPUT_SIZE: usize = 100 * 1024 * 1024;
+/// Default maximum allowed input size: 100 MB.
+pub(crate) const DEFAULT_MAX_INPUT_SIZE: usize = 100 * 1024 * 1024;
 
-/// Validate input length is reasonable. Returns an error if input exceeds 100 MB.
+/// Validate input length is reasonable. Returns an error if input exceeds the current limit.
 #[inline]
 pub(crate) fn validate_input_size(len: usize, label: &str) -> Result<(), JsValue> {
-    if len > MAX_INPUT_SIZE {
+    let limit = get_current_input_limit();
+    if limit > 0 && len > limit {
         Err(JsValue::from_str(&format!(
             "Input too large ({} > {} bytes): {}",
-            len, MAX_INPUT_SIZE, label
+            len, limit, label
         )))
     } else {
         Ok(())
@@ -156,6 +210,19 @@ mod tests {
     fn test_validate_input_size_ok() {
         assert!(validate_input_size(100, "test").is_ok());
         assert!(validate_input_size(0, "test").is_ok());
+    }
+
+    #[test]
+    fn test_default_input_limit() {
+        assert!(get_input_size_limit() >= 100 * 1024 * 1024);
+    }
+
+    #[test]
+    fn test_set_input_limit() {
+        set_input_size_limit(50 * 1024 * 1024);
+        assert_eq!(get_input_size_limit(), 50 * 1024 * 1024);
+        // Reset to default
+        set_input_size_limit(DEFAULT_MAX_INPUT_SIZE);
     }
 
     #[cfg(target_arch = "wasm32")]
