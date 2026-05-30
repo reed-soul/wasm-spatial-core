@@ -44,6 +44,9 @@ mod point_cloud_stream;
 #[cfg(feature = "e57-support")]
 mod e57;
 
+#[cfg(feature = "point-cloud")]
+mod worker;
+
 mod obj;
 mod ply;
 
@@ -154,6 +157,10 @@ pub use e57::parse_e57;
 /// Parse E57 with streaming progress (feature-gated).
 #[cfg(feature = "e57-support")]
 pub use e57::parse_e57_stream;
+
+/// WebWorker parallel processing support.
+#[cfg(feature = "point-cloud")]
+pub use worker::{supports_worker, process_point_cloud_in_worker, WorkerHandle, chunked_processing_info};
 
 // ---------------------------------------------------------------------------
 // Dynamic Input Size Limit
