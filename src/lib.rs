@@ -27,6 +27,9 @@ mod utils;
 mod octree;
 mod pnts;
 mod vector_tile;
+
+pub use octree::{Bounds, Octree, OctreeNode, DEFAULT_MAX_DEPTH, DEFAULT_MAX_POINTS_PER_NODE};
+pub use pnts::{encode_pnts_tile, generate_tileset, parse_pnts_header, pad_len, TilesetResult};
 mod wkb_wkt;
 
 use errors::input_too_large_js;
