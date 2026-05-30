@@ -16,7 +16,7 @@
 
 *Offload server-side spatial computing to the client — free the cloud.*
 
-**[🌐 在线体验 Live Demo](https://reed-soul.github.io/wasm-spatial-core/examples/index.html)** — 手机 / 电脑浏览器打开即可试用（坐标转换、GeoJSON、性能对比）
+**[🌐 在线体验 Live Demo](https://reed-soul.github.io/wasm-spatial-core/examples/index.html)** — 需先在 [Pages 设置](https://github.com/reed-soul/wasm-spatial-core/settings/pages) 选 **`gh-pages` 分支**（[图文说明](./docs/PAGES_SETUP.md)）
 
 [Quick Start](#-quick-start) · [Live Demo](#-live-demo) · [API Reference](#-api-reference) · [Roadmap](./PLAN.md) · [Contributing](./CONTRIBUTING.md)
 
@@ -102,30 +102,20 @@ Modern Web3D and GIS applications face a fundamental bottleneck:
 
 ## 🌐 Live Demo
 
-**主入口（推荐，可收藏）：**  
-**https://cdn.jsdelivr.net/gh/reed-soul/wasm-spatial-core@gh-pages/examples/index.html**
+> **重要：** 若链接打开是 404 或满屏 HTML 源码，说明 **GitHub Pages 尚未开启**。请按 **[docs/PAGES_SETUP.md](./docs/PAGES_SETUP.md)** 操作（约 1 分钟）。  
+> 不要用 jsDelivr 打开 `.html`——CDN 会把页面当纯文本，WASM 无法运行。
+
+开启 Pages 后的地址（手机 / 电脑均可）：
 
 | 演示 | 链接 |
 |------|------|
-| 演示中心（多 Tab 试用） | https://cdn.jsdelivr.net/gh/reed-soul/wasm-spatial-core@gh-pages/examples/index.html |
-| 完整交互 demo | https://cdn.jsdelivr.net/gh/reed-soul/wasm-spatial-core@gh-pages/examples/demo/index.html |
-| WASM vs JS 基准 | https://cdn.jsdelivr.net/gh/reed-soul/wasm-spatial-core@gh-pages/bench/browser/index.html |
+| **演示中心**（推荐） | https://reed-soul.github.io/wasm-spatial-core/examples/index.html |
+| 完整交互 demo | https://reed-soul.github.io/wasm-spatial-core/examples/demo/index.html |
+| WASM vs JS 基准 | https://reed-soul.github.io/wasm-spatial-core/bench/browser/index.html |
 
-### 若 GitHub Pages 仍是 404
+**一次性设置：** [Settings → Pages](https://github.com/reed-soul/wasm-spatial-core/settings/pages) → Source: **Deploy from a branch** → Branch: **`gh-pages`** / **`(root)`** → Save。
 
-**临时可用（无需设置）：** https://cdn.jsdelivr.net/gh/reed-soul/wasm-spatial-core@gh-pages/examples/index.html  
-
-**正式域名**需在 GitHub 打开 Pages（只需一次）：
-
-1. 打开 https://github.com/reed-soul/wasm-spatial-core/settings/pages  
-2. **Build and deployment → Source** 选 **Deploy from a branch**  
-3. **Branch** 选 **`gh-pages`**，文件夹选 **`/ (root)`**，点 **Save**  
-4. 等 1～3 分钟后再访问上面的链接  
-
-之后每次合并到 `master`，CI 会自动更新 `gh-pages`。  
-也可用 Vercel 部署，见 [docs/DEMO_SITE.md](./docs/DEMO_SITE.md)。
-
-本地预览：`npm run demo` 或 `bash scripts/build-demo-site.sh && npx http-server _site -p 8080 -c-1`
+本地预览（无需 Pages）：`npm run demo` → 打开 http://127.0.0.1:8080/examples/index.html
 
 ---
 

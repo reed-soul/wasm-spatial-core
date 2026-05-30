@@ -75,6 +75,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy_pages.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -96,6 +101,33 @@ jobs:
           publish_dir: ./_site
           publish_branch: gh-pages
           commit_message: "deploy: demo site from CI"
+
+      - name: Upload Pages artifact (GitHub Actions source)
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy via GitHub Actions
+        id: deploy_pages
+        uses: actions/deploy-pages@v4
+
+      - name: Pages setup reminder
+        if: always()
+        run: |
+          {
+            echo "## Live demo URLs"
+            echo ""
+            echo "If \`*.github.io\` returns 404, enable Pages once:"
+            echo "https://github.com/${{ github.repository }}/settings/pages"
+            echo ""
+            echo "- Source: **Deploy from a branch**"
+            echo "- Branch: **gh-pages** / **(root)**"
+            echo ""
+            echo "Then open:"
+            echo "https://reed-soul.github.io/wasm-spatial-core/examples/index.html"
+            echo ""
+            echo "Deployed page URL from Actions: ${{ steps.deploy_pages.outputs.page_url }}"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # ------------------------------------------------------------------
   # 3. Build Release Artifacts — all 3 variants on tag push
