@@ -10,10 +10,11 @@
 use wasm_bindgen::prelude::*;
 use js_sys::{Float64Array, Uint32Array};
 use rstar::{RTree, AABB};
-use rstar::primitives::GeomWithData;
+use rstar::primitives::{GeomWithData, Line};
 
 type Point2D = [f64; 2];
 type IndexedPoint = GeomWithData<Point2D, u32>;
+type IndexedEdge = GeomWithData<Line<Point2D>, u32>;
 
 /// A high-performance spatial index using an R-Tree.
 #[wasm_bindgen]
@@ -87,6 +88,95 @@ impl SpatialIndex {
     }
 }
 
+// ===========================================================================
+// SpatialEdgeIndex — R-Tree index for line segments (LineString edges)
+// ===========================================================================
+
+/// A spatial index for 2D line segments using an R-Tree.
+///
+/// Indexes individual edges (line segments) from LineString geometries.
+/// Supports bounding box queries to find all edges that intersect with
+/// a given rectangular area. Useful for viewport-based progressive loading
+/// of road networks, pipelines, and other linear features.
+#[wasm_bindgen]
+pub struct SpatialEdgeIndex {
+    tree: RTree<IndexedEdge>,
+}
+
+#[wasm_bindgen]
+impl SpatialEdgeIndex {
+    /// Build a spatial edge index from line segments.
+    ///
+    /// Input format: a flat `Float64Array` of line segment endpoints
+    /// `[x0, y0, x1, y1, x2, y2, x3, y3, ...]` where each consecutive
+    /// pair of 2D points forms an edge (line segment).
+    ///
+    /// Each edge is assigned an ID equal to its sequential index
+    /// (0 for the first edge, 1 for the second, etc.).
+    #[wasm_bindgen(constructor)]
+    pub fn new(segments: &Float64Array) -> SpatialEdgeIndex {
+        let len = segments.length() as usize;
+        let mut buf = vec![0.0; len];
+        segments.copy_to(&mut buf);
+
+        // Each edge is 4 floats: (x0, y0, x1, y1)
+        let edge_count = buf.chunks_exact(4).count();
+        let mut edges = Vec::with_capacity(edge_count);
+
+        for (i, chunk) in buf.chunks_exact(4).enumerate() {
+            let from = [chunk[0], chunk[1]];
+            let to = [chunk[2], chunk[3]];
+            let line = Line::new(from, to);
+            edges.push(IndexedEdge::new(line, i as u32));
+        }
+
+        let tree = RTree::bulk_load(edges);
+        SpatialEdgeIndex { tree }
+    }
+
+    /// Search for all edges within a given bounding box.
+    /// Returns a `Uint32Array` containing the IDs of matching edges.
+    ///
+    /// An edge matches if its bounding box intersects the query envelope.
+    #[wasm_bindgen(js_name = "searchBBox")]
+    pub fn search_bbox(
+        &self,
+        min_x: f64,
+        min_y: f64,
+        max_x: f64,
+        max_y: f64,
+    ) -> Uint32Array {
+        let envelope = AABB::from_corners([min_x, min_y], [max_x, max_y]);
+        let mut results = Vec::new();
+
+        for edge in self.tree.locate_in_envelope(&envelope) {
+            results.push(edge.data);
+        }
+
+        let result_array = Uint32Array::new_with_length(results.len() as u32);
+        result_array.copy_from(&results);
+        result_array
+    }
+
+    /// Get the total number of edges in the index.
+    #[wasm_bindgen]
+    pub fn size(&self) -> u32 {
+        self.tree.size() as u32
+    }
+
+    /// Find the nearest edge to a given query coordinate.
+    /// Returns the ID of the nearest edge, or `null` if the index is empty.
+    ///
+    /// Distance is measured as the minimum Euclidean distance from the
+    /// query point to any point on the edge.
+    #[wasm_bindgen(js_name = "nearestNeighbor")]
+    pub fn nearest_neighbor(&self, query_x: f64, query_y: f64) -> Option<u32> {
+        let query_point = [query_x, query_y];
+        let nearest = self.tree.nearest_neighbor(&query_point)?;
+        Some(nearest.data)
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Unit tests
 // ---------------------------------------------------------------------------
@@ -147,5 +237,82 @@ mod tests {
         assert_eq!(results.len(), 2);
         assert_eq!(results[0], 1);
         assert_eq!(results[1], 0);
+    }
+
+    // ── SpatialEdgeIndex tests ─────────────────────────────────────────
+
+    #[test]
+    fn test_edge_index_bbox() {
+        // Edge 0: (0,0)→(10,10) — fully inside bbox [0,0,15,15]
+        // Edge 1: (20,20)→(30,30) — fully outside bbox [0,0,15,15]
+        // Edge 2: (5,5)→(15,15) — fully inside bbox [0,0,15,15]
+        let edges = vec![
+            IndexedEdge::new(Line::new([0.0, 0.0], [10.0, 10.0]), 0),
+            IndexedEdge::new(Line::new([20.0, 20.0], [30.0, 30.0]), 1),
+            IndexedEdge::new(Line::new([5.0, 5.0], [15.0, 15.0]), 2),
+        ];
+        let tree = RTree::bulk_load(edges);
+
+        // Use a larger query box that fully contains edges 0 and 2
+        let envelope = AABB::from_corners([-1.0, -1.0], [16.0, 16.0]);
+        let mut ids: Vec<u32> = tree
+            .locate_in_envelope(&envelope)
+            .map(|e| e.data)
+            .collect();
+        ids.sort();
+
+        assert!(ids.contains(&0), "Edge 0 should be in bbox");
+        assert!(ids.contains(&2), "Edge 2 should be in bbox");
+        assert!(!ids.contains(&1), "Edge 1 should NOT be in bbox");
+    }
+
+    #[test]
+    fn test_edge_index_nearest() {
+        let edges = vec![
+            IndexedEdge::new(Line::new([0.0, 0.0], [10.0, 0.0]), 0),
+            IndexedEdge::new(Line::new([0.0, 10.0], [10.0, 10.0]), 1),
+        ];
+        let tree = RTree::bulk_load(edges);
+
+        // Query point (5, 1) — nearest should be edge 0 (y=0)
+        let nearest = tree.nearest_neighbor(&[5.0, 1.0]).unwrap();
+        assert_eq!(nearest.data, 0);
+
+        // Query point (5, 9) — nearest should be edge 1 (y=10)
+        let nearest = tree.nearest_neighbor(&[5.0, 9.0]).unwrap();
+        assert_eq!(nearest.data, 1);
+    }
+
+    #[test]
+    fn test_edge_index_empty() {
+        let edges: Vec<IndexedEdge> = vec![];
+        let tree = RTree::bulk_load(edges);
+        assert_eq!(tree.size(), 0);
+
+        let envelope = AABB::from_corners([0.0, 0.0], [100.0, 100.0]);
+        let results: Vec<_> = tree.locate_in_envelope(&envelope).collect();
+        assert!(results.is_empty());
+
+        assert!(tree.nearest_neighbor(&[0.0, 0.0]).is_none());
+    }
+
+    #[test]
+    fn test_edge_index_single_edge() {
+        let edges = vec![
+            IndexedEdge::new(Line::new([0.0, 0.0], [100.0, 100.0]), 0),
+        ];
+        let tree = RTree::bulk_load(edges);
+        assert_eq!(tree.size(), 1);
+
+        // Envelope must fully contain the edge's bounding box
+        let envelope = AABB::from_corners([-1.0, -1.0], [101.0, 101.0]);
+        let results: Vec<u32> = tree
+            .locate_in_envelope(&envelope)
+            .map(|e| e.data)
+            .collect();
+        assert_eq!(results, vec![0]);
+
+        let nearest = tree.nearest_neighbor(&[50.0, 50.0]).unwrap();
+        assert_eq!(nearest.data, 0);
     }
 }
