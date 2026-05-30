@@ -1403,6 +1403,196 @@ fn parse_las_point_at_core(
 }
 
 // ===========================================================================
+// Point Cloud Colorization
+// ===========================================================================
+
+/// Core: colorize points by height gradient.
+///
+/// Maps Z values from [min_z, max_z] to a color gradient between low_color and high_color.
+/// Returns RGBA Float32Array (values 0.0-1.0).
+pub fn colorize_by_height_core(
+    positions: &[f32],
+    min_z: f32,
+    max_z: f32,
+    low_color: [f32; 3],
+    high_color: [f32; 3],
+) -> Vec<f32> {
+    let point_count = positions.len() / 3;
+    let mut out = Vec::with_capacity(point_count * 4);
+
+    let range = max_z - min_z;
+
+    for i in 0..point_count {
+        let z = positions[i * 3 + 2];
+        let t = if range.abs() < 1e-6 {
+            0.5
+        } else {
+            ((z - min_z) / range).clamp(0.0, 1.0)
+        };
+
+        let r = low_color[0] + t * (high_color[0] - low_color[0]);
+        let g = low_color[1] + t * (high_color[1] - low_color[1]);
+        let b = low_color[2] + t * (high_color[2] - low_color[2]);
+
+        out.push(r / 255.0);
+        out.push(g / 255.0);
+        out.push(b / 255.0);
+        out.push(1.0); // alpha
+    }
+
+    out
+}
+
+/// Core: colorize points by intensity values (grayscale mapping).
+///
+/// Intensities are expected to be in [0, 255]. Maps to grayscale RGBA.
+pub fn colorize_by_intensity_core(positions: &[f32], intensities: &[f32]) -> Vec<f32> {
+    let point_count = positions.len() / 3;
+    let mut out = Vec::with_capacity(point_count * 4);
+
+    for i in 0..point_count {
+        let intensity = if intensities.is_empty() {
+            128.0 // default gray if no intensities provided
+        } else if i < intensities.len() {
+            intensities[i]
+        } else {
+            128.0
+        };
+        let v = (intensity / 255.0).clamp(0.0, 1.0);
+
+        out.push(v);
+        out.push(v);
+        out.push(v);
+        out.push(1.0);
+    }
+
+    out
+}
+
+/// Core: apply a discrete color array to a point cloud.
+///
+/// Colors should be RGBA Float32Array (one color per point). Returns as-is or
+/// creates a default gray color for missing colors.
+pub fn apply_color_ramp_core(positions: &[f32], colors: &[f32]) -> Vec<f32> {
+    let point_count = positions.len() / 3;
+    let mut out = Vec::with_capacity(point_count * 4);
+
+    for i in 0..point_count {
+        if (i * 4 + 3) < colors.len() {
+            out.push(colors[i * 4]);
+            out.push(colors[i * 4 + 1]);
+            out.push(colors[i * 4 + 2]);
+            out.push(colors[i * 4 + 3]);
+        } else {
+            out.push(0.5); // default gray
+            out.push(0.5);
+            out.push(0.5);
+            out.push(1.0);
+        }
+    }
+
+    out
+}
+
+/// Colorize points by height gradient.
+///
+/// # Arguments
+///
+/// * `positions` — Float32Array `[x0, y0, z0, x1, y1, z1, ...]`
+/// * `min_z` — Minimum Z value for gradient start
+/// * `max_z` — Maximum Z value for gradient end
+/// * `low_color` — Float32Array `[r, g, b]` (0-255) for min Z
+/// * `high_color` — Float32Array `[r, g, b]` (0-255) for max Z
+///
+/// # Returns
+///
+/// Float32Array RGBA `[r0, g0, b0, a0, ...]` (0.0-1.0).
+#[wasm_bindgen(js_name = "colorizeByHeight")]
+pub fn colorize_by_height(
+    positions: &js_sys::Float32Array,
+    min_z: f32,
+    max_z: f32,
+    low_color: &js_sys::Float32Array,
+    high_color: &js_sys::Float32Array,
+) -> js_sys::Float32Array {
+    let mut pos_buf = vec![0.0f32; positions.length() as usize];
+    positions.copy_to(&mut pos_buf);
+
+    let mut lc_buf = vec![0.0f32; low_color.length() as usize];
+    low_color.copy_to(&mut lc_buf);
+    let mut hc_buf = vec![0.0f32; high_color.length() as usize];
+    high_color.copy_to(&mut hc_buf);
+
+    let lc: [f32; 3] = [
+        lc_buf[0],
+        lc_buf.get(1).copied().unwrap_or(0.0),
+        lc_buf.get(2).copied().unwrap_or(0.0),
+    ];
+    let hc: [f32; 3] = [
+        hc_buf[0],
+        hc_buf.get(1).copied().unwrap_or(0.0),
+        hc_buf.get(2).copied().unwrap_or(0.0),
+    ];
+
+    let result = colorize_by_height_core(&pos_buf, min_z, max_z, lc, hc);
+    let arr = js_sys::Float32Array::new_with_length(result.len() as u32);
+    arr.copy_from(&result);
+    arr
+}
+
+/// Colorize points by intensity values (grayscale).
+///
+/// # Arguments
+///
+/// * `positions` — Float32Array `[x0, y0, z0, ...]`
+/// * `intensities` — Float32Array of intensity values per point (0-255)
+///
+/// # Returns
+///
+/// Float32Array RGBA `[r, g, b, a, ...]` (grayscale, 0.0-1.0).
+#[wasm_bindgen(js_name = "colorizeByIntensity")]
+pub fn colorize_by_intensity(
+    positions: &js_sys::Float32Array,
+    intensities: &js_sys::Float32Array,
+) -> js_sys::Float32Array {
+    let mut pos_buf = vec![0.0f32; positions.length() as usize];
+    positions.copy_to(&mut pos_buf);
+    let mut int_buf = vec![0.0f32; intensities.length() as usize];
+    intensities.copy_to(&mut int_buf);
+
+    let result = colorize_by_intensity_core(&pos_buf, &int_buf);
+    let arr = js_sys::Float32Array::new_with_length(result.len() as u32);
+    arr.copy_from(&result);
+    arr
+}
+
+/// Apply a discrete color array to a point cloud.
+///
+/// # Arguments
+///
+/// * `positions` — Float32Array `[x0, y0, z0, ...]`
+/// * `colors` — Float32Array `[r0, g0, b0, a0, ...]` (0.0-1.0), one color per point
+///
+/// # Returns
+///
+/// Float32Array RGBA matching colors length, padded with gray for missing entries.
+#[wasm_bindgen(js_name = "applyColorRamp")]
+pub fn apply_color_ramp(
+    positions: &js_sys::Float32Array,
+    colors: &js_sys::Float32Array,
+) -> js_sys::Float32Array {
+    let mut pos_buf = vec![0.0f32; positions.length() as usize];
+    positions.copy_to(&mut pos_buf);
+    let mut col_buf = vec![0.0f32; colors.length() as usize];
+    colors.copy_to(&mut col_buf);
+
+    let result = apply_color_ramp_core(&pos_buf, &col_buf);
+    let arr = js_sys::Float32Array::new_with_length(result.len() as u32);
+    arr.copy_from(&result);
+    arr
+}
+
+// ===========================================================================
 // Tests
 // ===========================================================================
 
@@ -1903,6 +2093,84 @@ DATA ascii
     }
 
     // ── COPC / Range-based access tests ──────────────────────────
+
+    #[test]
+    fn test_colorize_by_height_gradient() {
+        // 3 points at z=0, z=50, z=100
+        let positions: Vec<f32> = vec![0.0, 0.0, 0.0, 1.0, 1.0, 50.0, 2.0, 2.0, 100.0];
+        let low: [f32; 3] = [0.0, 0.0, 255.0]; // blue
+        let high: [f32; 3] = [255.0, 0.0, 0.0]; // red
+
+        let result = colorize_by_height_core(&positions, 0.0, 100.0, low, high);
+        assert_eq!(result.len(), 12); // 3 points × 4 RGBA
+
+        // Point 0 (z=0): should be blue (0, 0, 1.0)
+        assert!((result[0] - 0.0).abs() < 1e-6);
+        assert!((result[1] - 0.0).abs() < 1e-6);
+        assert!((result[2] - 1.0).abs() < 1e-6);
+        assert!((result[3] - 1.0).abs() < 1e-6); // alpha
+
+        // Point 2 (z=100): should be red (1.0, 0, 0)
+        assert!((result[8] - 1.0).abs() < 1e-6);
+        assert!((result[9] - 0.0).abs() < 1e-6);
+        assert!((result[10] - 0.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_colorize_by_height_mid_point() {
+        let positions: Vec<f32> = vec![0.0, 0.0, 50.0]; // z at midpoint
+        let low: [f32; 3] = [0.0, 0.0, 0.0]; // black
+        let high: [f32; 3] = [255.0, 255.0, 255.0]; // white
+
+        let result = colorize_by_height_core(&positions, 0.0, 100.0, low, high);
+        // At midpoint t=0.5, should be gray
+        assert!((result[0] - 0.5).abs() < 1e-6);
+        assert!((result[1] - 0.5).abs() < 1e-6);
+        assert!((result[2] - 0.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_colorize_by_intensity() {
+        let positions: Vec<f32> = vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0];
+        let intensities: Vec<f32> = vec![0.0, 255.0]; // black, white
+
+        let result = colorize_by_intensity_core(&positions, &intensities);
+        assert_eq!(result.len(), 8); // 2 points × 4
+
+        // Point 0: intensity 0 → black
+        assert!((result[0] - 0.0).abs() < 1e-6);
+        assert!((result[1] - 0.0).abs() < 1e-6);
+        assert!((result[2] - 0.0).abs() < 1e-6);
+
+        // Point 1: intensity 255 → white
+        assert!((result[4] - 1.0).abs() < 1e-6);
+        assert!((result[5] - 1.0).abs() < 1e-6);
+        assert!((result[6] - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_apply_color_ramp() {
+        let positions: Vec<f32> = vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0];
+        let colors: Vec<f32> = vec![
+            1.0, 0.0, 0.0, 1.0, // red
+            0.0, 1.0, 0.0,
+            1.0, // green
+                 // Only 2 colors for 3 points — 3rd gets default
+        ];
+
+        let result = apply_color_ramp_core(&positions, &colors);
+        assert_eq!(result.len(), 12); // 3 points × 4
+
+        // First point: red
+        assert!((result[0] - 1.0).abs() < 1e-6);
+        assert!((result[1] - 0.0).abs() < 1e-6);
+
+        // Third point: default gray (0.5)
+        assert!((result[8] - 0.5).abs() < 1e-6);
+        assert!((result[9] - 0.5).abs() < 1e-6);
+    }
+
+    // ── COPC / Range-based access tests (continued) ────────────
 
     #[test]
     fn test_parse_las_header_only() {
