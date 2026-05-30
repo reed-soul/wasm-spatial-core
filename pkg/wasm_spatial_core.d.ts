@@ -271,6 +271,10 @@ export class Octree {
     free(): void;
     [Symbol.dispose](): void;
     /**
+     * Leaf count.
+     */
+    leafCount(): number;
+    /**
      * Bounding box of node at `index` as a `Float64Array` of 6 values.
      */
     nodeBounds(index: number): Float64Array;
@@ -772,6 +776,7 @@ export function bufferPoint(lng: number, lat: number, radius_meters: number, seg
  * Build an octree from a flat `[x, y, z, ...]` position buffer.
  *
  * The input buffer is **not** modified (a copy is made internally).
+ * Points with NaN/Infinity coordinates are silently filtered.
  *
  * # Arguments
  * * `positions` — `Float32Array` of `[x, y, z, ...]` triples.
@@ -874,6 +879,11 @@ export function computeBounds(coords: Float64Array): Float64Array;
  * for better cache locality.
  */
 export function computeBoundsMulti(buffers: Array<any>): Float64Array;
+
+/**
+ * WASM export: compute screen-space error.
+ */
+export function computeScreenSpaceError(geometric_error: number, distance: number, fov: number, screen_height: number): number;
 
 /**
  * Compute an approximate concave hull using alpha shape (simplified).
@@ -1199,6 +1209,11 @@ export function getInputSizeLimit(): number;
 export function getSupportedCrs(): string;
 
 /**
+ * WASM export: get visible tiles for a camera position.
+ */
+export function getVisibleTiles(positions: Float32Array, camera_x: number, camera_y: number, camera_z: number, camera_fov: number, screen_width: number, screen_height: number, max_points_per_node?: number | null, max_depth?: number | null, sse_threshold?: number | null): Uint32Array;
+
+/**
  * Assign each point to a spatial grid cell.
  *
  * # Arguments
@@ -1296,6 +1311,11 @@ export function midpoint(lng1: number, lat1: number, lng2: number, lat2: number)
  * New `Float64Array` with coordinates mapped to [0,1].
  */
 export function normalizeCoords(coords: Float64Array, target_bounds: Float64Array): Float64Array;
+
+/**
+ * WASM export: estimate octree memory usage.
+ */
+export function octreeMemoryUsage(node_count: number, internal_count: number, point_count: number): number;
 
 /**
  * Parse a GeoJSON string and return **all** coordinate pairs as a flat
@@ -1820,7 +1840,7 @@ export interface InitOutput {
     readonly boundingBox: (a: number) => number;
     readonly bufferLineString: (a: number, b: number, c: number) => number;
     readonly bufferPoint: (a: number, b: number, c: number, d: number) => number;
-    readonly buildOctree: (a: number, b: number, c: number, d: number) => number;
+    readonly buildOctree: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly buildTin: (a: number, b: number) => void;
     readonly centroid: (a: number) => number;
     readonly cesium3dtile_batchTableJson: (a: number, b: number) => void;
@@ -1834,6 +1854,7 @@ export interface InitOutput {
     readonly clusterByGrid: (a: number, b: number, c: number) => number;
     readonly computeBounds: (a: number) => number;
     readonly computeBoundsMulti: (a: number) => number;
+    readonly computeScreenSpaceError: (a: number, b: number, c: number, d: number) => number;
     readonly concaveHull: (a: number, b: number) => number;
     readonly contains: (a: number, b: number, c: number) => number;
     readonly convexHull: (a: number) => number;
@@ -1864,6 +1885,7 @@ export interface InitOutput {
     readonly getAllocatedBytes: () => number;
     readonly getInputSizeLimit: () => number;
     readonly getSupportedCrs: (a: number) => void;
+    readonly getVisibleTiles: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => number;
     readonly gltfbuilder_addMaterial: (a: number, b: number, c: number, d: number, e: number) => number;
     readonly gltfbuilder_addMesh: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly gltfbuilder_new: () => number;
@@ -1897,7 +1919,9 @@ export interface InitOutput {
     readonly mvtlayerdecoded_featureCount: (a: number) => number;
     readonly mvtlayerdecoded_name: (a: number, b: number) => void;
     readonly normalizeCoords: (a: number, b: number) => number;
+    readonly octreeMemoryUsage: (a: number, b: number, c: number) => number;
     readonly octree_depth: (a: number) => number;
+    readonly octree_leafCount: (a: number) => number;
     readonly octree_nodeBounds: (a: number, b: number) => number;
     readonly octree_nodeChildren: (a: number, b: number) => number;
     readonly octree_nodeCount: (a: number) => number;
