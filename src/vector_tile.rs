@@ -125,8 +125,8 @@ impl VectorTileEngine {
             return Ok(js_sys::Uint8Array::new_with_length(0));
         }
 
-        let json_str = serde_json::to_string(&tile.feature_collection)
-            .map_err(crate::errors::tile_js)?;
+        let json_str =
+            serde_json::to_string(&tile.feature_collection).map_err(crate::errors::tile_js)?;
 
         let mut geojson_data = GeoJsonString(json_str);
 
@@ -134,8 +134,7 @@ impl VectorTileEngine {
         // into tile pixel space (extent 4096).
         // MvtWriter implements PropertyProcessor, so GeoJSON feature properties
         // are automatically encoded as MVT tags.
-        let mut mvt_writer =
-            MvtWriter::new_unscaled(4096).map_err(crate::errors::tile_js)?;
+        let mut mvt_writer = MvtWriter::new_unscaled(4096).map_err(crate::errors::tile_js)?;
 
         geojson_data
             .process(&mut mvt_writer)
@@ -236,13 +235,12 @@ impl VectorTileEngine {
             return Ok(Vec::new());
         }
 
-        let json_str = serde_json::to_string(&tile.feature_collection)
-            .map_err(crate::errors::tile_js)?;
+        let json_str =
+            serde_json::to_string(&tile.feature_collection).map_err(crate::errors::tile_js)?;
 
         let mut geojson_data = GeoJsonString(json_str);
 
-        let mut mvt_writer =
-            MvtWriter::new_unscaled(4096).map_err(crate::errors::tile_js)?;
+        let mut mvt_writer = MvtWriter::new_unscaled(4096).map_err(crate::errors::tile_js)?;
 
         geojson_data
             .process(&mut mvt_writer)

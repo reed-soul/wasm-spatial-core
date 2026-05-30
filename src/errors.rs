@@ -272,5 +272,4 @@ mod tests {
         assert!(display.contains("TILE_ERROR"));
         assert!(display.contains("zoom level too high"));
     }
-
 }

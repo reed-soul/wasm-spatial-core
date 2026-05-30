@@ -35,10 +35,12 @@ rustup component add clippy rustfmt
 ### Browser demos
 
 ```bash
-wasm-pack build --target web --release --out-dir pkg
-npx http-server /workspace -p 8080 -c-1
+npm run demo
+# or: npm run build:pkg && npx http-server . -p 8080 -c-1
 # http://127.0.0.1:8080/examples/demo/index.html → Run Analysis
 ```
+
+See `examples/README.md`.
 
 Worker demo needs COOP/COEP headers (see `CONTRIBUTING.md`).
 
