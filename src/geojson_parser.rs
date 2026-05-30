@@ -692,6 +692,122 @@ pub fn parse_geojson_properties(input: &str) -> Result<String, SpatialErrorDetai
     serde_json::to_string(&props_array).map_err(SpatialError::parse_error)
 }
 
+// ===========================================================================
+// GeoJSON Property Editing
+// ===========================================================================
+
+/// Add a property to all features in a GeoJSON FeatureCollection.
+///
+/// Operates at the `serde_json::Value` level — no full GeoJSON DOM
+/// construction, just lightweight JSON manipulation.
+///
+/// # Arguments
+///
+/// * `input` — GeoJSON string (FeatureCollection only).
+/// * `key` — Property key to add.
+/// * `value` — Property value (parsed as JSON: strings, numbers, booleans).
+///
+/// # Returns
+///
+/// Modified GeoJSON string with the property added to every feature.
+#[wasm_bindgen(js_name = "addProperty")]
+pub fn add_property(input: &str, key: &str, value: &str) -> Result<String, JsValue> {
+    add_property_native(input, key, value).map_err(|e| JsValue::from_str(&e))
+}
+
+fn add_property_native(input: &str, key: &str, value: &str) -> Result<String, String> {
+    let mut doc: serde_json::Value =
+        serde_json::from_str(input).map_err(|e| format!("Invalid JSON: {}", e))?;
+
+    let parsed_value: serde_json::Value = match serde_json::from_str(value) {
+        Ok(v) => v,
+        Err(_) => serde_json::Value::String(value.to_string()),
+    };
+
+    if let Some(features) = doc.get_mut("features").and_then(|f| f.as_array_mut()) {
+        for feature in features.iter_mut() {
+            if let Some(props) = feature.get_mut("properties").and_then(|p| p.as_object_mut()) {
+                props.insert(key.to_string(), parsed_value.clone());
+            }
+        }
+    } else {
+        return Err("Input must be a FeatureCollection with a 'features' array".to_string());
+    }
+
+    serde_json::to_string(&doc).map_err(|e| format!("Serialization error: {}", e))
+}
+
+/// Rename a property key in all features of a GeoJSON FeatureCollection.
+///
+/// If a feature doesn't have the old key, it's silently skipped.
+///
+/// # Arguments
+///
+/// * `input` — GeoJSON string.
+/// * `old_key` — Current property key name.
+/// * `new_key` — New property key name.
+///
+/// # Returns
+///
+/// Modified GeoJSON string with the property renamed.
+#[wasm_bindgen(js_name = "renameProperty")]
+pub fn rename_property(input: &str, old_key: &str, new_key: &str) -> Result<String, JsValue> {
+    rename_property_native(input, old_key, new_key).map_err(|e| JsValue::from_str(&e))
+}
+
+fn rename_property_native(input: &str, old_key: &str, new_key: &str) -> Result<String, String> {
+    let mut doc: serde_json::Value =
+        serde_json::from_str(input).map_err(|e| format!("Invalid JSON: {}", e))?;
+
+    if let Some(features) = doc.get_mut("features").and_then(|f| f.as_array_mut()) {
+        for feature in features.iter_mut() {
+            if let Some(props) = feature.get_mut("properties").and_then(|p| p.as_object_mut()) {
+                if let Some(val) = props.remove(old_key) {
+                    props.insert(new_key.to_string(), val);
+                }
+            }
+        }
+    } else {
+        return Err("Input must be a FeatureCollection with a 'features' array".to_string());
+    }
+
+    serde_json::to_string(&doc).map_err(|e| format!("Serialization error: {}", e))
+}
+
+/// Remove a property key from all features of a GeoJSON FeatureCollection.
+///
+/// If a feature doesn't have the key, it's silently skipped.
+///
+/// # Arguments
+///
+/// * `input` — GeoJSON string.
+/// * `key` — Property key to remove.
+///
+/// # Returns
+///
+/// Modified GeoJSON string with the property removed.
+#[wasm_bindgen(js_name = "removeProperty")]
+pub fn remove_property(input: &str, key: &str) -> Result<String, JsValue> {
+    remove_property_native(input, key).map_err(|e| JsValue::from_str(&e))
+}
+
+fn remove_property_native(input: &str, key: &str) -> Result<String, String> {
+    let mut doc: serde_json::Value =
+        serde_json::from_str(input).map_err(|e| format!("Invalid JSON: {}", e))?;
+
+    if let Some(features) = doc.get_mut("features").and_then(|f| f.as_array_mut()) {
+        for feature in features.iter_mut() {
+            if let Some(props) = feature.get_mut("properties").and_then(|p| p.as_object_mut()) {
+                props.remove(key);
+            }
+        }
+    } else {
+        return Err("Input must be a FeatureCollection with a 'features' array".to_string());
+    }
+
+    serde_json::to_string(&doc).map_err(|e| format!("Serialization error: {}", e))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1083,5 +1199,85 @@ mod tests {
         let parsed: std::collections::HashMap<String, u32> = serde_json::from_str(&result).unwrap();
         assert_eq!(*parsed.get("residential").unwrap(), 3);
         assert_eq!(*parsed.get("commercial").unwrap(), 1);
+    }
+
+    // ── GeoJSON Property Editing ──────────────────────────────
+
+    const EDIT_FC: &str = r#"{
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": [116.4, 39.9]},
+                "properties": {"name": "Beijing", "population": 21540000}
+            },
+            {
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": [121.5, 31.2]},
+                "properties": {"name": "Shanghai", "population": 24870000}
+            }
+        ]
+    }"#;
+
+    #[test]
+    fn test_add_property_string() {
+        let result = add_property_native(EDIT_FC, "country", "China").unwrap();
+        let doc: serde_json::Value = serde_json::from_str(&result).unwrap();
+        for feature in doc["features"].as_array().unwrap() {
+            assert_eq!(feature["properties"]["country"], "China");
+        }
+        // Original properties preserved
+        assert_eq!(doc["features"][0]["properties"]["name"], "Beijing");
+    }
+
+    #[test]
+    fn test_add_property_number() {
+        let result = add_property_native(EDIT_FC, "year", "2026").unwrap();
+        let doc: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(doc["features"][0]["properties"]["year"], 2026);
+    }
+
+    #[test]
+    fn test_add_property_json_value() {
+        let result = add_property_native(EDIT_FC, "metadata", r#"{"verified": true}"#).unwrap();
+        let doc: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(doc["features"][0]["properties"]["metadata"]["verified"], true);
+    }
+
+    #[test]
+    fn test_rename_property() {
+        let result = rename_property_native(EDIT_FC, "population", "pop").unwrap();
+        let doc: serde_json::Value = serde_json::from_str(&result).unwrap();
+        // New key exists
+        assert_eq!(doc["features"][0]["properties"]["pop"], 21540000);
+        assert_eq!(doc["features"][1]["properties"]["pop"], 24870000);
+        // Old key removed
+        assert!(doc["features"][0]["properties"].get("population").is_none());
+    }
+
+    #[test]
+    fn test_rename_property_missing_key() {
+        let result = rename_property_native(EDIT_FC, "nonexistent", "new_name").unwrap();
+        let doc: serde_json::Value = serde_json::from_str(&result).unwrap();
+        // Should succeed silently, features unchanged
+        assert_eq!(doc["features"][0]["properties"]["name"], "Beijing");
+        assert!(doc["features"][0]["properties"].get("new_name").is_none());
+    }
+
+    #[test]
+    fn test_remove_property() {
+        let result = remove_property_native(EDIT_FC, "population").unwrap();
+        let doc: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert!(doc["features"][0]["properties"].get("population").is_none());
+        assert!(doc["features"][1]["properties"].get("population").is_none());
+        // name preserved
+        assert_eq!(doc["features"][0]["properties"]["name"], "Beijing");
+    }
+
+    #[test]
+    fn test_remove_property_missing() {
+        let result = remove_property_native(EDIT_FC, "nonexistent").unwrap();
+        let doc: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(doc["features"][0]["properties"]["name"], "Beijing");
     }
 }
