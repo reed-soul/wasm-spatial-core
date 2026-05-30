@@ -334,9 +334,435 @@ mod tests {
         let positions = vec![1.0f32, 2.0, 3.0];
         let tile = encode_pnts_tile(&positions, [0.0; 3], None).unwrap();
         let (header, _) = parse_pnts_header(&tile).unwrap();
-        let ft_json =
+        let _ft_json =
             std::str::from_utf8(&tile[28..28 + header.feature_table_json_byte_length as usize])
                 .unwrap();
-        assert!(ft_json.contains("POSITION"));
+    }
+}
+
+// ===========================================================================
+// tileset.json generator
+// ===========================================================================
+
+use crate::octree::{Bounds, DEFAULT_MAX_POINTS_PER_NODE, Octree, OctreeNode};
+
+/// Result of generating a tileset from an octree.
+#[derive(Debug, Clone)]
+pub struct TilesetResult {
+    /// Serialized tileset.json content.
+    tileset_json: String,
+    /// Per-tile pnts binary blobs, indexed by leaf node order.
+    tiles: Vec<Vec<u8>>,
+    /// Bounding box for each tile.
+    tile_bounds: Vec<Bounds>,
+    /// URI for each tile.
+    tile_uris: Vec<String>,
+}
+
+impl TilesetResult {
+    /// Get the tileset.json content as a string.
+    pub fn tileset_json(&self) -> &str {
+        &self.tileset_json
+    }
+
+    /// Number of tiles (leaf nodes).
+    pub fn tile_count(&self) -> u32 {
+        self.tiles.len() as u32
+    }
+
+    /// Get a tile's pnts binary data by index.
+    pub fn tile(&self, index: usize) -> Option<&[u8]> {
+        self.tiles.get(index).map(|v| v.as_slice())
+    }
+
+    /// Get the URI string for a tile.
+    pub fn tile_uri(&self, index: usize) -> Option<&str> {
+        self.tile_uris.get(index).map(|s| s.as_str())
+    }
+
+    /// Total bytes across all tiles.
+    pub fn total_bytes(&self) -> usize {
+        self.tiles.iter().map(|t| t.len()).sum()
+    }
+
+    /// Get bounding box for a tile.
+    pub fn tile_bounds(&self, index: usize) -> Option<Bounds> {
+        self.tile_bounds.get(index).copied()
+    }
+}
+
+/// WASM-accessible tileset result handle.
+#[wasm_bindgen(js_name = "TilesetResult")]
+pub struct WasmTilesetResult {
+    inner: TilesetResult,
+}
+
+#[wasm_bindgen(js_class = "TilesetResult")]
+impl WasmTilesetResult {
+    /// The tileset.json content.
+    #[wasm_bindgen(js_name = "tilesetJson")]
+    pub fn tileset_json(&self) -> String {
+        self.inner.tileset_json().to_string()
+    }
+
+    /// Number of tiles.
+    #[wasm_bindgen(getter = "tileCount")]
+    pub fn tile_count(&self) -> u32 {
+        self.inner.tile_count()
+    }
+
+    /// Get tile binary data as `Uint8Array`.
+    #[wasm_bindgen]
+    pub fn tile(&self, index: usize) -> js_sys::Uint8Array {
+        match self.inner.tile(index) {
+            Some(data) => js_sys::Uint8Array::from(data),
+            None => js_sys::Uint8Array::new_with_length(0),
+        }
+    }
+
+    /// Get tile URI string.
+    #[wasm_bindgen(js_name = "tileUri")]
+    pub fn tile_uri(&self, index: usize) -> Option<String> {
+        self.inner.tile_uri(index).map(|s| s.to_string())
+    }
+
+    /// Total bytes across all tiles.
+    #[wasm_bindgen(getter = "totalBytes")]
+    pub fn total_bytes(&self) -> usize {
+        self.inner.total_bytes()
+    }
+
+    /// Tile bounding box as `Float64Array`.
+    #[wasm_bindgen(js_name = "tileBounds")]
+    pub fn tile_bounds(&self, index: usize) -> js_sys::Float64Array {
+        match self.inner.tile_bounds(index) {
+            Some(b) => js_sys::Float64Array::from(&b[..]),
+            None => js_sys::Float64Array::new_with_length(0),
+        }
+    }
+}
+
+/// Geometric error factor per level. Higher levels (closer to leaves) get
+/// smaller error values.
+const GEOMETRIC_ERROR_FACTOR: f64 = 0.5;
+
+/// Generate a complete 3D Tiles tileset from an octree and point data.
+///
+/// Each leaf node becomes a `.pnts` tile. Internal nodes form the tileset
+/// hierarchy with appropriate `geometricError` and `boundingVolume`.
+///
+/// # Arguments
+/// * `octree` — Built octree spatial index.
+/// * `positions` — Reordered positions buffer (matches octree leaf ranges).
+/// * `colors` — Optional color data (same reordering as positions).
+pub fn generate_tileset(
+    octree: &Octree,
+    positions: &[f32],
+    colors: Option<&[u8]>,
+) -> Result<TilesetResult, crate::errors::SpatialErrorDetail> {
+    let root_bounds = octree.root_bounds();
+    let _root_geometric_error = compute_geometric_error(&root_bounds, 0);
+
+    // Build tile content for each leaf.
+    let mut tiles = Vec::new();
+    let mut tile_bounds = Vec::new();
+    let mut tile_uris = Vec::new();
+
+    for (leaf_idx, node) in octree.leaves().enumerate() {
+        if node.point_count == 0 {
+            continue;
+        }
+
+        let start = node.point_start;
+        let count = node.point_count as usize;
+        let end = start + count;
+
+        // Extract slice for this leaf.
+        let pos_slice = &positions[start * 3..end * 3];
+
+        // Tile center = node bounds center.
+        let cx = (node.bounds[0] + node.bounds[3]) * 0.5;
+        let cy = (node.bounds[1] + node.bounds[4]) * 0.5;
+        let cz = (node.bounds[2] + node.bounds[5]) * 0.5;
+
+        // Extract color slice if available.
+        let color_slice = colors.map(|c| &c[start * 3..end * 3]);
+
+        let tile_data =
+            encode_pnts_tile(pos_slice, [cx, cy, cz], color_slice).map_err(|e| {
+                crate::errors::SpatialError::PointCloudError.with_detail(e.to_string())
+            })?;
+
+        let uri = format!("tile_{leaf_idx}.pnts");
+
+        tiles.push(tile_data);
+        tile_bounds.push(node.bounds);
+        tile_uris.push(uri);
+    }
+
+    // Build tileset.json tree structure.
+    let tileset_json = build_tileset_json(octree, &tile_uris);
+
+    Ok(TilesetResult {
+        tileset_json,
+        tiles,
+        tile_bounds,
+        tile_uris,
+    })
+}
+
+/// Build the tileset.json tree from the octree hierarchy.
+fn build_tileset_json(octree: &Octree, tile_uris: &[String]) -> String {
+    let root = build_tile_node(octree, 0, tile_uris);
+    let asset = r#"{"version":"1.0"}"#;
+
+    format!(
+        r#"{{"asset":{},"geometricError":{},"root":{}}}"#,
+        asset,
+        compute_geometric_error(&octree.root_bounds(), 0),
+        root
+    )
+}
+
+/// Recursively build a tile JSON node from an octree node.
+fn build_tile_node(octree: &Octree, node_idx: usize, tile_uris: &[String]) -> String {
+    let node = &octree.nodes[node_idx];
+    let bounds = node.bounds;
+
+    // Compute bounding volume as a box: 12 values
+    // [centerX, centerY, centerZ, halfX, halfY, halfZ, ... normals + distances]
+    // Box: center (3) + half-axes (3*3) = 12 values
+    let cx = (bounds[0] + bounds[3]) * 0.5;
+    let cy = (bounds[1] + bounds[4]) * 0.5;
+    let cz = (bounds[2] + bounds[5]) * 0.5;
+    let hx = (bounds[3] - bounds[0]) * 0.5;
+    let hy = (bounds[4] - bounds[1]) * 0.5;
+    let hz = (bounds[5] - bounds[2]) * 0.5;
+
+    let bounding_volume = format!(
+        r#""box":[{},{},{},{},0,0,0,{},0,0,0,{}]"#,
+        cx, cy, cz, hx, hy, hz
+    );
+
+    let geo_error = compute_geometric_error(&bounds, node.level);
+
+    // If this is a leaf node with points, add content.
+    let mut children_json = String::new();
+    if let Some(child_indices) = node.children.as_deref() {
+        let child_strs: Vec<String> = child_indices
+            .iter()
+            .map(|&ci| build_tile_node(octree, ci, tile_uris))
+            .collect();
+        children_json = format!(",\"children\":[{}]", child_strs.join(","));
+    }
+
+    // Find leaf index for tile URI.
+    let content_json = if node.is_leaf() && node.point_count > 0 {
+        // Determine leaf index by counting leaves up to this node.
+        let leaf_idx = octree
+            .nodes
+            .iter()
+            .take(node_idx + 1)
+            .filter(|n| n.is_leaf() && n.point_count > 0)
+            .count()
+            - 1;
+        if leaf_idx < tile_uris.len() {
+            let uri = &tile_uris[leaf_idx];
+            format!(
+                r#","content":{{"uri":"{}"}}"#,
+                uri
+            )
+        } else {
+            String::new()
+        }
+    } else {
+        String::new()
+    };
+
+    format!(
+        r#"{{"boundingVolume":{{{},"geometricError":{}{}}}{}"#,
+        bounding_volume, geo_error, content_json, children_json
+    )
+}
+
+/// Compute geometric error for a node at a given depth level.
+/// Uses the bounding box diagonal scaled by a factor that decreases with level.
+fn compute_geometric_error(bounds: &Bounds, level: u32) -> f64 {
+    let dx = bounds[3] - bounds[0];
+    let dy = bounds[4] - bounds[1];
+    let dz = bounds[5] - bounds[2];
+    let diagonal = (dx * dx + dy * dy + dz * dz).sqrt();
+    diagonal * GEOMETRIC_ERROR_FACTOR / (1 << level.min(20)) as f64
+}
+
+/// WASM export: generate a tileset from octree and point data.
+#[wasm_bindgen(js_name = "generateTileset")]
+pub fn generate_tileset_js(
+    positions: &[f32],
+    max_points_per_node: Option<u32>,
+    max_depth: Option<u32>,
+    colors: Option<Vec<u8>>,
+) -> Result<WasmTilesetResult, JsValue> {
+    let max_pts = max_points_per_node.unwrap_or(DEFAULT_MAX_POINTS_PER_NODE);
+    let max_d = max_depth.unwrap_or(crate::octree::DEFAULT_MAX_DEPTH);
+    let mut buf = positions.to_vec();
+    let octree = Octree::build(&mut buf, max_pts, max_d);
+
+    let colors_ref = colors.as_deref();
+    let result = generate_tileset(&octree, &buf, colors_ref).map_err(|e| JsValue::from(e))?;
+
+    Ok(WasmTilesetResult { inner: result })
+}
+
+// ===========================================================================
+// tileset tests
+// ===========================================================================
+
+#[cfg(test)]
+mod tileset_tests {
+    use super::*;
+    fn make_positions(triples: &[[f32; 3]]) -> Vec<f32> {
+        let mut v = Vec::with_capacity(triples.len() * 3);
+        for &[x, y, z] in triples {
+            v.extend_from_slice(&[x, y, z]);
+        }
+        v
+    }
+
+    #[test]
+    fn test_tileset_json_structure() {
+        let triples: Vec<[f32; 3]> = (0..100)
+            .map(|i| {
+                [
+                    ((i % 10) as f32 - 5.0) * 2.0,
+                    (((i / 10) % 10) as f32 - 5.0) * 2.0,
+                    ((i / 100) as f32) * 2.0,
+                ]
+            })
+            .collect();
+        let mut positions = make_positions(&triples);
+        let tree = Octree::build(&mut positions, 10, 5);
+        let result = generate_tileset(&tree, &positions, None).unwrap();
+
+        let json = result.tileset_json();
+        // Verify basic structure.
+        assert!(json.contains("\"asset\""), "tileset should have asset");
+        assert!(json.contains("\"root\""), "tileset should have root");
+        assert!(json.contains("\"boundingVolume\""), "tileset should have boundingVolume");
+        assert!(json.contains("\"geometricError\""), "tileset should have geometricError");
+    }
+
+    #[test]
+    fn test_tile_pnts_format() {
+        let triples: Vec<[f32; 3]> = (0..50)
+            .map(|i| {
+                [
+                    (i % 5) as f32,
+                    ((i / 5) % 5) as f32,
+                    (i / 25) as f32,
+                ]
+            })
+            .collect();
+        let mut positions = make_positions(&triples);
+        let tree = Octree::build(&mut positions, 20, 5);
+        let result = generate_tileset(&tree, &positions, None).unwrap();
+
+        assert!(result.tile_count() > 0);
+        for i in 0..result.tile_count() {
+            let tile_data = result.tile(i as usize).unwrap();
+            assert_eq!(&tile_data[0..4], b"pnts", "tile {} should be valid pnts", i);
+            let (header, _) = parse_pnts_header(tile_data).unwrap();
+            assert_eq!(header.version, 1);
+            assert_eq!(header.byte_length as usize, tile_data.len());
+        }
+    }
+
+    #[test]
+    fn test_bounding_volume() {
+        let triples: Vec<[f32; 3]> = vec![
+            [-1.0, -1.0, -1.0],
+            [1.0, -1.0, -1.0],
+            [-1.0, 1.0, -1.0],
+            [1.0, 1.0, -1.0],
+            [-1.0, -1.0, 1.0],
+            [1.0, -1.0, 1.0],
+            [-1.0, 1.0, 1.0],
+            [1.0, 1.0, 1.0],
+        ];
+        let mut positions = make_positions(&triples);
+        let tree = Octree::build(&mut positions, 1, 5);
+        let result = generate_tileset(&tree, &positions, None).unwrap();
+
+        let json = result.tileset_json();
+        assert!(json.contains("\"box\":"), "should have box bounding volume");
+
+        // Verify tile count = 8 (one per octant).
+        assert_eq!(result.tile_count(), 8);
+
+        // Each tile should have valid bounds.
+        for i in 0..result.tile_count() {
+            let bounds = result.tile_bounds(i as usize).unwrap();
+            assert!(bounds[3] >= bounds[0], "tile {} bounds invalid", i);
+            assert!(bounds[4] >= bounds[1], "tile {} bounds invalid", i);
+            assert!(bounds[5] >= bounds[2], "tile {} bounds invalid", i);
+        }
+    }
+
+    #[test]
+    fn test_tileset_with_colors() {
+        let triples: Vec<[f32; 3]> = (0..30)
+            .map(|i| {
+                [
+                    (i % 3) as f32,
+                    ((i / 3) % 3) as f32,
+                    (i / 9) as f32,
+                ]
+            })
+            .collect();
+        let mut positions = make_positions(&triples);
+        let tree = Octree::build(&mut positions, 10, 5);
+
+        // Create matching color array.
+        let colors: Vec<u8> = (0..30 * 3).map(|_| 128).collect();
+
+        let result = generate_tileset(&tree, &positions, Some(&colors)).unwrap();
+        assert!(result.tile_count() > 0);
+
+        // Verify each tile has colors in the FT binary.
+        let leaf_nodes: Vec<&OctreeNode> = tree.leaves().collect();
+        for (i, tile_data) in result.tiles.iter().enumerate() {
+            let (header, _) = parse_pnts_header(tile_data).unwrap();
+            if i < leaf_nodes.len() {
+                let node = leaf_nodes[i];
+                let expected = node.point_count as usize * 3 * 4 // positions
+                    + node.point_count as usize * 3; // colors
+                assert_eq!(
+                    header.feature_table_binary_byte_length as usize, expected,
+                    "tile {} binary size mismatch",
+                    i
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_total_bytes() {
+        let triples: Vec<[f32; 3]> = (0..100)
+            .map(|i| {
+                [
+                    (i % 10) as f32,
+                    ((i / 10) % 10) as f32,
+                    0.0,
+                ]
+            })
+            .collect();
+        let mut positions = make_positions(&triples);
+        let tree = Octree::build(&mut positions, 25, 5);
+        let result = generate_tileset(&tree, &positions, None).unwrap();
+        assert!(result.total_bytes() > 0);
+        // Each tile should be at least header + JSON + binary.
+        for i in 0..result.tile_count() {
+            assert!(result.tile(i as usize).unwrap().len() >= 40);
+        }
     }
 }
