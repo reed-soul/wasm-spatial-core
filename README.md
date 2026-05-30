@@ -10,8 +10,8 @@
 [![Rust](https://img.shields.io/badge/Rust-%23A73737-orange.svg?logo=rust&logoColor=white)](https://www.rust-lang.org)
 [![WebAssembly](https://img.shields.io/badge/WebAssembly-654FF0.svg?logo=webassembly&logoColor=white)](https://webassembly.org)
 
-![Lines](https://img.shields.io/badge/code-6.6K-blue)
-![Tests](https://img.shields.io/badge/tests-131-success)
+![Lines](https://img.shields.io/badge/code-8.8K-blue)
+![Tests](https://img.shields.io/badge/tests-140-success)
 ![Formats](https://img.shields.io/badge/formats-6-green)
 
 *Offload server-side spatial computing to the client — free the cloud.*
@@ -79,8 +79,10 @@ Modern Web3D and GIS applications face a fundamental bottleneck:
 - 🔄 **Batch Coordinate Projection** — WGS-84 ↔ GCJ-02, WGS-84 ↔ BD-09, WGS-84 ↔ Web Mercator (EPSG:3857), WGS-84 ↔ CGCS2000
 - 📦 **GeoJSON Parser** — Parse large FeatureCollections into flat `Float64Array` buffers
 - 📡 **Streaming GeoJSON Parser** — Chunked processing with progress callbacks
+- 📖 **Lazy GeoJSON Parser** — O(single feature) memory via manual JSON state machine — no full DOM parse
 - 🔍 **Spatial Index (R-Tree)** — Bounding box search, nearest-neighbor, K-nearest-neighbor (point index + edge index)
-- 🗺️ **Vector Tile Slicing** — Frontend MVT tile generation from GeoJSON
+- 📐 **Bounds Computation** — SIMD-style vectorized bounding box calculation (`computeBounds`, `computeBoundsMulti`)
+- 🗺️ **Vector Tile Slicing & Decoding** — Frontend MVT tile generation and protobuf MVT decoding back to GeoJSON
 - 🌐 **Cesium Native Adapter** — WGS84 → Cartesian3 (ECEF), polygon triangulation, 3D Tiles (b3dm)
 - ☁️ **Point Cloud (LAS/PCD)** — Parse LAS headers & points, voxel grid & random decimation, COPC range-based access
 - 🏗️ **IFC/BIM Geometry** (experimental) — Extract `IFCEXTRUDEDAREASOLID` mesh geometry
@@ -245,8 +247,28 @@ npm run build:wasm:mt
 | `countGeoJsonFeatures(input)` | Count features (fast pre-scan) |
 | `parseGeoJsonStream(input, chunkSize, onChunk)` | Streaming parser with progress callback |
 | `parseGeoJsonPerFeature(input)` | Per-feature coordinate arrays |
+| `parseGeoJsonLazy(input)` | **Lazy iterator** — O(feature) memory, no full DOM parse |
 | `parseGeoJsonProperties(input)` | Extract all feature properties as JSON string |
 | `parseGeoJsonFeatures(input)` | Structured per-feature result → `GeoJsonFeaturesResult` |
+
+**Lazy GeoJSON usage:**
+```typescript
+const iter = core.parseGeoJsonLazy(hugeGeoJsonStr);
+let feature;
+while ((feature = iter.nextFeature()) !== null) {
+  gl.bufferSubData(gl.ARRAY_BUFFER, offset, feature);
+  offset += feature.byteLength;
+}
+console.log(`Processed ${iter.total() - iter.remaining()} features`);
+iter.free(); // release WASM memory
+```
+
+### Bounds Computation
+
+| Function | Description |
+|----------|-------------|
+| `computeBounds(coords)` | Fast bounding box → `[minLng, minLat, maxLng, maxLat]` |
+| `computeBoundsMulti(buffers)` | Merged bounds for multiple coordinate arrays |
 
 ### Spatial Index
 
@@ -268,6 +290,20 @@ npm run build:wasm:mt
 | `new VectorTileEngine(geojson, options, layerName?)` | Create MVT engine |
 | `new VectorTileOptions()` | Tile generation options |
 | `.getTile(z, x, y)` | Get MVT PBF protobuf → `Uint8Array` |
+| `decodeMvt(bytes)` | Decode MVT protobuf → `MvtLayer` (name, extent, features) |
+| `decodeMvtToGeoJson(bytes)` | MVT → GeoJSON FeatureCollection string |
+
+**MVT decoding usage:**
+```typescript
+const response = await fetch('/tiles/10/868/387.pbf');
+const buffer = await response.arrayBuffer();
+const layer = core.decodeMvt(new Uint8Array(buffer));
+console.log(layer.name(), layer.extent(), layer.featureCount());
+const feat = layer.featureAt(0);
+console.log(feat.geometryType(), feat.geometry());
+// Convert to GeoJSON
+const geojson = core.decodeMvtToGeoJson(new Uint8Array(buffer));
+```
 
 ### Cesium Adapter
 
