@@ -30,11 +30,20 @@
 2. 执行 `scripts/build-demo-site.sh` 生成 `_site/`
 3. 部署到 GitHub Pages
 
-### 首次启用（仓库设置）
+### 首次启用（仓库设置，否则会 404）
 
-1. GitHub 仓库 → **Settings** → **Pages**
-2. **Build and deployment** → Source: **GitHub Actions**
-3. 合并代码后等待 workflow **Deploy Demo to GitHub Pages** 成功
+站点发布在 **`gh-pages` 分支**（CI 自动更新）。
+
+1. 打开 **https://github.com/reed-soul/wasm-spatial-core/settings/pages**
+2. **Build and deployment** → Source: **Deploy from a branch**
+3. Branch: **`gh-pages`**，目录: **`/ (root)`** → **Save**
+4. 等待 1～3 分钟
+
+### 临时镜像（未开 Pages 时也可试用）
+
+jsDelivr 会同步 `gh-pages` 分支（适合先体验，域名不同）：
+
+- 演示中心：https://cdn.jsdelivr.net/gh/reed-soul/wasm-spatial-core@gh-pages/examples/index.html
 
 ### 访问地址
 
