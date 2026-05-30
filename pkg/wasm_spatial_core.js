@@ -638,6 +638,98 @@ export class MvtLayer {
 if (Symbol.dispose) MvtLayer.prototype[Symbol.dispose] = MvtLayer.prototype.free;
 
 /**
+ * WASM-accessible octree handle.
+ */
+export class Octree {
+    static __wrap(ptr) {
+        const obj = Object.create(Octree.prototype);
+        obj.__wbg_ptr = ptr;
+        OctreeFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        OctreeFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_octree_free(ptr, 0);
+    }
+    /**
+     * Maximum tree depth.
+     * @returns {number}
+     */
+    get depth() {
+        const ret = wasm.octree_depth(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * Bounding box of node at `index` as a `Float64Array` of 6 values.
+     * @param {number} index
+     * @returns {Float64Array}
+     */
+    nodeBounds(index) {
+        const ret = wasm.octree_nodeBounds(this.__wbg_ptr, index);
+        return takeObject(ret);
+    }
+    /**
+     * Children indices of node at `index`, or `null` if leaf.
+     * @param {number} index
+     * @returns {Array<any> | undefined}
+     */
+    nodeChildren(index) {
+        const ret = wasm.octree_nodeChildren(this.__wbg_ptr, index);
+        return takeObject(ret);
+    }
+    /**
+     * Total number of nodes (internal + leaf).
+     * @returns {number}
+     */
+    nodeCount() {
+        const ret = wasm.octree_nodeCount(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * Depth level of node at `index`.
+     * @param {number} index
+     * @returns {number}
+     */
+    nodeLevel(index) {
+        const ret = wasm.octree_nodeLevel(this.__wbg_ptr, index);
+        return ret >>> 0;
+    }
+    /**
+     * Point count of node at `index`.
+     * @param {number} index
+     * @returns {number}
+     */
+    nodePointCount(index) {
+        const ret = wasm.octree_nodePointCount(this.__wbg_ptr, index);
+        return ret >>> 0;
+    }
+    /**
+     * Root bounding box as a `Float64Array` of 6 values:
+     * `[min_x, min_y, min_z, max_x, max_y, max_z]`.
+     * @returns {Float64Array}
+     */
+    rootBounds() {
+        const ret = wasm.octree_rootBounds(this.__wbg_ptr);
+        return takeObject(ret);
+    }
+    /**
+     * Total number of indexed points.
+     * @returns {number}
+     */
+    get totalPoints() {
+        const ret = wasm.octree_total_points(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+}
+if (Symbol.dispose) Octree.prototype[Symbol.dispose] = Octree.prototype.free;
+
+/**
  * A spatial index for 2D line segments using an R-Tree.
  *
  * Indexes individual edges (line segments) from LineString geometries.
@@ -793,6 +885,104 @@ export class SpatialIndex {
     }
 }
 if (Symbol.dispose) SpatialIndex.prototype[Symbol.dispose] = SpatialIndex.prototype.free;
+
+/**
+ * WASM-accessible tileset result handle.
+ */
+export class TilesetResult {
+    static __wrap(ptr) {
+        const obj = Object.create(TilesetResult.prototype);
+        obj.__wbg_ptr = ptr;
+        TilesetResultFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        TilesetResultFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_tilesetresult_free(ptr, 0);
+    }
+    /**
+     * Get tile binary data as `Uint8Array`.
+     * @param {number} index
+     * @returns {Uint8Array}
+     */
+    tile(index) {
+        const ret = wasm.tilesetresult_tile(this.__wbg_ptr, index);
+        return takeObject(ret);
+    }
+    /**
+     * Tile bounding box as `Float64Array`.
+     * @param {number} index
+     * @returns {Float64Array}
+     */
+    tileBounds(index) {
+        const ret = wasm.tilesetresult_tileBounds(this.__wbg_ptr, index);
+        return takeObject(ret);
+    }
+    /**
+     * Get tile URI string.
+     * @param {number} index
+     * @returns {string | undefined}
+     */
+    tileUri(index) {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.tilesetresult_tileUri(retptr, this.__wbg_ptr, index);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            let v1;
+            if (r0 !== 0) {
+                v1 = getStringFromWasm0(r0, r1).slice();
+                wasm.__wbindgen_export4(r0, r1 * 1, 1);
+            }
+            return v1;
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
+    }
+    /**
+     * Number of tiles.
+     * @returns {number}
+     */
+    get tileCount() {
+        const ret = wasm.tilesetresult_tile_count(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * The tileset.json content.
+     * @returns {string}
+     */
+    tilesetJson() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.tilesetresult_tilesetJson(retptr, this.__wbg_ptr);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            deferred1_0 = r0;
+            deferred1_1 = r1;
+            return getStringFromWasm0(r0, r1);
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+            wasm.__wbindgen_export4(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * Total bytes across all tiles.
+     * @returns {number}
+     */
+    get totalBytes() {
+        const ret = wasm.tilesetresult_total_bytes(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+}
+if (Symbol.dispose) TilesetResult.prototype[Symbol.dispose] = TilesetResult.prototype.free;
 
 /**
  * Result of building a TIN from scattered 3D points.
@@ -1723,6 +1913,27 @@ export function bufferPoint(lng, lat, radius_meters, segments) {
 }
 
 /**
+ * Build an octree from a flat `[x, y, z, ...]` position buffer.
+ *
+ * The input buffer is **not** modified (a copy is made internally).
+ *
+ * # Arguments
+ * * `positions` — `Float32Array` of `[x, y, z, ...]` triples.
+ * * `max_points_per_node` — Max points per leaf (default: 50 000).
+ * * `max_depth` — Max tree depth (default: 21).
+ * @param {Float32Array} positions
+ * @param {number | null} [max_points_per_node]
+ * @param {number | null} [max_depth]
+ * @returns {Octree}
+ */
+export function buildOctree(positions, max_points_per_node, max_depth) {
+    const ptr0 = passArrayF32ToWasm0(positions, wasm.__wbindgen_export);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.buildOctree(ptr0, len0, isLikeNone(max_points_per_node) ? Number.MAX_SAFE_INTEGER : (max_points_per_node) >>> 0, isLikeNone(max_depth) ? Number.MAX_SAFE_INTEGER : (max_depth) >>> 0);
+    return Octree.__wrap(ret);
+}
+
+/**
  * Build a TIN from scattered 3D points using the Bowyer-Watson algorithm.
  *
  * # Arguments
@@ -2254,6 +2465,42 @@ export function disjoint(ring1, ring2) {
 }
 
 /**
+ * Encode a point cloud tile into 3D Tiles Point Cloud (pnts) binary format.
+ *
+ * # Arguments
+ * * `positions` — `Float32Array` of `[x, y, z, ...]`.
+ * * `center_x`, `center_y`, `center_z` — Tile center coordinates.
+ * * `colors` — Optional `Uint8Array` of `[r, g, b, ...]`.
+ *
+ * Returns a `Uint8Array` containing the complete `.pnts` binary.
+ * @param {Float32Array} positions
+ * @param {number} center_x
+ * @param {number} center_y
+ * @param {number} center_z
+ * @param {Uint8Array | null} [colors]
+ * @returns {Uint8Array}
+ */
+export function encodePntsTile(positions, center_x, center_y, center_z, colors) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArrayF32ToWasm0(positions, wasm.__wbindgen_export);
+        const len0 = WASM_VECTOR_LEN;
+        var ptr1 = isLikeNone(colors) ? 0 : passArray8ToWasm0(colors, wasm.__wbindgen_export);
+        var len1 = WASM_VECTOR_LEN;
+        wasm.encodePntsTile(retptr, ptr0, len0, center_x, center_y, center_z, ptr1, len1);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return takeObject(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
+}
+
+/**
  * Filter GeoJSON features by bounding box.
  *
  * Keeps features that have at least one vertex inside the specified bbox.
@@ -2402,6 +2649,34 @@ export function generateCesiumGeometry(geojson_str, height_property) {
             throw takeObject(r1);
         }
         return CesiumMeshGeometry.__wrap(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
+}
+
+/**
+ * WASM export: generate a tileset from octree and point data.
+ * @param {Float32Array} positions
+ * @param {number | null} [max_points_per_node]
+ * @param {number | null} [max_depth]
+ * @param {Uint8Array | null} [colors]
+ * @returns {TilesetResult}
+ */
+export function generateTileset(positions, max_points_per_node, max_depth, colors) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArrayF32ToWasm0(positions, wasm.__wbindgen_export);
+        const len0 = WASM_VECTOR_LEN;
+        var ptr1 = isLikeNone(colors) ? 0 : passArray8ToWasm0(colors, wasm.__wbindgen_export);
+        var len1 = WASM_VECTOR_LEN;
+        wasm.generateTileset(retptr, ptr0, len0, isLikeNone(max_points_per_node) ? Number.MAX_SAFE_INTEGER : (max_points_per_node) >>> 0, isLikeNone(max_depth) ? Number.MAX_SAFE_INTEGER : (max_depth) >>> 0, ptr1, len1);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return TilesetResult.__wrap(r0);
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
     }
@@ -3780,6 +4055,14 @@ function __wbg_get_imports() {
             const ret = new Object();
             return addHeapObject(ret);
         },
+        __wbg_new_from_slice_3ca7c4e9a43341b6: function(arg0, arg1) {
+            const ret = new Float64Array(getArrayF64FromWasm0(arg0, arg1));
+            return addHeapObject(ret);
+        },
+        __wbg_new_from_slice_5a173c243af2e823: function(arg0, arg1) {
+            const ret = new Uint8Array(getArrayU8FromWasm0(arg0, arg1));
+            return addHeapObject(ret);
+        },
         __wbg_new_with_length_2a29aa33411ddc89: function(arg0) {
             const ret = new Float64Array(arg0 >>> 0);
             return addHeapObject(ret);
@@ -3903,6 +4186,12 @@ const VectorTileEngineFinalization = (typeof FinalizationRegistry === 'undefined
 const VectorTileOptionsFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_vectortileoptions_free(ptr, 1));
+const OctreeFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_octree_free(ptr, 1));
+const TilesetResultFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_tilesetresult_free(ptr, 1));
 
 function addHeapObject(obj) {
     if (heap_next === heap.length) heap.push(heap.length + 1);
@@ -4077,6 +4366,20 @@ let heap_next = heap.length;
 
 function isLikeNone(x) {
     return x === undefined || x === null;
+}
+
+function passArray8ToWasm0(arg, malloc) {
+    const ptr = malloc(arg.length * 1, 1) >>> 0;
+    getUint8ArrayMemory0().set(arg, ptr / 1);
+    WASM_VECTOR_LEN = arg.length;
+    return ptr;
+}
+
+function passArrayF32ToWasm0(arg, malloc) {
+    const ptr = malloc(arg.length * 4, 4) >>> 0;
+    getFloat32ArrayMemory0().set(arg, ptr / 4);
+    WASM_VECTOR_LEN = arg.length;
+    return ptr;
 }
 
 function passArrayF64ToWasm0(arg, malloc) {
