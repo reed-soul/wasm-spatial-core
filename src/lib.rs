@@ -218,7 +218,7 @@ mod tests {
 
     #[test]
     fn test_version() {
-        assert_eq!(version(), "0.2.0-alpha.1");
+        assert_eq!(version(), "0.2.0");
     }
 
     #[test]

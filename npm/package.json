@@ -1,6 +1,6 @@
 {
   "name": "wasm-spatial-core",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A high-performance WebAssembly spatial data processing engine for frontend Web3D/GIS applications",
   "author": "Qingxi <qingxi@zhiqiweilai.com>",
   "license": "MIT",
