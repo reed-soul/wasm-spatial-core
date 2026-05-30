@@ -356,28 +356,40 @@ pub fn compute_region_byte_range_js(
 /// Check if LAZ (compressed LAS) is supported.
 #[wasm_bindgen(js_name = "supportsLaz")]
 pub fn supports_laz() -> bool {
-    true
+    cfg!(feature = "laz-support")
 }
 
 /// Get the current LAZ support status as a human-readable string.
 #[wasm_bindgen(js_name = "lazStatus")]
 pub fn laz_status() -> String {
-    String::from(
-        "LAZ support: ENABLED (laz v0.12.1). COPC partial support: chunk-table \
-        parsing and per-chunk decompression available.",
-    )
+    #[cfg(feature = "laz-support")]
+    {
+        String::from(
+            "LAZ support: ENABLED (laz v0.12.1). COPC partial support: chunk-table \
+            parsing and per-chunk decompression available.",
+        )
+    }
+    #[cfg(not(feature = "laz-support"))]
+    {
+        String::from(
+            "LAZ support: DISABLED. Build with --features laz-support to enable \
+            LAZ/COPC decompression.",
+        )
+    }
 }
 
 // ===========================================================================
-// COPC (Cloud Optimized Point Cloud) Support
+// COPC (Cloud Optimized Point Cloud) Support — requires laz-support
 // ===========================================================================
 
+#[cfg(feature = "laz-support")]
 use std::io::{Cursor, Read, Seek, SeekFrom};
 
 /// Information about a COPC file, including chunk table for indexed access.
 ///
 /// Returned by `parseCopcHeader()`. All offsets and sizes are in bytes.
 #[derive(Debug, Clone)]
+#[cfg(feature = "laz-support")]
 pub struct CopcInfo {
     /// LAS version major
     pub version_major: u8,
@@ -410,6 +422,7 @@ pub struct CopcInfo {
     pub chunk_table: Vec<(u64, u64, u64)>,
 }
 
+#[cfg(feature = "laz-support")]
 impl CopcInfo {
     /// Create JSON representation for JS consumption.
     pub fn to_json_object(&self) -> js_sys::Object {
@@ -481,7 +494,9 @@ impl CopcInfo {
 }
 
 /// COPC VLR constants
+#[cfg(feature = "laz-support")]
 const COPC_USER_ID: &str = "copc";
+#[cfg(feature = "laz-support")]
 const COPC_RECORD_ID: u16 = 1;
 
 /// Parse a COPC header from raw bytes.
@@ -496,6 +511,7 @@ const COPC_RECORD_ID: u16 = 1;
 /// # Returns
 ///
 /// A `CopcInfo` struct with all metadata and the chunk table.
+#[cfg(feature = "laz-support")]
 pub fn parse_copc_header_core(bytes: &[u8]) -> Result<CopcInfo, String> {
     if bytes.len() < 375 {
         return Err("COPC header requires at least 375 bytes (LAS 1.4 header)".to_string());
@@ -637,6 +653,7 @@ pub fn parse_copc_header_core(bytes: &[u8]) -> Result<CopcInfo, String> {
 /// Read the chunk table from a LAZ data stream.
 ///
 /// Returns a list of (byte_offset, point_count, byte_size) entries.
+#[cfg(feature = "laz-support")]
 fn read_chunk_table_from_laz(
     bytes: &[u8],
     point_data_offset: u64,
@@ -684,6 +701,7 @@ fn read_chunk_table_from_laz(
 }
 
 /// WASM binding: Parse COPC header and return info as JSON object.
+#[cfg(feature = "laz-support")]
 #[wasm_bindgen(js_name = "parseCopcHeader")]
 pub fn parse_copc_header(bytes: &[u8]) -> Result<js_sys::Object, SpatialErrorDetail> {
     let info = parse_copc_header_core(bytes).map_err(SpatialError::point_cloud_error)?;
@@ -699,6 +717,7 @@ pub fn parse_copc_header(bytes: &[u8]) -> Result<js_sys::Object, SpatialErrorDet
 /// * `chunk_size` — Compressed size of the chunk in bytes.
 /// * `expected_points` — Expected number of points in this chunk.
 /// * `header_bytes` — First 375+ bytes of the file (used to locate LASZIP VLR).
+#[cfg(feature = "laz-support")]
 pub fn read_copc_chunk_core(
     bytes: &[u8],
     chunk_offset: u64,
@@ -820,6 +839,7 @@ pub fn read_copc_chunk_core(
 }
 
 /// WASM binding: Read a single COPC chunk.
+#[cfg(feature = "laz-support")]
 #[wasm_bindgen(js_name = "readCopcChunk")]
 pub fn read_copc_chunk(
     bytes: &[u8],
@@ -842,6 +862,7 @@ pub fn read_copc_chunk(
 ///
 /// Iterates through all chunks, decompresses each one, and filters
 /// points that fall within the specified bounding box.
+#[cfg(feature = "laz-support")]
 #[wasm_bindgen(js_name = "readCopcRegion")]
 pub fn read_copc_region(
     bytes: &[u8],
@@ -925,30 +946,35 @@ pub fn read_copc_region(
 }
 
 // Helper read functions for Cursor
+#[cfg(feature = "laz-support")]
 fn read_u8_from_cursor(cursor: &mut Cursor<&[u8]>) -> Result<u8, String> {
     let mut buf = [0u8; 1];
     cursor.read_exact(&mut buf).map_err(|e| e.to_string())?;
     Ok(buf[0])
 }
 
+#[cfg(feature = "laz-support")]
 fn read_u16_from_cursor(cursor: &mut Cursor<&[u8]>) -> Result<u16, String> {
     let mut buf = [0u8; 2];
     cursor.read_exact(&mut buf).map_err(|e| e.to_string())?;
     Ok(u16::from_le_bytes(buf))
 }
 
+#[cfg(feature = "laz-support")]
 fn read_u32_from_cursor(cursor: &mut Cursor<&[u8]>) -> Result<u32, String> {
     let mut buf = [0u8; 4];
     cursor.read_exact(&mut buf).map_err(|e| e.to_string())?;
     Ok(u32::from_le_bytes(buf))
 }
 
+#[cfg(feature = "laz-support")]
 fn read_u64_from_cursor(cursor: &mut Cursor<&[u8]>) -> Result<u64, String> {
     let mut buf = [0u8; 8];
     cursor.read_exact(&mut buf).map_err(|e| e.to_string())?;
     Ok(u64::from_le_bytes(buf))
 }
 
+#[cfg(feature = "laz-support")]
 fn read_f64_from_cursor(cursor: &mut Cursor<&[u8]>) -> Result<f64, String> {
     let mut buf = [0u8; 8];
     cursor.read_exact(&mut buf).map_err(|e| e.to_string())?;
@@ -1083,6 +1109,7 @@ mod tests {
         assert_eq!(len, 3 * 20); // 60
     }
 
+#[cfg(feature = "laz-support")]
     #[test]
     fn test_laz_status() {
         assert!(supports_laz());
@@ -1145,6 +1172,7 @@ mod tests {
     // ── COPC tests ─────────────────────────────────────────────────
 
     /// Build a minimal COPC-like file (LAS 1.4 + LASZIP VLR + compressed data).
+    #[cfg(feature = "laz-support")]
     fn build_test_copc_blob(points: &[(f64, f64, f64)], has_color: bool) -> Vec<u8> {
         use laz::{LasZipCompressor, LazItemRecordBuilder, LazItemType, LazVlr};
         use std::io::Cursor;
@@ -1265,6 +1293,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "laz-support")]
     fn test_copc_header_parsing() {
         let points = vec![(10.0, 20.0, 30.0), (40.0, 50.0, 60.0)];
         let blob = build_test_copc_blob(&points, false);
@@ -1278,6 +1307,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "laz-support")]
     fn test_copc_header_with_color() {
         let points = vec![(1.0, 2.0, 3.0), (4.0, 5.0, 6.0)];
         let blob = build_test_copc_blob(&points, true);
@@ -1288,6 +1318,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "laz-support")]
     fn test_copc_header_bounds() {
         let points = vec![(-10.0, -5.0, 0.0), (10.0, 5.0, 20.0)];
         let blob = build_test_copc_blob(&points, false);
@@ -1300,6 +1331,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "laz-support")]
     fn test_copc_header_to_json() {
         let points = vec![(1.0, 2.0, 3.0)];
         let blob = build_test_copc_blob(&points, false);
@@ -1321,12 +1353,14 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "laz-support")]
     fn test_copc_header_rejects_short() {
         let result = parse_copc_header_core(&[0u8; 100]);
         assert!(result.is_err());
     }
 
     #[test]
+    #[cfg(feature = "laz-support")]
     fn test_copc_header_rejects_bad_magic() {
         let mut blob = build_test_copc_blob(&[(1.0, 2.0, 3.0)], false);
         blob[0..4].copy_from_slice(b"XASX");
@@ -1335,13 +1369,16 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "laz-support")]
     fn test_supports_laz_now_true() {
         assert!(supports_laz());
         let status = laz_status();
         assert!(status.contains("ENABLED"));
     }
 
+    #[cfg(feature = "laz-support")]
     #[test]
+    #[cfg(feature = "laz-support")]
     fn test_copc_chunk_reading() {
         let points = vec![(10.0, 20.0, 30.0), (40.0, 50.0, 60.0)];
         let blob = build_test_copc_blob(&points, false);
@@ -1356,5 +1393,31 @@ mod tests {
         assert_eq!(cloud.positions[0], 10.0);
         assert_eq!(cloud.positions[1], 20.0);
         assert_eq!(cloud.positions[2], 30.0);
+    }
+
+    // ── No-laz-support tests ──────────────────────────────────────
+
+    /// When laz-support is not compiled, supportsLaz should return false.
+    #[cfg(not(feature = "laz-support"))]
+    #[test]
+    fn test_supports_laz_false_without_feature() {
+        assert!(!supports_laz());
+    }
+
+    /// When laz-support is not compiled, lazStatus should say DISABLED.
+    #[cfg(not(feature = "laz-support"))]
+    #[test]
+    fn test_laz_status_disabled_without_feature() {
+        let status = laz_status();
+        assert!(status.contains("DISABLED"), "Expected DISABLED in status: {}", status);
+    }
+
+    /// LAS region parsing should still work without laz-support.
+    #[test]
+    fn test_las_region_byte_range_without_laz() {
+        // Point record length = 20, offset = 100
+        let (offset, size) = compute_region_byte_range(100, 20, 0, 10);
+        assert_eq!(offset, 100);
+        assert_eq!(size, 200); // 10 points × 20 bytes
     }
 }

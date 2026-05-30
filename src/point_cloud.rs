@@ -378,12 +378,14 @@ pub fn random_decimate_core(
 }
 
 // ===========================================================================
-// LAZ Decompression (using laz crate)
+// LAZ Decompression (using laz crate) — only compiled with laz-support feature
 // ===========================================================================
 
+#[cfg(feature = "laz-support")]
 use std::io::{Cursor, Read, Seek, SeekFrom};
 
 /// Internal LAS header info needed for LAZ decompression.
+#[cfg(feature = "laz-support")]
 struct LazFileHeader {
     num_points: u32,
     point_format_id: u8,
@@ -399,6 +401,7 @@ struct LazFileHeader {
     num_vlrs: u32,
 }
 
+#[cfg(feature = "laz-support")]
 impl LazFileHeader {
     fn read_from_cursor(cursor: &mut Cursor<&[u8]>) -> Result<Self, String> {
         if cursor.get_ref().len() < 230 {
@@ -495,6 +498,7 @@ impl LazFileHeader {
 /// Find the LASZIP VLR in the VLR section and parse it.
 ///
 /// The LASZIP VLR has user_id="laszip encoded" (0x6C61737A697020656E636F646564) and record_id=22204.
+#[cfg(feature = "laz-support")]
 fn find_laszip_vlr(cursor: &mut Cursor<&[u8]>, num_vlrs: u32) -> Result<laz::LazVlr, String> {
     for _ in 0..num_vlrs {
         // Each VLR: reserved(2) + user_id(16) + record_id(2) + record_length(2) + description(32) + data(record_length)
@@ -543,6 +547,7 @@ fn find_laszip_vlr(cursor: &mut Cursor<&[u8]>, num_vlrs: u32) -> Result<laz::Laz
 /// 3. Create a LasZipDecompressor from the point data section
 /// 4. Decompress all points
 /// 5. Convert raw point bytes to positions + colors
+#[cfg(feature = "laz-support")]
 pub fn parse_laz_points_core(bytes: &[u8]) -> Result<LasPointCloud, String> {
     if bytes.len() < 230 {
         return Err("LAZ data too short for header".to_string());
@@ -643,6 +648,7 @@ pub fn parse_laz_points_core(bytes: &[u8]) -> Result<LasPointCloud, String> {
 }
 
 /// Core LAZ decompression with progress callback — pure Rust.
+#[cfg(feature = "laz-support")]
 pub fn parse_laz_points_with_progress_core<F>(
     bytes: &[u8],
     mut on_progress: F,
@@ -737,6 +743,7 @@ where
 /// WASM binding for LAZ point decompression.
 ///
 /// Parses a LAZ compressed file and returns decompressed points.
+#[cfg(feature = "laz-support")]
 #[wasm_bindgen(js_name = "parseLazPoints")]
 pub fn parse_laz_points(bytes: &[u8]) -> Result<LasPointCloud, SpatialErrorDetail> {
     if bytes.len() > DEFAULT_MAX_INPUT_SIZE {
@@ -750,6 +757,7 @@ pub fn parse_laz_points(bytes: &[u8]) -> Result<LasPointCloud, SpatialErrorDetai
 }
 
 /// Parse LAZ points with a JS progress callback. Reports every 10,000 points.
+#[cfg(feature = "laz-support")]
 #[wasm_bindgen(js_name = "parseLazPointsStream")]
 pub fn parse_laz_points_stream(
     bytes: &[u8],
@@ -809,7 +817,9 @@ fn detect_point_cloud_format(bytes: &[u8]) -> Result<&'static str, String> {
 ///
 /// - **LAS**: `LASF` magic, version ≤ 1.3, no compression bit
 /// - **LAZ**: `LASF` magic, any version, compression bit set at byte 104
+///   (requires `laz-support` feature)
 /// - **COPC**: `LASF` magic, version 1.4, compression bit set, COPC VLR present
+///   (requires `laz-support` feature)
 ///
 /// All three formats use the same decompression path internally. COPC adds
 /// spatial indexing but falls back to full decompression for the auto path.
@@ -827,7 +837,13 @@ pub fn parse_point_cloud_auto(bytes: &[u8]) -> Result<LasPointCloud, SpatialErro
 
     match format {
         "las" => parse_las_points_core(bytes).map_err(SpatialError::point_cloud_error),
+        #[cfg(feature = "laz-support")]
         "laz" | "copc" => parse_laz_points_core(bytes).map_err(SpatialError::point_cloud_error),
+        #[cfg(not(feature = "laz-support"))]
+        "laz" | "copc" => Err(SpatialError::point_cloud_error(
+            "LAZ/COPC format detected but laz-support feature is not enabled. \
+             Build with --features laz-support to enable LAZ decompression.",
+        )),
         _ => Err(SpatialError::point_cloud_error("Unknown format")),
     }
 }
@@ -3069,6 +3085,7 @@ DATA ascii
     /// Build a minimal valid LAZ blob by compressing points with the laz crate.
     ///
     /// Structure: LAS header (230 bytes) + LASZIP VLR (54 + VLR data) + compressed point data
+    #[cfg(feature = "laz-support")]
     fn build_test_laz_blob(points: &[(f64, f64, f64)], has_color: bool) -> Vec<u8> {
         let num_points = points.len() as u32;
         let header_size = 230u32;
@@ -3177,6 +3194,8 @@ DATA ascii
     }
 
     #[test]
+    #[cfg(feature = "laz-support")]
+    #[cfg(feature = "laz-support")]
     fn test_laz_roundtrip_format0() {
         let points = vec![(10.0, 20.0, 30.0), (40.0, 50.0, 60.0), (70.0, 80.0, 90.0)];
         let laz_blob = build_test_laz_blob(&points, false);
@@ -3202,6 +3221,7 @@ DATA ascii
     }
 
     #[test]
+    #[cfg(feature = "laz-support")]
     fn test_laz_roundtrip_format2_with_color() {
         let points = vec![(5.0, 10.0, 15.0), (25.0, 30.0, 35.0)];
         let laz_blob = build_test_laz_blob(&points, true);
@@ -3222,6 +3242,7 @@ DATA ascii
     }
 
     #[test]
+    #[cfg(feature = "laz-support")]
     fn test_laz_single_point() {
         let points = vec![(42.0, -17.0, 0.0)];
         let laz_blob = build_test_laz_blob(&points, false);
@@ -3234,6 +3255,7 @@ DATA ascii
     }
 
     #[test]
+    #[cfg(feature = "laz-support")]
     fn test_laz_many_points() {
         let points: Vec<(f64, f64, f64)> = (0..500)
             .map(|i| {
@@ -3261,6 +3283,7 @@ DATA ascii
     }
 
     #[test]
+    #[cfg(feature = "laz-support")]
     fn test_laz_rejects_uncompressed_las() {
         // Build an uncompressed LAS blob (no compression bit)
         let points = vec![(1.0, 2.0, 3.0)];
@@ -3274,6 +3297,7 @@ DATA ascii
     }
 
     #[test]
+    #[cfg(feature = "laz-support")]
     fn test_laz_rejects_invalid_magic() {
         let mut blob = vec![0u8; 300];
         blob[0..4].copy_from_slice(b"XASX");
@@ -3284,12 +3308,14 @@ DATA ascii
     }
 
     #[test]
+    #[cfg(feature = "laz-support")]
     fn test_laz_rejects_too_short() {
         let result = parse_laz_points_core(&[0u8; 10]);
         assert!(result.is_err());
     }
 
     #[test]
+    #[cfg(feature = "laz-support")]
     fn test_laz_progress_callback() {
         let points: Vec<(f64, f64, f64)> = (0..250).map(|i| (i as f64, 0.0, 0.0)).collect();
         let laz_blob = build_test_laz_blob(&points, false);
@@ -3313,6 +3339,7 @@ DATA ascii
     }
 
     #[test]
+    #[cfg(feature = "laz-support")]
     fn test_laz_las_data_consistency() {
         // Create same points as LAS and LAZ, verify they produce identical results
         let points = vec![
@@ -3348,6 +3375,7 @@ DATA ascii
     }
 
     #[test]
+    #[cfg(feature = "laz-support")]
     fn test_auto_detect_laz() {
         let points = vec![(1.0, 2.0, 3.0)];
         let laz_blob = build_test_laz_blob(&points, false);
@@ -3378,11 +3406,69 @@ DATA ascii
     }
 
     #[test]
+    #[cfg(feature = "laz-support")]
     fn test_parse_point_cloud_auto_laz() {
         let points = vec![(10.0, 20.0, 30.0), (40.0, 50.0, 60.0)];
         let laz_blob = build_test_laz_blob(&points, false);
         let cloud = parse_point_cloud_auto(&laz_blob).unwrap();
         assert_eq!(cloud.point_count, 2);
         assert_eq!(cloud.positions[0], 10.0);
+    }
+
+    // ── No-laz-support tests ──────────────────────────────────────
+
+    /// Verify that LAS parsing still works when laz-support is disabled.
+    #[test]
+    fn test_las_works_without_laz_feature() {
+        let points = vec![(1.0, 2.0, 3.0), (4.0, 5.0, 6.0), (-1.0, -2.0, -3.0)];
+        let las_blob = build_test_las_blob(&points, false);
+
+        let cloud = parse_las_points_core(&las_blob).unwrap();
+        assert_eq!(cloud.point_count, 3);
+        assert_eq!(cloud.positions[0], 1.0);
+        assert_eq!(cloud.positions[1], 2.0);
+        assert_eq!(cloud.positions[2], 3.0);
+    }
+
+    /// Verify that auto-detect returns "las" for uncompressed LAS (no laz feature needed).
+    #[test]
+    fn test_detect_format_las_without_laz() {
+        let points = vec![(10.0, 20.0, 30.0)];
+        let las_blob = build_test_las_blob(&points, false);
+        assert_eq!(detect_point_cloud_format(&las_blob).unwrap(), "las");
+    }
+
+    /// Verify that auto-detect still identifies LAZ format even without laz-support.
+    #[test]
+    fn test_detect_format_laz_identified_without_laz() {
+        // Create a minimal blob that looks like LAZ (compression bit set)
+        let mut blob = build_test_las_blob(&[(1.0, 2.0, 3.0)], false);
+        // Set compression bit at offset 104
+        blob[104] |= 0x80;
+        // Should detect as LAZ even though decompression is unavailable
+        let format = detect_point_cloud_format(&blob).unwrap();
+        assert_eq!(format, "laz");
+    }
+
+    /// Verify parsePointCloudAuto rejects LAZ when laz-support is not compiled.
+    #[cfg(not(feature = "laz-support"))]
+    #[test]
+    fn test_auto_rejects_laz_without_feature() {
+        let mut blob = build_test_las_blob(&[(1.0, 2.0, 3.0)], false);
+        blob[104] |= 0x80;
+        let result = parse_point_cloud_auto(&blob);
+        assert!(result.is_err());
+        let err = result.unwrap_err().message();
+        assert!(err.contains("laz-support"), "Error should mention laz-support feature: {}", err);
+    }
+
+    /// Verify parsePointCloudAuto still works for LAS when laz-support is not compiled.
+    #[cfg(not(feature = "laz-support"))]
+    #[test]
+    fn test_auto_works_for_las_without_laz_feature() {
+        let points = vec![(7.0, 8.0, 9.0), (10.0, 11.0, 12.0)];
+        let las_blob = build_test_las_blob(&points, false);
+        let cloud = parse_point_cloud_auto(&las_blob).unwrap();
+        assert_eq!(cloud.point_count, 2);
     }
 }
