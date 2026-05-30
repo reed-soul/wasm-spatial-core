@@ -60,9 +60,9 @@
 
 ---
 
-## Phase A — 点云核心管线（先做这个）
+## Phase A — 点云核心管线（先做这个） ✅ DONE
 
-### A1: LAZ 解压引擎
+### A1: LAZ 解压引擎 ✅
 
 **目标**: 在 WASM 中解压 LAZ 格式，让用户能加载真实的压缩点云数据。
 
@@ -244,21 +244,23 @@ Byte Length | Description
 
 ## Phase B — LOD 优化 + 性能（Phase A 完成后）
 
-### B1: 视点驱动的动态加载
-- Cesium 的 camera 变化 → 计算当前视锥 → 只加载可见 tiles
-- 内存管理：卸载远离视点的 tiles
-- 需要与 Cesium 的 tile loading 机制对接
+### B1: 视点驱动的动态加载 ✅
+- `computeScreenSpaceError(geoError, distance, fov, screenHeight)` — SSE in pixels
+- `getVisibleTiles(positions, camera, fov, screen)` — recursive LOD traversal
+- Camera distance drives tile refinement: close → more tiles, far → fewer tiles
+- Configurable SSE threshold (default: 1 pixel)
 
-### B2: 几何误差自动校准
-- 根据点间距计算 geometricError
-- 确保视觉无缝过渡（没有明显的"弹出"）
+### B2: 几何误差自动校准 ✅ (partial)
+- Level-scaled geometricError: `diagonal × 0.5 / 2^level`
+- TODO: point-spacing-based refinement for seamless visual transitions
 
-### B3: WebWorker 并行处理
+### B3: WebWorker 并行处理 🔜
 - 八叉树构建放到 Worker
 - pnts 编码放到 Worker
 - 主线程只负责 UI 和 Cesium 渲染
+- (Deferred: current single-thread WASM is fast enough for most use cases)
 
-### B4: Draco 压缩（可选）
+### B4: Draco 压缩（可选） 🔜
 - 尝试 `draco-rs` 编译到 wasm32
 - 如果不行，暂时跳过（pnts 不压缩也能用）
 

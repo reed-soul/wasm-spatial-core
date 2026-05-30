@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **View-dependent LOD loading** (`src/pnts.rs`) — Screen-space error (SSE) computation and camera-driven tile selection. `computeScreenSpaceError(geoError, distance, fov, screenHeight)` and `getVisibleTiles(positions, camera, fov, screen)` for dynamic level-of-detail. Recursive octree traversal with configurable SSE threshold. 8 tests.
+- **Memory usage estimation** (`src/octree.rs`) — `octreeMemoryUsage(nodeCount, internalCount, pointCount)` estimates Rust-side octree memory: 140B per internal node + 72B per leaf + 12B per point. WASM export included.
+- **WasmOctree.leafCount()** WASM getter for number of leaf nodes.
+- **Error handling enhancement** — Octree `buildOctree` now returns `Result<T, JsValue>` with input validation (length not multiple of 3). NaN/Infinity coordinates are silently filtered during octree construction. pnts encoding tested with large f32-range coordinates.
+- **Point cloud → 3D Tiles pipeline** — Full browser-side pipeline: LAS/LAZ parse → octree build → tileset.json + pnts tiles generation. See ROADMAP Phase A.
+- **LAZ decompression** — `laz` crate (v0.12.1) integrated. `parseLazPoints()`, `parseLazPointsStream()`, `parsePointCloudAuto()` auto-detection. `supportsLaz()` and `lazStatus()` runtime checks.
+- **COPC support** — Cloud Optimized Point Cloud header parsing, chunk table access, region-based byte range computation.
+- **Three.js point cloud demo** — Zero-dependency 3D point cloud viewer (no tokens required).
+- **Cesium 3D Tiles demo** — Point cloud rendered on Cesium globe via 3D Tiles.
+- **npm package README** — Quick start, point cloud→3D Tiles example, full categorized API reference.
 - **Octree spatial partitioning** (`src/octree.rs`) — Recursive 8-way subdivision for point cloud data. Two-pass build (index permutation + reorder). Degenerate case handling (coincident points). WASM export: `buildOctree()` → `Octree` class with `nodeCount()`, `depth()`, `totalPoints()`, `rootBounds()`, `nodeBounds()`, `nodePointCount()`, `nodeLevel()`, `nodeChildren()`.
 - **pnts tile encoder** (`src/pnts.rs`) — Full 3D Tiles Point Cloud binary format. 28-byte header, feature table (JSON + binary with POSITION + optional RGB), batch table. WASM export: `encodePntsTile()`.
 - **tileset.json generator** — Recursive tileset tree from octree hierarchy. Box boundingVolume, level-scaled geometricError, per-leaf tile content URIs. WASM export: `generateTileset()` → `TilesetResult` class.
@@ -18,8 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Module count: 17 → 19 (added `octree`, `pnts`).
-- Test count: 274 → 308.
-- Source lines: ~16K → ~17K.
+- Test count: 274 → 344.
+- Source lines: ~16K → ~20K.
+- WASM binary: ~1.2 MB (with point-cloud features including laz).
 
 - `scripts/build-demo-site.sh` — static site for GitHub Pages / Vercel (`examples/` + `pkg/` layout).
 - [docs/DEMO_SITE.md](./docs/DEMO_SITE.md) — 在线演示部署说明（GitHub Pages + Vercel）。
