@@ -10,8 +10,8 @@
 [![Rust](https://img.shields.io/badge/Rust-%23A73737-orange.svg?logo=rust&logoColor=white)](https://www.rust-lang.org)
 [![WebAssembly](https://img.shields.io/badge/WebAssembly-654FF0.svg?logo=webassembly&logoColor=white)](https://webassembly.org)
 
-![Lines](https://img.shields.io/badge/code-8.8K-blue)
-![Tests](https://img.shields.io/badge/tests-140-success)
+![Lines](https://img.shields.io/badge/code-11K-blue)
+![Tests](https://img.shields.io/badge/tests-195-success)
 ![Formats](https://img.shields.io/badge/formats-6-green)
 
 *Offload server-side spatial computing to the client — free the cloud.*
@@ -77,6 +77,7 @@ Modern Web3D and GIS applications face a fundamental bottleneck:
 ## ✨ Features
 
 - 🔄 **Batch Coordinate Projection** — WGS-84 ↔ GCJ-02, WGS-84 ↔ BD-09, WGS-84 ↔ Web Mercator (EPSG:3857), WGS-84 ↔ CGCS2000
+- 📦 **GeoJSON Parser & Writer** — Parse and generate GeoJSON FeatureCollections from/to flat `Float64Array` buffers
 - 📦 **GeoJSON Parser** — Parse large FeatureCollections into flat `Float64Array` buffers
 - 📡 **Streaming GeoJSON Parser** — Chunked processing with progress callbacks
 - 📖 **Lazy GeoJSON Parser** — O(single feature) memory via manual JSON state machine — no full DOM parse
@@ -88,11 +89,13 @@ Modern Web3D and GIS applications face a fundamental bottleneck:
 - 🏗️ **IFC/BIM Geometry** (experimental) — Extract `IFCEXTRUDEDAREASOLID` mesh geometry
 - 🔺 **glTF / GLB Writer** — Build glTF 2.0 scenes in WASM, export as GLB binary
 - 📐 **Spatial Analysis** — Point/line buffering, bounding box, centroid, haversine distance, bearing, destination, midpoint on WGS-84
-- 📐 **Topology Analysis** — Polygon area (spherical excess), polyline length, Douglas-Peucker simplification, point-in-ring
+- 📐 **Topology Analysis** — Polygon area (spherical excess), polyline length, Douglas-Peucker simplification, point-in-ring, polygon boolean operations (intersection/union), TIN interpolation
+- ✅ **Coordinate Quality** — Validation against CRS ranges, cleaning (remove/clamp/snap), deduplication with tolerance
+- 📐 **Coordinate Sorting & Gridding** — Sort by lng/lat, spatial hash grid indexing
+- 🔒 **Memory Management** — `memoryInfo()`, `getAllocatedBytes()`, dynamic `setInputSizeLimit()`
 - ⚡ **Zero-Copy Architecture** — Data stays in WASM linear memory; JS gets typed array views
 - 📊 **GPU-Ready Output** — Interleaved vertex buffers, indexed geometry for WebGL2/WebGPU
 - 🧵 **Multi-threaded** (optional) — Web Workers + SharedArrayBuffer via Rayon
-- 🔒 **Memory Management** — `memoryInfo()` API, 100 MB input size limit
 
 ---
 
@@ -250,6 +253,8 @@ npm run build:wasm:mt
 | `parseGeoJsonLazy(input)` | **Lazy iterator** — O(feature) memory, no full DOM parse |
 | `parseGeoJsonProperties(input)` | Extract all feature properties as JSON string |
 | `parseGeoJsonFeatures(input)` | Structured per-feature result → `GeoJsonFeaturesResult` |
+| `geoJsonFromCoords(coords, geometryType)` | **Generate** GeoJSON Feature from coordinate buffer |
+| `geoJsonFeatureCollection(coords, types, props)` | **Generate** FeatureCollection from multiple features |
 
 **Lazy GeoJSON usage:**
 ```typescript
@@ -354,6 +359,8 @@ const geojson = core.decodeMvtToGeoJson(new Uint8Array(buffer));
 | `polylineLength(coords)` | Line/polygon length (m) via Haversine |
 | `simplifyDouglasPeucker(coords, tolerance)` | Douglas-Peucker simplification → `Float64Array` |
 | `isPointInRing(px, py, ring)` | Point-in-polygon via ray-casting → `bool` |
+| `polygonIntersection(ring1, ring2)` | **Boolean intersection** of two polygons → `Float64Array` |
+| `polygonUnion(ring1, ring2)` | **Boolean union** of two polygons → `Float64Array` |
 
 ### Spatial Analysis
 
@@ -372,6 +379,35 @@ const geojson = core.decodeMvtToGeoJson(new Uint8Array(buffer));
 
 | Function | Description |
 |----------|-------------|
+| `version()` | Library version string |
+| `memoryInfo()` | WASM memory usage → `MemoryInfo` |
+| `getAllocatedBytes()` | WASM linear memory size (bytes) |
+| `cgcs2000IsWgs84Compatible()` | Returns `true` (sub-cm accuracy) |
+| `initThreadPool(numThreads)` | Init Rayon thread pool (multi-thread) |
+
+### Memory Management
+
+| Function | Description |
+|----------|-------------|
+| `setInputSizeLimit(bytes)` | Set max input size (default 100 MB) |
+| `getInputSizeLimit()` | Query current input size limit |
+| `getAllocatedBytes()` | Query WASM memory allocation |
+
+### Coordinate Quality
+
+| Function | Description |
+|----------|-------------|
+| `validateCoords(coords, crs)` | Validate against CRS range → `ValidationResult` |
+| `cleanCoords(coords, strategy)` | Remove / clamp / snap invalid values |
+| `deduplicateCoords(coords, tolerance)` | Remove near-duplicate points |
+
+### Coordinate Sorting & Gridding
+
+| Function | Description |
+|----------|-------------|
+| `sortCoordsByLng(coords)` | Sort pairs by longitude |
+| `sortCoordsByLat(coords)` | Sort pairs by latitude |
+| `gridIndex(coords, cellSizeDeg)` | Spatial hash grid IDs per point |
 | `version()` | Library version string |
 | `memoryInfo()` | WASM memory usage → `MemoryInfo` |
 | `cgcs2000IsWgs84Compatible()` | Returns `true` (sub-cm accuracy) |

@@ -42,6 +42,8 @@ export {
   parseGeoJsonProperties,
   parseGeoJsonFeatures,
   GeoJsonFeaturesResult,
+  geoJsonFromCoords,
+  geoJsonFeatureCollection,
   // ── GeoJSON Streaming ──────────────────────────────────────
   parseGeoJsonStream,
   parseGeoJsonPerFeature,
@@ -100,9 +102,23 @@ export {
   polylineLength,
   simplifyDouglasPeucker,
   isPointInRing,
+  polygonIntersection,
+  polygonUnion,
+  // ── Coordinate Quality ────────────────────────────────────
+  validateCoords,
+  ValidationResult,
+  cleanCoords,
+  deduplicateCoords,
+  // ── Coordinate Sorting & Gridding ─────────────────────────
+  sortCoordsByLng,
+  sortCoordsByLat,
+  gridIndex,
   // ── Memory Management ──────────────────────────────────────
   memoryInfo,
   MemoryInfo,
+  setInputSizeLimit,
+  getInputSizeLimit,
+  getAllocatedBytes,
   // ── Multi-threading ────────────────────────────────────────
   initThreadPool,
 } from "./wasm_spatial_core.js";
