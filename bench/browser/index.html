@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>wasm-spatial-core — Performance Benchmark</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card: #161b22;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --green: #3fb950;
+      --orange: #d29922;
+      --red: #f85149;
+      --purple: #bc8cff;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 2rem;
+      max-width: 960px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+    h1 {
+      font-size: 1.8rem;
+      margin-bottom: 0.25rem;
+      background: linear-gradient(135deg, var(--accent), var(--purple));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .subtitle { color: var(--text-muted); margin-bottom: 2rem; font-size: 0.9rem; }
+    .controls {
+      display: flex; gap: 1rem; align-items: center;
+      margin-bottom: 2rem; flex-wrap: wrap;
+    }
+    label { color: var(--text-muted); font-size: 0.85rem; }
+    select, button {
+      background: var(--card); color: var(--text); border: 1px solid var(--border);
+      padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.85rem;
+      cursor: pointer; transition: border-color 0.2s;
+    }
+    select:hover, button:hover { border-color: var(--accent); }
+    button.run {
+      background: linear-gradient(135deg, #238636, #2ea043);
+      border: none; font-weight: 600; padding: 0.5rem 1.5rem;
+    }
+    button.run:disabled { opacity: 0.5; cursor: not-allowed; }
+    .results { display: flex; flex-direction: column; gap: 1rem; }
+    .bench-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 8px; padding: 1.25rem; transition: border-color 0.3s;
+    }
+    .bench-card:hover { border-color: var(--accent); }
+    .bench-name { font-weight: 600; font-size: 0.95rem; margin-bottom: 0.75rem; }
+    .bench-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 0.4rem 0; border-bottom: 1px solid var(--border);
+    }
+    .bench-row:last-child { border-bottom: none; }
+    .bench-label { font-size: 0.85rem; color: var(--text-muted); }
+    .bench-value { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; }
+    .bench-bar {
+      height: 6px; border-radius: 3px; margin-top: 0.25rem;
+      transition: width 0.5s ease;
+    }
+    .wasm-bar { background: linear-gradient(90deg, var(--green), #56d364); }
+    .js-bar { background: linear-gradient(90deg, var(--orange), #e3b341); }
+    .speedup {
+      font-weight: 700; font-size: 1.1rem;
+      background: linear-gradient(135deg, var(--green), #56d364);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .status {
+      text-align: center; padding: 2rem; color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+    .spinner {
+      display: inline-block; width: 20px; height: 20px;
+      border: 2px solid var(--border); border-top-color: var(--accent);
+      border-radius: 50%; animation: spin 0.8s linear infinite;
+      margin-right: 0.5rem; vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .note {
+      background: rgba(88, 166, 255, 0.1); border: 1px solid rgba(88, 166, 255, 0.3);
+      border-radius: 6px; padding: 0.75rem 1rem; margin-bottom: 1.5rem;
+      font-size: 0.85rem; color: var(--accent);
+    }
+  </style>
+</head>
+<body>
+  <h1>⚡ wasm-spatial-core Benchmark</h1>
+  <p class="subtitle">WASM (Rust) vs Pure JavaScript — Coordinate transforms & GeoJSON parsing</p>
+
+  <div class="note">
+    💡 This benchmark runs directly in your browser. Results reflect real-world
+    performance on your hardware. WASM module must be built first via
+    <code>wasm-pack build --target web --release</code>.
+  </div>
+
+  <div class="controls">
+    <div>
+      <label for="dataSize">Data size:</label>
+      <select id="dataSize">
+        <option value="10000">10,000 points</option>
+        <option value="100000" selected>100,000 points</option>
+        <option value="500000">500,000 points</option>
+        <option value="1000000">1,000,000 points</option>
+      </select>
+    </div>
+    <div>
+      <label for="iterations">Iterations:</label>
+      <select id="iterations">
+        <option value="3">3</option>
+        <option value="5" selected>5</option>
+        <option value="10">10</option>
+      </select>
+    </div>
+    <button class="run" id="runBtn" onclick="runBenchmarks()">▶ Run Benchmark</button>
+  </div>
+
+  <div id="results" class="results">
+    <div class="status" id="status">Click "Run Benchmark" to start</div>
+  </div>
+
+  <script type="module">
+    // ── WASM module loader ───────────────────────────────────────
+    import init, {
+      batchWgs84ToGcj02,
+      batchWgs84ToMercator,
+      batchWgs84ToBd09,
+      parseGeoJsonCoords,
+      version,
+    } from '../pkg/wasm_spatial_core.js';
+
+    let wasmReady = false;
+
+    async function initWasm() {
+      try {
+        await init();
+        wasmReady = true;
+        document.getElementById('status').innerHTML =
+          `✅ WASM module loaded (v${version()}). Ready to benchmark.`;
+      } catch (e) {
+        document.getElementById('status').innerHTML =
+          `❌ Failed to load WASM: ${e.message}. Run <code>wasm-pack build --target web --release</code> first.`;
+      }
+    }
+    initWasm();
+
+    // ── Pure JS implementations (comparison baselines) ───────────
+    const PI = Math.PI;
+    const A_JS = 6378245.0;
+    const EE_JS = 0.00669342162;
+    const EARTH_R = 6378137.0;
+    const X_PI_JS = PI * 3000.0 / 180.0;
+
+    function jsTransformLat(x, y) {
+      let lat = -100 + 2*x + 3*y + 0.2*y*y + 0.1*x*y + 0.2*Math.sqrt(Math.abs(x));
+      lat += (20*Math.sin(6*x*PI) + 20*Math.sin(2*x*PI)) * 2/3;
+      lat += (20*Math.sin(y*PI) + 40*Math.sin(y/3*PI)) * 2/3;
+      lat += (160*Math.sin(y/12*PI) + 320*Math.sin(y*PI/30)) * 2/3;
+      return lat;
+    }
+    function jsTransformLng(x, y) {
+      let lng = 300 + x + 2*y + 0.1*x*x + 0.1*x*y + 0.1*Math.sqrt(Math.abs(x));
+      lng += (20*Math.sin(6*x*PI) + 20*Math.sin(2*x*PI)) * 2/3;
+      lng += (20*Math.sin(x*PI) + 40*Math.sin(x/3*PI)) * 2/3;
+      lng += (150*Math.sin(x/12*PI) + 300*Math.sin(x/30*PI)) * 2/3;
+      return lng;
+    }
+    function jsWgs84ToGcj02(coords) {
+      const out = new Float64Array(coords.length);
+      for (let i = 0; i < coords.length; i += 2) {
+        const lng = coords[i], lat = coords[i+1];
+        if (lng < 73.66 || lng > 135.05 || lat < 3.86 || lat > 53.55) {
+          out[i] = lng; out[i+1] = lat; continue;
+        }
+        let dLat = jsTransformLat(lng-105, lat-35);
+        let dLng = jsTransformLng(lng-105, lat-35);
+        const radLat = lat / 180 * PI;
+        const magic = 1 - EE_JS * Math.sin(radLat) * Math.sin(radLat);
+        const sqrtMagic = Math.sqrt(magic);
+        dLat = (dLat * 180) / ((A_JS * (1 - EE_JS)) / (magic * sqrtMagic) * PI);
+        dLng = (dLng * 180) / (A_JS / sqrtMagic * Math.cos(radLat) * PI);
+        out[i] = lng + dLng;
+        out[i+1] = lat + dLat;
+      }
+      return out;
+    }
+    function jsWgs84ToMercator(coords) {
+      const out = new Float64Array(coords.length);
+      for (let i = 0; i < coords.length; i += 2) {
+        out[i] = coords[i] * PI / 180 * EARTH_R;
+        out[i+1] = Math.log(Math.tan(PI/4 + coords[i+1]*PI/360)) * EARTH_R;
+      }
+      return out;
+    }
+    function jsWgs84ToBd09(coords) {
+      const out = new Float64Array(coords.length);
+      for (let i = 0; i < coords.length; i += 2) {
+        // WGS84 → GCJ02 first
+        const lng = coords[i], lat = coords[i+1];
+        let gLng = lng, gLat = lat;
+        if (!(lng < 73.66 || lng > 135.05 || lat < 3.86 || lat > 53.55)) {
+          let dLat = jsTransformLat(lng-105, lat-35);
+          let dLng = jsTransformLng(lng-105, lat-35);
+          const radLat = lat / 180 * PI;
+          const magic = 1 - EE_JS * Math.sin(radLat)**2;
+          const sqrtMagic = Math.sqrt(magic);
+          dLat = (dLat * 180) / ((A_JS * (1 - EE_JS)) / (magic * sqrtMagic) * PI);
+          dLng = (dLng * 180) / (A_JS / sqrtMagic * Math.cos(radLat) * PI);
+          gLng = lng + dLng; gLat = lat + dLat;
+        }
+        // GCJ02 → BD09
+        const z = Math.sqrt(gLng*gLng + gLat*gLat) + 0.00002*Math.sin(gLat*X_PI_JS);
+        const theta = Math.atan2(gLat, gLng) + 0.000003*Math.cos(gLng*X_PI_JS);
+        out[i] = z * Math.cos(theta) + 0.0065;
+        out[i+1] = z * Math.sin(theta) + 0.006;
+      }
+      return out;
+    }
+
+    // ── GeoJSON generation ───────────────────────────────────────
+    function generateGeoJson(n) {
+      const features = [];
+      for (let i = 0; i < n; i++) {
+        const lng = 73.66 + Math.random() * (135.05 - 73.66);
+        const lat = 3.86 + Math.random() * (53.55 - 3.86);
+        features.push(`{"type":"Feature","geometry":{"type":"Point","coordinates":[${lng.toFixed(6)},${lat.toFixed(6)}]},"properties":{}}`);
+      }
+      return `{"type":"FeatureCollection","features":[${features.join(',')}]}`;
+    }
+
+    // ── Coordinate data generation ───────────────────────────────
+    function generateCoords(n) {
+      const coords = new Float64Array(n * 2);
+      for (let i = 0; i < n * 2; i += 2) {
+        coords[i] = 73.66 + Math.random() * (135.05 - 73.66);
+        coords[i+1] = 3.86 + Math.random() * (53.55 - 3.86);
+      }
+      return coords;
+    }
+
+    // ── Benchmark runner ─────────────────────────────────────────
+    function timeIt(fn, iterations) {
+      // Warmup
+      fn();
+      // Measure
+      const times = [];
+      for (let i = 0; i < iterations; i++) {
+        const t0 = performance.now();
+        fn();
+        times.push(performance.now() - t0);
+      }
+      times.sort((a, b) => a - b);
+      return {
+        median: times[Math.floor(times.length / 2)],
+        min: times[0],
+        max: times[times.length - 1],
+        mean: times.reduce((s, t) => s + t, 0) / times.length,
+      };
+    }
+
+    function renderResult(name, wasmTime, jsTime) {
+      const speedup = jsTime.median / wasmTime.median;
+      const maxTime = Math.max(wasmTime.median, jsTime.median);
+      const wasmPct = (wasmTime.median / maxTime * 100).toFixed(0);
+      const jsPct = (jsTime.median / maxTime * 100).toFixed(0);
+
+      return `
+        <div class="bench-card">
+          <div class="bench-name">${name}</div>
+          <div class="bench-row">
+            <span class="bench-label">🦀 WASM (Rust)</span>
+            <span class="bench-value" style="color:var(--green)">${wasmTime.median.toFixed(2)} ms</span>
+          </div>
+          <div class="bench-bar wasm-bar" style="width:${wasmPct}%"></div>
+          <div class="bench-row">
+            <span class="bench-label">📜 Pure JavaScript</span>
+            <span class="bench-value" style="color:var(--orange)">${jsTime.median.toFixed(2)} ms</span>
+          </div>
+          <div class="bench-bar js-bar" style="width:${jsPct}%"></div>
+          <div class="bench-row" style="margin-top:0.5rem; border-top:1px solid var(--border); padding-top:0.5rem">
+            <span class="bench-label">Speedup</span>
+            <span class="speedup">${speedup.toFixed(1)}×</span>
+          </div>
+        </div>
+      `;
+    }
+
+    // ── Main ─────────────────────────────────────────────────────
+    window.runBenchmarks = async function() {
+      if (!wasmReady) {
+        alert('WASM module not loaded yet!');
+        return;
+      }
+
+      const btn = document.getElementById('runBtn');
+      const resultsEl = document.getElementById('results');
+      const n = parseInt(document.getElementById('dataSize').value);
+      const iters = parseInt(document.getElementById('iterations').value);
+
+      btn.disabled = true;
+      resultsEl.innerHTML = `<div class="status"><span class="spinner"></span>Generating ${n.toLocaleString()} test coordinates…</div>`;
+
+      // Yield to let UI update
+      await new Promise(r => setTimeout(r, 50));
+
+      const coords = generateCoords(n);
+      const results = [];
+
+      // ── Benchmark 1: WGS84 → GCJ-02 ──
+      resultsEl.innerHTML = `<div class="status"><span class="spinner"></span>Benchmarking WGS84 → GCJ-02 (${n.toLocaleString()} points, ${iters} iterations)…</div>`;
+      await new Promise(r => setTimeout(r, 20));
+
+      const wasmGcj = timeIt(() => batchWgs84ToGcj02(coords), iters);
+      const jsGcj = timeIt(() => jsWgs84ToGcj02(coords), iters);
+      results.push(renderResult(`WGS-84 → GCJ-02 (${n.toLocaleString()} points)`, wasmGcj, jsGcj));
+
+      // ── Benchmark 2: WGS84 → Mercator ──
+      resultsEl.innerHTML = `<div class="status"><span class="spinner"></span>Benchmarking WGS84 → Web Mercator…</div>`;
+      await new Promise(r => setTimeout(r, 20));
+
+      const wasmMerc = timeIt(() => batchWgs84ToMercator(coords), iters);
+      const jsMerc = timeIt(() => jsWgs84ToMercator(coords), iters);
+      results.push(renderResult(`WGS-84 → EPSG:3857 (${n.toLocaleString()} points)`, wasmMerc, jsMerc));
+
+      // ── Benchmark 3: WGS84 → BD-09 ──
+      resultsEl.innerHTML = `<div class="status"><span class="spinner"></span>Benchmarking WGS84 → BD-09…</div>`;
+      await new Promise(r => setTimeout(r, 20));
+
+      const wasmBd = timeIt(() => batchWgs84ToBd09(coords), iters);
+      const jsBd = timeIt(() => jsWgs84ToBd09(coords), iters);
+      results.push(renderResult(`WGS-84 → BD-09 (${n.toLocaleString()} points)`, wasmBd, jsBd));
+
+      // ── Benchmark 4: GeoJSON parsing ──
+      const geojsonN = Math.min(n, 50000); // Cap GeoJSON size to avoid browser hang
+      resultsEl.innerHTML = `<div class="status"><span class="spinner"></span>Generating GeoJSON (${geojsonN.toLocaleString()} features)…</div>`;
+      await new Promise(r => setTimeout(r, 20));
+
+      const geojsonStr = generateGeoJson(geojsonN);
+      const sizeMB = (geojsonStr.length / 1048576).toFixed(1);
+
+      resultsEl.innerHTML = `<div class="status"><span class="spinner"></span>Benchmarking GeoJSON parsing (${sizeMB} MB)…</div>`;
+      await new Promise(r => setTimeout(r, 20));
+
+      const wasmParse = timeIt(() => parseGeoJsonCoords(geojsonStr), iters);
+      const jsParse = timeIt(() => {
+        const fc = JSON.parse(geojsonStr);
+        const out = new Float64Array(fc.features.length * 2);
+        for (let i = 0; i < fc.features.length; i++) {
+          const c = fc.features[i].geometry.coordinates;
+          out[i*2] = c[0];
+          out[i*2+1] = c[1];
+        }
+        return out;
+      }, iters);
+      results.push(renderResult(`GeoJSON Parse → Float64Array (${geojsonN.toLocaleString()} features, ${sizeMB} MB)`, wasmParse, jsParse));
+
+      // ── Render all results ──
+      resultsEl.innerHTML = results.join('');
+      btn.disabled = false;
+    };
+  </script>
+</body>
+</html>
