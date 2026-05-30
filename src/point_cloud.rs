@@ -853,8 +853,8 @@ pub fn parse_point_cloud_auto(bytes: &[u8]) -> Result<LasPointCloud, SpatialErro
         #[cfg(feature = "e57-support")]
         "e57" => {
             // E57 has its own result type, convert to LasPointCloud
-            let e57_result = crate::e57::parse_e57_core(bytes)
-                .map_err(SpatialError::point_cloud_error)?;
+            let e57_result =
+                crate::e57::parse_e57_core(bytes).map_err(SpatialError::point_cloud_error)?;
             Ok(LasPointCloud {
                 positions: e57_result.positions,
                 colors: e57_result.colors,
@@ -2395,30 +2395,30 @@ fn eigen_vector_3x3_symmetric(cov: &[f64; 6]) -> (f64, f64, f64) {
 /// Returns (R, G, B) tuple.
 const fn asprs_color(class: u8) -> (u8, u8, u8) {
     match class {
-        0 => (255, 255, 255),   // Never classified (white)
-        1 => (139, 90, 43),     // Ground (brown)
-        2 => (34, 139, 34),     // Low Vegetation
-        3 => (0, 180, 0),       // Medium Vegetation
-        4 => (0, 100, 0),       // High Vegetation
-        5 => (100, 100, 255),   // Building (blue-gray)
-        6 => (139, 0, 0),       // Low Point / noise (dark red)
-        7 => (192, 192, 192),   // Reserved (gray)
-        8 => (255, 255, 0),     // Model Key Point (yellow)
-        9 => (0, 0, 255),       // Water (blue)
-        10 => (255, 165, 0),    // Rail (orange)
-        11 => (100, 100, 100),  // Road Surface (dark gray)
-        12 => (128, 0, 128),    // Overhead Structure (purple)
-        13 => (0, 255, 255),    // Wire - Guard (Shield) (cyan)
-        14 => (255, 0, 255),    // Wire - Conductor (Phase) (magenta)
-        15 => (255, 0, 0),      // Transmission Tower (red)
-        16 => (255, 69, 0),     // Wire-Structure Connector
-        17 => (210, 180, 140),  // Bridge Deck (tan)
-        18 => (200, 0, 0),      // High Noise
-        19 => (148, 0, 211),    // Overhead Structure Point
-        20 => (101, 67, 33),    // Ignored Ground
-        21 => (173, 216, 230),  // Snow
-        22 => (255, 192, 203),  // Temporal Exclusion
-        _ => (128, 128, 128),   // Default (gray)
+        0 => (255, 255, 255),  // Never classified (white)
+        1 => (139, 90, 43),    // Ground (brown)
+        2 => (34, 139, 34),    // Low Vegetation
+        3 => (0, 180, 0),      // Medium Vegetation
+        4 => (0, 100, 0),      // High Vegetation
+        5 => (100, 100, 255),  // Building (blue-gray)
+        6 => (139, 0, 0),      // Low Point / noise (dark red)
+        7 => (192, 192, 192),  // Reserved (gray)
+        8 => (255, 255, 0),    // Model Key Point (yellow)
+        9 => (0, 0, 255),      // Water (blue)
+        10 => (255, 165, 0),   // Rail (orange)
+        11 => (100, 100, 100), // Road Surface (dark gray)
+        12 => (128, 0, 128),   // Overhead Structure (purple)
+        13 => (0, 255, 255),   // Wire - Guard (Shield) (cyan)
+        14 => (255, 0, 255),   // Wire - Conductor (Phase) (magenta)
+        15 => (255, 0, 0),     // Transmission Tower (red)
+        16 => (255, 69, 0),    // Wire-Structure Connector
+        17 => (210, 180, 140), // Bridge Deck (tan)
+        18 => (200, 0, 0),     // High Noise
+        19 => (148, 0, 211),   // Overhead Structure Point
+        20 => (101, 67, 33),   // Ignored Ground
+        21 => (173, 216, 230), // Snow
+        22 => (255, 192, 203), // Temporal Exclusion
+        _ => (128, 128, 128),  // Default (gray)
     }
 }
 
@@ -2558,7 +2558,7 @@ pub(crate) fn build_color_ramp_core(colors: &[u8], num_steps: usize) -> Result<V
     if colors.len() < 6 {
         return Err("Need at least 2 color stops (6 bytes)".to_string());
     }
-    if colors.len() % 3 != 0 {
+    if !colors.len().is_multiple_of(3) {
         return Err("Colors must be multiples of 3 (RGB)".to_string());
     }
     if num_steps == 0 {
@@ -4031,9 +4031,9 @@ DATA ascii
     #[test]
     fn test_build_color_ramp_multi_stop() {
         let colors = vec![
-            255, 0, 0,    // red
-            0, 255, 0,    // green
-            0, 0, 255,    // blue
+            255, 0, 0, // red
+            0, 255, 0, // green
+            0, 0, 255, // blue
         ];
         let ramp = build_color_ramp_core(&colors, 5).unwrap();
         assert_eq!(ramp.len(), 15);
@@ -4081,11 +4081,7 @@ DATA ascii
 
     #[test]
     fn test_point_cloud_bounds_multiple() {
-        let positions = vec![
-            1.0_f32, 2.0, 3.0,
-            -5.0, 10.0, 0.0,
-            8.0, -1.0, 6.0,
-        ];
+        let positions = vec![1.0_f32, 2.0, 3.0, -5.0, 10.0, 0.0, 8.0, -1.0, 6.0];
         let (min_x, min_y, min_z, max_x, max_y, max_z) = point_cloud_bounds_core(&positions);
         assert_eq!(min_x, -5.0);
         assert_eq!(max_x, 8.0);
@@ -4098,10 +4094,7 @@ DATA ascii
     #[test]
     fn test_point_cloud_centroid() {
         let positions = vec![
-            0.0_f32, 0.0, 0.0,
-            2.0, 0.0, 0.0,
-            0.0, 4.0, 0.0,
-            0.0, 0.0, 6.0,
+            0.0_f32, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 4.0, 0.0, 0.0, 0.0, 6.0,
         ];
         let (cx, cy, cz) = point_cloud_centroid_core(&positions);
         assert!((cx - 0.5).abs() < 1e-6);
@@ -4121,10 +4114,7 @@ DATA ascii
     #[test]
     fn test_point_cloud_stats_basic() {
         let positions = vec![
-            0.0_f32, 0.0, 0.0,
-            10.0, 0.0, 0.0,
-            0.0, 10.0, 0.0,
-            0.0, 0.0, 10.0,
+            0.0_f32, 0.0, 0.0, 10.0, 0.0, 0.0, 0.0, 10.0, 0.0, 0.0, 0.0, 10.0,
         ];
         let stats_json = point_cloud_stats_core(&positions).unwrap();
         let stats: serde_json::Value = serde_json::from_str(&stats_json).unwrap();
