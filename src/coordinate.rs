@@ -888,6 +888,303 @@ pub fn denormalize_coords(normals: &Float64Array, source_bounds: &Float64Array) 
     out
 }
 
+// ===========================================================================
+// UTM Projection (WGS84 ↔ UTM)
+// ===========================================================================
+
+/// WGS-84 ellipsoid semi-major axis
+const UTM_A: f64 = 6378137.0;
+const UTM_K0: f64 = 0.9996; // Scale factor
+
+// Derived constants matching utm Python library
+const UTM_E: f64 = 0.0066943799901413165;
+const UTM_E2: f64 = 4.481472345240445e-05;
+const UTM_E3: f64 = 3.0000678794349315e-07;
+const UTM_EP: f64 = 0.006739496742276434;
+const UTM_E_E: f64 = 0.0016792203863836958;
+const UTM_E_E2: f64 = 2.8197811060466088e-06;
+const UTM_E_E3: f64 = 4.735033918413031e-09;
+const UTM_E_E4: f64 = 7.951165486017436e-12;
+const UTM_E_E5: f64 = 1.3351759179630905e-14;
+
+/// Calculate the UTM zone number (1-60) from a longitude.
+#[inline(always)]
+fn lng_to_zone(lng: f64) -> u32 {
+    let raw = ((lng + 180.0) / 6.0).floor() as i32 + 1;
+    raw.clamp(1, 60) as u32
+}
+
+/// Internal: WGS84 → UTM easting, northing using Transverse Mercator.
+/// Ported from the utm Python library (well-tested, per USGS formulas).
+fn wgs84_to_utm_pt(lng: f64, lat: f64) -> (u32, f64, f64, bool) {
+    use std::f64::consts::PI;
+
+    let zone = lng_to_zone(lng);
+    let is_north = lat >= 0.0;
+
+    let lat_rad = lat * PI / 180.0;
+    let lat_sin = lat_rad.sin();
+    let lat_cos = lat_rad.cos();
+    let lat_tan = lat_sin / lat_cos;
+    let lat_tan2 = lat_tan * lat_tan;
+    let lat_tan4 = lat_tan2 * lat_tan2;
+
+    let central_lon = (zone as f64 - 1.0) * 6.0 - 180.0 + 3.0;
+    let central_lon_rad = central_lon * PI / 180.0;
+
+    let n = UTM_A / (1.0 - UTM_E * lat_sin * lat_sin).sqrt();
+    let c = UTM_EP * lat_cos * lat_cos;
+
+    let a = lat_cos * ((lng * PI / 180.0 - central_lon_rad + PI) % (2.0 * PI) - PI);
+    let a2 = a * a;
+    let a3 = a2 * a;
+    let a4 = a3 * a;
+    let a5 = a4 * a;
+    let a6 = a5 * a;
+
+    let m1 = 1.0 - UTM_E / 4.0 - 3.0 * UTM_E2 / 64.0 - 5.0 * UTM_E3 / 256.0;
+    let m2 = 3.0 * UTM_E / 8.0 + 3.0 * UTM_E2 / 32.0 + 45.0 * UTM_E3 / 1024.0;
+    let m3 = 15.0 * UTM_E2 / 256.0 + 45.0 * UTM_E3 / 1024.0;
+    let m4 = 35.0 * UTM_E3 / 3072.0;
+
+    let m = UTM_A
+        * (m1 * lat_rad - m2 * (2.0 * lat_rad).sin()
+            + m3 * (4.0 * lat_rad).sin()
+            - m4 * (6.0 * lat_rad).sin());
+
+    let easting = UTM_K0
+        * n
+        * (a + a3 / 6.0 * (1.0 - lat_tan2 + c)
+            + a5 / 120.0
+                * (5.0 - 18.0 * lat_tan2 + lat_tan4 + 72.0 * c - 58.0 * UTM_EP))
+        + 500000.0;
+
+    let mut northing = UTM_K0
+        * (m
+            + n
+                * lat_tan
+                * (a2 / 2.0
+                    + a4 / 24.0
+                        * (5.0 - lat_tan2 + 9.0 * c + 4.0 * c * c)
+                    + a6 / 720.0
+                        * (61.0 - 58.0 * lat_tan2 + lat_tan4 + 600.0 * c
+                            - 330.0 * UTM_EP)));
+
+    if !is_north {
+        northing += 10000000.0;
+    }
+
+    (zone, easting, northing, is_north)
+}
+
+/// Internal: UTM → WGS84 using inverse Transverse Mercator.
+/// Ported from the utm Python library.
+fn utm_to_wgs84_pt(zone: u32, easting: f64, northing: f64, is_north: bool) -> (f64, f64) {
+    use std::f64::consts::PI;
+
+    let x = easting - 500000.0;
+    let y = if is_north { northing } else { northing - 10000000.0 };
+
+    let m = y / UTM_K0;
+
+    let m1 = 1.0 - UTM_E / 4.0 - 3.0 * UTM_E2 / 64.0 - 5.0 * UTM_E3 / 256.0;
+    let mu = m / (UTM_A * m1);
+
+    let p2 = 3.0 / 2.0 * UTM_E_E - 27.0 / 32.0 * UTM_E_E3 + 269.0 / 512.0 * UTM_E_E5;
+    let p3 = 21.0 / 16.0 * UTM_E_E2 - 55.0 / 32.0 * UTM_E_E4;
+    let p4 = 151.0 / 96.0 * UTM_E_E3 - 417.0 / 128.0 * UTM_E_E5;
+    let p5 = 1097.0 / 512.0 * UTM_E_E4;
+
+    let p_rad = mu
+        + p2 * (2.0 * mu).sin()
+        + p3 * (4.0 * mu).sin()
+        + p4 * (6.0 * mu).sin()
+        + p5 * (8.0 * mu).sin();
+
+    let p_sin = p_rad.sin();
+    let p_sin2 = p_sin * p_sin;
+    let p_cos = p_rad.cos();
+    let p_tan = p_sin / p_cos;
+    let p_tan2 = p_tan * p_tan;
+    let p_tan4 = p_tan2 * p_tan2;
+
+    let ep_sin = 1.0 - UTM_E * p_sin2;
+    let ep_sin_sqrt = ep_sin.sqrt();
+
+    let n = UTM_A / ep_sin_sqrt;
+    let r = (1.0 - UTM_E) / ep_sin;
+
+    let c = UTM_EP * p_cos * p_cos;
+    let c2 = c * c;
+
+    let d = x / (n * UTM_K0);
+    let d2 = d * d;
+    let d3 = d2 * d;
+    let d4 = d3 * d;
+    let d5 = d4 * d;
+    let d6 = d5 * d;
+
+    let lat = p_rad
+        - (p_tan / r)
+            * (d2 / 2.0
+                - d4 / 24.0
+                    * (5.0 + 3.0 * p_tan2 + 10.0 * c - 4.0 * c2 - 9.0 * UTM_EP)
+                + d6 / 720.0
+                    * (61.0 + 90.0 * p_tan2 + 298.0 * c + 45.0 * p_tan4
+                        - 252.0 * UTM_EP
+                        - 3.0 * c2));
+
+    let mut lng = (d - d3 / 6.0 * (1.0 + 2.0 * p_tan2 + c)
+        + d5 / 120.0
+            * (5.0 - 2.0 * c + 28.0 * p_tan2 - 3.0 * c2
+                + 8.0 * UTM_EP
+                + 24.0 * p_tan4))
+        / p_cos;
+
+    let central_lon = (zone as f64 - 1.0) * 6.0 - 180.0 + 3.0;
+    let central_lon_rad = central_lon * PI / 180.0;
+
+    // mod_angle: normalize to [-pi, pi], matching Python behavior
+    let total = lng + central_lon_rad;
+    lng = (total + PI).rem_euclid(2.0 * PI) - PI;
+
+    (lng * 180.0 / PI, lat * 180.0 / PI)
+}
+
+/// Convert a single WGS84 coordinate to UTM.
+///
+/// # Arguments
+///
+/// * `lng` — Longitude in degrees.
+/// * `lat` — Latitude in degrees.
+///
+/// # Returns
+///
+/// `Float64Array` with `[zone_number, easting, northing, is_north]`.
+/// - `zone_number`: UTM zone (1-60)
+/// - `easting`: Easting in meters (false easting + 500,000 applied)
+/// - `northing`: Northing in meters
+/// - `is_north`: 1.0 for northern hemisphere, 0.0 for southern
+#[wasm_bindgen(js_name = "wgs84ToUtm")]
+pub fn wgs84_to_utm(lng: f64, lat: f64) -> js_sys::Float64Array {
+    let (zone, easting, northing, is_north) = wgs84_to_utm_pt(lng, lat);
+    let out = Float64Array::new_with_length(4);
+    out.copy_from(&[zone as f64, easting, northing, if is_north { 1.0 } else { 0.0 }]);
+    out
+}
+
+/// Convert a single UTM coordinate to WGS84.
+///
+/// # Arguments
+///
+/// * `zone` — UTM zone number (1-60).
+/// * `easting` — Easting in meters.
+/// * `northing` — Northing in meters.
+/// * `is_north` — `true` for northern hemisphere, `false` for southern.
+///
+/// # Returns
+///
+/// `Float64Array` with `[longitude, latitude]` in degrees.
+#[wasm_bindgen(js_name = "utmToWgs84")]
+pub fn utm_to_wgs84(zone: u32, easting: f64, northing: f64, is_north: bool) -> js_sys::Float64Array {
+    let (lng, lat) = utm_to_wgs84_pt(zone, easting, northing, is_north);
+    let out = Float64Array::new_with_length(2);
+    out.copy_from(&[lng, lat]);
+    out
+}
+
+/// Convert batch WGS84 coordinates to UTM.
+///
+/// Input: flat `[lng0, lat0, lng1, lat1, ...]`.
+/// Output: flat `[zone, easting, northing, zone, easting, northing, ...]`.
+#[wasm_bindgen(js_name = "batchWgs84ToUtm")]
+pub fn batch_wgs84_to_utm(coords: &Float64Array) -> js_sys::Float64Array {
+    let len = coords.length() as usize;
+    let mut buf = vec![0.0; len];
+    coords.copy_to(&mut buf);
+    let point_count = len / 2;
+    let mut result = Vec::with_capacity(point_count * 3);
+    for i in 0..point_count {
+        let (zone, easting, northing, _is_north) = wgs84_to_utm_pt(buf[i * 2], buf[i * 2 + 1]);
+        result.push(zone as f64);
+        result.push(easting);
+        result.push(northing);
+    }
+    let out = Float64Array::new_with_length(result.len() as u32);
+    out.copy_from(&result);
+    out
+}
+
+/// Convert batch UTM coordinates to WGS84.
+///
+/// Input: flat `[zone, easting, northing, zone, easting, northing, ...]`.
+/// Output: flat `[lng, lat, lng, lat, ...]`.
+#[wasm_bindgen(js_name = "batchUtmToWgs84")]
+pub fn batch_utm_to_wgs84(utm_coords: &Float64Array) -> js_sys::Float64Array {
+    let len = utm_coords.length() as usize;
+    let mut buf = vec![0.0; len];
+    utm_coords.copy_to(&mut buf);
+    let point_count = len / 3;
+    let mut result = Vec::with_capacity(point_count * 2);
+    for i in 0..point_count {
+        let zone = buf[i * 3] as u32;
+        let easting = buf[i * 3 + 1];
+        let northing = buf[i * 3 + 2];
+        let is_north = northing >= 0.0; // Heuristic: northern hemisphere northing > 0
+        let (lng, lat) = utm_to_wgs84_pt(zone, easting, northing, is_north);
+        result.push(lng);
+        result.push(lat);
+    }
+    let out = Float64Array::new_with_length(result.len() as u32);
+    out.copy_from(&result);
+    out
+}
+
+/// Convert batch WGS84 to UTM in-place.
+///
+/// The input buffer must be pre-allocated with 3 values per point (same as output).
+/// Input layout: `[lng, lat, 0, lng, lat, 0, ...]`.
+/// Output layout: `[zone, easting, northing, zone, easting, northing, ...]`.
+#[wasm_bindgen(js_name = "batchWgs84ToUtmInPlace")]
+pub fn batch_wgs84_to_utm_inplace(coords: &Float64Array) {
+    let len = coords.length() as usize;
+    let point_count = len / 3;
+    let mut buf = vec![0.0; len];
+    coords.copy_to(&mut buf);
+    let mut result = vec![0.0; point_count * 3];
+    for i in 0..point_count {
+        let (zone, easting, northing, _is_north) = wgs84_to_utm_pt(buf[i * 3], buf[i * 3 + 1]);
+        result[i * 3] = zone as f64;
+        result[i * 3 + 1] = easting;
+        result[i * 3 + 2] = northing;
+    }
+    coords.copy_from(&result);
+}
+
+/// Convert batch UTM to WGS84 in-place.
+///
+/// Input layout: `[zone, easting, northing, ...]`.
+/// Output layout: `[lng, lat, 0, ...]` (third component zeroed).
+#[wasm_bindgen(js_name = "batchUtmToWgs84InPlace")]
+pub fn batch_utm_to_wgs84_inplace(coords: &Float64Array) {
+    let len = coords.length() as usize;
+    let point_count = len / 3;
+    let mut buf = vec![0.0; len];
+    coords.copy_to(&mut buf);
+    let mut result = vec![0.0; point_count * 3];
+    for i in 0..point_count {
+        let zone = buf[i * 3] as u32;
+        let easting = buf[i * 3 + 1];
+        let northing = buf[i * 3 + 2];
+        let is_north = northing >= 0.0;
+        let (lng, lat) = utm_to_wgs84_pt(zone, easting, northing, is_north);
+        result[i * 3] = lng;
+        result[i * 3 + 1] = lat;
+        result[i * 3 + 2] = 0.0;
+    }
+    coords.copy_from(&result);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1234,5 +1531,131 @@ mod tests {
         assert!((result[0] - 0.0).abs() < 1e-10);
         assert!((result[2] - 1.0).abs() < 1e-10);
         assert!((result[4] - 0.5).abs() < 1e-10);
+    }
+
+    // ── WGS-84 ↔ UTM ──────────────────────────────────────────
+
+    #[test]
+    fn test_lng_to_zone() {
+        // Zone 1: -180 to -174
+        assert_eq!(lng_to_zone(-177.0), 1);
+        // Zone 30: -6 to 0 (London)
+        assert_eq!(lng_to_zone(-0.1275), 30);
+        // Zone 50: 114 to 120 (central meridian 117) — Beijing
+        assert_eq!(lng_to_zone(116.4), 50);
+        // Zone 60: 174 to 180
+        assert_eq!(lng_to_zone(177.0), 60);
+        // Boundary cases
+        assert_eq!(lng_to_zone(-180.0), 1);
+        assert_eq!(lng_to_zone(180.0), 60);
+    }
+
+    #[test]
+    fn test_wgs84_to_utm_beijing() {
+        // Beijing: 116.391°E, 39.907°N, Zone 50N
+        let (zone, easting, northing, is_north) = wgs84_to_utm_pt(116.391, 39.907);
+        assert_eq!(zone, 50);
+        assert!(is_north);
+        // Reference (utm Python library): E=447945.313411, N=4417612.695667
+        assert!((easting - 447945.313411).abs() < 1.0, "easting = {easting}");
+        assert!((northing - 4417612.695667).abs() < 1.0, "northing = {northing}");
+    }
+
+    #[test]
+    fn test_wgs84_to_utm_london() {
+        // London: -0.1275°E, 51.5074°N, Zone 30N
+        let (zone, easting, northing, is_north) = wgs84_to_utm_pt(-0.1275, 51.5074);
+        assert_eq!(zone, 30);
+        assert!(is_north);
+        // Reference: E=699337.048889, N=5710164.575906
+        assert!((easting - 699337.048889).abs() < 1.0, "easting = {easting}");
+        assert!((northing - 5710164.575906).abs() < 1.0, "northing = {northing}");
+    }
+
+    #[test]
+    fn test_wgs84_to_utm_sydney() {
+        // Sydney: 151.209°E, -33.868°S, Zone 56S
+        let (zone, easting, northing, is_north) = wgs84_to_utm_pt(151.209, -33.868);
+        assert_eq!(zone, 56);
+        assert!(!is_north);
+        // Reference: E=334339.335626, N=6251036.578858 (includes 10M offset)
+        assert!((easting - 334339.335626).abs() < 1.0, "easting = {easting}");
+        assert!((northing - 6251036.578858).abs() < 1.0, "northing = {northing}");
+    }
+
+    #[test]
+    fn test_utm_roundtrip_northern() {
+        // Roundtrip test for northern hemisphere — sub-millimeter accuracy
+        let lng = 116.391;
+        let lat = 39.907;
+        let (zone, easting, northing, is_north) = wgs84_to_utm_pt(lng, lat);
+        let (lng2, lat2) = utm_to_wgs84_pt(zone, easting, northing, is_north);
+        assert!((lng - lng2).abs() < 1e-9, "lng: {lng} vs {lng2}");
+        assert!((lat - lat2).abs() < 1e-9, "lat: {lat} vs {lat2}");
+    }
+
+    #[test]
+    fn test_utm_roundtrip_southern() {
+        // Roundtrip test for southern hemisphere
+        let lng = 151.209;
+        let lat = -33.868;
+        let (zone, easting, northing, is_north) = wgs84_to_utm_pt(lng, lat);
+        let (lng2, lat2) = utm_to_wgs84_pt(zone, easting, northing, is_north);
+        assert!((lng - lng2).abs() < 1e-9, "lng: {lng} vs {lng2}");
+        assert!((lat - lat2).abs() < 1e-9, "lat: {lat} vs {lat2}");
+    }
+
+    #[test]
+    fn test_batch_wgs84_to_utm_zone_count() {
+        // Verify zone assignment for multiple points
+        let coords: Vec<(f64, f64)> = vec![
+            (116.391, 39.907), // Beijing zone 50
+            (-0.1275, 51.5074), // London zone 30
+            (151.209, -33.868), // Sydney zone 56
+        ];
+
+        assert_eq!(lng_to_zone(coords[0].0), 50);
+        assert_eq!(lng_to_zone(coords[1].0), 30);
+        assert_eq!(lng_to_zone(coords[2].0), 56);
+
+        // Verify forward transform consistency
+        for &(lng, lat) in &coords {
+            let (zone, _, _, is_north) = wgs84_to_utm_pt(lng, lat);
+            assert_eq!(zone, lng_to_zone(lng));
+            assert_eq!(is_north, lat >= 0.0);
+        }
+    }
+
+    #[test]
+    fn test_batch_utm_roundtrip_multiple() {
+        // Roundtrip test across multiple points
+        let points = vec![
+            (116.391, 39.907),
+            (-0.1275, 51.5074),
+            (151.209, -33.868),
+            (0.0, 0.0), // Equator & prime meridian
+            (45.0, 45.0), // Arbitrary mid-latitude
+        ];
+
+        for &(lng, lat) in &points {
+            let (zone, easting, northing, is_north) = wgs84_to_utm_pt(lng, lat);
+            let (lng2, lat2) = utm_to_wgs84_pt(zone, easting, northing, is_north);
+            assert!(
+                (lng - lng2).abs() < 1e-8,
+                "lng mismatch at ({},{}): {} vs {}",
+                lng,
+                lat,
+                lng,
+                lng2
+            );
+            assert!(
+                (lat - lat2).abs() < 1e-8,
+                "lat mismatch at ({},{}): {} vs {}",
+                lng,
+                lat,
+                lat,
+                lat2
+            );
+        }
     }
 }
