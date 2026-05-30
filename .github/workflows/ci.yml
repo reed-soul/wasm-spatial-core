@@ -88,6 +88,9 @@ jobs:
         run: |
           chmod +x scripts/build-demo-site.sh
           SKIP_WASM_BUILD=1 SITE_OUTPUT=_site bash scripts/build-demo-site.sh
+          test -f _site/pkg/wasm_spatial_core_bg.wasm
+          test -f _site/pkg/wasm_spatial_core.js
+          echo "pkg files:" && ls -la _site/pkg/
 
       - name: Publish to gh-pages branch
         uses: peaceiris/actions-gh-pages@v4
