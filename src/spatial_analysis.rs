@@ -398,7 +398,9 @@ fn vincenty_distance_internal(lat1: f64, lng1: f64, lat2: f64, lng2: f64) -> f64
             + (1.0 - c)
                 * WGS84_F
                 * sin_alpha
-                * (sigma + c * sin_sigma * (cos2sigma_m + c * cos_sigma * (-1.0 + 2.0 * cos2sigma_m * cos2sigma_m)));
+                * (sigma
+                    + c * sin_sigma
+                        * (cos2sigma_m + c * cos_sigma * (-1.0 + 2.0 * cos2sigma_m * cos2sigma_m)));
 
         iter += 1;
         if (lambda - lambda_prev).abs() < 1e-12 || iter >= max_iter {
@@ -417,8 +419,7 @@ fn vincenty_distance_internal(lat1: f64, lng1: f64, lat2: f64, lng2: f64) -> f64
     let delta_sigma = b_coeff
         * sin_sigma
         * (cos2sigma_m
-            + b_coeff
-                / 4.0
+            + b_coeff / 4.0
                 * (cos_sigma * (-1.0 + 2.0 * cos2sigma_m * cos2sigma_m)
                     - b_coeff / 6.0
                         * cos2sigma_m
@@ -462,7 +463,8 @@ pub fn rhumb_distance(lng1: f64, lat1: f64, lng2: f64, lat2: f64) -> f64 {
     };
 
     // Delta longitude, normalized to [-π, π]
-    let d_lon = ((dlng + std::f64::consts::PI) % (2.0 * std::f64::consts::PI)) - std::f64::consts::PI;
+    let d_lon =
+        ((dlng + std::f64::consts::PI) % (2.0 * std::f64::consts::PI)) - std::f64::consts::PI;
 
     (d_phi * d_phi + (q * d_lon) * (q * d_lon)).sqrt() * EARTH_RADIUS_M
 }
@@ -484,7 +486,8 @@ pub fn rhumb_bearing(lng1: f64, lat1: f64, lng2: f64, lat2: f64) -> f64 {
     let d_phi = (1.0 - WGS84_F) * ((lat2_r / 2.0 + std::f64::consts::PI / 4.0).tan()).ln()
         - (1.0 - WGS84_F) * ((lat1_r / 2.0 + std::f64::consts::PI / 4.0).tan()).ln();
 
-    let d_lon = ((dlng + std::f64::consts::PI) % (2.0 * std::f64::consts::PI)) - std::f64::consts::PI;
+    let d_lon =
+        ((dlng + std::f64::consts::PI) % (2.0 * std::f64::consts::PI)) - std::f64::consts::PI;
 
     let theta = d_lon.atan2(d_phi);
     let bearing = theta.to_degrees();
@@ -526,8 +529,7 @@ pub fn cluster_by_grid(
     let sum_lat: f64 = buf.iter().skip(1).step_by(2).sum();
     let avg_lat = sum_lat / n as f64;
     let cell_size_deg_lat = cell_size / EARTH_RADIUS_M * (180.0 / std::f64::consts::PI);
-    let cell_size_deg_lng = cell_size
-        / (EARTH_RADIUS_M * avg_lat.to_radians().cos().max(1e-10))
+    let cell_size_deg_lng = cell_size / (EARTH_RADIUS_M * avg_lat.to_radians().cos().max(1e-10))
         * (180.0 / std::f64::consts::PI);
 
     // Assign points to grid cells
@@ -1030,16 +1032,17 @@ mod tests {
         // Group 1: near (116.4, 39.9) — 3 points
         // Group 2: near (121.5, 31.2) — 3 points
         let coords: Vec<f64> = vec![
-            116.40, 39.90,
-            116.41, 39.91,
-            116.39, 39.89,
-            121.47, 31.23,
-            121.48, 31.22,
-            121.46, 31.24,
+            116.40, 39.90, 116.41, 39.91, 116.39, 39.89, 121.47, 31.23, 121.48, 31.22, 121.46,
+            31.24,
         ];
         // Using native grid cluster logic
         let centers = native_grid_cluster(&coords, 5000.0, 2);
-        assert_eq!(centers.len(), 4, "Expected 2 centers (4 coords), got {}", centers.len());
+        assert_eq!(
+            centers.len(),
+            4,
+            "Expected 2 centers (4 coords), got {}",
+            centers.len()
+        );
         // Centers should be near the two group centroids
         let center1_lng = centers[0];
         let center1_lat = centers[1];
@@ -1072,12 +1075,8 @@ mod tests {
     fn test_dbscan_two_clusters() {
         // Two tight clusters ~50km apart
         let coords: Vec<f64> = vec![
-            116.40, 39.90,
-            116.41, 39.91,
-            116.39, 39.89,
-            121.47, 31.23,
-            121.48, 31.22,
-            121.46, 31.24,
+            116.40, 39.90, 116.41, 39.91, 116.39, 39.89, 121.47, 31.23, 121.48, 31.22, 121.46,
+            31.24,
         ];
         let labels = native_dbscan(&coords, 5000.0, 2);
         assert_eq!(labels.len(), 6);
@@ -1094,11 +1093,7 @@ mod tests {
     #[test]
     fn test_dbscan_all_noise() {
         // Points too spread out → all noise (-1)
-        let coords: Vec<f64> = vec![
-            116.0, 39.0,
-            120.0, 30.0,
-            125.0, 25.0,
-        ];
+        let coords: Vec<f64> = vec![116.0, 39.0, 120.0, 30.0, 125.0, 25.0];
         let labels = native_dbscan(&coords, 1000.0, 2);
         assert!(labels.iter().all(|&l| l == -1));
     }

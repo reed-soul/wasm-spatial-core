@@ -844,7 +844,11 @@ pub fn convex_hull(coords: &js_sys::Float64Array) -> js_sys::Float64Array {
 
     // Build points: (x, y, original_index) — use x for lng, y for lat
     let mut points: Vec<(f64, f64)> = buf.chunks_exact(2).map(|c| (c[0], c[1])).collect();
-    points.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap().then(a.1.partial_cmp(&b.1).unwrap()));
+    points.sort_by(|a, b| {
+        a.0.partial_cmp(&b.0)
+            .unwrap()
+            .then(a.1.partial_cmp(&b.1).unwrap())
+    });
     points.dedup();
 
     if points.len() == 1 {
@@ -861,7 +865,8 @@ pub fn convex_hull(coords: &js_sys::Float64Array) -> js_sys::Float64Array {
 
     let mut lower: Vec<(f64, f64)> = Vec::new();
     for p in &points {
-        while lower.len() >= 2 && cross(&lower[lower.len() - 2], &lower[lower.len() - 1], p) <= 0.0 {
+        while lower.len() >= 2 && cross(&lower[lower.len() - 2], &lower[lower.len() - 1], p) <= 0.0
+        {
             lower.pop();
         }
         lower.push(*p);
@@ -869,7 +874,8 @@ pub fn convex_hull(coords: &js_sys::Float64Array) -> js_sys::Float64Array {
 
     let mut upper: Vec<(f64, f64)> = Vec::new();
     for p in points.iter().rev() {
-        while upper.len() >= 2 && cross(&upper[upper.len() - 2], &upper[upper.len() - 1], p) <= 0.0 {
+        while upper.len() >= 2 && cross(&upper[upper.len() - 2], &upper[upper.len() - 1], p) <= 0.0
+        {
             upper.pop();
         }
         upper.push(*p);
@@ -920,7 +926,11 @@ pub fn concave_hull(coords: &js_sys::Float64Array, alpha: f64) -> js_sys::Float6
     }
 
     let mut points: Vec<(f64, f64)> = buf.chunks_exact(2).map(|c| (c[0], c[1])).collect();
-    points.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap().then(a.1.partial_cmp(&b.1).unwrap()));
+    points.sort_by(|a, b| {
+        a.0.partial_cmp(&b.0)
+            .unwrap()
+            .then(a.1.partial_cmp(&b.1).unwrap())
+    });
     points.dedup();
 
     if points.len() < 3 {
@@ -996,7 +1006,7 @@ fn concave_hull_core(points: &[(f64, f64)], alpha: f64) -> Vec<(f64, f64)> {
                 if boundary.contains(&k) && k != boundary[i] && k != boundary[j] {
                     continue;
                 }
-                if boundary.iter().any(|&b| b == k) {
+                if boundary.contains(&k) {
                     continue; // skip boundary points
                 }
 
@@ -1041,7 +1051,8 @@ fn convex_hull_core_sorted(points: &[(f64, f64)]) -> Vec<(f64, f64)> {
 
     let mut lower: Vec<(f64, f64)> = Vec::new();
     for p in points {
-        while lower.len() >= 2 && cross(&lower[lower.len() - 2], &lower[lower.len() - 1], p) <= 0.0 {
+        while lower.len() >= 2 && cross(&lower[lower.len() - 2], &lower[lower.len() - 1], p) <= 0.0
+        {
             lower.pop();
         }
         lower.push(*p);
@@ -1049,7 +1060,8 @@ fn convex_hull_core_sorted(points: &[(f64, f64)]) -> Vec<(f64, f64)> {
 
     let mut upper: Vec<(f64, f64)> = Vec::new();
     for p in points.iter().rev() {
-        while upper.len() >= 2 && cross(&upper[upper.len() - 2], &upper[upper.len() - 1], p) <= 0.0 {
+        while upper.len() >= 2 && cross(&upper[upper.len() - 2], &upper[upper.len() - 1], p) <= 0.0
+        {
             upper.pop();
         }
         upper.push(*p);
@@ -1071,11 +1083,14 @@ fn find_point_index(points: &[(f64, f64)], target: (f64, f64)) -> usize {
 /// Core convex hull — sorts and deduplicates input first.
 fn convex_hull_core(points: &[(f64, f64)]) -> Vec<(f64, f64)> {
     let mut sorted = points.to_vec();
-    sorted.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap().then(a.1.partial_cmp(&b.1).unwrap()));
+    sorted.sort_by(|a, b| {
+        a.0.partial_cmp(&b.0)
+            .unwrap()
+            .then(a.1.partial_cmp(&b.1).unwrap())
+    });
     sorted.dedup();
     convex_hull_core_sorted(&sorted)
 }
-
 
 fn point_to_segment_dist(p: (f64, f64), a: (f64, f64), b: (f64, f64)) -> f64 {
     let dx = b.0 - a.0;
@@ -1524,17 +1539,22 @@ mod tests {
             0.0, 1.0, // NW
             0.5, 0.5, // center (interior, should be excluded from hull)
         ];
-        let pts: Vec<(f64, f64)> = points
-            .chunks_exact(2)
-            .map(|c| (c[0], c[1]))
-            .collect();
+        let pts: Vec<(f64, f64)> = points.chunks_exact(2).map(|c| (c[0], c[1])).collect();
         let hull = convex_hull_core(&pts);
         // Hull should contain 4 corner vertices (interior point excluded)
-        assert!(hull.len() <= 5, "hull has {} points: {:?}", hull.len(), hull);
+        assert!(
+            hull.len() <= 5,
+            "hull has {} points: {:?}",
+            hull.len(),
+            hull
+        );
         // All hull points should be on the boundary (x=0 or x=1 or y=0 or y=1)
         for (x, y) in &hull {
             assert!(
-                (x.abs() < 1e-9 || (x - 1.0).abs() < 1e-9 || y.abs() < 1e-9 || (y - 1.0).abs() < 1e-9),
+                (x.abs() < 1e-9
+                    || (x - 1.0).abs() < 1e-9
+                    || y.abs() < 1e-9
+                    || (y - 1.0).abs() < 1e-9),
                 "Interior point ({}, {}) in hull",
                 x,
                 y
@@ -1599,7 +1619,7 @@ mod tests {
         let concave = concave_hull_core(&points, 10000.0);
         let mut convex = convex_hull_core(&points);
         convex.push(convex[0]); // close it for comparison
-        // Large alpha should give approximately convex hull
+                                // Large alpha should give approximately convex hull
         assert_eq!(concave.len(), convex.len());
     }
 

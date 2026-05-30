@@ -1257,13 +1257,16 @@ pub fn crs_info(code: &str) -> String {
   "unit":"degree"
 }"#
         .to_string(),
-        _ => format!(r#"{{
+        _ => format!(
+            r#"{{
   "name":"Unknown",
   "code":"{}",
   "description":"Unsupported coordinate reference system",
   "bounds":null,
   "unit":null
-}}"#, code),
+}}"#,
+            code
+        ),
     }
 }
 
@@ -1313,7 +1316,8 @@ pub fn best_crs_for_region(min_lng: f64, min_lat: f64, max_lng: f64, max_lat: f6
         if lng_span > 10.0 || lat_span > 10.0 {
             return r#"{"crs":"EPSG:3857","reason":"Large global/regional area — Web Mercator best for web mapping"}"#.to_string();
         }
-        return r#"{"crs":"EPSG:4326","reason":"Standard WGS84 for global coordinates"}"#.to_string();
+        return r#"{"crs":"EPSG:4326","reason":"Standard WGS84 for global coordinates"}"#
+            .to_string();
     }
 
     // Within China — recommend based on map provider context
@@ -1844,18 +1848,30 @@ mod tests {
     #[test]
     fn test_best_crs_china() {
         let result = best_crs_for_region(116.0, 39.0, 117.0, 40.0);
-        assert!(result.contains("GCJ-02"), "China region should recommend GCJ-02: {}", result);
+        assert!(
+            result.contains("GCJ-02"),
+            "China region should recommend GCJ-02: {}",
+            result
+        );
     }
 
     #[test]
     fn test_best_crs_global() {
         let result = best_crs_for_region(-180.0, -90.0, 180.0, 90.0);
-        assert!(result.contains("EPSG:3857"), "Large global area should recommend Web Mercator: {}", result);
+        assert!(
+            result.contains("EPSG:3857"),
+            "Large global area should recommend Web Mercator: {}",
+            result
+        );
     }
 
     #[test]
     fn test_best_crs_small_global() {
         let result = best_crs_for_region(-1.0, 50.0, 1.0, 52.0);
-        assert!(result.contains("EPSG:4326"), "Small non-China area should recommend WGS84: {}", result);
+        assert!(
+            result.contains("EPSG:4326"),
+            "Small non-China area should recommend WGS84: {}",
+            result
+        );
     }
 }
