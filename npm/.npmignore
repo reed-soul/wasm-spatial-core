@@ -1,0 +1,35 @@
+# Source files (not needed in published package)
+src/
+*.rs
+Cargo.toml
+Cargo.lock
+tests/
+examples/
+bench/
+docs/
+.github/
+.gitignore
+.git/
+target/
+scripts/
+*.md
+!README.md
+!LICENSE
+
+# Build artifacts
+*.o
+*.d
+*.rlib
+
+# Node
+node_modules/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
