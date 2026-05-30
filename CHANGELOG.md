@@ -7,13 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.2.0-alpha.1] - 2026-05-30
+## [0.2.0] - 2026-05-30
 
 ### Added
 
 - **GeoJSON Write (Serialization)** (`src/geojson_parser.rs`) — `geoJsonFromCoords(coords, geometry_type)` generates a GeoJSON Feature from flat coordinate buffer. `geoJsonFeatureCollection(coords, types, properties_json)` generates complete FeatureCollections. Supports Point, LineString, Polygon, MultiPoint. Properties separated by unit separator (0x01). 7 tests.
+- **GeoJSON Property Filtering** (`src/geojson_parser.rs`) — `filterGeoJsonByProperty(input, key, value)` filters features by property value. `filterGeoJsonByBBox(input, minLng, minLat, maxLng, maxLat)` filters features by bounding box. `countGeoJsonByProperty(input, key)` returns property value → count mapping (COUNT GROUP BY). 5 tests.
 - **Coordinate Validation & Cleaning** (`src/utils.rs`) — `validateCoords(coords, crs)` validates against CRS-specific ranges (WGS84, GCJ02, BD09, Mercator). `cleanCoords(coords, strategy)` with remove/clamp/snap strategies. `deduplicateCoords(coords, tolerance)` removes near-duplicate points. 11 tests.
+- **Coordinate Pipeline Transforms** (`src/coordinate.rs`) — `batchWgs84ToGcj02Mercator(coords)` and `batchWgs84ToBd09Mercator(coords)` — single-step pipeline transforms (WGS84→GCJ02→Mercator, WGS84→BD09→Mercator) for Chinese web map applications. In-place variants included. 4 tests.
+- **Coordinate Normalization** (`src/coordinate.rs`) — `normalizeCoords(coords, bounds)` normalizes coordinates to [0,1] range. `denormalizeCoords(normals, bounds)` reverses the normalization. Auto-computes bounds if not provided. 3 tests.
 - **Polygon Boolean Operations** (`src/topology.rs`) — `polygonIntersection(ring1, ring2)` and `polygonUnion(ring1, ring2)` using `geo::BooleanOps`. Returns empty array for non-intersecting polygons. 5 tests.
+- **Spatial Relationship Predicates** (`src/topology.rs`) — `contains(outer_ring, point_x, point_y)` point-in-polygon via `geo::Contains`. `touches(ring1, ring2)` adjacency detection. `polygonIntersects(ring1, ring2)` intersection test. `disjoint(ring1, ring2)` disjoint test. All using `geo` crate algorithms with DE-9IM topology. 8 tests.
+- **Point Cloud Colorization** (`src/point_cloud.rs`) — `colorizeByHeight(positions, min_z, max_z, low_color, high_color)` height-gradient RGBA coloring. `colorizeByIntensity(positions, intensities)` grayscale intensity mapping. `applyColorRamp(positions, colors)` discrete color application. All return Float32Array RGBA (0.0–1.0). 4 tests.
 - **Coordinate Sorting & Gridding** (`src/coordinate.rs`) — `sortCoordsByLng(coords)` and `sortCoordsByLat(coords)` sort coordinate pairs. `gridIndex(coords, cell_size_deg)` assigns spatial hash grid IDs. 5 tests.
 - **Dynamic Memory Management** (`src/lib.rs`) — `setInputSizeLimit(bytes)` dynamically adjusts the input size limit (default 100 MB). `getInputSizeLimit()` queries the current limit. `getAllocatedBytes()` reads WASM linear memory size. 4 tests.
 - **End-to-End Stress Tests** (`tests/stress_test.rs`) — 6 large-scale stress tests (100K features, 10M points, 1K polygon pairs, 1M point dedup). All marked `#[ignore]` for CI; run locally with `cargo test -- --ignored`.
@@ -29,10 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Version bumped to `0.2.0-alpha.1` (new development cycle after v0.1.0 release).
+- Version bumped to `0.2.0` (stable release).
 - Input size limit is now dynamically adjustable via `setInputSizeLimit()` (was hardcoded 100 MB constant).
 - `geo::Coordinate` updated to `geo::Coord` (geo 0.29 API change).
-- 195 tests (up from 158). ~11K lines of source code.
+- 220 tests (up from 158 in v0.1.0). ~11.3K lines of source code.
 
 ## [0.1.0] - 2026-05-30
 
