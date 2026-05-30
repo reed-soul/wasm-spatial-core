@@ -87,6 +87,9 @@ Modern Web3D and GIS applications face a fundamental bottleneck:
 - 🗺️ **Vector Tile Slicing & Decoding** — Frontend MVT tile generation and protobuf MVT decoding back to GeoJSON
 - 🌐 **Cesium Native Adapter** — WGS84 → Cartesian3 (ECEF), polygon triangulation, 3D Tiles (b3dm)
 - ☁️ **Point Cloud (LAS/PCD)** — Parse LAS headers & points, voxel grid & random decimation, COPC range-based access
+- 🌳 **Octree Spatial Index** — 8-way recursive spatial partitioning for point clouds, index-based reordering, WASM-exportable query API
+- 🧱 **3D Tiles Point Cloud (pnts)** — Encode point clouds to Cesium-compatible `.pnts` binary format with optional RGB colors
+- 🗺️ **tileset.json Generator** — Full 3D Tiles tileset hierarchy from octree, with box boundingVolume and level-scaled geometricError
 - 🏗️ **IFC/BIM Geometry** (experimental) — Extract `IFCEXTRUDEDAREASOLID` mesh geometry
 - 🔺 **glTF / GLB Writer** — Build glTF 2.0 scenes in WASM, export as GLB binary
 - 📐 **Spatial Analysis** — Point/line buffering, bounding box, centroid, haversine distance, bearing, destination, midpoint on WGS-84

@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Octree spatial partitioning** (`src/octree.rs`) — Recursive 8-way subdivision for point cloud data. Two-pass build (index permutation + reorder). Degenerate case handling (coincident points). WASM export: `buildOctree()` → `Octree` class with `nodeCount()`, `depth()`, `totalPoints()`, `rootBounds()`, `nodeBounds()`, `nodePointCount()`, `nodeLevel()`, `nodeChildren()`.
+- **pnts tile encoder** (`src/pnts.rs`) — Full 3D Tiles Point Cloud binary format. 28-byte header, feature table (JSON + binary with POSITION + optional RGB), batch table. WASM export: `encodePntsTile()`.
+- **tileset.json generator** — Recursive tileset tree from octree hierarchy. Box boundingVolume, level-scaled geometricError, per-leaf tile content URIs. WASM export: `generateTileset()` → `TilesetResult` class.
+- **End-to-end pipeline tests** (`tests/point_cloud_pipeline.rs`) — 1000-point synthetic cloud → octree → pnts tiles → tileset.json validation (3 tests).
+- **Sample data guide** (`examples/sample-data/README.md`) — Links to ASPRS, OpenTopography, Potree test data sources.
+
+### Changed
+
+- Module count: 17 → 19 (added `octree`, `pnts`).
+- Test count: 274 → 308.
+- Source lines: ~16K → ~17K.
+
 - `scripts/build-demo-site.sh` — static site for GitHub Pages / Vercel (`examples/` + `pkg/` layout).
 - [docs/DEMO_SITE.md](./docs/DEMO_SITE.md) — 在线演示部署说明（GitHub Pages + Vercel）。
 - `vercel.json` — optional Vercel static deploy.

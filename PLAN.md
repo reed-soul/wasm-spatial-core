@@ -65,6 +65,22 @@ drag-and-drop a raw scan file and see it rendered in seconds.
 
 ---
 
+## Phase A — Point Cloud → 3D Tiles Pipeline ✅ (in progress)
+
+**Goal**: Build the core browser-side pipeline that converts raw point cloud data
+into Cesium-compatible 3D Tiles — the foundation for zero-upload, zero-server
+3D point cloud visualization.
+
+| Task | Description | Status |
+|------|-------------|--------|
+| **A1 Octree spatial partitioning** | Recursive 8-way spatial subdivision with index-based point reordering. Two-pass build: permutation then reorder. Degenerate case handling for coincident points. WASM-exportable `Octree` class. | ✅ Done |
+| **A2 pnts tile encoder** | Full 3D Tiles Point Cloud binary format: 28-byte header, feature table (JSON + binary with POSITION + optional RGB), batch table. WASM: `encodePntsTile()`. | ✅ Done |
+| **A3 tileset.json generator** | Recursive tileset tree from octree hierarchy. Box boundingVolume, level-scaled geometricError, per-leaf tile content. WASM: `generateTileset()`. | ✅ Done |
+| **A4 End-to-end pipeline tests** | 1000-point synthetic cloud → octree → tiles → tileset.json validation. 3 integration tests. | ✅ Done |
+| **A5 LAZ decompression** | LazPerf algorithm port for compressed point cloud support. (Future work) | 🔜 Planned |
+
+---
+
 ## What's Next
 
 Potential future directions (not committed):
@@ -92,11 +108,12 @@ Potential future directions (not committed):
 
 | Metric | Value |
 |--------|-------|
-| Source lines | ~11K+ |
-| Unit tests | 237+ |
-| Integration tests | 6+ |
-| Supported formats | GeoJSON, MVT, LAS, PCD, IFC, glTF/GLB |
+| Source lines | ~17K+ |
+| Unit tests | 300+ |
+| Integration tests | 11+ |
+| Supported formats | GeoJSON, MVT, LAS, PCD, IFC, glTF/GLB, 3D Tiles (pnts) |
 | Coordinate systems | WGS-84, GCJ-02, BD-09, CGCS2000, Web Mercator |
+| Modules | 19 (octree, pnts, +17 existing) |
 
 ---
 
