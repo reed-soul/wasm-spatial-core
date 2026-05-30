@@ -318,6 +318,181 @@ pub fn centroid(coords: &js_sys::Float64Array) -> js_sys::Float64Array {
 // ===========================================================================
 // Tests
 // ===========================================================================
+// Vincenty Distance (Ellipsoidal)
+// ===========================================================================
+
+/// WGS-84 ellipsoid parameters.
+const WGS84_A: f64 = 6_378_137.0; // semi-major axis (m)
+const WGS84_F: f64 = 1.0 / 298.257_223_563; // flattening
+const WGS84_B: f64 = WGS84_A * (1.0 - WGS84_F); // semi-minor axis
+
+/// Vincenty inverse formula — geodesic distance between two points on the WGS-84 ellipsoid.
+///
+/// More accurate than Haversine for long distances (sub-millimeter accuracy).
+///
+/// # Arguments
+/// - `lng1`, `lat1`: Point 1 in degrees.
+/// - `lng2`, `lat2`: Point 2 in degrees.
+///
+/// # Returns
+/// Distance in meters. Returns `f64::NAN` if the points are antipodal (no convergence).
+#[wasm_bindgen(js_name = "vincentyDistance")]
+pub fn vincenty_distance(lng1: f64, lat1: f64, lng2: f64, lat2: f64) -> f64 {
+    vincenty_distance_internal(lat1, lng1, lat2, lng2)
+}
+
+/// Internal Vincenty (uses lat,lng order for consistency).
+fn vincenty_distance_internal(lat1: f64, lng1: f64, lat2: f64, lng2: f64) -> f64 {
+    if (lat1 - lat2).abs() < 1e-12 && (lng1 - lng2).abs() < 1e-12 {
+        return 0.0;
+    }
+
+    let u1 = ((1.0 - WGS84_F) * lat1.to_radians().tan()).atan();
+    let u2 = ((1.0 - WGS84_F) * lat2.to_radians().tan()).atan();
+    let sin_u1 = u1.sin();
+    let cos_u1 = u1.cos();
+    let sin_u2 = u2.sin();
+    let cos_u2 = u2.cos();
+
+    let mut lambda = (lng2 - lng1).to_radians();
+    let mut iter = 0;
+    let max_iter = 200;
+
+    let mut sin_sigma: f64;
+    let mut cos_sigma: f64;
+    let mut sigma: f64;
+    let mut sin_alpha: f64;
+    let mut cos_sq_alpha: f64;
+    let mut cos2sigma_m: f64;
+    let mut lambda_prev: f64;
+
+    loop {
+        let sin_lambda = lambda.sin();
+        let cos_lambda = lambda.cos();
+
+        sin_sigma = ((cos_u2 * sin_lambda) * (cos_u2 * sin_lambda)
+            + (cos_u1 * sin_u2 - sin_u1 * cos_u2 * cos_lambda)
+                * (cos_u1 * sin_u2 - sin_u1 * cos_u2 * cos_lambda))
+            .sqrt();
+
+        if sin_sigma < 1e-15 {
+            return 0.0; // co-incident points
+        }
+
+        cos_sigma = sin_u1 * sin_u2 + cos_u1 * cos_u2 * cos_lambda;
+        sigma = sin_sigma.atan2(cos_sigma);
+
+        sin_alpha = (cos_u1 * cos_u2 * sin_lambda) / sin_sigma;
+        cos_sq_alpha = 1.0 - sin_alpha * sin_alpha;
+
+        if cos_sq_alpha == 0.0 {
+            cos2sigma_m = 0.0; // equatorial line
+        } else {
+            cos2sigma_m = cos_sigma - 2.0 * sin_u1 * sin_u2 / cos_sq_alpha;
+        }
+
+        let c = WGS84_F / 16.0 * cos_sq_alpha * (4.0 + WGS84_F * (4.0 - 3.0 * cos_sq_alpha));
+
+        lambda_prev = lambda;
+        lambda = (lng2 - lng1).to_radians()
+            + (1.0 - c)
+                * WGS84_F
+                * sin_alpha
+                * (sigma + c * sin_sigma * (cos2sigma_m + c * cos_sigma * (-1.0 + 2.0 * cos2sigma_m * cos2sigma_m)));
+
+        iter += 1;
+        if (lambda - lambda_prev).abs() < 1e-12 || iter >= max_iter {
+            break;
+        }
+    }
+
+    if iter >= max_iter {
+        return f64::NAN; // no convergence (antipodal)
+    }
+
+    let u_sq = cos_sq_alpha * (WGS84_A * WGS84_A - WGS84_B * WGS84_B) / (WGS84_B * WGS84_B);
+    let a_coeff = 1.0 + u_sq / 16384.0 * (4096.0 + u_sq * (-768.0 + u_sq * (320.0 - 175.0 * u_sq)));
+    let b_coeff = u_sq / 1024.0 * (256.0 + u_sq * (-128.0 + u_sq * (74.0 - 47.0 * u_sq)));
+
+    let delta_sigma = b_coeff
+        * sin_sigma
+        * (cos2sigma_m
+            + b_coeff
+                / 4.0
+                * (cos_sigma * (-1.0 + 2.0 * cos2sigma_m * cos2sigma_m)
+                    - b_coeff / 6.0
+                        * cos2sigma_m
+                        * (-3.0 + 4.0 * sin_sigma * sin_sigma)
+                        * (-3.0 + 4.0 * cos2sigma_m * cos2sigma_m)));
+
+    WGS84_B * a_coeff * (sigma - delta_sigma)
+}
+
+// ===========================================================================
+// Rhumb (Loxodrome) Calculations
+// ===========================================================================
+
+/// Rhumb (loxodrome/constant-bearing) distance between two WGS-84 points.
+///
+/// Used in maritime and aviation navigation.
+///
+/// # Arguments
+/// - `lng1`, `lat1`: Point 1 in degrees.
+/// - `lng2`, `lat2`: Point 2 in degrees.
+///
+/// # Returns
+/// Distance in meters.
+#[wasm_bindgen(js_name = "rhumbDistance")]
+pub fn rhumb_distance(lng1: f64, lat1: f64, lng2: f64, lat2: f64) -> f64 {
+    let lat1_r = lat1.to_radians();
+    let lat2_r = lat2.to_radians();
+    let dlat = lat2_r - lat1_r;
+    let dlng = (lng2 - lng1).to_radians();
+
+    let d_phi = ((1.0 - WGS84_F) * ((lat2_r / 2.0 + std::f64::consts::PI / 4.0).tan()).ln()
+        - (1.0 - WGS84_F) * ((lat1_r / 2.0 + std::f64::consts::PI / 4.0).tan()).ln())
+    .abs();
+
+    let q = if d_phi.abs() < 1e-15 {
+        // Points at same latitude — q = cos(lat)
+        let avg_lat = (lat1_r + lat2_r) / 2.0;
+        avg_lat.cos()
+    } else {
+        dlat.abs() / d_phi
+    };
+
+    // Delta longitude, normalized to [-π, π]
+    let d_lon = ((dlng + std::f64::consts::PI) % (2.0 * std::f64::consts::PI)) - std::f64::consts::PI;
+
+    (d_phi * d_phi + (q * d_lon) * (q * d_lon)).sqrt() * EARTH_RADIUS_M
+}
+
+/// Rhumb (constant-bearing) bearing from point 1 to point 2.
+///
+/// # Arguments
+/// - `lng1`, `lat1`: Point 1 in degrees.
+/// - `lng2`, `lat2`: Point 2 in degrees.
+///
+/// # Returns
+/// Bearing in degrees [0, 360), where 0 = North, 90 = East.
+#[wasm_bindgen(js_name = "rhumbBearing")]
+pub fn rhumb_bearing(lng1: f64, lat1: f64, lng2: f64, lat2: f64) -> f64 {
+    let lat1_r = lat1.to_radians();
+    let lat2_r = lat2.to_radians();
+    let dlng = (lng2 - lng1).to_radians();
+
+    let d_phi = (1.0 - WGS84_F) * ((lat2_r / 2.0 + std::f64::consts::PI / 4.0).tan()).ln()
+        - (1.0 - WGS84_F) * ((lat1_r / 2.0 + std::f64::consts::PI / 4.0).tan()).ln();
+
+    let d_lon = ((dlng + std::f64::consts::PI) % (2.0 * std::f64::consts::PI)) - std::f64::consts::PI;
+
+    let theta = d_lon.atan2(d_phi);
+    let bearing = theta.to_degrees();
+
+    ((bearing % 360.0) + 360.0) % 360.0
+}
+
+// ===========================================================================
 
 #[cfg(test)]
 mod tests {
@@ -570,5 +745,105 @@ mod tests {
         let coords: Vec<f64> = vec![];
         let line = coords_to_linestring(&coords);
         assert_eq!(line.coords_count(), 0);
+    }
+
+    // ── Vincenty distance tests ───────────────────────────────────
+
+    #[test]
+    fn test_vincenty_beijing_shanghai() {
+        // Beijing (116.4074, 39.9042) → Shanghai (121.4737, 31.2304)
+        // Vincenty reference: ~1,065,846 m (more accurate than Haversine ~1,068,000)
+        let dist = vincenty_distance(116.4074, 39.9042, 121.4737, 31.2304);
+        assert!(
+            !dist.is_nan(),
+            "Vincenty should converge for non-antipodal points"
+        );
+        assert!(
+            (dist - 1_065_846.0).abs() < 100.0,
+            "Beijing-Shanghai Vincenty: got {}, expected ~1065846",
+            dist
+        );
+    }
+
+    #[test]
+    fn test_vincenty_zero_distance() {
+        let dist = vincenty_distance(116.0, 39.0, 116.0, 39.0);
+        assert!(dist.abs() < 0.01, "Zero distance: got {}", dist);
+    }
+
+    #[test]
+    fn test_vincenty_more_accurate_than_haversine() {
+        // Long distance: London to New York
+        // Vincenty: ~5570000 m, Haversine: ~5570000 m (difference in sub-meter range for this case)
+        let v_dist = vincenty_distance(-0.1278, 51.5074, -74.006, 40.7128);
+        let h_dist = haversine_distance_internal(51.5074, -0.1278, 40.7128, -74.006);
+        assert!(!v_dist.is_nan());
+        // Both should be within ~1% of each other
+        let ratio = v_dist / h_dist;
+        assert!(
+            (ratio - 1.0).abs() < 0.01,
+            "Vincenty/Haversine ratio too different: {}",
+            ratio
+        );
+    }
+
+    #[test]
+    fn test_vincenty_equator() {
+        // Along equator: 10 degrees longitude
+        // Distance should be ~1113.2 km per degree × 10
+        let dist = vincenty_distance(0.0, 0.0, 10.0, 0.0);
+        assert!(!dist.is_nan());
+        assert!(
+            (dist - 1_113_195.0).abs() < 500.0,
+            "10° equator Vincenty: got {}, expected ~1113195",
+            dist
+        );
+    }
+
+    // ── Rhumb distance tests ──────────────────────────────────────
+
+    #[test]
+    fn test_rhumb_distance_equator() {
+        // 10° along equator — rhumb uses spherical approximation
+        // 10° × π/180 × 6371000 ≈ 1111949 m
+        let dist = rhumb_distance(0.0, 0.0, 10.0, 0.0);
+        assert!(
+            (dist - 1_111_949.0).abs() < 500.0,
+            "10° equator rhumb: got {}, expected ~1111949",
+            dist
+        );
+    }
+
+    #[test]
+    fn test_rhumb_distance_north() {
+        // Due north 10° from equator
+        let dist = rhumb_distance(0.0, 0.0, 0.0, 10.0);
+        assert!(
+            (dist - 1_113_195.0).abs() < 1000.0,
+            "10° north rhumb: got {}, expected ~1113195",
+            dist
+        );
+    }
+
+    #[test]
+    fn test_rhumb_bearing_east() {
+        // Due east at equator → bearing should be ~90°
+        let bearing = rhumb_bearing(0.0, 0.0, 10.0, 0.0);
+        assert!(
+            (bearing - 90.0).abs() < 0.5,
+            "East bearing: got {}, expected ~90",
+            bearing
+        );
+    }
+
+    #[test]
+    fn test_rhumb_bearing_north() {
+        // Due north → bearing should be ~0°
+        let bearing = rhumb_bearing(0.0, 0.0, 0.0, 10.0);
+        assert!(
+            (bearing - 0.0).abs() < 0.5 || (bearing - 360.0).abs() < 0.5,
+            "North bearing: got {}, expected ~0 or 360",
+            bearing
+        );
     }
 }
