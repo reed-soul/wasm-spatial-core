@@ -738,6 +738,86 @@ export class Octree {
 if (Symbol.dispose) Octree.prototype[Symbol.dispose] = Octree.prototype.free;
 
 /**
+ * Result of parsing a PLY file. Contains vertex positions, optional colors,
+ * optional normals, and face count.
+ */
+export class PlyResult {
+    static __wrap(ptr) {
+        const obj = Object.create(PlyResult.prototype);
+        obj.__wbg_ptr = ptr;
+        PlyResultFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        PlyResultFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_plyresult_free(ptr, 0);
+    }
+    /**
+     * Vertex colors as Uint8Array [r, g, b, ...], or null if no color data.
+     * @returns {Uint8Array}
+     */
+    get colors() {
+        const ret = wasm.plyresult_colors(this.__wbg_ptr);
+        return takeObject(ret);
+    }
+    /**
+     * Number of faces (polygons).
+     * @returns {number}
+     */
+    get faceCount() {
+        const ret = wasm.plyresult_faceCount(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * Whether color data is present.
+     * @returns {boolean}
+     */
+    hasColors() {
+        const ret = wasm.plyresult_hasColors(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * Whether normal data is present.
+     * @returns {boolean}
+     */
+    hasNormals() {
+        const ret = wasm.plyresult_hasNormals(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * Vertex normals as Float32Array [nx, ny, nz, ...], or null if no normal data.
+     * @returns {Float32Array}
+     */
+    get normals() {
+        const ret = wasm.plyresult_normals(this.__wbg_ptr);
+        return takeObject(ret);
+    }
+    /**
+     * Vertex positions as Float32Array [x, y, z, x, y, z, ...].
+     * @returns {Float32Array}
+     */
+    get positions() {
+        const ret = wasm.plyresult_positions(this.__wbg_ptr);
+        return takeObject(ret);
+    }
+    /**
+     * Number of vertices.
+     * @returns {number}
+     */
+    get vertexCount() {
+        const ret = wasm.plyresult_vertexCount(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+}
+if (Symbol.dispose) PlyResult.prototype[Symbol.dispose] = PlyResult.prototype.free;
+
+/**
  * A spatial index for 2D line segments using an R-Tree.
  *
  * Indexes individual edges (line segments) from LineString geometries.
@@ -2498,6 +2578,27 @@ export function disjoint(ring1, ring2) {
 }
 
 /**
+ * Get E57 support status as a human-readable string.
+ * @returns {string}
+ */
+export function e57Status() {
+    let deferred1_0;
+    let deferred1_1;
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        wasm.e57Status(retptr);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        deferred1_0 = r0;
+        deferred1_1 = r1;
+        return getStringFromWasm0(r0, r1);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        wasm.__wbindgen_export4(deferred1_0, deferred1_1, 1);
+    }
+}
+
+/**
  * Encode a point cloud tile into 3D Tiles Point Cloud (pnts) binary format.
  *
  * # Arguments
@@ -3378,6 +3479,81 @@ export function parseIfcGeometry(text) {
 }
 
 /**
+ * Extract vertex positions from an OBJ file.
+ *
+ * Returns a Float32Array of [x0, y0, z0, x1, y1, z1, ...].
+ * Only processes `v` lines; faces, materials, etc. are ignored.
+ * @param {string} text
+ * @returns {Float32Array}
+ */
+export function parseObjVertices(text) {
+    const ptr0 = passStringToWasm0(text, wasm.__wbindgen_export, wasm.__wbindgen_export2);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.parseObjVertices(ptr0, len0);
+    return takeObject(ret);
+}
+
+/**
+ * Extract vertex positions and normals from an OBJ file.
+ *
+ * Returns a JS object: `{ positions: Float32Array, normals: Float32Array | null }`.
+ * Normals are matched to vertices by order; returns null if counts don't match.
+ * @param {string} text
+ * @returns {object}
+ */
+export function parseObjWithNormals(text) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passStringToWasm0(text, wasm.__wbindgen_export, wasm.__wbindgen_export2);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.parseObjWithNormals(retptr, ptr0, len0);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return takeObject(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
+}
+
+/**
+ * Parse a PLY (Polygon File Format) file.
+ *
+ * Supports ASCII and binary_little_endian formats.
+ * Returns a `PlyResult` with vertex positions, optional colors, optional normals.
+ *
+ * # Example (JS)
+ * ```js
+ * const result = core.parsePly(arrayBuffer);
+ * const positions = result.positions();
+ * const colors = result.colors();
+ * const vertexCount = result.vertexCount;
+ * ```
+ * @param {Uint8Array} bytes
+ * @returns {PlyResult}
+ */
+export function parsePly(bytes) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArray8ToWasm0(bytes, wasm.__wbindgen_export);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.parsePly(retptr, ptr0, len0);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return PlyResult.__wrap(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
+}
+
+/**
  * Parse Well-Known Binary (WKB) data into a flat `Float64Array`.
  *
  * Supports 2D POINT, LINESTRING, POLYGON, MULTIPOINT.
@@ -3792,6 +3968,15 @@ export function sortCoordsByLng(coords) {
 }
 
 /**
+ * Check if E57 format is supported (requires `e57-support` feature).
+ * @returns {boolean}
+ */
+export function supportsE57() {
+    const ret = wasm.supportsE57();
+    return ret !== 0;
+}
+
+/**
  * Interpolate a Z value on a TIN surface at (x, y) using barycentric interpolation.
  *
  * Finds the triangle containing (x, y) and interpolates Z.
@@ -4121,6 +4306,10 @@ function __wbg_get_imports() {
             const ret = new Object();
             return addHeapObject(ret);
         },
+        __wbg_new_from_slice_0f99167330d1143b: function(arg0, arg1) {
+            const ret = new Float32Array(getArrayF32FromWasm0(arg0, arg1));
+            return addHeapObject(ret);
+        },
         __wbg_new_from_slice_3ca7c4e9a43341b6: function(arg0, arg1) {
             const ret = new Float64Array(getArrayF64FromWasm0(arg0, arg1));
             return addHeapObject(ret);
@@ -4143,6 +4332,10 @@ function __wbg_get_imports() {
         },
         __wbg_new_with_length_b91f070a091394cc: function(arg0) {
             const ret = new Uint32Array(arg0 >>> 0);
+            return addHeapObject(ret);
+        },
+        __wbg_new_with_length_d360e1480e55002f: function(arg0) {
+            const ret = new Float32Array(arg0 >>> 0);
             return addHeapObject(ret);
         },
         __wbg_prototypesetcall_05223d3fcba7faf9: function(arg0, arg1, arg2) {
@@ -4237,6 +4430,9 @@ const MvtFeatureFinalization = (typeof FinalizationRegistry === 'undefined')
 const MvtLayerFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_mvtlayer_free(ptr, 1));
+const PlyResultFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_plyresult_free(ptr, 1));
 const SpatialEdgeIndexFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_spatialedgeindex_free(ptr, 1));
