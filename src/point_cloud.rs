@@ -420,6 +420,631 @@ pub fn decimate_random(
 }
 
 // ===========================================================================
+// PCD Format Support
+// ===========================================================================
+
+/// Parsed PCD point cloud data — reuses the same public layout as LasPointCloud.
+#[wasm_bindgen]
+#[derive(Debug)]
+pub struct PcdPointCloud {
+    positions: Vec<f32>,
+    colors: Option<Vec<u8>>,
+    point_count: u32,
+}
+
+#[wasm_bindgen]
+impl PcdPointCloud {
+    /// Interleaved XYZ positions as Float32Array.
+    #[wasm_bindgen(getter)]
+    pub fn positions(&self) -> js_sys::Float32Array {
+        let arr = js_sys::Float32Array::new_with_length(self.positions.len() as u32);
+        arr.copy_from(&self.positions);
+        arr
+    }
+
+    /// RGB colors as Uint8Array, or `null` if not present.
+    #[wasm_bindgen(getter)]
+    pub fn colors(&self) -> Option<js_sys::Uint8Array> {
+        self.colors.as_ref().map(|c| {
+            let arr = js_sys::Uint8Array::new_with_length(c.len() as u32);
+            arr.copy_from(c);
+            arr
+        })
+    }
+
+    /// Number of points in the cloud.
+    #[wasm_bindgen(getter, js_name = "pointCount")]
+    pub fn point_count(&self) -> u32 {
+        self.point_count
+    }
+}
+
+/// Internal PCD header representation.
+struct PcdHeader {
+    #[allow(dead_code)]
+    version: String,
+    fields: Vec<String>,
+    size: Vec<usize>,
+    num_points: u32,
+    data_type: String, // "ascii" or "binary"
+    #[allow(dead_code)]
+    width: u32,
+    #[allow(dead_code)]
+    height: u32,
+}
+
+fn parse_pcd_header(lines: &[&str]) -> Result<PcdHeader, String> {
+    let mut version = String::from("0.7");
+    let mut fields = Vec::new();
+    let mut size = Vec::new();
+    let mut num_points: u32 = 0;
+    let mut data_type = String::from("ascii");
+    let mut width: u32 = 0;
+    let mut height: u32 = 1;
+
+    for line in lines {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        if let Some(rest) = trimmed.strip_prefix("VERSION") {
+            version = rest.trim().to_string();
+        } else if let Some(rest) = trimmed.strip_prefix("FIELDS") {
+            fields = rest.split_whitespace().map(|s| s.to_lowercase()).collect();
+        } else if let Some(rest) = trimmed.strip_prefix("SIZE") {
+            size = rest
+                .split_whitespace()
+                .map(|s| s.parse::<usize>().unwrap_or(4))
+                .collect();
+        } else if let Some(rest) = trimmed.strip_prefix("POINTS") {
+            num_points = rest.trim().parse::<u32>().unwrap_or(0);
+        } else if let Some(rest) = trimmed.strip_prefix("WIDTH") {
+            width = rest.trim().parse::<u32>().unwrap_or(0);
+        } else if let Some(rest) = trimmed.strip_prefix("HEIGHT") {
+            height = rest.trim().parse::<u32>().unwrap_or(1);
+        } else if let Some(rest) = trimmed.strip_prefix("DATA") {
+            data_type = rest.trim().to_lowercase();
+        }
+    }
+
+    // If POINTS not specified, derive from WIDTH * HEIGHT
+    if num_points == 0 && width > 0 {
+        num_points = width * height;
+    }
+
+    if fields.is_empty() {
+        return Err("PCD header missing FIELDS".to_string());
+    }
+
+    // Ensure size vector matches fields
+    while size.len() < fields.len() {
+        size.push(4); // default to float32
+    }
+
+    Ok(PcdHeader {
+        version,
+        fields,
+        size,
+        num_points,
+        data_type,
+        width,
+        height,
+    })
+}
+
+/// Parse RGB float (encoded as packed int in PCD) into (r, g, b) bytes.
+fn unpack_pcd_rgb(val: f32) -> (u8, u8, u8) {
+    let bits = val.to_bits();
+    let r = ((bits >> 16) & 0xFF) as u8;
+    let g = ((bits >> 8) & 0xFF) as u8;
+    let b = (bits & 0xFF) as u8;
+    (r, g, b)
+}
+
+/// Find the column indices for x, y, z, rgb.
+fn locate_xyz_rgb(
+    fields: &[String],
+) -> (Option<usize>, Option<usize>, Option<usize>, Option<usize>) {
+    let mut xi = None;
+    let mut yi = None;
+    let mut zi = None;
+    let mut rgbi = None;
+
+    for (i, f) in fields.iter().enumerate() {
+        match f.as_str() {
+            "x" => xi = Some(i),
+            "y" => yi = Some(i),
+            "z" => zi = Some(i),
+            "rgb" | "rgba" => rgbi = Some(i),
+            _ => {}
+        }
+    }
+
+    (xi, yi, zi, rgbi)
+}
+
+/// Core ASCII PCD parser (testable without WASM).
+fn parse_pcd_ascii_core(text: &str) -> Result<PcdPointCloud, String> {
+    let lines: Vec<&str> = text.lines().collect();
+    let mut header_end = 0;
+    for (i, line) in lines.iter().enumerate() {
+        if line.trim() == "" && i > 0 {
+            // First empty line marks end of header for most PCD files
+            header_end = i + 1;
+            break;
+        }
+        if line.trim().starts_with("DATA") {
+            header_end = i + 1;
+            break;
+        }
+    }
+
+    let header = parse_pcd_header(&lines[..header_end.min(lines.len())])?;
+
+    if header.data_type != "ascii" {
+        return Err(format!("Expected ASCII PCD, got {}", header.data_type));
+    }
+
+    let (xi, yi, zi, rgbi) = locate_xyz_rgb(&header.fields);
+    let xi = xi.ok_or_else(|| "PCD missing 'x' field".to_string())?;
+    let yi = yi.ok_or_else(|| "PCD missing 'y' field".to_string())?;
+    let zi = zi.ok_or_else(|| "PCD missing 'z' field".to_string())?;
+    let has_color = rgbi.is_some();
+    let rgbi = rgbi.unwrap_or(0);
+    let num_fields = header.fields.len();
+
+    let mut positions: Vec<f32> = Vec::with_capacity(header.num_points as usize * 3);
+    let mut colors: Option<Vec<u8>> = if has_color {
+        Some(Vec::with_capacity(header.num_points as usize * 3))
+    } else {
+        None
+    };
+
+    for line in lines.iter().skip(header_end) {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+
+        let values: Vec<&str> = trimmed.split_whitespace().collect();
+        if values.len() < num_fields {
+            continue;
+        }
+
+        let x: f32 = values.get(xi).and_then(|v| v.parse().ok()).unwrap_or(0.0);
+        let y: f32 = values.get(yi).and_then(|v| v.parse().ok()).unwrap_or(0.0);
+        let z: f32 = values.get(zi).and_then(|v| v.parse().ok()).unwrap_or(0.0);
+
+        positions.push(x);
+        positions.push(y);
+        positions.push(z);
+
+        if has_color {
+            let rgb_val: f32 = values.get(rgbi).and_then(|v| v.parse().ok()).unwrap_or(0.0);
+            let (r, g, b) = unpack_pcd_rgb(rgb_val);
+            if let Some(ref mut c) = colors {
+                c.push(r);
+                c.push(g);
+                c.push(b);
+            }
+        }
+    }
+
+    Ok(PcdPointCloud {
+        point_count: positions.len() as u32 / 3,
+        positions,
+        colors,
+    })
+}
+
+/// Core binary PCD parser (testable without WASM).
+fn parse_pcd_binary_core(bytes: &[u8]) -> Result<PcdPointCloud, String> {
+    // Find header end — scan for "DATA binary\n" or "DATA binary\r\n"
+    let marker = b"DATA binary\n";
+    let marker_crlf = b"DATA binary\r\n";
+    let text_end = bytes
+        .windows(marker.len())
+        .position(|w| w == marker || w == marker_crlf)
+        .map(|pos| {
+            let mlen = if &bytes[pos..pos + marker_crlf.len()] == marker_crlf {
+                marker_crlf.len()
+            } else {
+                marker.len()
+            };
+            pos + mlen
+        });
+
+    let text_end =
+        text_end.ok_or_else(|| "PCD binary: could not find 'DATA binary' marker".to_string())?;
+
+    // Parse header as text
+    let header_text = String::from_utf8_lossy(&bytes[..text_end]);
+    let header_lines: Vec<&str> = header_text.lines().collect();
+    let header = parse_pcd_header(&header_lines)?;
+
+    if header.data_type != "binary" {
+        return Err(format!("Expected binary PCD, got {}", header.data_type));
+    }
+
+    let (xi, yi, zi, rgbi) = locate_xyz_rgb(&header.fields);
+    let xi = xi.ok_or_else(|| "PCD missing 'x' field".to_string())?;
+    let yi = yi.ok_or_else(|| "PCD missing 'y' field".to_string())?;
+    let zi = zi.ok_or_else(|| "PCD missing 'z' field".to_string())?;
+    let has_color = rgbi.is_some();
+    let rgbi = rgbi.unwrap_or(0);
+
+    // Calculate record size (sum of all field sizes)
+    let record_size: usize = header.size.iter().sum();
+
+    let mut positions: Vec<f32> = Vec::with_capacity(header.num_points as usize * 3);
+    let mut colors: Option<Vec<u8>> = if has_color {
+        Some(Vec::with_capacity(header.num_points as usize * 3))
+    } else {
+        None
+    };
+
+    let data_start = text_end;
+    for i in 0..header.num_points as usize {
+        let offset = data_start + i * record_size;
+        if offset + record_size > bytes.len() {
+            break;
+        }
+
+        let point_bytes = &bytes[offset..offset + record_size];
+
+        // Calculate byte offsets for each field
+        let mut field_offsets: Vec<usize> = Vec::with_capacity(header.fields.len());
+        let mut cur = 0;
+        for &s in &header.size {
+            field_offsets.push(cur);
+            cur += s;
+        }
+
+        let read_f32_at = |data: &[u8], off: usize| -> f32 {
+            if off + 4 <= data.len() {
+                f32::from_le_bytes([data[off], data[off + 1], data[off + 2], data[off + 3]])
+            } else {
+                0.0
+            }
+        };
+
+        let x = read_f32_at(point_bytes, field_offsets[xi]);
+        let y = read_f32_at(point_bytes, field_offsets[yi]);
+        let z = read_f32_at(point_bytes, field_offsets[zi]);
+
+        positions.push(x);
+        positions.push(y);
+        positions.push(z);
+
+        if has_color {
+            let rgb_val = read_f32_at(point_bytes, field_offsets[rgbi]);
+            let (r, g, b) = unpack_pcd_rgb(rgb_val);
+            if let Some(ref mut c) = colors {
+                c.push(r);
+                c.push(g);
+                c.push(b);
+            }
+        }
+    }
+
+    Ok(PcdPointCloud {
+        point_count: positions.len() as u32 / 3,
+        positions,
+        colors,
+    })
+}
+
+/// Parse ASCII PCD format text into a point cloud.
+#[wasm_bindgen(js_name = "parsePcdAscii")]
+pub fn parse_pcd_ascii(text: &str) -> Result<PcdPointCloud, JsValue> {
+    parse_pcd_ascii_core(text).map_err(|e| JsValue::from_str(&e))
+}
+
+/// Parse binary PCD format bytes into a point cloud.
+#[wasm_bindgen(js_name = "parsePcdBinary")]
+pub fn parse_pcd_binary(bytes: &[u8]) -> Result<PcdPointCloud, JsValue> {
+    parse_pcd_binary_core(bytes).map_err(|e| JsValue::from_str(&e))
+}
+
+// ===========================================================================
+// GPU-ready Buffer Generation (Phase 3.5)
+// ===========================================================================
+
+/// Generate an interleaved vertex buffer for WebGL2/WebGPU.
+///
+/// Layout: `[x, y, z, nx, ny, nz, r, g, b, a, ...]` per vertex (10 floats).
+/// Normals default to `(0, 0, 1)` if not provided.
+/// Colors default to `(255, 255, 255, 255)` (white, opaque) if not provided.
+#[wasm_bindgen(js_name = "generateInterleavedVertexBuffer")]
+pub fn generate_interleaved_vertex_buffer(
+    positions: &js_sys::Float32Array,
+    colors: &js_sys::Uint8Array,
+    normals: &js_sys::Float32Array,
+) -> js_sys::Float32Array {
+    let point_count = positions.length() as usize / 3;
+    let has_colors = colors.length() > 0;
+    let has_normals = normals.length() > 0;
+
+    let mut pos_buf = vec![0.0f32; positions.length() as usize];
+    positions.copy_to(&mut pos_buf);
+
+    let mut col_buf = vec![0u8; colors.length() as usize];
+    if has_colors {
+        colors.copy_to(&mut col_buf);
+    }
+
+    let mut norm_buf = vec![0.0f32; normals.length() as usize];
+    if has_normals {
+        normals.copy_to(&mut norm_buf);
+    }
+
+    // 10 floats per vertex: xyz(3) + normal(3) + rgba(4)
+    let mut out = Vec::with_capacity(point_count * 10);
+
+    for i in 0..point_count {
+        // Position
+        out.push(pos_buf[i * 3]);
+        out.push(pos_buf[i * 3 + 1]);
+        out.push(pos_buf[i * 3 + 2]);
+
+        // Normal
+        if has_normals {
+            out.push(norm_buf[i * 3]);
+            out.push(norm_buf[i * 3 + 1]);
+            out.push(norm_buf[i * 3 + 2]);
+        } else {
+            out.push(0.0);
+            out.push(0.0);
+            out.push(1.0); // default: up
+        }
+
+        // Color (RGBA as float 0..1)
+        if has_colors {
+            out.push(col_buf[i * 3] as f32 / 255.0);
+            out.push(col_buf[i * 3 + 1] as f32 / 255.0);
+            out.push(col_buf[i * 3 + 2] as f32 / 255.0);
+        } else {
+            out.push(1.0); // white
+            out.push(1.0);
+            out.push(1.0);
+        }
+        out.push(1.0); // alpha always opaque
+    }
+
+    let arr = js_sys::Float32Array::new_with_length(out.len() as u32);
+    arr.copy_from(&out);
+    arr
+}
+
+/// Generate indexed geometry from positions.
+///
+/// Returns `{ positions: Float32Array, indices: Uint32Array }`.
+/// For point clouds this is trivial (indices = [0, 1, 2, ...]) but the
+/// layout is standard for mesh geometry consumers.
+#[wasm_bindgen(js_name = "generateIndexedGeometry")]
+pub fn generate_indexed_geometry(positions: &js_sys::Float32Array) -> js_sys::Object {
+    let point_count = positions.length() as usize / 3;
+
+    let mut pos_buf = vec![0.0f32; positions.length() as usize];
+    positions.copy_to(&mut pos_buf);
+
+    let indices: Vec<u32> = (0..point_count as u32).collect();
+
+    let pos_arr = js_sys::Float32Array::new_with_length(pos_buf.len() as u32);
+    pos_arr.copy_from(&pos_buf);
+    let idx_arr = js_sys::Uint32Array::new_with_length(indices.len() as u32);
+    idx_arr.copy_from(&indices);
+
+    let obj = js_sys::Object::new();
+    js_sys::Reflect::set(&obj, &"positions".into(), &pos_arr).unwrap();
+    js_sys::Reflect::set(&obj, &"indices".into(), &idx_arr).unwrap();
+    obj
+}
+
+// ===========================================================================
+// Streaming & Progress API (Phase 3.6)
+// ===========================================================================
+
+/// Core LAS parser with progress callback (pure Rust for testing).
+///
+/// Calls `progress(processed, total)` approximately every `interval` points.
+fn parse_las_points_with_progress_core<F>(
+    bytes: &[u8],
+    mut on_progress: F,
+    interval: u32,
+) -> Result<LasPointCloud, String>
+where
+    F: FnMut(u32, u32),
+{
+    let num_points = read_u32_le(bytes, 110);
+    let point_offset = read_u32_le(bytes, 98) as usize;
+    let point_format = bytes[106];
+    let point_record_len = read_u16_le(bytes, 108) as usize;
+
+    let x_scale = read_f64_le(bytes, 134);
+    let y_scale = read_f64_le(bytes, 142);
+    let z_scale = read_f64_le(bytes, 150);
+    let x_offset = read_f64_le(bytes, 158);
+    let y_offset = read_f64_le(bytes, 166);
+    let z_offset = read_f64_le(bytes, 174);
+
+    let has_color = point_format == 2 || point_format == 3;
+    let expected_record_len = if has_color { 26 } else { 20 };
+
+    if point_record_len < expected_record_len {
+        return Err(format!(
+            "Point record length {} too small for format {}",
+            point_record_len, point_format
+        ));
+    }
+
+    let mut positions: Vec<f32> = Vec::with_capacity(num_points as usize * 3);
+    let mut colors: Option<Vec<u8>> = if has_color {
+        Some(Vec::with_capacity(num_points as usize * 3))
+    } else {
+        None
+    };
+
+    let mut last_reported: u32 = 0;
+
+    for i in 0..num_points as usize {
+        let base = point_offset + i * point_record_len;
+        if base + expected_record_len > bytes.len() {
+            break;
+        }
+
+        let raw_x = read_i32_le(bytes, base) as f64;
+        let raw_y = read_i32_le(bytes, base + 4) as f64;
+        let raw_z = read_i32_le(bytes, base + 8) as f64;
+
+        positions.push((raw_x * x_scale + x_offset) as f32);
+        positions.push((raw_y * y_scale + y_offset) as f32);
+        positions.push((raw_z * z_scale + z_offset) as f32);
+
+        if has_color {
+            if let Some(ref mut c) = colors {
+                c.push(bytes[base + 20]);
+                c.push(bytes[base + 21]);
+                c.push(bytes[base + 22]);
+            }
+        }
+
+        // Report progress periodically
+        if interval > 0 && (i as u32).saturating_sub(last_reported) >= interval {
+            on_progress(i as u32, num_points);
+            last_reported = i as u32;
+        }
+    }
+
+    // Final progress report
+    on_progress(positions.len() as u32 / 3, num_points);
+
+    Ok(LasPointCloud {
+        point_count: positions.len() as u32 / 3,
+        positions,
+        colors,
+    })
+}
+
+/// Parse LAS points with a JS progress callback. Reports every 10,000 points.
+#[wasm_bindgen(js_name = "parseLasPointsWithProgress")]
+pub fn parse_las_points_with_progress(
+    bytes: &[u8],
+    on_progress: &js_sys::Function,
+) -> Result<LasPointCloud, JsValue> {
+    let _num_points = read_u32_le(bytes, 110);
+    let this = JsValue::NULL;
+
+    parse_las_points_with_progress_core(
+        bytes,
+        |processed, total| {
+            let _ = on_progress.call2(&this, &JsValue::from(processed), &JsValue::from(total));
+        },
+        10_000,
+    )
+    .map_err(|e| JsValue::from_str(&e))
+}
+
+/// Core voxel grid decimation with progress callback.
+fn voxel_grid_decimate_with_progress_core<F>(
+    positions: &[f32],
+    colors: &[u8],
+    cell_size: f32,
+    mut on_progress: F,
+    interval: u32,
+) -> (Vec<f32>, Vec<u8>)
+where
+    F: FnMut(u32, u32),
+{
+    let point_count = positions.len() / 3;
+    let has_colors = !colors.is_empty();
+
+    if point_count == 0 || cell_size <= 0.0 {
+        return (Vec::new(), Vec::new());
+    }
+
+    // Phase 1: build voxel grid
+    let mut grid: std::collections::HashMap<(i64, i64, i64), usize> =
+        std::collections::HashMap::new();
+
+    let mut processed: u32 = 0;
+    for i in 0..point_count {
+        let x = positions[i * 3];
+        let y = positions[i * 3 + 1];
+        let z = positions[i * 3 + 2];
+        let cx = (x / cell_size).floor() as i64;
+        let cy = (y / cell_size).floor() as i64;
+        let cz = (z / cell_size).floor() as i64;
+        grid.entry((cx, cy, cz)).or_insert(i);
+
+        processed += 1;
+        if interval > 0 && processed.is_multiple_of(interval) {
+            on_progress(processed, point_count as u32);
+        }
+    }
+
+    // Phase 2: collect kept points
+    let kept: Vec<usize> = grid.into_values().collect();
+    let kept_count = kept.len() as u32;
+    let mut out_pos = Vec::with_capacity(kept.len() * 3);
+    let mut out_col: Vec<u8> = Vec::with_capacity(kept.len() * 3);
+
+    for &idx in &kept {
+        out_pos.push(positions[idx * 3]);
+        out_pos.push(positions[idx * 3 + 1]);
+        out_pos.push(positions[idx * 3 + 2]);
+        if has_colors {
+            out_col.push(colors[idx * 3]);
+            out_col.push(colors[idx * 3 + 1]);
+            out_col.push(colors[idx * 3 + 2]);
+        }
+    }
+
+    on_progress(point_count as u32, point_count as u32);
+
+    let _ = kept_count; // used implicitly in output size
+    (out_pos, out_col)
+}
+
+/// Voxel grid decimation with a JS progress callback. Reports every 10,000 points.
+#[wasm_bindgen(js_name = "decimateVoxelGridWithProgress")]
+pub fn decimate_voxel_grid_with_progress(
+    positions: &js_sys::Float32Array,
+    colors: &js_sys::Uint8Array,
+    cell_size: f32,
+    on_progress: &js_sys::Function,
+) -> js_sys::Object {
+    let pos_len = positions.length() as usize;
+    let col_len = colors.length() as usize;
+
+    let mut pos_buf = vec![0.0f32; pos_len];
+    positions.copy_to(&mut pos_buf);
+    let mut col_buf = vec![0u8; col_len];
+    colors.copy_to(&mut col_buf);
+
+    let this = JsValue::NULL;
+    let (out_pos, out_col) = voxel_grid_decimate_with_progress_core(
+        &pos_buf,
+        &col_buf,
+        cell_size,
+        |processed, total| {
+            let _ = on_progress.call2(&this, &JsValue::from(processed), &JsValue::from(total));
+        },
+        10_000,
+    );
+
+    let pos_arr = js_sys::Float32Array::new_with_length(out_pos.len() as u32);
+    pos_arr.copy_from(&out_pos);
+    let col_arr = js_sys::Uint8Array::new_with_length(out_col.len() as u32);
+    col_arr.copy_from(&out_col);
+
+    let obj = js_sys::Object::new();
+    js_sys::Reflect::set(&obj, &"positions".into(), &pos_arr).unwrap();
+    js_sys::Reflect::set(&obj, &"colors".into(), &col_arr).unwrap();
+    obj
+}
+
+// ===========================================================================
 // Tests
 // ===========================================================================
 
@@ -641,5 +1266,281 @@ mod tests {
         let (a, _) = random_decimate_core(&positions, &[], 2);
         let (b, _) = random_decimate_core(&positions, &[], 2);
         assert_eq!(a, b, "Same seed should produce same result");
+    }
+
+    // ── PCD ASCII tests ──────────────────────────────────────────
+
+    #[test]
+    fn test_parse_pcd_ascii_xyz() {
+        let pcd = r#"# .PCD v0.7 - Point Cloud Data file format
+VERSION 0.7
+FIELDS x y z
+SIZE 4 4 4
+TYPE F F F
+COUNT 1 1 1
+WIDTH 5
+HEIGHT 1
+VIEWPOINT 0 0 0 1 0 0 0
+POINTS 5
+DATA ascii
+1.0 2.0 3.0
+4.0 5.0 6.0
+7.0 8.0 9.0
+10.0 11.0 12.0
+13.0 14.0 15.0
+"#;
+        let cloud = parse_pcd_ascii_core(pcd).unwrap();
+        assert_eq!(cloud.point_count, 5);
+        assert_eq!(cloud.positions.len(), 15);
+        assert!(cloud.colors.is_none());
+        assert_eq!(cloud.positions[0], 1.0);
+        assert_eq!(cloud.positions[1], 2.0);
+        assert_eq!(cloud.positions[2], 3.0);
+        assert_eq!(cloud.positions[12], 13.0);
+        assert_eq!(cloud.positions[13], 14.0);
+        assert_eq!(cloud.positions[14], 15.0);
+    }
+
+    #[test]
+    fn test_parse_pcd_ascii_xyz_rgb() {
+        // RGB in PCD is packed as a float with bits [RR GG BB 00]
+        // We'll test with unpack_pcd_rgb directly
+        let (r, g, b) = unpack_pcd_rgb(f32::from_bits(0x00_FF_80_40));
+        assert_eq!(r, 255);
+        assert_eq!(g, 128);
+        assert_eq!(b, 64);
+    }
+
+    #[test]
+    fn test_parse_pcd_ascii_missing_field() {
+        let pcd = r#"VERSION 0.7
+FIELDS a b c
+SIZE 4 4 4
+TYPE F F F
+COUNT 1 1 1
+WIDTH 1
+HEIGHT 1
+POINTS 1
+DATA ascii
+1.0 2.0 3.0
+"#;
+        let result = parse_pcd_ascii_core(pcd);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("'x' field"));
+    }
+
+    #[test]
+    fn test_parse_pcd_ascii_empty() {
+        let pcd = r#"VERSION 0.7
+FIELDS x y z
+SIZE 4 4 4
+TYPE F F F
+COUNT 1 1 1
+WIDTH 0
+HEIGHT 1
+POINTS 0
+DATA ascii
+"#;
+        let cloud = parse_pcd_ascii_core(pcd).unwrap();
+        assert_eq!(cloud.point_count, 0);
+    }
+
+    // ── PCD binary tests ────────────────────────────────────────
+
+    #[test]
+    fn test_parse_pcd_binary_xyz() {
+        // Build a valid binary PCD
+        let header = "VERSION 0.7\nFIELDS x y z\nSIZE 4 4 4\nTYPE F F F\nCOUNT 1 1 1\nWIDTH 3\nHEIGHT 1\nPOINTS 3\nDATA binary\n";
+
+        let mut data: Vec<u8> = header.as_bytes().to_vec();
+
+        // Point 1: (1.0, 2.0, 3.0)
+        data.extend_from_slice(&1.0f32.to_le_bytes());
+        data.extend_from_slice(&2.0f32.to_le_bytes());
+        data.extend_from_slice(&3.0f32.to_le_bytes());
+        // Point 2: (4.0, 5.0, 6.0)
+        data.extend_from_slice(&4.0f32.to_le_bytes());
+        data.extend_from_slice(&5.0f32.to_le_bytes());
+        data.extend_from_slice(&6.0f32.to_le_bytes());
+        // Point 3: (7.0, 8.0, 9.0)
+        data.extend_from_slice(&7.0f32.to_le_bytes());
+        data.extend_from_slice(&8.0f32.to_le_bytes());
+        data.extend_from_slice(&9.0f32.to_le_bytes());
+
+        let cloud = parse_pcd_binary_core(&data).unwrap();
+        assert_eq!(cloud.point_count, 3);
+        assert_eq!(cloud.positions[0], 1.0);
+        assert_eq!(cloud.positions[4], 5.0);
+        assert_eq!(cloud.positions[8], 9.0);
+        assert!(cloud.colors.is_none());
+    }
+
+    #[test]
+    fn test_parse_pcd_binary_invalid() {
+        let data = b"NOT A PCD FILE AT ALL";
+        let result = parse_pcd_binary_core(data);
+        assert!(result.is_err());
+    }
+
+    // ── GPU-ready buffer tests ────────────────────────────────────
+
+    #[test]
+    fn test_interleaved_vertex_buffer_no_color_no_normals() {
+        let positions: Vec<f32> = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
+        let colors: Vec<u8> = vec![];
+        let normals: Vec<f32> = vec![];
+
+        // Test the core logic (without WASM typed arrays)
+        let point_count = positions.len() / 3;
+        let has_colors = !colors.is_empty();
+        let has_normals = !normals.is_empty();
+
+        let mut out: Vec<f32> = Vec::with_capacity(point_count * 10);
+        for i in 0..point_count {
+            out.push(positions[i * 3]);
+            out.push(positions[i * 3 + 1]);
+            out.push(positions[i * 3 + 2]);
+            if has_normals {
+                out.push(normals[i * 3]);
+                out.push(normals[i * 3 + 1]);
+                out.push(normals[i * 3 + 2]);
+            } else {
+                out.push(0.0);
+                out.push(0.0);
+                out.push(1.0);
+            }
+            if has_colors {
+                out.push(colors[i * 3] as f32 / 255.0);
+                out.push(colors[i * 3 + 1] as f32 / 255.0);
+                out.push(colors[i * 3 + 2] as f32 / 255.0);
+            } else {
+                out.push(1.0);
+                out.push(1.0);
+                out.push(1.0);
+            }
+            out.push(1.0); // alpha
+        }
+
+        assert_eq!(out.len(), 20); // 2 vertices × 10 floats
+                                   // First vertex: 1,2,3, 0,0,1, 1,1,1,1
+        assert_eq!(out[0], 1.0);
+        assert_eq!(out[3], 0.0);
+        assert_eq!(out[5], 1.0); // default normal Z
+        assert_eq!(out[6], 1.0); // default white
+        assert_eq!(out[9], 1.0); // alpha
+    }
+
+    #[test]
+    fn test_interleaved_vertex_buffer_with_colors_and_normals() {
+        let positions: Vec<f32> = vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0];
+        let colors: Vec<u8> = vec![255, 0, 0, 0, 255, 0]; // red, green
+        let normals: Vec<f32> = vec![0.0, 1.0, 0.0, 0.0, -1.0, 0.0]; // up, down
+
+        let point_count = positions.len() / 3;
+        let mut out: Vec<f32> = Vec::with_capacity(point_count * 10);
+        for i in 0..point_count {
+            out.push(positions[i * 3]);
+            out.push(positions[i * 3 + 1]);
+            out.push(positions[i * 3 + 2]);
+            out.push(normals[i * 3]);
+            out.push(normals[i * 3 + 1]);
+            out.push(normals[i * 3 + 2]);
+            out.push(colors[i * 3] as f32 / 255.0);
+            out.push(colors[i * 3 + 1] as f32 / 255.0);
+            out.push(colors[i * 3 + 2] as f32 / 255.0);
+            out.push(1.0);
+        }
+
+        // Vertex 0: red, normal up (0,1,0)
+        assert_eq!(out[3], 0.0);
+        assert_eq!(out[4], 1.0); // normal Y
+        assert_eq!(out[6], 1.0); // R full
+        assert_eq!(out[7], 0.0); // G zero
+    }
+
+    #[test]
+    fn test_generate_indexed_geometry_sequential() {
+        // Test the core logic: indices = [0, 1, 2, ...]
+        let positions: Vec<f32> = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0];
+        let point_count = positions.len() / 3;
+        let indices: Vec<u32> = (0..point_count as u32).collect();
+
+        assert_eq!(indices.len(), 3);
+        assert_eq!(indices[0], 0);
+        assert_eq!(indices[1], 1);
+        assert_eq!(indices[2], 2);
+    }
+
+    // ── Progress API tests ───────────────────────────────────────
+
+    #[test]
+    fn test_las_parse_with_progress() {
+        let points = vec![(1.0, 2.0, 3.0), (4.0, 5.0, 6.0), (7.0, 8.0, 9.0)];
+        let blob = build_test_las_blob(&points, false);
+
+        let mut call_count = 0u32;
+        let mut last_processed = 0u32;
+
+        let cloud = parse_las_points_with_progress_core(
+            &blob,
+            |processed, _total| {
+                call_count += 1;
+                last_processed = processed;
+            },
+            10_000, // large interval — won't trigger mid-parse for 3 points
+        )
+        .unwrap();
+
+        assert_eq!(cloud.point_count, 3);
+        // Should have at least the final callback
+        assert!(call_count >= 1);
+        assert_eq!(last_processed, 3);
+    }
+
+    #[test]
+    fn test_las_parse_with_progress_interval_1() {
+        let points: Vec<(f64, f64, f64)> = (0..5).map(|i| (i as f64, 0.0, 0.0)).collect();
+        let blob = build_test_las_blob(&points, false);
+
+        let mut call_count = 0u32;
+
+        let _cloud = parse_las_points_with_progress_core(
+            &blob,
+            |_processed, _total| {
+                call_count += 1;
+            },
+            1, // every point
+        )
+        .unwrap();
+
+        // 5 points + final callback = at least 6 calls
+        assert!(call_count >= 5);
+    }
+
+    #[test]
+    fn test_decimate_voxel_grid_with_progress() {
+        let positions: Vec<f32> = vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 3.0, 3.0, 3.0];
+        let colors: Vec<u8> = vec![];
+
+        let mut call_count = 0u32;
+        let mut last_processed = 0u32;
+
+        let (out_pos, out_col) = voxel_grid_decimate_with_progress_core(
+            &positions,
+            &colors,
+            1.0,
+            |processed, total| {
+                call_count += 1;
+                last_processed = processed;
+                assert!(total > 0);
+            },
+            2, // every 2 points
+        );
+
+        assert_eq!(out_pos.len(), 12); // 4 points, different cells
+        assert!(out_col.is_empty());
+        // At least final callback
+        assert!(call_count >= 1);
+        assert_eq!(last_processed, 4); // 4 points processed
     }
 }
