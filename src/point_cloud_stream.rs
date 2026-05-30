@@ -1109,7 +1109,7 @@ mod tests {
         assert_eq!(len, 3 * 20); // 60
     }
 
-#[cfg(feature = "laz-support")]
+    #[cfg(feature = "laz-support")]
     #[test]
     fn test_laz_status() {
         assert!(supports_laz());
@@ -1378,7 +1378,6 @@ mod tests {
 
     #[cfg(feature = "laz-support")]
     #[test]
-    #[cfg(feature = "laz-support")]
     fn test_copc_chunk_reading() {
         let points = vec![(10.0, 20.0, 30.0), (40.0, 50.0, 60.0)];
         let blob = build_test_copc_blob(&points, false);
@@ -1409,7 +1408,11 @@ mod tests {
     #[test]
     fn test_laz_status_disabled_without_feature() {
         let status = laz_status();
-        assert!(status.contains("DISABLED"), "Expected DISABLED in status: {}", status);
+        assert!(
+            status.contains("DISABLED"),
+            "Expected DISABLED in status: {}",
+            status
+        );
     }
 
     /// LAS region parsing should still work without laz-support.

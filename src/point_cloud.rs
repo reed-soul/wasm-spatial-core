@@ -3195,7 +3195,6 @@ DATA ascii
 
     #[test]
     #[cfg(feature = "laz-support")]
-    #[cfg(feature = "laz-support")]
     fn test_laz_roundtrip_format0() {
         let points = vec![(10.0, 20.0, 30.0), (40.0, 50.0, 60.0), (70.0, 80.0, 90.0)];
         let laz_blob = build_test_laz_blob(&points, false);
@@ -3459,7 +3458,11 @@ DATA ascii
         let result = parse_point_cloud_auto(&blob);
         assert!(result.is_err());
         let err = result.unwrap_err().message();
-        assert!(err.contains("laz-support"), "Error should mention laz-support feature: {}", err);
+        assert!(
+            err.contains("laz-support"),
+            "Error should mention laz-support feature: {}",
+            err
+        );
     }
 
     /// Verify parsePointCloudAuto still works for LAS when laz-support is not compiled.

@@ -41,8 +41,8 @@ mod point_cloud;
 #[cfg(feature = "point-cloud")]
 mod point_cloud_stream;
 
-mod ply;
 mod obj;
+mod ply;
 
 // Re-export core functions for integration testing and advanced usage
 pub use coordinate::{
@@ -53,8 +53,8 @@ pub use coordinate::{
 
 #[cfg(feature = "point-cloud")]
 pub use point_cloud::{
-    parse_las_header_core, parse_las_points_core, random_decimate_core,
-    read_f64_le, read_u16_le, read_u32_le, voxel_grid_decimate_core,
+    parse_las_header_core, parse_las_points_core, random_decimate_core, read_f64_le, read_u16_le,
+    read_u32_le, voxel_grid_decimate_core,
 };
 
 #[cfg(feature = "laz-support")]
@@ -137,9 +137,7 @@ pub fn e57_status() -> String {
     }
     #[cfg(not(feature = "e57-support"))]
     {
-        String::from(
-            "E57 support: DISABLED. Build with --features e57-support to enable.",
-        )
+        String::from("E57 support: DISABLED. Build with --features e57-support to enable.")
     }
 }
 
