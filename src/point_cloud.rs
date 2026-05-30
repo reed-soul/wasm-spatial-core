@@ -2387,6 +2387,211 @@ fn eigen_vector_3x3_symmetric(cov: &[f64; 6]) -> (f64, f64, f64) {
 }
 
 // ===========================================================================
+// Point Cloud Coloring Enhancement
+// ===========================================================================
+
+/// Get the standard ASPRS classification color for a given class ID.
+///
+/// Returns (R, G, B) tuple.
+const fn asprs_color(class: u8) -> (u8, u8, u8) {
+    match class {
+        0 => (255, 255, 255),   // Never classified (white)
+        1 => (139, 90, 43),     // Ground (brown)
+        2 => (34, 139, 34),     // Low Vegetation
+        3 => (0, 180, 0),       // Medium Vegetation
+        4 => (0, 100, 0),       // High Vegetation
+        5 => (100, 100, 255),   // Building (blue-gray)
+        6 => (139, 0, 0),       // Low Point / noise (dark red)
+        7 => (192, 192, 192),   // Reserved (gray)
+        8 => (255, 255, 0),     // Model Key Point (yellow)
+        9 => (0, 0, 255),       // Water (blue)
+        10 => (255, 165, 0),    // Rail (orange)
+        11 => (100, 100, 100),  // Road Surface (dark gray)
+        12 => (128, 0, 128),    // Overhead Structure (purple)
+        13 => (0, 255, 255),    // Wire - Guard (Shield) (cyan)
+        14 => (255, 0, 255),    // Wire - Conductor (Phase) (magenta)
+        15 => (255, 0, 0),      // Transmission Tower (red)
+        16 => (255, 69, 0),     // Wire-Structure Connector
+        17 => (210, 180, 140),  // Bridge Deck (tan)
+        18 => (200, 0, 0),      // High Noise
+        19 => (148, 0, 211),    // Overhead Structure Point
+        20 => (101, 67, 33),    // Ignored Ground
+        21 => (173, 216, 230),  // Snow
+        22 => (255, 192, 203),  // Temporal Exclusion
+        _ => (128, 128, 128),   // Default (gray)
+    }
+}
+
+/// Colorize points by ASPRS classification IDs.
+///
+/// Each point is assigned a color from the standard ASPRS classification
+/// color table based on its class ID.
+///
+/// # Parameters
+///
+/// - `classes`: Uint8Array where each element is a classification ID (0-255)
+///
+/// # Returns
+///
+/// Uint8Array of RGB values `[r0, g0, b0, r1, g1, b1, ...]`
+#[wasm_bindgen(js_name = "colorizeByClassification")]
+pub fn colorize_by_classification(classes: &js_sys::Uint8Array) -> js_sys::Uint8Array {
+    let classes = classes.to_vec();
+    let colors = colorize_by_classification_core(&classes);
+    let arr = js_sys::Uint8Array::new_with_length(colors.len() as u32);
+    arr.copy_from(&colors);
+    arr
+}
+
+/// Core classification coloring.
+pub(crate) fn colorize_by_classification_core(classes: &[u8]) -> Vec<u8> {
+    let mut colors = Vec::with_capacity(classes.len() * 3);
+    for &class in classes {
+        let (r, g, b) = asprs_color(class);
+        colors.push(r);
+        colors.push(g);
+        colors.push(b);
+    }
+    colors
+}
+
+/// Colorize points by a heatmap gradient.
+///
+/// Maps scalar values to a blue→cyan→green→yellow→red color gradient.
+///
+/// # Parameters
+///
+/// - `values`: Float32Array of scalar values (one per point)
+/// - `min`: Minimum value for the gradient range
+/// - `max`: Maximum value for the gradient range
+///
+/// # Returns
+///
+/// Uint8Array of RGB values `[r0, g0, b0, r1, g1, b1, ...]`
+#[wasm_bindgen(js_name = "colorizeByHeatmap")]
+pub fn colorize_by_heatmap(
+    values: &js_sys::Float32Array,
+    min: f32,
+    max: f32,
+) -> js_sys::Uint8Array {
+    let values = values.to_vec();
+    let colors = colorize_by_heatmap_core(&values, min, max);
+    let arr = js_sys::Uint8Array::new_with_length(colors.len() as u32);
+    arr.copy_from(&colors);
+    arr
+}
+
+/// Core heatmap coloring.
+pub(crate) fn colorize_by_heatmap_core(values: &[f32], min: f32, max: f32) -> Vec<u8> {
+    let range = (max - min).max(0.001);
+    let mut colors = Vec::with_capacity(values.len() * 3);
+
+    for &v in values {
+        let t = ((v - min) / range).clamp(0.0, 1.0);
+        let (r, g, b) = heatmap_color(t);
+        colors.push(r);
+        colors.push(g);
+        colors.push(b);
+    }
+
+    colors
+}
+
+/// Map a 0-1 value to a heatmap color (blue→cyan→green→yellow→red).
+fn heatmap_color(t: f32) -> (u8, u8, u8) {
+    // 5-stop gradient:
+    // 0.00 = blue  (0, 0, 255)
+    // 0.25 = cyan  (0, 255, 255)
+    // 0.50 = green (0, 255, 0)
+    // 0.75 = yellow (255, 255, 0)
+    // 1.00 = red   (255, 0, 0)
+
+    let (r, g, b) = if t < 0.25 {
+        let f = t / 0.25;
+        (0.0, f * 255.0, 255.0)
+    } else if t < 0.5 {
+        let f = (t - 0.25) / 0.25;
+        (0.0, 255.0, (1.0 - f) * 255.0)
+    } else if t < 0.75 {
+        let f = (t - 0.5) / 0.25;
+        (f * 255.0, 255.0, 0.0)
+    } else {
+        let f = (t - 0.75) / 0.25;
+        (255.0, (1.0 - f) * 255.0, 0.0)
+    };
+
+    (
+        r.clamp(0.0, 255.0) as u8,
+        g.clamp(0.0, 255.0) as u8,
+        b.clamp(0.0, 255.0) as u8,
+    )
+}
+
+/// Build a smooth color ramp from discrete color stops.
+///
+/// Creates a linearly interpolated gradient between the provided colors.
+///
+/// # Parameters
+///
+/// - `colors`: Uint8Array of color stops `[r0, g0, b0, r1, g1, b1, ...]`
+///   Must have at least 2 colors (6 bytes).
+/// - `num_steps`: Number of output colors to generate
+///
+/// # Returns
+///
+/// Uint8Array of interpolated colors `[r0, g0, b0, r1, g1, b1, ...]`
+#[wasm_bindgen(js_name = "buildColorRamp")]
+pub fn build_color_ramp(
+    colors: &js_sys::Uint8Array,
+    num_steps: u32,
+) -> Result<js_sys::Uint8Array, SpatialErrorDetail> {
+    let colors = colors.to_vec();
+    let result = build_color_ramp_core(&colors, num_steps as usize)
+        .map_err(SpatialError::point_cloud_error)?;
+    let arr = js_sys::Uint8Array::new_with_length(result.len() as u32);
+    arr.copy_from(&result);
+    Ok(arr)
+}
+
+/// Core color ramp builder.
+pub(crate) fn build_color_ramp_core(colors: &[u8], num_steps: usize) -> Result<Vec<u8>, String> {
+    if colors.len() < 6 {
+        return Err("Need at least 2 color stops (6 bytes)".to_string());
+    }
+    if colors.len() % 3 != 0 {
+        return Err("Colors must be multiples of 3 (RGB)".to_string());
+    }
+    if num_steps == 0 {
+        return Err("num_steps must be > 0".to_string());
+    }
+
+    let num_stops = colors.len() / 3;
+    let mut result = Vec::with_capacity(num_steps * 3);
+
+    for i in 0..num_steps {
+        let t = i as f64 / (num_steps - 1).max(1) as f64;
+
+        // Find which segment we're in
+        let segment = (t * (num_stops - 1) as f64) as usize;
+        let segment = segment.min(num_stops - 2);
+        let local_t = t * (num_stops - 1) as f64 - segment as f64;
+
+        let r0 = colors[segment * 3] as f64;
+        let g0 = colors[segment * 3 + 1] as f64;
+        let b0 = colors[segment * 3 + 2] as f64;
+        let r1 = colors[(segment + 1) * 3] as f64;
+        let g1 = colors[(segment + 1) * 3 + 1] as f64;
+        let b1 = colors[(segment + 1) * 3 + 2] as f64;
+
+        result.push(((1.0 - local_t) * r0 + local_t * r1) as u8);
+        result.push(((1.0 - local_t) * g0 + local_t * g1) as u8);
+        result.push(((1.0 - local_t) * b0 + local_t * b1) as u8);
+    }
+
+    Ok(result)
+}
+
+// ===========================================================================
 // Point Cloud Statistics
 // ===========================================================================
 
@@ -3697,6 +3902,153 @@ DATA ascii
         let las_blob = build_test_las_blob(&points, false);
         let cloud = parse_point_cloud_auto(&las_blob).unwrap();
         assert_eq!(cloud.point_count, 2);
+    }
+
+    // ===========================================================================
+    // Point Cloud Coloring Enhancement Tests
+    // ===========================================================================
+
+    #[test]
+    fn test_colorize_by_classification_basic() {
+        let classes = vec![0u8, 1, 2, 3, 9, 255];
+        let colors = colorize_by_classification_core(&classes);
+        assert_eq!(colors.len(), 18); // 6 points × 3 RGB
+
+        // Class 0: never classified = white
+        assert_eq!(colors[0], 255); // R
+        assert_eq!(colors[1], 255); // G
+        assert_eq!(colors[2], 255); // B
+
+        // Class 1: ground = brown
+        assert_eq!(colors[3], 139);
+        assert_eq!(colors[4], 90);
+        assert_eq!(colors[5], 43);
+
+        // Class 2: low vegetation = green
+        assert_eq!(colors[6], 34);
+        assert_eq!(colors[7], 139);
+        assert_eq!(colors[8], 34);
+
+        // Class 9: water = blue (index 4 → colors[12..14])
+        assert_eq!(colors[12], 0);
+        assert_eq!(colors[13], 0);
+        assert_eq!(colors[14], 255);
+    }
+
+    #[test]
+    fn test_colorize_by_classification_empty() {
+        let classes: Vec<u8> = vec![];
+        let colors = colorize_by_classification_core(&classes);
+        assert!(colors.is_empty());
+    }
+
+    #[test]
+    fn test_heatmap_color_endpoints() {
+        // t=0 should be blue, t=1 should be red
+        let (r, g, b) = heatmap_color(0.0);
+        assert_eq!(r, 0);
+        assert_eq!(g, 0);
+        assert_eq!(b, 255);
+
+        let (r, g, b) = heatmap_color(1.0);
+        assert_eq!(r, 255);
+        assert_eq!(g, 0);
+        assert_eq!(b, 0);
+
+        // t=0.5 should be green
+        let (r, g, b) = heatmap_color(0.5);
+        assert_eq!(r, 0);
+        assert!(g > 200);
+        assert_eq!(b, 0);
+    }
+
+    #[test]
+    fn test_colorize_by_heatmap_core() {
+        let values = vec![0.0_f32, 0.25, 0.5, 0.75, 1.0];
+        let colors = colorize_by_heatmap_core(&values, 0.0, 1.0);
+        assert_eq!(colors.len(), 15);
+
+        // First value (0.0) should be blue
+        assert_eq!(colors[0], 0);
+        assert_eq!(colors[2], 255);
+
+        // Last value (1.0) should be red
+        assert_eq!(colors[12], 255);
+        assert_eq!(colors[14], 0);
+    }
+
+    #[test]
+    fn test_colorize_by_heatmap_clamping() {
+        let values = vec![-5.0_f32, 10.0];
+        let colors = colorize_by_heatmap_core(&values, 0.0, 1.0);
+        // Both should be clamped
+        assert_eq!(colors.len(), 6);
+        // -5 should clamp to 0.0 → blue
+        assert_eq!(colors[0], 0);
+        assert_eq!(colors[2], 255);
+        // 10 should clamp to 1.0 → red
+        assert_eq!(colors[3], 255);
+        assert_eq!(colors[5], 0);
+    }
+
+    #[test]
+    fn test_build_color_ramp_two_stops() {
+        let colors = vec![255u8, 0, 0, 0, 0, 255]; // red → blue
+        let ramp = build_color_ramp_core(&colors, 3).unwrap();
+        assert_eq!(ramp.len(), 9);
+
+        // First stop = red
+        assert_eq!(ramp[0], 255);
+        assert_eq!(ramp[1], 0);
+        assert_eq!(ramp[2], 0);
+
+        // Middle ≈ purple (127 or 128, 0, 127 or 128)
+        assert!((ramp[3] as i16 - 128).abs() <= 1);
+        assert_eq!(ramp[4], 0);
+        assert!((ramp[5] as i16 - 128).abs() <= 1);
+
+        // Last stop = blue
+        assert_eq!(ramp[6], 0);
+        assert_eq!(ramp[7], 0);
+        assert_eq!(ramp[8], 255);
+    }
+
+    #[test]
+    fn test_build_color_ramp_errors() {
+        let colors = vec![255u8, 0, 0]; // only 1 stop
+        let result = build_color_ramp_core(&colors, 10);
+        assert!(result.is_err());
+
+        let colors = vec![255u8, 0, 0, 0, 0]; // odd number
+        let result = build_color_ramp_core(&colors, 10);
+        assert!(result.is_err());
+
+        let colors = vec![255u8, 0, 0, 0, 0, 255];
+        let result = build_color_ramp_core(&colors, 0);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_build_color_ramp_multi_stop() {
+        let colors = vec![
+            255, 0, 0,    // red
+            0, 255, 0,    // green
+            0, 0, 255,    // blue
+        ];
+        let ramp = build_color_ramp_core(&colors, 5).unwrap();
+        assert_eq!(ramp.len(), 15);
+
+        // Stop 0 = red
+        assert_eq!(ramp[0], 255);
+        assert_eq!(ramp[2], 0);
+
+        // Stop 2 = green (middle)
+        assert_eq!(ramp[6], 0);
+        assert_eq!(ramp[7], 255);
+
+        // Stop 4 = blue
+        assert_eq!(ramp[12], 0);
+        assert_eq!(ramp[14], 255);
     }
 
     // ===========================================================================
