@@ -39,6 +39,9 @@ export {
   // ── GeoJSON ────────────────────────────────────────────────
   parseGeoJsonCoords,
   countGeoJsonFeatures,
+  parseGeoJsonProperties,
+  parseGeoJsonFeatures,
+  GeoJsonFeaturesResult,
   // ── GeoJSON Streaming ──────────────────────────────────────
   parseGeoJsonStream,
   parseGeoJsonPerFeature,
@@ -73,10 +76,20 @@ export {
   // ── glTF / GLB Writer ──────────────────────────────────────
   GltfBuilder,
   // ── Spatial Analysis ───────────────────────────────────────
+  haversineDistance,
+  bearing,
+  destination,
+  midpoint,
   bufferPoint,
   bufferLineString,
   boundingBox,
   centroid,
+  // ── Topology ──────────────────────────────────────────────
+  polygonArea,
+  areaWithHoles,
+  polylineLength,
+  simplifyDouglasPeucker,
+  isPointInRing,
   // ── Memory Management ──────────────────────────────────────
   memoryInfo,
   MemoryInfo,
