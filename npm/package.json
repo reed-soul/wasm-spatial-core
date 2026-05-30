@@ -40,7 +40,8 @@
     "build:wasm": "cd .. && wasm-pack build --target web --release --out-dir npm/pkg",
     "build:wasm:mt": "cd .. && RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals' cargo +nightly build -Z build-std=panic_abort,std --target wasm32-unknown-unknown --release --features multi-thread && wasm-bindgen --target web --out-dir npm/pkg target/wasm32-unknown-unknown/release/wasm_spatial_core.wasm",
     "build:wasm:pc": "cd .. && wasm-pack build --target web --release --out-dir npm/pkg -- --features point-cloud",
-    "build": "npm run build:wasm && tsc --declaration --emitDeclarationOnly index.ts || true"
+    "build": "npm run build:wasm && npm run build:types",
+    "build:types": "cd pkg && npx -p typescript tsc --declaration --emitDeclarationOnly --outDir . index.ts --ignoreConfig --target esnext --moduleResolution bundler --module esnext --lib esnext --skipLibCheck"
   },
   "devDependencies": {
     "typescript": "^5.4.0"
