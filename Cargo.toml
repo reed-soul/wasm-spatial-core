@@ -21,6 +21,8 @@ single-thread = []
 # Multi-thread mode: extreme performance via Web Workers + SharedArrayBuffer.
 # ⚠️ Requires COOP/COEP HTTP headers on the hosting server.
 multi-thread = ["rayon", "wasm-bindgen-rayon"]
+# Point cloud support (LAS/LAZ parsing + voxel grid decimation)
+point-cloud = []
 
 [dependencies]
 wasm-bindgen = "0.2"
