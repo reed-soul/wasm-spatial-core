@@ -986,6 +986,14 @@ export class Octree {
         return ret >>> 0;
     }
     /**
+     * Leaf count.
+     * @returns {number}
+     */
+    leafCount() {
+        const ret = wasm.octree_leafCount(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
      * Bounding box of node at `index` as a `Float64Array` of 6 values.
      * @param {number} index
      * @returns {Float64Array}
@@ -2531,6 +2539,7 @@ export function bufferPoint(lng, lat, radius_meters, segments) {
  * Build an octree from a flat `[x, y, z, ...]` position buffer.
  *
  * The input buffer is **not** modified (a copy is made internally).
+ * Points with NaN/Infinity coordinates are silently filtered.
  *
  * # Arguments
  * * `positions` — `Float32Array` of `[x, y, z, ...]` triples.
@@ -2542,10 +2551,21 @@ export function bufferPoint(lng, lat, radius_meters, segments) {
  * @returns {Octree}
  */
 export function buildOctree(positions, max_points_per_node, max_depth) {
-    const ptr0 = passArrayF32ToWasm0(positions, wasm.__wbindgen_export);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.buildOctree(ptr0, len0, isLikeNone(max_points_per_node) ? Number.MAX_SAFE_INTEGER : (max_points_per_node) >>> 0, isLikeNone(max_depth) ? Number.MAX_SAFE_INTEGER : (max_depth) >>> 0);
-    return Octree.__wrap(ret);
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArrayF32ToWasm0(positions, wasm.__wbindgen_export);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.buildOctree(retptr, ptr0, len0, isLikeNone(max_points_per_node) ? Number.MAX_SAFE_INTEGER : (max_points_per_node) >>> 0, isLikeNone(max_depth) ? Number.MAX_SAFE_INTEGER : (max_depth) >>> 0);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return Octree.__wrap(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
 }
 
 /**
@@ -2817,6 +2837,19 @@ export function computeLasPointOffset(header_info, point_index, _point_format) {
 export function computeRegionByteRange(point_offset, point_record_length, start_index, count) {
     const ret = wasm.computeRegionByteRange(point_offset, point_record_length, start_index, count);
     return takeObject(ret);
+}
+
+/**
+ * WASM export: compute screen-space error.
+ * @param {number} geometric_error
+ * @param {number} distance
+ * @param {number} fov
+ * @param {number} screen_height
+ * @returns {number}
+ */
+export function computeScreenSpaceError(geometric_error, distance, fov, screen_height) {
+    const ret = wasm.computeScreenSpaceError(geometric_error, distance, fov, screen_height);
+    return ret;
 }
 
 /**
@@ -3740,6 +3773,27 @@ export function getSupportedCrs() {
 }
 
 /**
+ * WASM export: get visible tiles for a camera position.
+ * @param {Float32Array} positions
+ * @param {number} camera_x
+ * @param {number} camera_y
+ * @param {number} camera_z
+ * @param {number} camera_fov
+ * @param {number} screen_width
+ * @param {number} screen_height
+ * @param {number | null} [max_points_per_node]
+ * @param {number | null} [max_depth]
+ * @param {number | null} [sse_threshold]
+ * @returns {Uint32Array}
+ */
+export function getVisibleTiles(positions, camera_x, camera_y, camera_z, camera_fov, screen_width, screen_height, max_points_per_node, max_depth, sse_threshold) {
+    const ptr0 = passArrayF32ToWasm0(positions, wasm.__wbindgen_export);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.getVisibleTiles(ptr0, len0, camera_x, camera_y, camera_z, camera_fov, screen_width, screen_height, isLikeNone(max_points_per_node) ? Number.MAX_SAFE_INTEGER : (max_points_per_node) >>> 0, isLikeNone(max_depth) ? Number.MAX_SAFE_INTEGER : (max_depth) >>> 0, !isLikeNone(sse_threshold), isLikeNone(sse_threshold) ? 0 : sse_threshold);
+    return takeObject(ret);
+}
+
+/**
  * Assign each point to a spatial grid cell.
  *
  * # Arguments
@@ -3916,6 +3970,41 @@ export function normalizeCoords(coords, target_bounds) {
     } finally {
         heap[stack_pointer++] = undefined;
         heap[stack_pointer++] = undefined;
+    }
+}
+
+/**
+ * WASM export: estimate octree memory usage.
+ * @param {number} node_count
+ * @param {number} internal_count
+ * @param {number} point_count
+ * @returns {number}
+ */
+export function octreeMemoryUsage(node_count, internal_count, point_count) {
+    const ret = wasm.octreeMemoryUsage(node_count, internal_count, point_count);
+    return ret >>> 0;
+}
+
+/**
+ * WASM binding: Parse COPC header and return info as JSON object.
+ * @param {Uint8Array} bytes
+ * @returns {object}
+ */
+export function parseCopcHeader(bytes) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArray8ToWasm0(bytes, wasm.__wbindgen_export);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.parseCopcHeader(retptr, ptr0, len0);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return takeObject(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
     }
 }
 
@@ -4331,6 +4420,56 @@ export function parseLasPointsWithProgress(bytes, on_progress) {
 }
 
 /**
+ * WASM binding for LAZ point decompression.
+ *
+ * Parses a LAZ compressed file and returns decompressed points.
+ * @param {Uint8Array} bytes
+ * @returns {LasPointCloud}
+ */
+export function parseLazPoints(bytes) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArray8ToWasm0(bytes, wasm.__wbindgen_export);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.parseLazPoints(retptr, ptr0, len0);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return LasPointCloud.__wrap(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
+}
+
+/**
+ * Parse LAZ points with a JS progress callback. Reports every 10,000 points.
+ * @param {Uint8Array} bytes
+ * @param {Function} on_progress
+ * @returns {LasPointCloud}
+ */
+export function parseLazPointsStream(bytes, on_progress) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArray8ToWasm0(bytes, wasm.__wbindgen_export);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.parseLazPointsStream(retptr, ptr0, len0, addBorrowedObject(on_progress));
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return LasPointCloud.__wrap(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        heap[stack_pointer++] = undefined;
+    }
+}
+
+/**
  * Parse ASCII PCD format text into a point cloud.
  * @param {string} text
  * @returns {PcdPointCloud}
@@ -4371,6 +4510,38 @@ export function parsePcdBinary(bytes) {
             throw takeObject(r1);
         }
         return PcdPointCloud.__wrap(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
+}
+
+/**
+ * Unified entry point: automatically detects LAS/LAZ/COPC format and parses points.
+ *
+ * # Format Detection
+ *
+ * - **LAS**: `LASF` magic, version ≤ 1.3, no compression bit
+ * - **LAZ**: `LASF` magic, any version, compression bit set at byte 104
+ * - **COPC**: `LASF` magic, version 1.4, compression bit set, COPC VLR present
+ *
+ * All three formats use the same decompression path internally. COPC adds
+ * spatial indexing but falls back to full decompression for the auto path.
+ * @param {Uint8Array} bytes
+ * @returns {LasPointCloud}
+ */
+export function parsePointCloudAuto(bytes) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArray8ToWasm0(bytes, wasm.__wbindgen_export);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.parsePointCloudAuto(retptr, ptr0, len0);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return LasPointCloud.__wrap(r0);
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
     }
@@ -4567,6 +4738,67 @@ export function polylineLength(coords) {
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
         heap[stack_pointer++] = undefined;
+    }
+}
+
+/**
+ * WASM binding: Read a single COPC chunk.
+ * @param {Uint8Array} bytes
+ * @param {number} chunk_offset
+ * @param {number} chunk_size
+ * @param {number} expected_points
+ * @param {Uint8Array} header_bytes
+ * @returns {LasPointCloud}
+ */
+export function readCopcChunk(bytes, chunk_offset, chunk_size, expected_points, header_bytes) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArray8ToWasm0(bytes, wasm.__wbindgen_export);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passArray8ToWasm0(header_bytes, wasm.__wbindgen_export);
+        const len1 = WASM_VECTOR_LEN;
+        wasm.readCopcChunk(retptr, ptr0, len0, chunk_offset, chunk_size, expected_points, ptr1, len1);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return LasPointCloud.__wrap(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
+}
+
+/**
+ * WASM binding: Read COPC points from a bounding box region.
+ *
+ * Iterates through all chunks, decompresses each one, and filters
+ * points that fall within the specified bounding box.
+ * @param {Uint8Array} bytes
+ * @param {number} min_x
+ * @param {number} min_y
+ * @param {number} min_z
+ * @param {number} max_x
+ * @param {number} max_y
+ * @param {number} max_z
+ * @returns {LasPointCloud}
+ */
+export function readCopcRegion(bytes, min_x, min_y, min_z, max_x, max_y, max_z) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArray8ToWasm0(bytes, wasm.__wbindgen_export);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.readCopcRegion(retptr, ptr0, len0, min_x, min_y, min_z, max_x, max_y, max_z);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return LasPointCloud.__wrap(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
     }
 }
 
@@ -4792,9 +5024,6 @@ export function sortCoordsByLng(coords) {
 
 /**
  * Check if LAZ (compressed LAS) is supported.
- *
- * Currently returns `false`. LAZ support requires the `laz-rs` crate which
- * has native dependencies that may not compile to `wasm32-unknown-unknown`.
  * @returns {boolean}
  */
 export function supportsLaz() {
@@ -5136,6 +5365,10 @@ function __wbg_get_imports() {
             const ret = new Object();
             return addHeapObject(ret);
         },
+        __wbg_new_3baa8d9866155c79: function() {
+            const ret = new Array();
+            return addHeapObject(ret);
+        },
         __wbg_new_from_slice_3ca7c4e9a43341b6: function(arg0, arg1) {
             const ret = new Float64Array(getArrayF64FromWasm0(arg0, arg1));
             return addHeapObject(ret);
@@ -5176,6 +5409,10 @@ function __wbg_get_imports() {
         __wbg_prototypesetcall_fd4050e806e1d519: function(arg0, arg1, arg2) {
             Uint8Array.prototype.set.call(getArrayU8FromWasm0(arg0, arg1), getObject(arg2));
         },
+        __wbg_push_60a5366c0bb22a7d: function(arg0, arg1) {
+            const ret = getObject(arg0).push(getObject(arg1));
+            return ret;
+        },
         __wbg_set_15b3678c712ded6b: function(arg0, arg1, arg2) {
             getObject(arg0).set(getArrayF32FromWasm0(arg1, arg2));
         },
@@ -5194,6 +5431,9 @@ function __wbg_get_imports() {
         },
         __wbg_set_f614f6a0608d1d1d: function(arg0, arg1, arg2) {
             getObject(arg0)[arg1 >>> 0] = takeObject(arg2);
+        },
+        __wbg_set_index_9fd290d1cce481b3: function(arg0, arg1, arg2) {
+            getObject(arg0)[arg1 >>> 0] = arg2 >>> 0;
         },
         __wbg_stack_3b0d974bbf31e44f: function(arg0, arg1) {
             const ret = getObject(arg1).stack;
