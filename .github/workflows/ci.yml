@@ -87,14 +87,10 @@ jobs:
           name: wasm-pkg
           path: pkg/
 
-      - name: Setup demo directory
+      - name: Assemble demo site
         run: |
-          mkdir -p _site
-          cp examples/index.html _site/index.html
-          cp -r pkg _site/pkg
-          cp -r examples/demo _site/demo
-          cp -r examples/cesium-demo _site/cesium-demo
-          cp -r examples/worker-demo _site/worker-demo
+          chmod +x scripts/build-demo-site.sh
+          SKIP_WASM_BUILD=1 SITE_OUTPUT=_site bash scripts/build-demo-site.sh
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

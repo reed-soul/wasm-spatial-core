@@ -16,7 +16,7 @@
 
 *Offload server-side spatial computing to the client — free the cloud.*
 
-[Quick Start](#-quick-start) · [API Reference](#-api-reference) · [Roadmap](./PLAN.md) · [Contributing](./CONTRIBUTING.md)
+[Quick Start](#-quick-start) · [Live Demo](#-live-demo) · [API Reference](#-api-reference) · [Roadmap](./PLAN.md) · [Contributing](./CONTRIBUTING.md)
 
 </div>
 
@@ -95,6 +95,23 @@ Modern Web3D and GIS applications face a fundamental bottleneck:
 - ⚡ **Zero-Copy Architecture** — Data stays in WASM linear memory; JS gets typed array views
 - 📊 **GPU-Ready Output** — Interleaved vertex buffers, indexed geometry for WebGL2/WebGPU
 - 🧵 **Multi-threaded** (optional) — Web Workers + SharedArrayBuffer via Rayon
+
+---
+
+## 🌐 Live Demo
+
+在浏览器中直接体验 WASM 引擎（坐标转换、GeoJSON、空间索引、性能对比等）：
+
+| 演示 | 链接 |
+|------|------|
+| **演示中心**（推荐） | [reed-soul.github.io/wasm-spatial-core/examples/index.html](https://reed-soul.github.io/wasm-spatial-core/examples/index.html) |
+| 完整交互 demo | […/examples/demo/index.html](https://reed-soul.github.io/wasm-spatial-core/examples/demo/index.html) |
+| WASM vs JS 基准 | […/bench/browser/index.html](https://reed-soul.github.io/wasm-spatial-core/bench/browser/index.html) |
+
+由 GitHub Actions 在 push 到 `master` 时自动部署；首次使用请在仓库 **Settings → Pages → Source: GitHub Actions** 中启用。  
+也可部署到 Vercel（见 [docs/DEMO_SITE.md](./docs/DEMO_SITE.md)）。
+
+本地预览：`bash scripts/build-demo-site.sh && npx http-server _site -p 8080 -c-1`
 
 ---
 
