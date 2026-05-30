@@ -12,6 +12,7 @@
 
 use geojson::{Feature, GeoJson, Geometry, Value as GeoValue};
 use js_sys::Float64Array;
+use crate::errors::{SpatialError, SpatialErrorDetail};
 use wasm_bindgen::prelude::*;
 
 // ---------------------------------------------------------------------------
@@ -120,12 +121,12 @@ fn collect_features(geojson: GeoJson) -> Vec<Feature> {
 ///
 /// # Errors
 ///
-/// Returns a `JsValue` error if the input is not valid GeoJSON.
+/// Returns a `SpatialErrorDetail` if the input is not valid GeoJSON.
 #[wasm_bindgen(js_name = "parseGeoJsonCoords")]
-pub fn parse_geojson_coords(input: &str) -> Result<Float64Array, JsValue> {
+pub fn parse_geojson_coords(input: &str) -> Result<Float64Array, SpatialErrorDetail> {
     let geojson: GeoJson = input
         .parse()
-        .map_err(|e| JsValue::from_str(&format!("GeoJSON parse error: {e}")))?;
+        .map_err(|e| SpatialError::parse_error(e))?;
 
     // Heuristic: ~1 coordinate pair per ~80 bytes of GeoJSON text.
     // Pre-allocating avoids repeated realloc for large files.
@@ -157,10 +158,10 @@ pub fn parse_geojson_coords(input: &str) -> Result<Float64Array, JsValue> {
 ///
 /// Useful for progress reporting before parsing a very large file.
 #[wasm_bindgen(js_name = "countGeoJsonFeatures")]
-pub fn count_geojson_features(input: &str) -> Result<u32, JsValue> {
+pub fn count_geojson_features(input: &str) -> Result<u32, SpatialErrorDetail> {
     let geojson: GeoJson = input
         .parse()
-        .map_err(|e| JsValue::from_str(&format!("GeoJSON parse error: {e}")))?;
+        .map_err(|e| SpatialError::parse_error(e))?;
 
     let count = match geojson {
         GeoJson::Geometry(_) => 1,
@@ -225,12 +226,12 @@ impl GeoJsonFeaturesResult {
 ///
 /// # Errors
 ///
-/// Returns a `JsValue` error if the input is not valid GeoJSON.
+/// Returns a `SpatialErrorDetail` if the input is not valid GeoJSON.
 #[wasm_bindgen(js_name = "parseGeoJsonFeatures")]
-pub fn parse_geojson_features(input: &str) -> Result<GeoJsonFeaturesResult, JsValue> {
+pub fn parse_geojson_features(input: &str) -> Result<GeoJsonFeaturesResult, SpatialErrorDetail> {
     let geojson: GeoJson = input
         .parse()
-        .map_err(|e| JsValue::from_str(&format!("GeoJSON parse error: {e}")))?;
+        .map_err(|e| SpatialError::parse_error(e))?;
 
     let features = collect_features(geojson);
     let feature_count = features.len();
@@ -306,12 +307,12 @@ pub fn parse_geojson_features(input: &str) -> Result<GeoJsonFeaturesResult, JsVa
 ///
 /// # Errors
 ///
-/// Returns a `JsValue` error if the input is not valid GeoJSON.
+/// Returns a `SpatialErrorDetail` if the input is not valid GeoJSON.
 #[wasm_bindgen(js_name = "parseGeoJsonProperties")]
-pub fn parse_geojson_properties(input: &str) -> Result<String, JsValue> {
+pub fn parse_geojson_properties(input: &str) -> Result<String, SpatialErrorDetail> {
     let geojson: GeoJson = input
         .parse()
-        .map_err(|e| JsValue::from_str(&format!("GeoJSON parse error: {e}")))?;
+        .map_err(|e| SpatialError::parse_error(e))?;
 
     let features = collect_features(geojson);
 
@@ -321,7 +322,7 @@ pub fn parse_geojson_properties(input: &str) -> Result<String, JsValue> {
         .collect();
 
     serde_json::to_string(&props_array)
-        .map_err(|e| JsValue::from_str(&format!("JSON serialization error: {e}")))
+        .map_err(|e| SpatialError::parse_error(e))
 }
 
 #[cfg(test)]

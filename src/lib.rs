@@ -22,8 +22,11 @@ mod ifc_reader;
 mod spatial_analysis;
 mod spatial_index;
 mod topology;
+mod errors;
 mod utils;
 mod vector_tile;
+
+pub use errors::{SpatialError, SpatialErrorDetail};
 
 #[cfg(feature = "point-cloud")]
 mod point_cloud;
@@ -125,7 +128,7 @@ fn wasm_memory_total() -> usize {
 }
 
 /// Maximum allowed input size: 100 MB.
-const MAX_INPUT_SIZE: usize = 100 * 1024 * 1024;
+pub(crate) const MAX_INPUT_SIZE: usize = 100 * 1024 * 1024;
 
 /// Validate input length is reasonable. Returns an error if input exceeds 100 MB.
 #[inline]
