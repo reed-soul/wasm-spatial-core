@@ -429,7 +429,7 @@ pub fn octree_memory_usage(node_count: u32, internal_count: u32, point_count: u3
     let leaf_bytes = leaf_count * 72;
     // Positions buffer
     let positions_bytes = point_count as usize * 3 * 4; // f32
-    // Vec overhead, reorder_map, etc.
+                                                        // Vec overhead, reorder_map, etc.
     let overhead = 64;
 
     internal_bytes + leaf_bytes + positions_bytes + overhead
@@ -532,10 +532,10 @@ pub fn build_octree(
     max_points_per_node: Option<u32>,
     max_depth: Option<u32>,
 ) -> Result<WasmOctree, JsValue> {
-    if positions.len() % 3 != 0 {
-        return Err(SpatialError::invalid_input(
-            "positions buffer length must be a multiple of 3",
-        ).into());
+    if !positions.len().is_multiple_of(3) {
+        return Err(
+            SpatialError::invalid_input("positions buffer length must be a multiple of 3").into(),
+        );
     }
     let max_pts = max_points_per_node.unwrap_or(DEFAULT_MAX_POINTS_PER_NODE);
     let max_d = max_depth.unwrap_or(DEFAULT_MAX_DEPTH);
@@ -787,8 +787,12 @@ mod tests {
     #[test]
     fn test_all_nan_returns_empty() {
         let mut positions: Vec<f32> = vec![
-            f32::NAN, f32::NAN, f32::NAN,
-            f32::INFINITY, f32::NEG_INFINITY, f32::NAN,
+            f32::NAN,
+            f32::NAN,
+            f32::NAN,
+            f32::INFINITY,
+            f32::NEG_INFINITY,
+            f32::NAN,
         ];
         let tree = Octree::build(&mut positions, 10, 5);
         assert_eq!(tree.node_count(), 1);
