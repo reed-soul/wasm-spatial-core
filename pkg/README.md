@@ -16,7 +16,7 @@
 
 *Offload server-side spatial computing to the client — free the cloud.*
 
-**[🌐 在线体验 Live Demo](https://reed-soul.github.io/wasm-spatial-core/examples/index.html)** — 手机 / 电脑浏览器打开即可试用（坐标转换、GeoJSON、性能对比）
+**[🌐 Live Demo](https://reed-soul.github.io/wasm-spatial-core/examples/index.html)** — try it in your browser (CRS transforms, GeoJSON, benchmarks)
 
 [Quick Start](#-quick-start) · [Live Demo](#-live-demo) · [API Reference](#-api-reference) · [Roadmap](./PLAN.md) · [Contributing](./CONTRIBUTING.md)
 
@@ -102,30 +102,17 @@ Modern Web3D and GIS applications face a fundamental bottleneck:
 
 ## 🌐 Live Demo
 
-**主入口（推荐，可收藏）：**  
-**https://cdn.jsdelivr.net/gh/reed-soul/wasm-spatial-core@gh-pages/examples/index.html**
+Hosted on GitHub Pages (updated automatically when `master` is pushed):
 
-| 演示 | 链接 |
-|------|------|
-| 演示中心（多 Tab 试用） | https://cdn.jsdelivr.net/gh/reed-soul/wasm-spatial-core@gh-pages/examples/index.html |
-| 完整交互 demo | https://cdn.jsdelivr.net/gh/reed-soul/wasm-spatial-core@gh-pages/examples/demo/index.html |
-| WASM vs JS 基准 | https://cdn.jsdelivr.net/gh/reed-soul/wasm-spatial-core@gh-pages/bench/browser/index.html |
+| Demo | URL |
+|------|-----|
+| **Hub** (multi-tab playground) | https://reed-soul.github.io/wasm-spatial-core/examples/index.html |
+| Interactive GeoJSON + CRS + R-tree | https://reed-soul.github.io/wasm-spatial-core/examples/demo/index.html |
+| WASM vs JS benchmark | https://reed-soul.github.io/wasm-spatial-core/bench/browser/index.html |
 
-### 若 GitHub Pages 仍是 404
+Run locally: `npm run demo` (builds `pkg/` and serves on port 8080).
 
-**临时可用（无需设置）：** https://cdn.jsdelivr.net/gh/reed-soul/wasm-spatial-core@gh-pages/examples/index.html  
-
-**正式域名**需在 GitHub 打开 Pages（只需一次）：
-
-1. 打开 https://github.com/reed-soul/wasm-spatial-core/settings/pages  
-2. **Build and deployment → Source** 选 **Deploy from a branch**  
-3. **Branch** 选 **`gh-pages`**，文件夹选 **`/ (root)`**，点 **Save**  
-4. 等 1～3 分钟后再访问上面的链接  
-
-之后每次合并到 `master`，CI 会自动更新 `gh-pages`。  
-也可用 Vercel 部署，见 [docs/DEMO_SITE.md](./docs/DEMO_SITE.md)。
-
-本地预览：`npm run demo` 或 `bash scripts/build-demo-site.sh && npx http-server _site -p 8080 -c-1`
+Self-hosting or first-time Pages setup: [docs/DEMO_SITE.md](./docs/DEMO_SITE.md).
 
 ---
 
@@ -410,14 +397,6 @@ const geojson = core.decodeMvtToGeoJson(new Uint8Array(buffer));
 | `applyColorRamp(positions, colors)` | Apply color ramp to point cloud |
 | `estimateNormals(positions, k)` | kNN normal estimation → unit normals |
 | `flipNormals(normals, positions)` | Consistent orientation toward centroid |
-| `computeLasPointOffset(header, idx, format)` | Byte offset of Nth point |
-| `parseLasPointAt(bytes, offset, format)` | Parse single point |
-| `parsePcdAscii(text)` | Parse ASCII PCD |
-| `parsePcdBinary(bytes)` | Parse binary PCD |
-| `decimateVoxelGrid(positions, colors, gridSize)` | Voxel grid decimation |
-| `decimateRandom(positions, colors, targetCount)` | Random sampling |
-| `generateInterleavedVertexBuffer(positions, colors)` | GPU-ready interleaved buffer |
-| `generateIndexedGeometry(positions, indices)` | GPU-ready indexed buffers |
 
 ### IFC/BIM (Experimental)
 
@@ -504,10 +483,6 @@ const geojson = core.decodeMvtToGeoJson(new Uint8Array(buffer));
 | `sortCoordsByLng(coords)` | Sort pairs by longitude |
 | `sortCoordsByLat(coords)` | Sort pairs by latitude |
 | `gridIndex(coords, cellSizeDeg)` | Spatial hash grid IDs per point |
-| `version()` | Library version string |
-| `memoryInfo()` | WASM memory usage → `MemoryInfo` |
-| `cgcs2000IsWgs84Compatible()` | Returns `true` (sub-cm accuracy) |
-| `initThreadPool(numThreads)` | Init Rayon thread pool (multi-thread) |
 
 > All coordinate functions accept and return **flat** `Float64Array` in
 > `[lng, lat, lng, lat, …]` layout for maximum throughput and direct
@@ -549,7 +524,7 @@ Contributions are welcome! See [**CONTRIBUTING.md**](./CONTRIBUTING.md) for deta
 
 ## 📄 License
 
-[MIT License](./LICENSE) — © 2026 **智启未来 (Zhiqi Weilai)** — Qingxi
+[MIT License](./LICENSE) — © 2026 Zhiqi Weilai
 
 ---
 

@@ -309,7 +309,7 @@
     <span class="badge badge-blue">Zero dependencies</span>
   </div>
   <div class="note" id="initNote">
-    💡 演示在浏览器内运行。首次打开需下载约 <strong>1MB</strong> WASM（Wi‑Fi 通常数秒，手机 4G 可能 15～40 秒）。
+    Runs in your browser. First visit downloads about <strong>1&nbsp;MB</strong> of WASM.
   </div>
 </div>
 
@@ -590,7 +590,7 @@ console.<span class="fn">log</span>(<span class="fn">version</span>()); <span cl
     <a href="https://github.com/reed-soul/wasm-spatial-core/blob/master/docs/DEMO_SITE.md" target="_blank">Deploy docs</a>
     <span class="badge badge-green">MIT License</span>
   </div>
-  <div>Built with 🦀 Rust + 🕸️ WebAssembly — © 2026 智启未来</div>
+  <div>Built with 🦀 Rust + 🕸️ WebAssembly — © 2026 Zhiqi Weilai</div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════ -->
@@ -624,9 +624,7 @@ function setLoadingStatus(message) {
   qsResult.innerHTML = `<span class="spinner"></span> ${message}`;
 }
 
-setLoadingStatus(
-  `正在加载 WASM（${WASM_SIZE_HINT}）… 通常 3～15 秒，慢网络可能 30～60 秒`,
-);
+setLoadingStatus(`Loading WASM (${WASM_SIZE_HINT})…`);
 
 const initStarted = performance.now();
 
@@ -638,7 +636,7 @@ try {
         () =>
           reject(
             new Error(
-              '加载超时：请检查网络，或确认站点已部署 pkg/ 目录（见控制台 Network）',
+              'Timed out loading WASM. Check the network tab for pkg/wasm_spatial_core_bg.wasm (expect HTTP 200).',
             ),
           ),
         WASM_INIT_TIMEOUT_MS,
@@ -649,17 +647,14 @@ try {
   const ver = version();
   const elapsed = ((performance.now() - initStarted) / 1000).toFixed(1);
   document.getElementById('versionBadge').textContent = `v${ver}`;
-  qsResult.innerHTML = `<span style="color:var(--green)">✓ WASM 已就绪</span> — version <strong>${ver}</strong>（${elapsed}s）`;
-  initNote.innerHTML =
-    `✅ 引擎已加载。若刚才较慢，多为首次下载 WASM；可点击 Run Quick Start Demo 试用。`;
+  qsResult.innerHTML = `<span style="color:var(--green)">✓ WASM ready</span> — version <strong>${ver}</strong> (${elapsed}s)`;
+  initNote.textContent = 'Engine loaded. Try Run Quick Start Demo below.';
 } catch (e) {
   console.error('WASM init failed:', e);
   const elapsed = ((performance.now() - initStarted) / 1000).toFixed(1);
   initNote.innerHTML =
-    `❌ WASM 加载失败（${elapsed}s）：<code>${e.message}</code><br>` +
-    `常见原因：① <code>pkg/wasm_spatial_core_bg.wasm</code> 404（站点未包含 WASM）；② 网络中断。` +
-    `请打开开发者工具 Network 查看 wasm 是否 200。`;
-  qsResult.innerHTML = `<span style="color:var(--red)">❌ 无法启动演示（WASM 未加载）</span>`;
+    `WASM failed to load (${elapsed}s): <code>${e.message}</code>`;
+  qsResult.innerHTML = `<span style="color:var(--red)">✗ WASM not loaded</span>`;
 }
 
 // ── Tab Navigation ────────────────────────────────────────────
