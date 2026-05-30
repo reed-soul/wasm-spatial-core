@@ -97,9 +97,9 @@ impl LasHeader {
 /// Parsed LAS point cloud data.
 #[wasm_bindgen]
 pub struct LasPointCloud {
-    positions: Vec<f32>,     // interleaved [x, y, z, x, y, z, ...]
-    colors: Option<Vec<u8>>, // [r, g, b, r, g, b, ...] if present
-    point_count: u32,
+    pub(crate) positions: Vec<f32>,     // interleaved [x, y, z, x, y, z, ...]
+    pub(crate) colors: Option<Vec<u8>>, // [r, g, b, r, g, b, ...] if present
+    pub(crate) point_count: u32,
 }
 
 #[wasm_bindgen]
@@ -159,7 +159,7 @@ pub fn read_u16_le(bytes: &[u8], offset: usize) -> u16 {
     u16::from_le_bytes([bytes[offset], bytes[offset + 1]])
 }
 
-fn read_i32_le(bytes: &[u8], offset: usize) -> i32 {
+pub(crate) fn read_i32_le(bytes: &[u8], offset: usize) -> i32 {
     i32::from_le_bytes([
         bytes[offset],
         bytes[offset + 1],
@@ -1106,6 +1106,47 @@ pub struct LasHeaderInfo {
 
 #[wasm_bindgen]
 impl LasHeaderInfo {
+    /// Internal constructor used by PointCloudStreamer.
+    pub(crate) fn new_from_parts(
+        num_points: u32,
+        point_offset: u32,
+        point_format_id: u8,
+        point_record_length: u16,
+        x_scale: f64,
+        y_scale: f64,
+        z_scale: f64,
+        x_offset: f64,
+        y_offset: f64,
+        z_offset: f64,
+        bounds_max_x: f64,
+        bounds_max_y: f64,
+        bounds_max_z: f64,
+        bounds_min_x: f64,
+        bounds_min_y: f64,
+        bounds_min_z: f64,
+        file_size: u32,
+    ) -> Self {
+        Self {
+            num_points,
+            point_offset,
+            point_format_id,
+            point_record_length,
+            x_scale,
+            y_scale,
+            z_scale,
+            x_offset,
+            y_offset,
+            z_offset,
+            bounds_min_x,
+            bounds_min_y,
+            bounds_min_z,
+            bounds_max_x,
+            bounds_max_y,
+            bounds_max_z,
+            file_size,
+        }
+    }
+
     #[wasm_bindgen(getter, js_name = "numPoints")]
     pub fn num_points(&self) -> u32 {
         self.num_points
@@ -1860,7 +1901,7 @@ fn eigen_vector_3x3_symmetric(cov: &[f64; 6]) -> (f64, f64, f64) {
 // ===========================================================================
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     /// Build a minimal valid LAS 1.2 header (227 bytes) with format 0 or 2,
