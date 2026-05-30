@@ -30,11 +30,10 @@ use crate::errors::SpatialErrorDetail;
 pub fn supports_worker() -> bool {
     // In WASM running in a browser, Workers are generally available.
     // The actual limitation is COOP/COEP headers for SharedArrayBuffer.
-    let has_worker = js_sys::eval("typeof Worker !== 'undefined'")
+    js_sys::eval("typeof Worker !== 'undefined'")
         .ok()
         .and_then(|v| v.as_bool())
-        .unwrap_or(false);
-    has_worker
+        .unwrap_or(false)
 }
 
 /// Check if the environment has COOP/COEP headers set (for SharedArrayBuffer).
@@ -62,7 +61,9 @@ pub fn supports_shared_array_buffer() -> bool {
 #[wasm_bindgen]
 pub struct WorkerHandle {
     point_count: u32,
+    #[allow(dead_code)]
     max_points_per_node: u32,
+    #[allow(dead_code)]
     max_depth: u32,
     cancelled: bool,
 }
@@ -168,6 +169,7 @@ pub fn process_point_cloud_in_worker(
 /// Compute axis-aligned bounds from positions.
 ///
 /// Returns `(min_x, min_y, min_z, max_x, max_y, max_z)`.
+#[allow(dead_code)]
 pub(crate) fn compute_bounds(positions: &[f32]) -> (f32, f32, f32, f32, f32, f32) {
     let mut min_x = f32::MAX;
     let mut min_y = f32::MAX;
@@ -195,11 +197,8 @@ pub(crate) fn compute_bounds(positions: &[f32]) -> (f32, f32, f32, f32, f32, f32
 ///
 /// This is a helper that creates a JS object with point count, bounds, and
 /// tileset parameters. Used by the chunked processing pipeline.
-fn build_tileset_result(
-    positions: &[f32],
-    max_points_per_node: u32,
-    max_depth: u32,
-) -> JsValue {
+#[allow(dead_code)]
+fn build_tileset_result(positions: &[f32], max_points_per_node: u32, max_depth: u32) -> JsValue {
     let result = js_sys::Object::new();
     let point_count = positions.len() / 3;
 
@@ -260,12 +259,9 @@ fn build_tileset_result(
 /// }
 /// ```
 #[wasm_bindgen(js_name = "chunkedProcessingInfo")]
-pub fn chunked_processing_info(
-    point_count: u32,
-    chunk_size: Option<u32>,
-) -> js_sys::Object {
+pub fn chunked_processing_info(point_count: u32, chunk_size: Option<u32>) -> js_sys::Object {
     let chunk_size = chunk_size.unwrap_or(50000);
-    let total_chunks = (point_count + chunk_size - 1) / chunk_size;
+    let total_chunks = point_count.div_ceil(chunk_size);
 
     let result = js_sys::Object::new();
     js_sys::Reflect::set(
@@ -325,8 +321,8 @@ mod tests {
     fn test_compute_bounds_multiple_points() {
         let positions = vec![
             1.0_f32, 2.0, 3.0, // point 0
-            10.0, -5.0, 0.0,   // point 1
-            -1.0, 8.0, 6.0,    // point 2
+            10.0, -5.0, 0.0, // point 1
+            -1.0, 8.0, 6.0, // point 2
         ];
         let (min_x, min_y, min_z, max_x, max_y, max_z) = compute_bounds(&positions);
         assert_eq!(min_x, -1.0);

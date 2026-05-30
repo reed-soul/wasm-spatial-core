@@ -13,7 +13,11 @@ use crate::errors::{SpatialError, SpatialErrorDetail};
 use crate::DEFAULT_MAX_INPUT_SIZE;
 
 #[cfg(feature = "e57-support")]
-use e57::{CartesianCoordinate, E57Reader, Record, RecordDataType, RecordName};
+use e57::{CartesianCoordinate, E57Reader, RecordName};
+
+#[cfg(feature = "e57-support")]
+#[cfg(test)]
+use e57::{Record, RecordDataType};
 
 #[cfg(feature = "e57-support")]
 use std::io::Cursor;
@@ -92,6 +96,7 @@ pub fn is_e57_format(bytes: &[u8]) -> bool {
 // ===========================================================================
 
 #[cfg(feature = "e57-support")]
+#[cfg(test)]
 fn build_pointcloud_prototype(has_color: bool, has_intensity: bool) -> Vec<Record> {
     let mut prototype = vec![
         Record {
@@ -174,9 +179,10 @@ pub fn parse_e57_core(bytes: &[u8]) -> Result<E57Result, String> {
         "format".to_string(),
         serde_json::Value::String(reader.format_name().to_string()),
     );
-    info.insert("guid".to_string(), serde_json::Value::String(
-        reader.guid().to_string(),
-    ));
+    info.insert(
+        "guid".to_string(),
+        serde_json::Value::String(reader.guid().to_string()),
+    );
     if let Some(lib_ver) = reader.library_version() {
         info.insert(
             "libraryVersion".to_string(),
@@ -192,14 +198,16 @@ pub fn parse_e57_core(bytes: &[u8]) -> Result<E57Result, String> {
         serde_json::Value::Number(serde_json::Number::from(header.page_size)),
     );
     if let Some(creation) = reader.creation() {
-        info.insert("creationTime".to_string(), serde_json::Value::String(
-            format!("{:?}", creation),
-        ));
+        info.insert(
+            "creationTime".to_string(),
+            serde_json::Value::String(format!("{:?}", creation)),
+        );
     }
     if let Some(coord) = reader.coordinate_metadata() {
-        info.insert("coordinateMetadata".to_string(), serde_json::Value::String(
-            coord.to_string(),
-        ));
+        info.insert(
+            "coordinateMetadata".to_string(),
+            serde_json::Value::String(coord.to_string()),
+        );
     }
 
     // Parse the first point cloud
@@ -306,7 +314,8 @@ pub fn parse_e57_core(bytes: &[u8]) -> Result<E57Result, String> {
 /// Uses the e57 crate's writer to construct a valid E57 in a temp file,
 /// then reads it back into bytes.
 #[cfg(feature = "e57-support")]
-pub fn build_test_e57_file(
+#[cfg(test)]
+pub(crate) fn build_test_e57_file(
     points: &[(f64, f64, f64)],
     has_color: bool,
     has_intensity: bool,
@@ -320,8 +329,8 @@ pub fn build_test_e57_file(
     ));
 
     // Write E57 file using the crate's file writer
-    let mut writer =
-        e57::E57Writer::from_file(&path, "test-guid").map_err(|e| format!("E57 writer error: {}", e))?;
+    let mut writer = e57::E57Writer::from_file(&path, "test-guid")
+        .map_err(|e| format!("E57 writer error: {}", e))?;
 
     let prototype = build_pointcloud_prototype(has_color, has_intensity);
     let mut pc_writer = writer
@@ -588,7 +597,13 @@ pub(crate) mod tests {
     #[test]
     fn test_e57_many_points() {
         let points: Vec<(f64, f64, f64)> = (0..200)
-            .map(|i| (i as f64 * 0.5, (i as f64 * 0.1).sin(), (i as f64 * 0.1).cos()))
+            .map(|i| {
+                (
+                    i as f64 * 0.5,
+                    (i as f64 * 0.1).sin(),
+                    (i as f64 * 0.1).cos(),
+                )
+            })
             .collect();
         let e57_bytes = build_test_e57_file(&points, true, true).unwrap();
 

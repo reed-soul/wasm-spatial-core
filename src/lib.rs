@@ -67,7 +67,7 @@ pub use point_cloud::{
 pub use point_cloud::parse_laz_points_core;
 
 #[cfg(feature = "e57-support")]
-pub use e57::{parse_e57_core, E57Result, is_e57_format};
+pub use e57::{is_e57_format, parse_e57_core, E57Result};
 
 #[cfg(feature = "point-cloud")]
 pub use point_cloud_stream::compute_region_byte_range;
@@ -160,7 +160,9 @@ pub use e57::parse_e57_stream;
 
 /// WebWorker parallel processing support.
 #[cfg(feature = "point-cloud")]
-pub use worker::{supports_worker, process_point_cloud_in_worker, WorkerHandle, chunked_processing_info};
+pub use worker::{
+    chunked_processing_info, process_point_cloud_in_worker, supports_worker, WorkerHandle,
+};
 
 // ---------------------------------------------------------------------------
 // Dynamic Input Size Limit
