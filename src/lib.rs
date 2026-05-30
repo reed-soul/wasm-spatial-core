@@ -116,6 +116,34 @@ pub fn version() -> String {
 }
 
 // ---------------------------------------------------------------------------
+// Format Support Status
+// ---------------------------------------------------------------------------
+
+/// Check if E57 format is supported (requires `e57-support` feature).
+#[wasm_bindgen(js_name = "supportsE57")]
+pub fn supports_e57() -> bool {
+    cfg!(feature = "e57-support")
+}
+
+/// Get E57 support status as a human-readable string.
+#[wasm_bindgen(js_name = "e57Status")]
+pub fn e57_status() -> String {
+    #[cfg(feature = "e57-support")]
+    {
+        String::from(
+            "E57 support: AVAILABLE (e57 crate v0.11.12). Pure Rust, compiles to WASM. \
+             Full parsing not yet implemented — planned for next release.",
+        )
+    }
+    #[cfg(not(feature = "e57-support"))]
+    {
+        String::from(
+            "E57 support: DISABLED. Build with --features e57-support to enable.",
+        )
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Dynamic Input Size Limit
 // ---------------------------------------------------------------------------
 

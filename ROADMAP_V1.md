@@ -268,14 +268,22 @@ Byte Length | Description
 
 ## Phase C — 扩展数据源
 
-### C1: E57 格式
-- 建筑扫描主流格式
-- 二进制格式 + XML 元数据
-- 比 LAS 更复杂
+### C1: E57 格式 🔜
+- **Status**: `e57` crate (v0.11.12) compiles to wasm32 ✅
+  - Pure Rust implementation, uses `roxmltree` for XML header parsing
+  - No native dependencies — fully WASM-compatible
+- **Remaining work**:
+  1. Implement `parseE57(bytes) -> E57Result` wrapper around `e57::SimpleReader`
+  2. Extract point positions + optional colors from E57 files
+  3. Handle E57's XML header (coordinate system, transforms)
+  4. Handle large E57 files with chunked reading
+- **Complexity**: Medium — the crate does the heavy lifting
+- **WASM size impact**: TBD (roxmltree is small, e57 main crate TBD)
 
-### C2: PLY/OBJ
-- 通用点云/网格格式
-- 相对简单
+### C2: PLY/OBJ ✅ DONE
+- PLY: ASCII + binary_little_endian parsing
+- OBJ: vertex positions + normals extraction
+- See `src/ply.rs` and `src/obj.rs`
 
 ### C3: COPC 完整支持
 - Cloud Optimized Point Cloud
