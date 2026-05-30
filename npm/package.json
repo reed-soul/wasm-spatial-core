@@ -1,5 +1,5 @@
 {
-  "name": "@anthropic-wasm/spatial-core",
+  "name": "wasm-spatial-core",
   "version": "0.1.0",
   "description": "A high-performance WebAssembly spatial data processing engine for frontend Web3D/GIS applications",
   "author": "Qingxi <qingxi@zhiqiweilai.com>",
@@ -18,7 +18,10 @@
     "geojson",
     "coordinate",
     "cesium",
-    "point-cloud"
+    "point-cloud",
+    "mvt",
+    "3dtiles",
+    "gltf"
   ],
   "type": "module",
   "main": "./wasm_spatial_core.js",
@@ -30,11 +33,13 @@
     "wasm_spatial_core.d.ts",
     "index.ts",
     "index.d.ts",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build:wasm": "cd .. && wasm-pack build --target web --release --out-dir npm/pkg",
     "build:wasm:mt": "cd .. && RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals' cargo +nightly build -Z build-std=panic_abort,std --target wasm32-unknown-unknown --release --features multi-thread && wasm-bindgen --target web --out-dir npm/pkg target/wasm32-unknown-unknown/release/wasm_spatial_core.wasm",
+    "build:wasm:pc": "cd .. && wasm-pack build --target web --release --out-dir npm/pkg -- --features point-cloud",
     "build": "npm run build:wasm && tsc --declaration --emitDeclarationOnly index.ts || true"
   },
   "devDependencies": {

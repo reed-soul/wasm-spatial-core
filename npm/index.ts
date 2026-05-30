@@ -44,6 +44,7 @@ export {
   parseGeoJsonPerFeature,
   // ── Spatial Indexing ───────────────────────────────────────
   SpatialIndex,
+  SpatialEdgeIndex,
   // ── Vector Tile Slicing ────────────────────────────────────
   VectorTileEngine,
   VectorTileOptions,
@@ -65,10 +66,10 @@ export {
   parsePcdBinary,
   generateInterleavedVertexBuffer,
   generateIndexedGeometry,
-  // parseLasPointsWithProgress,
-  // decimateVoxelGridWithProgress,
   // ── IFC/BIM (Experimental) ────────────────────────────────
   parseIfcGeometry,
+  IfcGeometryResult,
+  IfcMesh,
   // ── glTF / GLB Writer ──────────────────────────────────────
   GltfBuilder,
   // ── Spatial Analysis ───────────────────────────────────────
@@ -133,7 +134,7 @@ export type StreamChunkCallback = (
  * High-level helper: initialise the WASM module and return the public API.
  *
  * ```ts
- * import { loadSpatialCore } from "@anthropic-wasm/spatial-core";
+ * import { loadSpatialCore } from "wasm-spatial-core";
  *
  * const core = await loadSpatialCore();
  * console.log(core.version());
