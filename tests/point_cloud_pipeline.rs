@@ -7,9 +7,7 @@
 //! 4. Verify tileset.json is valid JSON
 //! 5. Verify all tiles are valid pnts
 
-use wasm_spatial_core::{
-    generate_tileset, Octree, parse_pnts_header,
-};
+use wasm_spatial_core::{generate_tileset, parse_pnts_header, Octree};
 
 /// Generate a synthetic point cloud with `n` points uniformly distributed
 /// in a cube from `(-size/2, -size/2, -size/2)` to `(size/2, size/2, size/2)`.
@@ -44,7 +42,10 @@ fn test_end_to_end_pipeline_1000_points() {
     let tree = Octree::build(&mut buf, 100, 8);
 
     assert_eq!(tree.total_points(), n as u32);
-    assert!(tree.node_count() > 1, "should have split into multiple nodes");
+    assert!(
+        tree.node_count() > 1,
+        "should have split into multiple nodes"
+    );
     assert!(tree.leaf_count() > 1, "should have multiple leaves");
 
     // Step 2: Generate tileset.
@@ -52,8 +53,8 @@ fn test_end_to_end_pipeline_1000_points() {
 
     // Step 3: Verify tileset.json is valid JSON.
     let json_str = result.tileset_json();
-    let parsed: serde_json::Value = serde_json::from_str(json_str)
-        .expect("tileset.json should be valid JSON");
+    let parsed: serde_json::Value =
+        serde_json::from_str(json_str).expect("tileset.json should be valid JSON");
 
     // Verify top-level keys.
     assert!(parsed.get("asset").is_some(), "tileset should have asset");
@@ -62,7 +63,10 @@ fn test_end_to_end_pipeline_1000_points() {
 
     // Step 4: Verify tile count matches.
     assert!(result.tile_count() > 1);
-    assert_eq!(result.tile_count() as usize, tree.leaves().filter(|n| n.point_count > 0).count());
+    assert_eq!(
+        result.tile_count() as usize,
+        tree.leaves().filter(|n| n.point_count > 0).count()
+    );
 
     // Step 5: Verify all tiles are valid pnts.
     for i in 0..result.tile_count() as usize {
@@ -160,9 +164,10 @@ fn test_pipeline_no_colors() {
         assert_eq!(header.version, 1);
 
         // FT binary should be positions only (no RGB).
-        let ft_json_str =
-            std::str::from_utf8(&tile_data[28..28 + header.feature_table_json_byte_length as usize])
-                .unwrap();
+        let ft_json_str = std::str::from_utf8(
+            &tile_data[28..28 + header.feature_table_json_byte_length as usize],
+        )
+        .unwrap();
         assert!(
             !ft_json_str.contains("RGB"),
             "tile {} should not have RGB in feature table JSON",
@@ -196,6 +201,5 @@ fn test_pipeline_small_dataset() {
     assert_eq!(result.tile_count(), 8);
 
     // tileset.json should be parseable.
-    let _: serde_json::Value =
-        serde_json::from_str(result.tileset_json()).expect("valid JSON");
+    let _: serde_json::Value = serde_json::from_str(result.tileset_json()).expect("valid JSON");
 }

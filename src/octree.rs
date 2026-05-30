@@ -73,6 +73,22 @@ pub const DEFAULT_MAX_POINTS_PER_NODE: u32 = 50_000;
 /// Default maximum tree depth.
 pub const DEFAULT_MAX_DEPTH: u32 = 21;
 
+/// Configuration for octree construction.
+#[derive(Debug, Clone, Copy)]
+struct OctreeConfig {
+    max_points: u32,
+    max_depth: u32,
+}
+
+impl Default for OctreeConfig {
+    fn default() -> Self {
+        Self {
+            max_points: DEFAULT_MAX_POINTS_PER_NODE,
+            max_depth: DEFAULT_MAX_DEPTH,
+        }
+    }
+}
+
 impl Octree {
     /// Build an octree from a flat `[x, y, z, x, y, z, ...]` position buffer.
     ///
@@ -84,11 +100,7 @@ impl Octree {
     ///   reordered** by this function.
     /// * `max_points_per_node` — Max points before splitting (default: 50 000).
     /// * `max_depth` — Max tree depth (default: 21).
-    pub fn build(
-        positions: &mut Vec<f32>,
-        max_points_per_node: u32,
-        max_depth: u32,
-    ) -> Self {
+    pub fn build(positions: &mut Vec<f32>, max_points_per_node: u32, max_depth: u32) -> Self {
         let num_points = positions.len() / 3;
         if num_points == 0 {
             return Octree {
@@ -124,14 +136,14 @@ impl Octree {
         let bounds: Bounds = [min_x, min_y, min_z, max_x, max_y, max_z];
 
         // Index permutation: reorder_map[final_pos] = original_pos
-        let mut reorder_map = vec![0usize; num_points];
-        for (i, m) in reorder_map.iter_mut().enumerate() {
-            *m = i;
-        }
+        let mut reorder_map: Vec<usize> = (0..num_points).collect();
 
         let mut nodes = Vec::new();
+        let config = OctreeConfig {
+            max_points: max_points_per_node,
+            max_depth,
+        };
 
-        // Pass 1: build tree structure and reorder_map.
         Self::build_recursive(
             &mut nodes,
             positions,
@@ -139,9 +151,8 @@ impl Octree {
             bounds,
             0,
             num_points,
-            max_points_per_node,
-            max_depth,
             0,
+            &config,
         );
 
         // Pass 2: reorder positions using the map.
@@ -162,6 +173,7 @@ impl Octree {
     /// Recursive octree construction. Builds the tree structure and populates
     /// `reorder_map[output_start..output_start+count]` with original point indices
     /// in octree order.
+    #[allow(clippy::too_many_arguments)]
     fn build_recursive(
         nodes: &mut Vec<OctreeNode>,
         positions: &[f32],
@@ -169,12 +181,11 @@ impl Octree {
         bounds: Bounds,
         output_start: usize,
         count: usize,
-        max_points: u32,
-        max_depth: u32,
         level: u32,
+        config: &OctreeConfig,
     ) {
         // If we should stop splitting, create a leaf.
-        if count == 0 || count as u32 <= max_points || level >= max_depth {
+        if count == 0 || count as u32 <= config.max_points || level >= config.max_depth {
             nodes.push(OctreeNode {
                 bounds,
                 point_start: output_start,
@@ -262,9 +273,8 @@ impl Octree {
                 child_bounds[i],
                 output_start + child_starts[i],
                 child_counts[i],
-                max_points,
-                max_depth,
                 level + 1,
+                config,
             );
         }
 

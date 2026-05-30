@@ -32,19 +32,19 @@ pub fn encode_pnts_tile(
 ) -> Result<Vec<u8>, crate::errors::SpatialErrorDetail> {
     let num_points = positions.len() / 3;
     if num_points == 0 {
-        return Err(SpatialError::PointCloudError
-            .with_detail("cannot encode pnts tile with 0 points"));
+        return Err(
+            SpatialError::PointCloudError.with_detail("cannot encode pnts tile with 0 points")
+        );
     }
-    if colors.is_some() && colors.as_ref().unwrap().len() != num_points * 3 {
-        return Err(SpatialError::PointCloudError.with_detail(
-            format!(
+    if let Some(colors) = colors {
+        if colors.len() != num_points * 3 {
+            return Err(SpatialError::PointCloudError.with_detail(format!(
                 "color count mismatch: expected {} bytes, got {}",
                 num_points * 3,
-                colors.unwrap().len()
-            ),
-        ));
+                colors.len()
+            )));
+        }
     }
-
     let has_colors = colors.is_some();
     let position_bytes = num_points * 3 * 4; // Float32
     let color_bytes = if has_colors { num_points * 3 } else { 0 }; // Uint8
@@ -74,8 +74,11 @@ pub fn encode_pnts_tile(
     let header = PntsHeader {
         magic: *b"pnts",
         version: 1,
-        byte_length: 28 + ft_json_padded.len() as u32 + feature_binary_len as u32
-            + bt_json_padded.len() as u32 + bt_binary_len,
+        byte_length: 28
+            + ft_json_padded.len() as u32
+            + feature_binary_len as u32
+            + bt_json_padded.len() as u32
+            + bt_binary_len,
         feature_table_json_byte_length: ft_json_padded.len() as u32,
         feature_table_binary_byte_length: feature_binary_len as u32,
         batch_table_json_byte_length: bt_json_padded.len() as u32,
@@ -121,7 +124,9 @@ pub fn encode_pnts_tile(
 /// Parse a pnts header from raw bytes. Returns `(header, remaining_bytes)`.
 ///
 /// Useful for validating encoded tiles.
-pub fn parse_pnts_header(data: &[u8]) -> Result<(PntsHeader, &[u8]), crate::errors::SpatialErrorDetail> {
+pub fn parse_pnts_header(
+    data: &[u8],
+) -> Result<(PntsHeader, &[u8]), crate::errors::SpatialErrorDetail> {
     if data.len() < 28 {
         return Err(SpatialError::PointCloudError
             .with_detail("pnts data too short for header (< 28 bytes)"));
@@ -137,10 +142,8 @@ pub fn parse_pnts_header(data: &[u8]) -> Result<(PntsHeader, &[u8]), crate::erro
 
     let version = u32::from_le_bytes(data[4..8].try_into().unwrap());
     if version != 1 {
-        return Err(SpatialError::PointCloudError.with_detail(format!(
-            "unsupported pnts version: {}, expected 1",
-            version
-        )));
+        return Err(SpatialError::PointCloudError
+            .with_detail(format!("unsupported pnts version: {}, expected 1", version)));
     }
 
     let byte_length = u32::from_le_bytes(data[8..12].try_into().unwrap());
@@ -193,7 +196,7 @@ fn pad_to_4(s: &str) -> String {
         s.to_string()
     } else {
         let mut padded = s.to_string();
-        padded.extend(std::iter::repeat(' ').take(pad));
+        padded.extend(std::iter::repeat_n(' ', pad));
         padded
     }
 }
@@ -225,9 +228,8 @@ pub fn encode_pnts_tile_js(
     center_z: f64,
     colors: Option<Vec<u8>>,
 ) -> Result<js_sys::Uint8Array, JsValue> {
-    let colors_ref = colors.as_deref();
-    let result = encode_pnts_tile(positions, [center_x, center_y, center_z], colors_ref)
-        .map_err(|e| JsValue::from(e))?;
+    let result = encode_pnts_tile(positions, [center_x, center_y, center_z], colors.as_deref())
+        .map_err(JsValue::from)?;
     Ok(js_sys::Uint8Array::from(&result[..]))
 }
 
@@ -271,11 +273,11 @@ mod tests {
         let ft_json_len = header.feature_table_json_byte_length as usize;
         let binary_start = 28 + ft_json_len;
         let x = f32::from_le_bytes(tile[binary_start..binary_start + 4].try_into().unwrap());
-        let y = f32::from_le_bytes(
-            tile[binary_start + 4..binary_start + 8].try_into().unwrap(),
-        );
+        let y = f32::from_le_bytes(tile[binary_start + 4..binary_start + 8].try_into().unwrap());
         let z = f32::from_le_bytes(
-            tile[binary_start + 8..binary_start + 12].try_into().unwrap(),
+            tile[binary_start + 8..binary_start + 12]
+                .try_into()
+                .unwrap(),
         );
 
         // Position should be relative to center: 10-1=9, 20-2=18, 30-3=27
@@ -344,7 +346,7 @@ mod tests {
 // tileset.json generator
 // ===========================================================================
 
-use crate::octree::{Bounds, DEFAULT_MAX_POINTS_PER_NODE, Octree};
+use crate::octree::{Bounds, Octree, DEFAULT_MAX_POINTS_PER_NODE};
 
 /// Result of generating a tileset from an octree.
 #[derive(Debug, Clone)]
@@ -488,10 +490,8 @@ pub fn generate_tileset(
         // Extract color slice if available.
         let color_slice = colors.map(|c| &c[start * 3..end * 3]);
 
-        let tile_data =
-            encode_pnts_tile(pos_slice, [cx, cy, cz], color_slice).map_err(|e| {
-                crate::errors::SpatialError::PointCloudError.with_detail(e.to_string())
-            })?;
+        let tile_data = encode_pnts_tile(pos_slice, [cx, cy, cz], color_slice)
+            .map_err(|e| crate::errors::SpatialError::PointCloudError.with_detail(e.to_string()))?;
 
         let uri = format!("tile_{leaf_idx}.pnts");
 
@@ -568,10 +568,7 @@ fn build_tile_node(octree: &Octree, node_idx: usize, tile_uris: &[String]) -> St
             - 1;
         if leaf_idx < tile_uris.len() {
             let uri = &tile_uris[leaf_idx];
-            format!(
-                r#","content":{{"uri":"{}"}}"#,
-                uri
-            )
+            format!(r#","content":{{"uri":"{}"}}"#, uri)
         } else {
             String::new()
         }
@@ -613,8 +610,7 @@ pub fn generate_tileset_js(
     let mut buf = positions.to_vec();
     let octree = Octree::build(&mut buf, max_pts, max_d);
 
-    let colors_ref = colors.as_deref();
-    let result = generate_tileset(&octree, &buf, colors_ref).map_err(|e| JsValue::from(e))?;
+    let result = generate_tileset(&octree, &buf, colors.as_deref()).map_err(JsValue::from)?;
 
     Ok(WasmTilesetResult { inner: result })
 }
@@ -653,20 +649,20 @@ mod tileset_tests {
         // Verify basic structure.
         assert!(json.contains("\"asset\""), "tileset should have asset");
         assert!(json.contains("\"root\""), "tileset should have root");
-        assert!(json.contains("\"boundingVolume\""), "tileset should have boundingVolume");
-        assert!(json.contains("\"geometricError\""), "tileset should have geometricError");
+        assert!(
+            json.contains("\"boundingVolume\""),
+            "tileset should have boundingVolume"
+        );
+        assert!(
+            json.contains("\"geometricError\""),
+            "tileset should have geometricError"
+        );
     }
 
     #[test]
     fn test_tile_pnts_format() {
         let triples: Vec<[f32; 3]> = (0..50)
-            .map(|i| {
-                [
-                    (i % 5) as f32,
-                    ((i / 5) % 5) as f32,
-                    (i / 25) as f32,
-                ]
-            })
+            .map(|i| [(i % 5) as f32, ((i / 5) % 5) as f32, (i / 25) as f32])
             .collect();
         let mut positions = make_positions(&triples);
         let tree = Octree::build(&mut positions, 20, 5);
@@ -716,13 +712,7 @@ mod tileset_tests {
     #[test]
     fn test_tileset_with_colors() {
         let triples: Vec<[f32; 3]> = (0..30)
-            .map(|i| {
-                [
-                    (i % 3) as f32,
-                    ((i / 3) % 3) as f32,
-                    (i / 9) as f32,
-                ]
-            })
+            .map(|i| [(i % 3) as f32, ((i / 3) % 3) as f32, (i / 9) as f32])
             .collect();
         let mut positions = make_positions(&triples);
         let tree = Octree::build(&mut positions, 10, 5);
@@ -753,13 +743,7 @@ mod tileset_tests {
     #[test]
     fn test_total_bytes() {
         let triples: Vec<[f32; 3]> = (0..100)
-            .map(|i| {
-                [
-                    (i % 10) as f32,
-                    ((i / 10) % 10) as f32,
-                    0.0,
-                ]
-            })
+            .map(|i| [(i % 10) as f32, ((i / 10) % 10) as f32, 0.0])
             .collect();
         let mut positions = make_positions(&triples);
         let tree = Octree::build(&mut positions, 25, 5);
