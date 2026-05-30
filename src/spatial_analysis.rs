@@ -493,6 +493,181 @@ pub fn rhumb_bearing(lng1: f64, lat1: f64, lng2: f64, lat2: f64) -> f64 {
 }
 
 // ===========================================================================
+// Spatial Clustering
+// ===========================================================================
+
+/// Grid-based spatial clustering.
+///
+/// Divides space into `cell_size`-sized grid cells. Cells with fewer than
+/// `min_points` are discarded. Returns cluster centers as flat `Float64Array`.
+///
+/// # Arguments
+/// - `coords`: Flat `Float64Array` `[lng0, lat0, lng1, lat1, ...]`.
+/// - `cell_size`: Grid cell size in meters.
+/// - `min_points`: Minimum points per cell to form a valid cluster.
+///
+/// # Returns
+/// Flat `Float64Array` of cluster centers `[lng, lat, lng, lat, ...]`.
+#[wasm_bindgen(js_name = "clusterByGrid")]
+pub fn cluster_by_grid(
+    coords: &js_sys::Float64Array,
+    cell_size: f64,
+    min_points: u32,
+) -> js_sys::Float64Array {
+    let mut buf = vec![0.0f64; coords.length() as usize];
+    coords.copy_to(&mut buf);
+
+    let n = buf.len() / 2;
+    if n == 0 || cell_size <= 0.0 {
+        return js_sys::Float64Array::new_with_length(0);
+    }
+
+    // Convert cell_size (meters) to approximate degrees at centroid latitude
+    let sum_lat: f64 = buf.iter().skip(1).step_by(2).sum();
+    let avg_lat = sum_lat / n as f64;
+    let cell_size_deg_lat = cell_size / EARTH_RADIUS_M * (180.0 / std::f64::consts::PI);
+    let cell_size_deg_lng = cell_size
+        / (EARTH_RADIUS_M * avg_lat.to_radians().cos().max(1e-10))
+        * (180.0 / std::f64::consts::PI);
+
+    // Assign points to grid cells
+    use std::collections::HashMap;
+    let mut cells: HashMap<(i64, i64), Vec<(f64, f64)>> = HashMap::new();
+
+    for i in 0..n {
+        let lng = buf[i * 2];
+        let lat = buf[i * 2 + 1];
+        let col = (lng / cell_size_deg_lng).floor() as i64;
+        let row = (lat / cell_size_deg_lat).floor() as i64;
+        cells.entry((col, row)).or_default().push((lng, lat));
+    }
+
+    // Compute centroids for valid cells
+    let mut centers: Vec<(f64, f64)> = Vec::new();
+    for (_key, points) in cells.iter() {
+        if (points.len() as u32) < min_points {
+            continue;
+        }
+        let sum_lng: f64 = points.iter().map(|p| p.0).sum();
+        let sum_lat: f64 = points.iter().map(|p| p.1).sum();
+        centers.push((sum_lng / points.len() as f64, sum_lat / points.len() as f64));
+    }
+
+    let mut out = Vec::with_capacity(centers.len() * 2);
+    for (lng, lat) in centers {
+        out.push(lng);
+        out.push(lat);
+    }
+
+    let arr = js_sys::Float64Array::new_with_length(out.len() as u32);
+    if !out.is_empty() {
+        arr.copy_from(&out);
+    }
+    arr
+}
+
+/// Density-based spatial clustering (simplified DBSCAN).
+///
+/// # Arguments
+/// - `coords`: Flat `Float64Array` `[lng0, lat0, lng1, lat1, ...]`.
+/// - `epsilon`: Neighborhood radius in meters.
+/// - `min_points`: Minimum points in a neighborhood to form a cluster.
+///
+/// # Returns
+/// Flat `Float64Array` of cluster IDs (one per point). -1 = noise.
+#[wasm_bindgen(js_name = "clusterByDensity")]
+pub fn cluster_by_density(
+    coords: &js_sys::Float64Array,
+    epsilon: f64,
+    min_points: u32,
+) -> js_sys::Float64Array {
+    let mut buf = vec![0.0f64; coords.length() as usize];
+    coords.copy_to(&mut buf);
+
+    let n = buf.len() / 2;
+    let mut labels = vec![-1i32; n];
+
+    if n == 0 || epsilon <= 0.0 {
+        let arr = js_sys::Float64Array::new_with_length(n as u32);
+        // labels are all -1 → cast to f64
+        let out: Vec<f64> = labels.iter().map(|&l| l as f64).collect();
+        if !out.is_empty() {
+            arr.copy_from(&out);
+        }
+        return arr;
+    }
+
+    let mut cluster_id: i32 = 0;
+
+    for i in 0..n {
+        if labels[i] != -1 {
+            continue; // already visited
+        }
+
+        let neighbors = get_neighbors(&buf, n, i, epsilon);
+        if neighbors.len() < min_points as usize {
+            continue; // noise
+        }
+
+        // Start a new cluster
+        labels[i] = cluster_id;
+        let mut seeds = neighbors.clone();
+
+        let mut j = 0;
+        while j < seeds.len() {
+            let q = seeds[j];
+            if labels[q] == -2 {
+                // was previously marked as noise → add to cluster
+                labels[q] = cluster_id;
+            }
+            if labels[q] != -1 {
+                j += 1;
+                continue;
+            }
+            labels[q] = cluster_id;
+
+            let q_neighbors = get_neighbors(&buf, n, q, epsilon);
+            if q_neighbors.len() >= min_points as usize {
+                for &neighbor in &q_neighbors {
+                    if !seeds.contains(&neighbor) {
+                        seeds.push(neighbor);
+                    }
+                }
+            }
+            j += 1;
+        }
+
+        cluster_id += 1;
+    }
+
+    let out: Vec<f64> = labels.iter().map(|&l| l as f64).collect();
+    let arr = js_sys::Float64Array::new_with_length(out.len() as u32);
+    arr.copy_from(&out);
+    arr
+}
+
+/// Get indices of all points within `epsilon` meters of point at index `idx`.
+fn get_neighbors(coords: &[f64], n: usize, idx: usize, epsilon: f64) -> Vec<usize> {
+    let lng1 = coords[idx * 2];
+    let lat1 = coords[idx * 2 + 1];
+    let mut neighbors = Vec::new();
+
+    for i in 0..n {
+        if i == idx {
+            continue;
+        }
+        let lng2 = coords[i * 2];
+        let lat2 = coords[i * 2 + 1];
+        let dist = haversine_distance_internal(lat1, lng1, lat2, lng2);
+        if dist <= epsilon {
+            neighbors.push(i);
+        }
+    }
+
+    neighbors
+}
+
+// ===========================================================================
 
 #[cfg(test)]
 mod tests {
@@ -845,5 +1020,175 @@ mod tests {
             "North bearing: got {}, expected ~0 or 360",
             bearing
         );
+    }
+
+    // ── Grid clustering tests ──────────────────────────────────────
+
+    #[test]
+    fn test_grid_cluster_two_groups() {
+        // Two clusters ~50km apart, cell_size ~10km
+        // Group 1: near (116.4, 39.9) — 3 points
+        // Group 2: near (121.5, 31.2) — 3 points
+        let coords: Vec<f64> = vec![
+            116.40, 39.90,
+            116.41, 39.91,
+            116.39, 39.89,
+            121.47, 31.23,
+            121.48, 31.22,
+            121.46, 31.24,
+        ];
+        // Using native grid cluster logic
+        let centers = native_grid_cluster(&coords, 5000.0, 2);
+        assert_eq!(centers.len(), 4, "Expected 2 centers (4 coords), got {}", centers.len());
+        // Centers should be near the two group centroids
+        let center1_lng = centers[0];
+        let center1_lat = centers[1];
+        let center2_lng = centers[2];
+        let center2_lat = centers[3];
+        assert!((center1_lng - 116.4).abs() < 0.1);
+        assert!((center1_lat - 39.9).abs() < 0.1);
+        assert!((center2_lng - 121.47).abs() < 0.1);
+        assert!((center2_lat - 31.23).abs() < 0.1);
+    }
+
+    #[test]
+    fn test_grid_cluster_insufficient_points() {
+        let coords: Vec<f64> = vec![116.4, 39.9, 116.5, 40.0];
+        // 2 points in same cell, min_points = 3 → no clusters
+        let centers = native_grid_cluster(&coords, 50000.0, 3);
+        assert!(centers.is_empty());
+    }
+
+    #[test]
+    fn test_grid_cluster_empty() {
+        let coords: Vec<f64> = vec![];
+        let centers = native_grid_cluster(&coords, 1000.0, 1);
+        assert!(centers.is_empty());
+    }
+
+    // ── DBSCAN clustering tests ─────────────────────────────────────
+
+    #[test]
+    fn test_dbscan_two_clusters() {
+        // Two tight clusters ~50km apart
+        let coords: Vec<f64> = vec![
+            116.40, 39.90,
+            116.41, 39.91,
+            116.39, 39.89,
+            121.47, 31.23,
+            121.48, 31.22,
+            121.46, 31.24,
+        ];
+        let labels = native_dbscan(&coords, 5000.0, 2);
+        assert_eq!(labels.len(), 6);
+
+        // First 3 points should have same cluster ID, last 3 another
+        assert_eq!(labels[0], labels[1]);
+        assert_eq!(labels[1], labels[2]);
+        assert_eq!(labels[3], labels[4]);
+        assert_eq!(labels[4], labels[5]);
+        // Two different clusters
+        assert_ne!(labels[0], labels[3]);
+    }
+
+    #[test]
+    fn test_dbscan_all_noise() {
+        // Points too spread out → all noise (-1)
+        let coords: Vec<f64> = vec![
+            116.0, 39.0,
+            120.0, 30.0,
+            125.0, 25.0,
+        ];
+        let labels = native_dbscan(&coords, 1000.0, 2);
+        assert!(labels.iter().all(|&l| l == -1));
+    }
+
+    // ── Native helpers for clustering ──────────────────────────────
+
+    fn native_grid_cluster(coords: &[f64], cell_size: f64, min_points: u32) -> Vec<f64> {
+        let n = coords.len() / 2;
+        if n == 0 || cell_size <= 0.0 {
+            return vec![];
+        }
+
+        let sum_lat: f64 = coords.iter().skip(1).step_by(2).sum();
+        let avg_lat = sum_lat / n as f64;
+        let cell_size_deg_lat = cell_size / EARTH_RADIUS_M * (180.0 / std::f64::consts::PI);
+        let cell_size_deg_lng = cell_size
+            / (EARTH_RADIUS_M * avg_lat.to_radians().cos().max(1e-10))
+            * (180.0 / std::f64::consts::PI);
+
+        use std::collections::HashMap;
+        let mut cells: HashMap<(i64, i64), Vec<(f64, f64)>> = HashMap::new();
+
+        for i in 0..n {
+            let lng = coords[i * 2];
+            let lat = coords[i * 2 + 1];
+            let col = (lng / cell_size_deg_lng).floor() as i64;
+            let row = (lat / cell_size_deg_lat).floor() as i64;
+            cells.entry((col, row)).or_default().push((lng, lat));
+        }
+
+        let mut centers = Vec::new();
+        for (_key, points) in cells.iter() {
+            if (points.len() as u32) < min_points {
+                continue;
+            }
+            let sum_lng: f64 = points.iter().map(|p| p.0).sum();
+            let sum_lat: f64 = points.iter().map(|p| p.1).sum();
+            centers.push(sum_lng / points.len() as f64);
+            centers.push(sum_lat / points.len() as f64);
+        }
+        centers
+    }
+
+    fn native_dbscan(coords: &[f64], epsilon: f64, min_points: u32) -> Vec<i32> {
+        let n = coords.len() / 2;
+        let mut labels = vec![-1i32; n];
+        if n == 0 {
+            return labels;
+        }
+
+        let mut cluster_id: i32 = 0;
+
+        for i in 0..n {
+            if labels[i] != -1 {
+                continue;
+            }
+
+            let neighbors = get_neighbors(coords, n, i, epsilon);
+            if neighbors.len() < min_points as usize {
+                continue;
+            }
+
+            labels[i] = cluster_id;
+            let mut seeds = neighbors.clone();
+            let mut j = 0;
+
+            while j < seeds.len() {
+                let q = seeds[j];
+                if labels[q] == -1 {
+                    labels[q] = cluster_id;
+                }
+                if labels[q] != -1 {
+                    j += 1;
+                    continue;
+                }
+                labels[q] = cluster_id;
+
+                let q_neighbors = get_neighbors(coords, n, q, epsilon);
+                if q_neighbors.len() >= min_points as usize {
+                    for &neighbor in &q_neighbors {
+                        if !seeds.contains(&neighbor) {
+                            seeds.push(neighbor);
+                        }
+                    }
+                }
+                j += 1;
+            }
+            cluster_id += 1;
+        }
+
+        labels
     }
 }
