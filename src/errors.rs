@@ -125,7 +125,12 @@ impl SpatialErrorDetail {
 
     /// Human-readable error description including detail.
     pub fn message(&self) -> String {
-        format!("[{}] {}: {}", self.kind.code(), self.kind.description(), self.detail)
+        format!(
+            "[{}] {}: {}",
+            self.kind.code(),
+            self.kind.description(),
+            self.detail
+        )
     }
 }
 

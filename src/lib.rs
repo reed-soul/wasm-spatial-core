@@ -15,6 +15,7 @@
 
 mod cesium_adapter;
 mod coordinate;
+mod errors;
 mod geojson_parser;
 mod geojson_streaming;
 mod gltf_writer;
@@ -22,7 +23,6 @@ mod ifc_reader;
 mod spatial_analysis;
 mod spatial_index;
 mod topology;
-mod errors;
 mod utils;
 mod vector_tile;
 
