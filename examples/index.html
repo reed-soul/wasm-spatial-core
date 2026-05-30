@@ -1489,7 +1489,7 @@ window.chinaNearestNeighbor = function() {
     `🏁 <strong>Nearest city</strong>: ${nearest.city.name}<br>` +
     `📍 [${fmt(nearest.city.lng,3)}, ${fmt(nearest.city.lat,3)}]<br>` +
     `👥 Population: ${(nearest.city.pop/10000).toFixed(1)}M<br>` +
-    `📏 Distance: ~${Math.sqrt((nearest.city.lng-lng)**2 + (nearest.city.lat-lat)**2) * 111:.0f} km<br>` +
+    `📏 Distance: ~${(Math.sqrt((nearest.city.lng - lng) ** 2 + (nearest.city.lat - lat) ** 2) * 111).toFixed(0)} km<br>` +
     `<span style="color:var(--dim)">Query: (${fmt(lng,2)}, ${fmt(lat,2)}) in ${dt.toFixed(2)}ms</span>`;
 };
 
