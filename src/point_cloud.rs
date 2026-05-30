@@ -7,7 +7,9 @@
 
 use wasm_bindgen::prelude::*;
 
+use crate::errors::{SpatialError, SpatialErrorDetail};
 use crate::validate_input_size;
+use crate::MAX_INPUT_SIZE;
 
 // ===========================================================================
 // LAS Header Format (Public Header Block, first 227 bytes for full header)
@@ -266,16 +268,24 @@ pub fn parse_las_points_core(bytes: &[u8]) -> Result<LasPointCloud, String> {
 
 /// WASM binding for LAS header parsing.
 #[wasm_bindgen(js_name = "parseLasHeader")]
-pub fn parse_las_header(bytes: &[u8]) -> Result<LasHeader, JsValue> {
-    validate_input_size(bytes.len(), "LAS input")?;
-    parse_las_header_core(bytes).map_err(|e| JsValue::from_str(&e))
+pub fn parse_las_header(bytes: &[u8]) -> Result<LasHeader, SpatialErrorDetail> {
+    if bytes.len() > MAX_INPUT_SIZE {
+        return Err(SpatialError::InputTooLarge.with_detail(
+            format!("LAS input is {} bytes, max is {}", bytes.len(), MAX_INPUT_SIZE),
+        ));
+    }
+    parse_las_header_core(bytes).map_err(|e| SpatialError::point_cloud_error(e))
 }
 
 /// WASM binding for LAS point parsing.
 #[wasm_bindgen(js_name = "parseLasPoints")]
-pub fn parse_las_points(bytes: &[u8]) -> Result<LasPointCloud, JsValue> {
-    validate_input_size(bytes.len(), "LAS input")?;
-    parse_las_points_core(bytes).map_err(|e| JsValue::from_str(&e))
+pub fn parse_las_points(bytes: &[u8]) -> Result<LasPointCloud, SpatialErrorDetail> {
+    if bytes.len() > MAX_INPUT_SIZE {
+        return Err(SpatialError::InputTooLarge.with_detail(
+            format!("LAS input is {} bytes, max is {}", bytes.len(), MAX_INPUT_SIZE),
+        ));
+    }
+    parse_las_points_core(bytes).map_err(|e| SpatialError::point_cloud_error(e))
 }
 
 // ===========================================================================
@@ -740,16 +750,24 @@ fn parse_pcd_binary_core(bytes: &[u8]) -> Result<PcdPointCloud, String> {
 
 /// Parse ASCII PCD format text into a point cloud.
 #[wasm_bindgen(js_name = "parsePcdAscii")]
-pub fn parse_pcd_ascii(text: &str) -> Result<PcdPointCloud, JsValue> {
-    validate_input_size(text.len(), "PCD input")?;
-    parse_pcd_ascii_core(text).map_err(|e| JsValue::from_str(&e))
+pub fn parse_pcd_ascii(text: &str) -> Result<PcdPointCloud, SpatialErrorDetail> {
+    if text.len() > MAX_INPUT_SIZE {
+        return Err(SpatialError::InputTooLarge.with_detail(
+            format!("PCD input is {} bytes, max is {}", text.len(), MAX_INPUT_SIZE),
+        ));
+    }
+    parse_pcd_ascii_core(text).map_err(|e| SpatialError::point_cloud_error(e))
 }
 
 /// Parse binary PCD format bytes into a point cloud.
 #[wasm_bindgen(js_name = "parsePcdBinary")]
-pub fn parse_pcd_binary(bytes: &[u8]) -> Result<PcdPointCloud, JsValue> {
-    validate_input_size(bytes.len(), "PCD binary input")?;
-    parse_pcd_binary_core(bytes).map_err(|e| JsValue::from_str(&e))
+pub fn parse_pcd_binary(bytes: &[u8]) -> Result<PcdPointCloud, SpatialErrorDetail> {
+    if bytes.len() > MAX_INPUT_SIZE {
+        return Err(SpatialError::InputTooLarge.with_detail(
+            format!("PCD binary input is {} bytes, max is {}", bytes.len(), MAX_INPUT_SIZE),
+        ));
+    }
+    parse_pcd_binary_core(bytes).map_err(|e| SpatialError::point_cloud_error(e))
 }
 
 // ===========================================================================
@@ -937,7 +955,7 @@ where
 pub fn parse_las_points_with_progress(
     bytes: &[u8],
     on_progress: &js_sys::Function,
-) -> Result<LasPointCloud, JsValue> {
+) -> Result<LasPointCloud, SpatialErrorDetail> {
     let _num_points = read_u32_le(bytes, 110);
     let this = JsValue::NULL;
 
@@ -948,7 +966,7 @@ pub fn parse_las_points_with_progress(
         },
         10_000,
     )
-    .map_err(|e| JsValue::from_str(&e))
+    .map_err(|e| SpatialError::point_cloud_error(e))
 }
 
 /// Core voxel grid decimation with progress callback.
@@ -1236,16 +1254,15 @@ impl PointData {
 /// const point = parseLasPointAt(pointBytes, 0, info.pointFormatId());
 /// ```
 #[wasm_bindgen(js_name = "parseLasHeaderOnly")]
-pub fn parse_las_header_only(bytes: &[u8]) -> Result<LasHeaderInfo, JsValue> {
+pub fn parse_las_header_only(bytes: &[u8]) -> Result<LasHeaderInfo, SpatialErrorDetail> {
     if bytes.len() < 230 {
-        return Err(JsValue::from_str("LAS header requires at least 230 bytes"));
+        return Err(SpatialError::point_cloud_error("LAS header requires at least 230 bytes"));
     }
     if &bytes[0..4] != b"LASF" {
-        return Err(JsValue::from_str("Invalid LAS magic: expected 'LASF'"));
+        return Err(SpatialError::point_cloud_error("Invalid LAS magic: expected 'LASF'"));
     }
 
-    Ok(LasHeaderInfo {
-        num_points: read_u32_le(bytes, 110),
+    Ok(LasHeaderInfo {        num_points: read_u32_le(bytes, 110),
         point_offset: read_u32_le(bytes, 98),
         point_format_id: bytes[106],
         point_record_length: read_u16_le(bytes, 108),
@@ -1289,12 +1306,12 @@ pub fn parse_las_point_at(
     bytes: &[u8],
     offset: usize,
     point_format: u8,
-) -> Result<PointData, JsValue> {
+) -> Result<PointData, SpatialErrorDetail> {
     let has_color = point_format == 2 || point_format == 3;
     let needed = if has_color { 26 } else { 20 };
 
     if offset + needed > bytes.len() {
-        return Err(JsValue::from_str(&format!(
+        return Err(SpatialError::point_cloud_error(format!(
             "Not enough bytes at offset {} (need {}, have {})",
             offset,
             needed,
