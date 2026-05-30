@@ -7,64 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-05-31
+
 ### Added
 
-- **View-dependent LOD loading** (`src/pnts.rs`) — Screen-space error (SSE) computation and camera-driven tile selection. `computeScreenSpaceError(geoError, distance, fov, screenHeight)` and `getVisibleTiles(positions, camera, fov, screen)` for dynamic level-of-detail. Recursive octree traversal with configurable SSE threshold. 8 tests.
-- **Memory usage estimation** (`src/octree.rs`) — `octreeMemoryUsage(nodeCount, internalCount, pointCount)` estimates Rust-side octree memory: 140B per internal node + 72B per leaf + 12B per point. WASM export included.
-- **WasmOctree.leafCount()** WASM getter for number of leaf nodes.
-- **Error handling enhancement** — Octree `buildOctree` now returns `Result<T, JsValue>` with input validation (length not multiple of 3). NaN/Infinity coordinates are silently filtered during octree construction. pnts encoding tested with large f32-range coordinates.
-- **Point cloud → 3D Tiles pipeline** — Full browser-side pipeline: LAS/LAZ parse → octree build → tileset.json + pnts tiles generation. See ROADMAP Phase A.
-- **LAZ decompression** — `laz` crate (v0.12.1) integrated. `parseLazPoints()`, `parseLazPointsStream()`, `parsePointCloudAuto()` auto-detection. `supportsLaz()` and `lazStatus()` runtime checks.
-- **COPC support** — Cloud Optimized Point Cloud header parsing, chunk table access, region-based byte range computation.
-- **Three.js point cloud demo** — Zero-dependency 3D point cloud viewer (no tokens required).
-- **Cesium 3D Tiles demo** — Point cloud rendered on Cesium globe via 3D Tiles.
-- **npm package README** — Quick start, point cloud→3D Tiles example, full categorized API reference.
-- **Octree spatial partitioning** (`src/octree.rs`) — Recursive 8-way subdivision for point cloud data. Two-pass build (index permutation + reorder). Degenerate case handling (coincident points). WASM export: `buildOctree()` → `Octree` class with `nodeCount()`, `depth()`, `totalPoints()`, `rootBounds()`, `nodeBounds()`, `nodePointCount()`, `nodeLevel()`, `nodeChildren()`.
+- **Point Cloud → 3D Tiles pipeline** — Full browser-side pipeline: LAS/LAZ/COPC → parse → octree build → pnts tile encoding → tileset.json generation. Zero server, zero upload.
+- **Octree spatial partitioning** (`src/octree.rs`) — Recursive 8-way subdivision. Two-pass build (index permutation + reorder). Degenerate case handling (coincident points). WASM export: `buildOctree()` → `Octree` class.
 - **pnts tile encoder** (`src/pnts.rs`) — Full 3D Tiles Point Cloud binary format. 28-byte header, feature table (JSON + binary with POSITION + optional RGB), batch table. WASM export: `encodePntsTile()`.
 - **tileset.json generator** — Recursive tileset tree from octree hierarchy. Box boundingVolume, level-scaled geometricError, per-leaf tile content URIs. WASM export: `generateTileset()` → `TilesetResult` class.
+- **View-dependent LOD** — `computeScreenSpaceError()` and `getVisibleTiles()` for screen-space error driven dynamic tile selection. Recursive octree traversal with configurable SSE threshold.
+- **LAZ decompression** — `laz` crate (v0.12.1) integrated. `parseLazPoints()`, `parseLazPointsStream()`, `parsePointCloudAuto()` auto-detection. `supportsLaz()` and `lazStatus()` runtime checks.
+- **COPC support** — Cloud Optimized Point Cloud header parsing, chunk table access, region-based byte range computation.
+- **Point cloud statistics** — `octreeMemoryUsage()` for Rust-side octree memory estimation.
+- **Point cloud coloring** — `colorizeByHeight()`, `colorizeByIntensity()`, `applyColorRamp()` for height-gradient and intensity-based RGBA coloring.
+- **Point cloud normals** — `estimateNormals()` (kNN) and `flipNormals()` for consistent orientation toward centroid.
+- **Three.js point cloud demo** — Zero-dependency 3D point cloud viewer (no tokens required).
+- **Cesium 3D Tiles demo** — Point cloud rendered on Cesium globe via 3D Tiles.
+- **PLY/OBJ parsing** — ASCII + binary PCD parsing, PLY ASCII + binary, OBJ vertex/normal extraction.
+- **WKB/WKT support** — `parseWkb()`, `parseWkt()`, `toWkb()`, `toWkt()` for OGC Well-Known Binary/Text formats.
+- **TopoJSON support** — `parseTopoJson()` for TopoJSON format parsing.
+- **GPX support** — `parseGpx()` for GPS Exchange format parsing.
+- **Convex/Concave hull** — `convexHull()` and `concaveHull()` for point set geometry.
+- **Density/Grid clustering** — `clusterByDensity()` (DBSCAN-style) and `clusterByGrid()` for spatial point clustering.
+- **CRS utilities** — `crsInfo()`, `getSupportedCrs()`, `bestCrsForRegion()`, `isInChina()` for CRS metadata and region detection.
+- **Rhumb navigation** — `rhumbDistance()` and `rhumbBearing()` for constant-bearing calculations.
+- **Vincenty distance** — `vincentyDistance()` for high-precision geodesic distance on the WGS-84 ellipsoid.
+- **Error handling enhancement** — Structured `SpatialError` objects instead of plain strings across all APIs.
 - **End-to-end pipeline tests** (`tests/point_cloud_pipeline.rs`) — 1000-point synthetic cloud → octree → pnts tiles → tileset.json validation (3 tests).
 - **Sample data guide** (`examples/sample-data/README.md`) — Links to ASPRS, OpenTopography, Potree test data sources.
+- **GitHub Pages demo site** — `scripts/build-demo-site.sh`, `vercel.json`, docs/DEMO_SITE.md.
+- **npm package** — `npm/` wrapper with `npm/index.ts` TypeScript re-exports, `npm/package.json`, quick start README.
 
 ### Changed
 
-- Module count: 17 → 19 (added `octree`, `pnts`).
-- Test count: 274 → 344.
-- Source lines: ~16K → ~20K.
+- Module count: 17 → 25 (added `octree`, `pnts`, `ply`, `obj`, `e57`, `wkb_wkt`, `topojson`, `gpx`).
+- Test count: 344 → 400.
+- Source lines: ~20K → ~23K.
 - WASM binary: ~1.2 MB (with point-cloud features including laz).
-
-- `scripts/build-demo-site.sh` — static site for GitHub Pages / Vercel (`examples/` + `pkg/` layout).
-- [docs/DEMO_SITE.md](./docs/DEMO_SITE.md) — 在线演示部署说明（GitHub Pages + Vercel）。
-- `vercel.json` — optional Vercel static deploy.
+- Stop tracking `pkg/` in git (build via `wasm-pack` or CI artifacts).
+- Declare `rust-version = "1.90"` in `Cargo.toml`.
+- CI runs `wasm-pack test --node --release -- --test web` (wasm32 harness + version smoke test).
 
 ### Fixed
 
 - GitHub Pages 部署路径：保留 `examples/` 前缀，修复 `../pkg` 与 `data/china_cities.json` 加载失败问题。
-
-### Added
-
-- Root `package.json` dev scripts: `npm run build:pkg`, `npm run demo`, `npm run check`.
-- `examples/README.md` with demo URLs and build instructions.
-
-### Added (prior)
-
-- `npm/package-lock.json` for reproducible `npm/` wrapper installs.
-
-### Fixed
-
-- WASM error paths now use structured `SpatialError` objects (`parse_js`, `tile_js`, …) instead of plain strings across GeoJSON, MVT, WKT/WKB, streaming, and validation APIs.
-
+- WASM error paths now use structured `SpatialError` objects.
 - CI and GitHub Pages now trigger on the `master` default branch (was `main`).
-- `cargo fmt` drift in `spatial_analysis.rs`.
 - Browser test `tests/web.rs` version assertion now tracks `CARGO_PKG_VERSION`.
-- Documentation version strings updated to `0.2.0`; README feature list deduplicated.
-
-### Changed
-
-- Stop tracking `pkg/` in git (build via `wasm-pack` or CI artifacts).
-- Declare `rust-version = "1.90"` in `Cargo.toml`.
-- CI runs `wasm-pack test --node --release -- --test web` (wasm32 harness + version smoke test).
-- Removed unused `transform_slice_in_place_simd` dead code.
-- `SECURITY.md` updated for 0.2.x support and accurate `unsafe` policy.
 
 ## [0.2.0] - 2026-05-30
 
