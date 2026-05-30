@@ -172,37 +172,6 @@ fn transform_slice_in_place(coords: &mut [f64], f: fn(f64, f64) -> (f64, f64)) {
     }
 }
 
-/// SIMD-optimised variant of [`transform_slice_in_place`] for WASM targets.
-///
-/// Processes 4 pairs (8 f64s = 64 bytes) at a time using `f64x2` SIMD.
-/// Falls back to scalar for the remainder.
-///
-/// NOTE: The transform function must be applied independently to each pair;
-/// true SIMD parallelism across pairs is limited by the dependency chain of
-/// the transform math. This version still benefits from reduced loop overhead
-/// and better instruction-level parallelism.
-#[cfg(all(target_arch = "wasm32", not(feature = "multi-thread")))]
-#[target_feature(enable = "simd128")]
-#[inline]
-unsafe fn transform_slice_in_place_simd(coords: &mut [f64], f: fn(f64, f64) -> (f64, f64)) {
-    let len = coords.len();
-    let pairs = len / 2;
-    let mut i = 0;
-
-    // Process pairs individually — SIMD128 on f64 is f64x2,
-    // but our transforms have cross-lane dependencies (sin, sqrt, etc.),
-    // so we process each (lng, lat) pair independently.
-    // The benefit here is the `#[target_feature]` hint lets the compiler
-    // use SIMD registers for the scalar math automatically.
-    while i < pairs {
-        let base = i * 2;
-        let (new_x, new_y) = f(coords[base], coords[base + 1]);
-        coords[base] = new_x;
-        coords[base + 1] = new_y;
-        i += 1;
-    }
-}
-
 /// Apply a point transform function, returning a new `Float64Array`.
 /// Incurs two copies (input read + output write) but preserves original data.
 fn transform_batch_copy(coords: &Float64Array, f: fn(f64, f64) -> (f64, f64)) -> Float64Array {
