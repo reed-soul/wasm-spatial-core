@@ -8,7 +8,7 @@
 use wasm_bindgen::prelude::*;
 
 use crate::errors::{SpatialError, SpatialErrorDetail};
-use crate::MAX_INPUT_SIZE;
+use crate::DEFAULT_MAX_INPUT_SIZE;
 
 // ===========================================================================
 // LAS Header Format (Public Header Block, first 227 bytes for full header)
@@ -268,11 +268,11 @@ pub fn parse_las_points_core(bytes: &[u8]) -> Result<LasPointCloud, String> {
 /// WASM binding for LAS header parsing.
 #[wasm_bindgen(js_name = "parseLasHeader")]
 pub fn parse_las_header(bytes: &[u8]) -> Result<LasHeader, SpatialErrorDetail> {
-    if bytes.len() > MAX_INPUT_SIZE {
+    if bytes.len() > DEFAULT_MAX_INPUT_SIZE {
         return Err(SpatialError::InputTooLarge.with_detail(format!(
             "LAS input is {} bytes, max is {}",
             bytes.len(),
-            MAX_INPUT_SIZE
+            DEFAULT_MAX_INPUT_SIZE
         )));
     }
     parse_las_header_core(bytes).map_err(SpatialError::point_cloud_error)
@@ -281,11 +281,11 @@ pub fn parse_las_header(bytes: &[u8]) -> Result<LasHeader, SpatialErrorDetail> {
 /// WASM binding for LAS point parsing.
 #[wasm_bindgen(js_name = "parseLasPoints")]
 pub fn parse_las_points(bytes: &[u8]) -> Result<LasPointCloud, SpatialErrorDetail> {
-    if bytes.len() > MAX_INPUT_SIZE {
+    if bytes.len() > DEFAULT_MAX_INPUT_SIZE {
         return Err(SpatialError::InputTooLarge.with_detail(format!(
             "LAS input is {} bytes, max is {}",
             bytes.len(),
-            MAX_INPUT_SIZE
+            DEFAULT_MAX_INPUT_SIZE
         )));
     }
     parse_las_points_core(bytes).map_err(SpatialError::point_cloud_error)
@@ -754,11 +754,11 @@ fn parse_pcd_binary_core(bytes: &[u8]) -> Result<PcdPointCloud, String> {
 /// Parse ASCII PCD format text into a point cloud.
 #[wasm_bindgen(js_name = "parsePcdAscii")]
 pub fn parse_pcd_ascii(text: &str) -> Result<PcdPointCloud, SpatialErrorDetail> {
-    if text.len() > MAX_INPUT_SIZE {
+    if text.len() > DEFAULT_MAX_INPUT_SIZE {
         return Err(SpatialError::InputTooLarge.with_detail(format!(
             "PCD input is {} bytes, max is {}",
             text.len(),
-            MAX_INPUT_SIZE
+            DEFAULT_MAX_INPUT_SIZE
         )));
     }
     parse_pcd_ascii_core(text).map_err(SpatialError::point_cloud_error)
@@ -767,11 +767,11 @@ pub fn parse_pcd_ascii(text: &str) -> Result<PcdPointCloud, SpatialErrorDetail> 
 /// Parse binary PCD format bytes into a point cloud.
 #[wasm_bindgen(js_name = "parsePcdBinary")]
 pub fn parse_pcd_binary(bytes: &[u8]) -> Result<PcdPointCloud, SpatialErrorDetail> {
-    if bytes.len() > MAX_INPUT_SIZE {
+    if bytes.len() > DEFAULT_MAX_INPUT_SIZE {
         return Err(SpatialError::InputTooLarge.with_detail(format!(
             "PCD binary input is {} bytes, max is {}",
             bytes.len(),
-            MAX_INPUT_SIZE
+            DEFAULT_MAX_INPUT_SIZE
         )));
     }
     parse_pcd_binary_core(bytes).map_err(SpatialError::point_cloud_error)

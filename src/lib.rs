@@ -46,6 +46,23 @@ pub use point_cloud::{
 
 pub use ifc_reader::{parse_ifc_geometry_core, IfcGeometryResult, IfcMesh};
 
+// Re-export internal helpers for integration/stress testing.
+// These are exposed via a public "test_exports" module that is only
+// intended for testing — not part of the stable API.
+#[doc(hidden)]
+pub mod test_exports {
+    pub use crate::geojson_parser::{
+        geojson_feature_collection_native, geojson_from_coords_native,
+        parse_geojson_coords, count_geojson_features,
+    };
+    pub use crate::topology::{
+        polygon_intersection_native, polygon_union_native,
+    };
+    pub use crate::utils::{
+        deduplicate_coords_native, validate_coords_native, clean_coords_native,
+    };
+}
+
 use wasm_bindgen::prelude::*;
 
 // Dynamic input size limit — thread-safe via LazyLock + RwLock.

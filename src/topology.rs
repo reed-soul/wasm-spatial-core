@@ -5,7 +5,7 @@
 
 use wasm_bindgen::prelude::*;
 
-use geo::{BooleanOps, Coordinate, LineString, Polygon as GeoPolygon};
+use geo::{BooleanOps, Coord, LineString, Polygon as GeoPolygon};
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -614,9 +614,9 @@ fn bowyer_watson_2d(coords: &[f64], n: usize) -> TinResult {
 
 /// Convert a flat closed-ring buffer `[lng0,lat0, ..., lng0,lat0]` to a `geo::Polygon`.
 fn ring_to_geo_polygon(ring: &[f64]) -> GeoPolygon<f64> {
-    let coords: Vec<Coordinate<f64>> = ring
+    let coords: Vec<Coord<f64>> = ring
         .chunks_exact(2)
-        .map(|p| Coordinate { x: p[0], y: p[1] })
+        .map(|p| Coord { x: p[0], y: p[1] })
         .collect();
     let exterior = LineString(coords);
     GeoPolygon::new(exterior, vec![])
@@ -637,7 +637,7 @@ fn multipolygon_to_flat_rings(mp: &geo::MultiPolygon<f64>) -> Vec<f64> {
 }
 
 /// Core native polygon intersection — returns flat ring buffer(s).
-pub(crate) fn polygon_intersection_native(ring1: &[f64], ring2: &[f64]) -> Vec<f64> {
+pub fn polygon_intersection_native(ring1: &[f64], ring2: &[f64]) -> Vec<f64> {
     let p1 = ring_to_geo_polygon(ring1);
     let p2 = ring_to_geo_polygon(ring2);
     let result = p1.intersection(&p2);
@@ -645,7 +645,7 @@ pub(crate) fn polygon_intersection_native(ring1: &[f64], ring2: &[f64]) -> Vec<f
 }
 
 /// Core native polygon union — returns flat ring buffer(s).
-pub(crate) fn polygon_union_native(ring1: &[f64], ring2: &[f64]) -> Vec<f64> {
+pub fn polygon_union_native(ring1: &[f64], ring2: &[f64]) -> Vec<f64> {
     let p1 = ring_to_geo_polygon(ring1);
     let p2 = ring_to_geo_polygon(ring2);
     let result = p1.union(&p2);
