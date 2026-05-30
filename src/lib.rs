@@ -55,7 +55,9 @@ pub use point_cloud::{
 };
 
 #[cfg(feature = "point-cloud")]
-pub use point_cloud_stream::{PointCloudStreamer, compute_region_byte_range, laz_status, supports_laz};
+pub use point_cloud_stream::{
+    compute_region_byte_range, laz_status, supports_laz, PointCloudStreamer,
+};
 
 pub use ifc_reader::{parse_ifc_geometry_core, IfcGeometryResult, IfcMesh};
 
