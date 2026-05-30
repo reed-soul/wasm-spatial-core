@@ -5,6 +5,8 @@
 
 use wasm_bindgen::prelude::*;
 
+use geo::{BooleanOps, Coordinate, LineString, Polygon as GeoPolygon};
+
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
@@ -607,6 +609,102 @@ fn bowyer_watson_2d(coords: &[f64], n: usize) -> TinResult {
 }
 
 // ---------------------------------------------------------------------------
+// Polygon Boolean Operations
+// ---------------------------------------------------------------------------
+
+/// Convert a flat closed-ring buffer `[lng0,lat0, ..., lng0,lat0]` to a `geo::Polygon`.
+fn ring_to_geo_polygon(ring: &[f64]) -> GeoPolygon<f64> {
+    let coords: Vec<Coordinate<f64>> = ring
+        .chunks_exact(2)
+        .map(|p| Coordinate { x: p[0], y: p[1] })
+        .collect();
+    let exterior = LineString(coords);
+    GeoPolygon::new(exterior, vec![])
+}
+
+/// Convert a `geo::MultiPolygon` to a flat closed-ring buffer.
+/// For single polygons, returns the exterior ring. For multi-polygons,
+/// concatenates all exterior rings (each closed).
+fn multipolygon_to_flat_rings(mp: &geo::MultiPolygon<f64>) -> Vec<f64> {
+    let mut out = Vec::new();
+    for polygon in mp {
+        for coord in polygon.exterior().0.iter() {
+            out.push(coord.x);
+            out.push(coord.y);
+        }
+    }
+    out
+}
+
+/// Core native polygon intersection — returns flat ring buffer(s).
+pub(crate) fn polygon_intersection_native(ring1: &[f64], ring2: &[f64]) -> Vec<f64> {
+    let p1 = ring_to_geo_polygon(ring1);
+    let p2 = ring_to_geo_polygon(ring2);
+    let result = p1.intersection(&p2);
+    multipolygon_to_flat_rings(&result)
+}
+
+/// Core native polygon union — returns flat ring buffer(s).
+pub(crate) fn polygon_union_native(ring1: &[f64], ring2: &[f64]) -> Vec<f64> {
+    let p1 = ring_to_geo_polygon(ring1);
+    let p2 = ring_to_geo_polygon(ring2);
+    let result = p1.union(&p2);
+    multipolygon_to_flat_rings(&result)
+}
+
+/// Compute the intersection of two simple polygons.
+///
+/// # Arguments
+///
+/// * `ring1` — First polygon as flat closed ring `[lng0,lat0, ..., lng0,lat0]`
+/// * `ring2` — Second polygon as flat closed ring `[lng0,lat0, ..., lng0,lat0]`
+///
+/// # Returns
+///
+/// A `Float64Array` with the intersection ring(s). Empty if polygons don't intersect.
+#[wasm_bindgen(js_name = "polygonIntersection")]
+pub fn polygon_intersection(ring1: &js_sys::Float64Array, ring2: &js_sys::Float64Array) -> js_sys::Float64Array {
+    let len1 = ring1.length() as usize;
+    let mut buf1 = vec![0.0; len1];
+    ring1.copy_to(&mut buf1);
+
+    let len2 = ring2.length() as usize;
+    let mut buf2 = vec![0.0; len2];
+    ring2.copy_to(&mut buf2);
+
+    let result = polygon_intersection_native(&buf1, &buf2);
+    let out = js_sys::Float64Array::new_with_length(result.len() as u32);
+    out.copy_from(&result);
+    out
+}
+
+/// Compute the union of two simple polygons.
+///
+/// # Arguments
+///
+/// * `ring1` — First polygon as flat closed ring `[lng0,lat0, ..., lng0,lat0]`
+/// * `ring2` — Second polygon as flat closed ring `[lng0,lat0, ..., lng0,lat0]`
+///
+/// # Returns
+///
+/// A `Float64Array` with the union ring(s).
+#[wasm_bindgen(js_name = "polygonUnion")]
+pub fn polygon_union(ring1: &js_sys::Float64Array, ring2: &js_sys::Float64Array) -> js_sys::Float64Array {
+    let len1 = ring1.length() as usize;
+    let mut buf1 = vec![0.0; len1];
+    ring1.copy_to(&mut buf1);
+
+    let len2 = ring2.length() as usize;
+    let mut buf2 = vec![0.0; len2];
+    ring2.copy_to(&mut buf2);
+
+    let result = polygon_union_native(&buf1, &buf2);
+    let out = js_sys::Float64Array::new_with_length(result.len() as u32);
+    out.copy_from(&result);
+    out
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -906,4 +1004,57 @@ mod tests {
         assert!(remaining > 0.0);
         assert!(remaining < outer_area);
     }
+
+    // ── Boolean operation tests ────────────────────────────────
+
+    #[test]
+    fn test_polygon_intersection_overlapping() {
+        // Two overlapping unit squares
+        let ring1 = vec![0.0, 0.0, 2.0, 0.0, 2.0, 2.0, 0.0, 2.0, 0.0, 0.0];
+        let ring2 = vec![1.0, 1.0, 3.0, 1.0, 3.0, 3.0, 1.0, 3.0, 1.0, 1.0];
+        let result = polygon_intersection_native(&ring1, &ring2);
+        // Intersection should be [1,1] to [2,2] — non-empty
+        assert!(!result.is_empty());
+        assert!(result.len() >= 8); // at least a quad
+    }
+
+    #[test]
+    fn test_polygon_intersection_disjoint() {
+        // Two non-overlapping squares
+        let ring1 = vec![0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0];
+        let ring2 = vec![5.0, 5.0, 6.0, 5.0, 6.0, 6.0, 5.0, 6.0, 5.0, 5.0];
+        let result = polygon_intersection_native(&ring1, &ring2);
+        assert!(result.is_empty(), "Disjoint polygons should have empty intersection");
+    }
+
+    #[test]
+    fn test_polygon_union_overlapping() {
+        let ring1 = vec![0.0, 0.0, 2.0, 0.0, 2.0, 2.0, 0.0, 2.0, 0.0, 0.0];
+        let ring2 = vec![1.0, 1.0, 3.0, 1.0, 3.0, 3.0, 1.0, 3.0, 1.0, 1.0];
+        let result = polygon_union_native(&ring1, &ring2);
+        assert!(!result.is_empty());
+        // Union should be larger than either individual polygon
+        assert!(result.len() >= 10);
+    }
+
+    #[test]
+    fn test_polygon_union_identical() {
+        let ring = vec![0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0];
+        let result = polygon_union_native(&ring, &ring);
+        assert!(!result.is_empty());
+        // Union of identical polygons should equal one polygon
+        let pair_count = result.len() / 2;
+        assert!(pair_count >= 4);
+    }
+
+    #[test]
+    fn test_polygon_intersection_contained() {
+        // ring2 is completely inside ring1
+        let ring1 = vec![0.0, 0.0, 4.0, 0.0, 4.0, 4.0, 0.0, 4.0, 0.0, 0.0];
+        let ring2 = vec![1.0, 1.0, 3.0, 1.0, 3.0, 3.0, 1.0, 3.0, 1.0, 1.0];
+        let result = polygon_intersection_native(&ring1, &ring2);
+        // Intersection should be ring2 (the contained polygon)
+        assert!(!result.is_empty());
+    }
 }
+
