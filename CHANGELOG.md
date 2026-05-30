@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Root `package.json` dev scripts: `npm run build:pkg`, `npm run demo`, `npm run check`.
+- `examples/README.md` with demo URLs and build instructions.
+
+### Added (prior)
+
 - `npm/package-lock.json` for reproducible `npm/` wrapper installs.
 
 ### Fixed
