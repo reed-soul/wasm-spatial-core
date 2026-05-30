@@ -357,10 +357,10 @@ pub fn supports_laz() -> bool {
 #[wasm_bindgen(js_name = "lazStatus")]
 pub fn laz_status() -> String {
     String::from(
-        "LAZ support is not yet available. laz-rs depends on native C code \
-        (LazPerf) that does not compile to wasm32. Planned approaches: \
-        (1) port LazPerf to pure Rust, (2) WASI-based LAZ decompression, \
-        (3) server-side LAZ→LAS conversion with client-side streaming.",
+        "LAZ support is not yet available. The `laz` crate (v0.12.1) compiles \
+        to wasm32-unknown-unknown successfully. Planned integration: (1) add \
+        `laz` as an optional feature, (2) implement LAZ decompression in \
+        PointCloudStreamer, (3) add COPC chunk table parsing for indexed access.",
     )
 }
 
