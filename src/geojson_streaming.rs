@@ -27,9 +27,9 @@
 //! └──────────────────────────────────────────────────┘
 //! ```
 
-use wasm_bindgen::prelude::*;
-use js_sys::Float64Array;
 use geojson::{Feature, Geometry, Value as GeoValue};
+use js_sys::Float64Array;
+use wasm_bindgen::prelude::*;
 
 // Re-use the extract_coords helper from the main parser module,
 // but we define a local version here to keep the module self-contained.

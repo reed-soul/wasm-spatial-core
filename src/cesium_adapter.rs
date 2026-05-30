@@ -2,10 +2,10 @@
 //!
 //! Provides direct conversions and triangulations optimized for Cesium's rendering engine.
 
+use earcutr::earcut;
+use geojson::{GeoJson, Value};
 use std::f64::consts::PI;
 use wasm_bindgen::prelude::*;
-use geojson::{GeoJson, Value};
-use earcutr::earcut;
 
 #[cfg(feature = "multi-thread")]
 use rayon::prelude::*;
@@ -49,14 +49,16 @@ pub fn batch_wgs84_to_cartesian3(coords: &[f64]) -> js_sys::Float64Array {
 
     #[cfg(feature = "multi-thread")]
     {
-        out.par_chunks_exact_mut(3).enumerate().for_each(|(i, chunk)| {
-            let lng = coords[i * 2];
-            let lat = coords[i * 2 + 1];
-            let (x, y, z) = wgs84_to_cartesian3_single(lng, lat, 0.0);
-            chunk[0] = x;
-            chunk[1] = y;
-            chunk[2] = z;
-        });
+        out.par_chunks_exact_mut(3)
+            .enumerate()
+            .for_each(|(i, chunk)| {
+                let lng = coords[i * 2];
+                let lat = coords[i * 2 + 1];
+                let (x, y, z) = wgs84_to_cartesian3_single(lng, lat, 0.0);
+                chunk[0] = x;
+                chunk[1] = y;
+                chunk[2] = z;
+            });
     }
 
     #[cfg(not(feature = "multi-thread"))]
@@ -103,20 +105,23 @@ impl CesiumMeshGeometry {
 
 /// Generate triangulated mesh from GeoJSON Polygons/MultiPolygons.
 #[wasm_bindgen(js_name = "generateCesiumGeometry")]
-pub fn generate_cesium_geometry(geojson_str: &str, height_property: Option<String>) -> Result<CesiumMeshGeometry, JsValue> {
-    let geojson = geojson_str.parse::<GeoJson>().map_err(|e: geojson::Error| JsValue::from_str(&e.to_string()))?;
+pub fn generate_cesium_geometry(
+    geojson_str: &str,
+    height_property: Option<String>,
+) -> Result<CesiumMeshGeometry, JsValue> {
+    let geojson = geojson_str
+        .parse::<GeoJson>()
+        .map_err(|e: geojson::Error| JsValue::from_str(&e.to_string()))?;
 
     let mut all_positions: Vec<f64> = Vec::new();
     let mut all_indices: Vec<u32> = Vec::new();
     let mut current_vertex_offset = 0;
 
-    let process_polygon = |
-        polygon: &Vec<Vec<Vec<f64>>>,
-        feature_height: f64,
-        positions_buf: &mut Vec<f64>,
-        indices_buf: &mut Vec<u32>,
-        offset: &mut u32
-    | {
+    let process_polygon = |polygon: &Vec<Vec<Vec<f64>>>,
+                           feature_height: f64,
+                           positions_buf: &mut Vec<f64>,
+                           indices_buf: &mut Vec<u32>,
+                           offset: &mut u32| {
         if polygon.is_empty() || polygon[0].is_empty() {
             return;
         }
@@ -144,7 +149,7 @@ pub fn generate_cesium_geometry(geojson_str: &str, height_property: Option<Strin
 
         // Run earcut on 2D
         let raw_indices_result = earcut(&flat_vertices, &hole_indices, 2);
-        
+
         let raw_indices = match raw_indices_result {
             Ok(indices) => indices,
             Err(_) => return, // Skip invalid polygons
@@ -170,16 +175,17 @@ pub fn generate_cesium_geometry(geojson_str: &str, height_property: Option<Strin
         *offset += vertex_count as u32;
     };
 
-    let extract_height = |properties: &Option<geojson::JsonObject>, prop_name_opt: &Option<String>| -> f64 {
-        if let Some(prop_name) = prop_name_opt {
-            if let Some(props) = properties {
-                if let Some(serde_json::Value::Number(num)) = props.get(prop_name) {
-                    return num.as_f64().unwrap_or(0.0);
+    let extract_height =
+        |properties: &Option<geojson::JsonObject>, prop_name_opt: &Option<String>| -> f64 {
+            if let Some(prop_name) = prop_name_opt {
+                if let Some(props) = properties {
+                    if let Some(serde_json::Value::Number(num)) = props.get(prop_name) {
+                        return num.as_f64().unwrap_or(0.0);
+                    }
                 }
             }
-        }
-        0.0
-    };
+            0.0
+        };
 
     match geojson {
         GeoJson::FeatureCollection(fc) => {
@@ -188,11 +194,23 @@ pub fn generate_cesium_geometry(geojson_str: &str, height_property: Option<Strin
                 if let Some(geom) = feature.geometry {
                     match geom.value {
                         Value::Polygon(poly) => {
-                            process_polygon(&poly, feature_height, &mut all_positions, &mut all_indices, &mut current_vertex_offset);
+                            process_polygon(
+                                &poly,
+                                feature_height,
+                                &mut all_positions,
+                                &mut all_indices,
+                                &mut current_vertex_offset,
+                            );
                         }
                         Value::MultiPolygon(multipoly) => {
                             for poly in multipoly {
-                                process_polygon(&poly, feature_height, &mut all_positions, &mut all_indices, &mut current_vertex_offset);
+                                process_polygon(
+                                    &poly,
+                                    feature_height,
+                                    &mut all_positions,
+                                    &mut all_indices,
+                                    &mut current_vertex_offset,
+                                );
                             }
                         }
                         _ => {}
@@ -205,30 +223,52 @@ pub fn generate_cesium_geometry(geojson_str: &str, height_property: Option<Strin
             if let Some(geom) = feature.geometry {
                 match geom.value {
                     Value::Polygon(poly) => {
-                        process_polygon(&poly, feature_height, &mut all_positions, &mut all_indices, &mut current_vertex_offset);
+                        process_polygon(
+                            &poly,
+                            feature_height,
+                            &mut all_positions,
+                            &mut all_indices,
+                            &mut current_vertex_offset,
+                        );
                     }
                     Value::MultiPolygon(multipoly) => {
                         for poly in multipoly {
-                            process_polygon(&poly, feature_height, &mut all_positions, &mut all_indices, &mut current_vertex_offset);
+                            process_polygon(
+                                &poly,
+                                feature_height,
+                                &mut all_positions,
+                                &mut all_indices,
+                                &mut current_vertex_offset,
+                            );
                         }
                     }
                     _ => {}
                 }
             }
         }
-        GeoJson::Geometry(geom) => {
-            match geom.value {
-                Value::Polygon(poly) => {
-                    process_polygon(&poly, 0.0, &mut all_positions, &mut all_indices, &mut current_vertex_offset);
-                }
-                Value::MultiPolygon(multipoly) => {
-                    for poly in multipoly {
-                        process_polygon(&poly, 0.0, &mut all_positions, &mut all_indices, &mut current_vertex_offset);
-                    }
-                }
-                _ => {}
+        GeoJson::Geometry(geom) => match geom.value {
+            Value::Polygon(poly) => {
+                process_polygon(
+                    &poly,
+                    0.0,
+                    &mut all_positions,
+                    &mut all_indices,
+                    &mut current_vertex_offset,
+                );
             }
-        }
+            Value::MultiPolygon(multipoly) => {
+                for poly in multipoly {
+                    process_polygon(
+                        &poly,
+                        0.0,
+                        &mut all_positions,
+                        &mut all_indices,
+                        &mut current_vertex_offset,
+                    );
+                }
+            }
+            _ => {}
+        },
     }
 
     Ok(CesiumMeshGeometry {
@@ -305,20 +345,33 @@ mod tests {
 
         let result = generate_cesium_geometry(geojson, Some("height".to_string())).unwrap();
 
-        // Two polygons, each with 5 vertices (4 unique + closing) → 
+        // Two polygons, each with 5 vertices (4 unique + closing) →
         // positions should be 2 polygons × 5 vertices × 3 components = 30
         assert!(!result.positions.is_empty());
-        assert!(result.positions.len() >= 30, "Expected at least 30 position floats, got {}", result.positions.len());
+        assert!(
+            result.positions.len() >= 30,
+            "Expected at least 30 position floats, got {}",
+            result.positions.len()
+        );
 
         // Each polygon should produce at least 2 triangles (6 indices)
         // Total: at least 12 indices
         assert!(!result.indices.is_empty());
-        assert!(result.indices.len() >= 12, "Expected at least 12 indices, got {}", result.indices.len());
+        assert!(
+            result.indices.len() >= 12,
+            "Expected at least 12 indices, got {}",
+            result.indices.len()
+        );
 
         // Verify indices are within bounds
         let max_idx = *result.indices.iter().max().unwrap();
         let num_vertices = result.positions.len() / 3;
-        assert!(max_idx < num_vertices as u32, "Index {} exceeds vertex count {}", max_idx, num_vertices);
+        assert!(
+            max_idx < num_vertices as u32,
+            "Index {} exceeds vertex count {}",
+            max_idx,
+            num_vertices
+        );
     }
 
     #[test]
