@@ -391,7 +391,10 @@ const GEOHASH_BASE32: &[u8; 32] = b"0123456789bcdefghjkmnpqrstuvwxyz";
 
 /// Decode a single Base32 Geohash character to its 5-bit value.
 fn geohash_char_to_bits(c: char) -> Option<u8> {
-    GEOHASH_BASE32.iter().position(|&b| b == c as u8).map(|i| i as u8)
+    GEOHASH_BASE32
+        .iter()
+        .position(|&b| b == c as u8)
+        .map(|i| i as u8)
 }
 
 /// Encode (longitude, latitude) to a Geohash string with given precision (1-12).
@@ -410,7 +413,7 @@ pub fn geohash_encode(lng: f64, lat: f64, precision: u8) -> String {
 
     for _ in 0..precision {
         for _ in 0..5 {
-            if bit_count % 2 == 0 {
+            if bit_count.is_multiple_of(2) {
                 // Longitude bit
                 let mid = (lng_min + lng_max) / 2.0;
                 if lng >= mid {
@@ -546,13 +549,13 @@ fn geohash_neighbors_core(hash: &str) -> Vec<String> {
     let eps = 1e-10;
 
     vec![
-        geohash_encode(lng, lat + half_h + eps, precision as u8),            // N
+        geohash_encode(lng, lat + half_h + eps, precision as u8), // N
         geohash_encode(lng + half_w + eps, lat + half_h + eps, precision as u8), // NE
-        geohash_encode(lng + half_w + eps, lat, precision as u8),          // E
+        geohash_encode(lng + half_w + eps, lat, precision as u8), // E
         geohash_encode(lng + half_w + eps, lat - half_h - eps, precision as u8), // SE
-        geohash_encode(lng, lat - half_h - eps, precision as u8),            // S
+        geohash_encode(lng, lat - half_h - eps, precision as u8), // S
         geohash_encode(lng - half_w - eps, lat - half_h - eps, precision as u8), // SW
-        geohash_encode(lng - half_w - eps, lat, precision as u8),          // W
+        geohash_encode(lng - half_w - eps, lat, precision as u8), // W
         geohash_encode(lng - half_w - eps, lat + half_h + eps, precision as u8), // NW
     ]
 }
@@ -661,14 +664,22 @@ mod tests {
     fn test_geohash_beijing() {
         // Beijing (116.4, 39.9) → "wx4g0" at precision 5
         let hash = geohash_encode(116.404, 39.915, 5);
-        assert_eq!(hash, "wx4g0", "Beijing geohash should be wx4g0, got {}", hash);
+        assert_eq!(
+            hash, "wx4g0",
+            "Beijing geohash should be wx4g0, got {}",
+            hash
+        );
     }
 
     #[test]
     fn test_geohash_shanghai() {
         // Shanghai (121.47, 31.23) at precision 5
         let hash = geohash_encode(121.4737, 31.2304, 5);
-        assert_eq!(hash, "wtw3s", "Shanghai geohash should be wtw3s, got {}", hash);
+        assert_eq!(
+            hash, "wtw3s",
+            "Shanghai geohash should be wtw3s, got {}",
+            hash
+        );
     }
 
     #[test]
@@ -691,14 +702,8 @@ mod tests {
     fn test_geohash_roundtrip() {
         let (lng, lat, w, h) = geohash_decode_core("wx4g0");
         // Beijing is within ±0.05 degrees of the decoded center
-        assert!(
-            (lng - 116.4).abs() < 0.05,
-            "lng = {lng}, expected ~116.4"
-        );
-        assert!(
-            (lat - 39.9).abs() < 0.05,
-            "lat = {lat}, expected ~39.9"
-        );
+        assert!((lng - 116.4).abs() < 0.05, "lng = {lng}, expected ~116.4");
+        assert!((lat - 39.9).abs() < 0.05, "lat = {lat}, expected ~39.9");
         // Width and height should be reasonable for precision 5
         assert!(w > 0.0 && w < 5.0, "width = {w}");
         assert!(h > 0.0 && h < 5.0, "height = {h}");
@@ -709,7 +714,8 @@ mod tests {
         let neighbors = geohash_neighbors_core("wx4g0");
         assert_eq!(neighbors.len(), 8);
         // All neighbors should be distinct
-        let unique: std::collections::HashSet<&str> = neighbors.iter().map(|s| s.as_str()).collect();
+        let unique: std::collections::HashSet<&str> =
+            neighbors.iter().map(|s| s.as_str()).collect();
         assert_eq!(unique.len(), 8, "All 8 neighbors should be distinct");
         // Original hash should not be among its neighbors
         assert!(!neighbors.contains(&"wx4g0".to_string()));

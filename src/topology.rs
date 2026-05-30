@@ -301,8 +301,8 @@ pub fn is_point_in_ring(point_x: f64, point_y: f64, ring_coords: &js_sys::Float6
 /// Result of building a TIN from scattered 3D points.
 #[wasm_bindgen]
 pub struct TinResult {
-    positions: Vec<f64>,  // flat [x,y,z, x,y,z, ...]
-    indices: Vec<u32>,     // triangle indices [i0,i1,i2, ...]
+    positions: Vec<f64>, // flat [x,y,z, x,y,z, ...]
+    indices: Vec<u32>,   // triangle indices [i0,i1,i2, ...]
 }
 
 #[wasm_bindgen]
@@ -350,9 +350,7 @@ pub fn build_tin(points: &js_sys::Float64Array) -> Result<TinResult, JsValue> {
 
     let n = buf.len() / 3;
     if n < 3 {
-        return Err(JsValue::from_str(
-            "TIN requires at least 3 points",
-        ));
+        return Err(JsValue::from_str("TIN requires at least 3 points"));
     }
 
     let result = bowyer_watson_2d(&buf, n);
@@ -423,6 +421,7 @@ pub fn tin_interpolate(tin: &TinResult, x: f64, y: f64) -> f64 {
 struct Point2D {
     x: f64,
     y: f64,
+    #[allow(dead_code)]
     idx: usize, // original index in the positions array
 }
 
@@ -463,6 +462,7 @@ impl Triangle {
         d_sq < r_sq
     }
 
+    #[allow(dead_code)]
     fn contains_vertex(&self, v: usize) -> bool {
         self.a == v || self.b == v || self.c == v
     }
@@ -481,14 +481,7 @@ fn bowyer_watson_2d(coords: &[f64], n: usize) -> TinResult {
     // Super triangle that encompasses all points
     let (min_x, max_x, min_y, max_y) = pts2d.iter().fold(
         (f64::MAX, f64::MIN, f64::MAX, f64::MIN),
-        |(mn_x, mx_x, mn_y, mx_y), p| {
-            (
-                mn_x.min(p.x),
-                mx_x.max(p.x),
-                mn_y.min(p.y),
-                mx_y.max(p.y),
-            )
-        },
+        |(mn_x, mx_x, mn_y, mx_y), p| (mn_x.min(p.x), mx_x.max(p.x), mn_y.min(p.y), mx_y.max(p.y)),
     );
 
     let dx = max_x - min_x;
@@ -569,18 +562,12 @@ fn bowyer_watson_2d(coords: &[f64], n: usize) -> TinResult {
 
         // Create new triangles from polygon edges to the new point
         for (ea, eb) in polygon {
-            triangles.push(Triangle {
-                a: ea,
-                b: eb,
-                c: i,
-            });
+            triangles.push(Triangle { a: ea, b: eb, c: i });
         }
     }
 
     // Remove triangles that share vertices with the super triangle
-    triangles.retain(|tri| {
-        tri.a < n && tri.b < n && tri.c < n
-    });
+    triangles.retain(|tri| tri.a < n && tri.b < n && tri.c < n);
 
     // Build output
     let mut positions_out = Vec::with_capacity(n * 3);
@@ -884,12 +871,7 @@ mod tests {
     #[test]
     fn test_tin_four_points() {
         // 4 points forming 2 triangles
-        let coords = vec![
-            0.0, 0.0, 1.0,
-            1.0, 0.0, 2.0,
-            0.0, 1.0, 3.0,
-            1.0, 1.0, 4.0,
-        ];
+        let coords = vec![0.0, 0.0, 1.0, 1.0, 0.0, 2.0, 0.0, 1.0, 3.0, 1.0, 1.0, 4.0];
         let result = native_build_tin(&coords);
         assert_eq!(result.vertex_count(), 4);
         assert!(result.triangle_count() >= 2);
