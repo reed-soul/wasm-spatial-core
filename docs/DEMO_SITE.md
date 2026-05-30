@@ -39,11 +39,9 @@
 3. Branch: **`gh-pages`**，目录: **`/ (root)`** → **Save**
 4. 等待 1～3 分钟
 
-### 临时镜像（未开 Pages 时也可试用）
+### 不要用 jsDelivr 打开 HTML
 
-jsDelivr 会同步 `gh-pages` 分支（适合先体验，域名不同）：
-
-- 演示中心：https://cdn.jsdelivr.net/gh/reed-soul/wasm-spatial-core@gh-pages/examples/index.html
+`cdn.jsdelivr.net/gh/.../index.html` 的 `Content-Type` 是 `text/plain`，浏览器只会显示源码，**WASM 不会执行**。详见 [PAGES_SETUP.md](./PAGES_SETUP.md)。
 
 ### 访问地址
 
