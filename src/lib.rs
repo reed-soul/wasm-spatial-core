@@ -42,6 +42,7 @@ mod point_cloud;
 mod point_cloud_stream;
 
 mod ply;
+mod obj;
 
 // Re-export core functions for integration testing and advanced usage
 pub use coordinate::{
