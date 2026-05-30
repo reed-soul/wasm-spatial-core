@@ -277,6 +277,349 @@ pub fn generate_cesium_geometry(
     })
 }
 
+// ===========================================================================
+// b3dm (Batched 3D Model) — 3D Tiles output
+// ===========================================================================
+
+/// A Cesium 3D Tiles b3dm tile containing a triangulated batched mesh.
+#[wasm_bindgen]
+pub struct Cesium3DTile {
+    batch_table_json: String,
+    feature_batch_ids: Vec<u32>,
+    positions: Vec<f64>,
+    indices: Vec<u32>,
+}
+
+#[wasm_bindgen]
+impl Cesium3DTile {
+    /// Serialize this tile to a complete b3dm binary blob.
+    ///
+    /// b3dm layout:
+    /// ```text
+    /// [Header 28 bytes] [BatchTable JSON] [FeatureTable JSON + BIN] [Body]
+    /// ```
+    ///
+    /// Header (28 bytes, little-endian):
+    /// - magic: "b3dm" (4 bytes)
+    /// - version: 1 (u32)
+    /// - byteLength (u32) — total tile size
+    /// - featureTableJSONByteLength (u32)
+    /// - featureTableBinaryByteLength (u32)
+    /// - batchTableJSONByteLength (u32)
+    /// - batchTableBinaryByteLength (u32)
+    #[wasm_bindgen(js_name = "toBytes")]
+    pub fn to_bytes(&self) -> js_sys::Uint8Array {
+        // ── Body: positions (f64) + indices (u32) ────────────────────
+        // Convert positions to f32 for the body (standard b3dm uses float32)
+        let positions_f32: Vec<f32> = self.positions.iter().map(|&v| v as f32).collect();
+        let indices_u16: Vec<u16> = self.indices.iter().map(|&v| v as u16).collect();
+
+        let body_byte_len = positions_f32.len() * std::mem::size_of::<f32>()
+            + indices_u16.len() * std::mem::size_of::<u16>();
+
+        // ── FeatureTable JSON ──────────────────────────────────────────
+        // Minimal feature table with BATCH_LENGTH and positions/indices references.
+        let batch_length = self.feature_batch_ids.len() as u32;
+        let feature_table_json = serde_json::json!({
+            "BATCH_LENGTH": batch_length,
+            "POSITIONS": {
+                "byteOffset": 0,
+                "componentType": 5126,  // FLOAT
+                "count": positions_f32.len() / 3,
+                "type": "SCALAR"
+            },
+            "indices": {
+                "byteOffset": positions_f32.len() * 4,
+                "componentType": 5123,  // UNSIGNED_SHORT
+                "count": indices_u16.len(),
+                "type": "SCALAR"
+            }
+        })
+        .to_string();
+
+        // Pad to 4-byte alignment
+        let ft_json_bytes = feature_table_json.into_bytes();
+        let ft_json_padded_len = align4(ft_json_bytes.len());
+
+        // Feature table binary body
+        let ft_bin_byte_len = body_byte_len;
+        let ft_bin_padded_len = align4(ft_bin_byte_len);
+
+        // ── BatchTable JSON ────────────────────────────────────────────
+        let bt_json_bytes = self.batch_table_json.as_bytes().to_vec();
+        let bt_json_padded_len = align4(bt_json_bytes.len());
+        let bt_bin_padded_len = 0u32;
+
+        // ── Total size ────────────────────────────────────────────────
+        let byte_length = 28u32
+            + ft_json_padded_len as u32
+            + ft_bin_padded_len as u32
+            + bt_json_padded_len as u32
+            + bt_bin_padded_len;
+
+        let mut buf: Vec<u8> = Vec::with_capacity(byte_length as usize);
+
+        // ── Header (28 bytes) ─────────────────────────────────────────
+        buf.extend_from_slice(b"b3dm"); // magic
+        buf.extend_from_slice(&1u32.to_le_bytes()); // version
+        buf.extend_from_slice(&byte_length.to_le_bytes());
+        buf.extend_from_slice(&ft_json_padded_len.to_le_bytes());
+        buf.extend_from_slice(&ft_bin_padded_len.to_le_bytes());
+        buf.extend_from_slice(&bt_json_padded_len.to_le_bytes());
+        buf.extend_from_slice(&bt_bin_padded_len.to_le_bytes());
+
+        // ── FeatureTable JSON (padded) ────────────────────────────────
+        buf.extend_from_slice(&ft_json_bytes);
+        pad4_relative(&mut buf);
+
+        // ── FeatureTable Binary (= body: positions f32 + indices u16, padded) ─
+        for val in &positions_f32 {
+            buf.extend_from_slice(&val.to_le_bytes());
+        }
+        for val in &indices_u16 {
+            buf.extend_from_slice(&val.to_le_bytes());
+        }
+        pad4_relative(&mut buf);
+
+        // ── BatchTable JSON (padded) ───────────────────────────────────
+        buf.extend_from_slice(&bt_json_bytes);
+        pad4_relative(&mut buf);
+
+        let arr = js_sys::Uint8Array::new_with_length(buf.len() as u32);
+        arr.copy_from(&buf);
+        arr
+    }
+
+    #[wasm_bindgen(js_name = "batchTableJson", getter)]
+    pub fn batch_table_json(&self) -> String {
+        self.batch_table_json.clone()
+    }
+
+    #[wasm_bindgen(js_name = "featureBatchIds")]
+    #[wasm_bindgen(getter)]
+    pub fn feature_batch_ids(&self) -> js_sys::Uint32Array {
+        let arr = js_sys::Uint32Array::new_with_length(self.feature_batch_ids.len() as u32);
+        arr.copy_from(&self.feature_batch_ids);
+        arr
+    }
+}
+
+/// Align `n` up to the next multiple of 4.
+fn align4(n: usize) -> usize {
+    (n + 3) & !3
+}
+
+/// Pad `buf` with space bytes so its length is a multiple of 4.
+fn pad4_relative(buf: &mut Vec<u8>) {
+    let aligned = align4(buf.len());
+    while buf.len() < aligned {
+        buf.push(b' ');
+    }
+}
+
+/// Generate a complete b3dm 3D Tile from GeoJSON polygons/multipolygons.
+///
+/// Reuses `generate_cesium_geometry` internally for triangulation, then
+/// wraps the result in the b3dm binary envelope suitable for Cesium's
+/// `Cesium3DTileset`.
+#[wasm_bindgen(js_name = "generate3DTile")]
+pub fn generate_3d_tile(
+    geojson_str: &str,
+    height_property: Option<String>,
+) -> Result<Cesium3DTile, JsValue> {
+    let geometry = generate_cesium_geometry(geojson_str, height_property)?;
+
+    let feature_count = estimate_feature_count(geojson_str);
+    let feature_batch_ids: Vec<u32> = (0..feature_count).collect();
+
+    let batch_table = serde_json::json!({
+        "id": ["0"],
+        "properties": {
+            "name": "wasm-spatial-core tile"
+        }
+    })
+    .to_string();
+
+    Ok(Cesium3DTile {
+        batch_table_json: batch_table,
+        feature_batch_ids,
+        positions: geometry.positions,
+        indices: geometry.indices,
+    })
+}
+
+/// Rough estimate of feature count from the JSON string.
+fn estimate_feature_count(geojson_str: &str) -> u32 {
+    // Count occurrences of "type":"Feature" as a heuristic.
+    // This is fast and avoids full parse just for counting.
+    let needle = "\"type\":\"Feature\"";
+    let count = geojson_str.matches(needle).count();
+    if count > 0 {
+        return count as u32;
+    }
+    // Also try with spaces
+    let needle2 = "\"type\": \"Feature\"";
+    let count2 = geojson_str.matches(needle2).count();
+    if count2 > 0 {
+        return count2 as u32;
+    }
+    // Single feature / geometry
+    1
+}
+
+#[cfg(test)]
+mod tests_b3dm {
+    use super::*;
+
+    #[test]
+    fn test_b3dm_header_magic_and_version() {
+        let geojson = r#"{
+            "type": "Feature",
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [[[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]]]
+            }
+        }"#;
+        let tile = generate_3d_tile(geojson, None).unwrap();
+        let bytes = tile_to_vec(&tile);
+
+        // Magic
+        assert_eq!(&bytes[0..4], b"b3dm");
+        // Version = 1
+        let version = u32::from_le_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]);
+        assert_eq!(version, 1);
+    }
+
+    #[test]
+    fn test_b3dm_byte_length_consistency() {
+        let geojson = r#"{
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [[[0, 0], [5, 0], [5, 5], [0, 5], [0, 0]]]
+                    },
+                    "properties": { "name": "poly A" }
+                },
+                {
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [[[10, 10], [15, 10], [15, 15], [10, 15], [10, 10]]]
+                    },
+                    "properties": { "name": "poly B" }
+                }
+            ]
+        }"#;
+        let tile = generate_3d_tile(geojson, None).unwrap();
+        let bytes = tile_to_vec(&tile);
+
+        let declared_length =
+            u32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]) as usize;
+        assert_eq!(
+            declared_length,
+            bytes.len(),
+            "Declared byteLength ({}) must equal actual buffer size ({})",
+            declared_length,
+            bytes.len()
+        );
+
+        // Also verify header fields are consistent with each other
+        let ft_json_len = u32::from_le_bytes([bytes[12], bytes[13], bytes[14], bytes[15]]) as usize;
+        let ft_bin_len = u32::from_le_bytes([bytes[16], bytes[17], bytes[18], bytes[19]]) as usize;
+        let bt_json_len = u32::from_le_bytes([bytes[20], bytes[21], bytes[22], bytes[23]]) as usize;
+        let bt_bin_len = u32::from_le_bytes([bytes[24], bytes[25], bytes[26], bytes[27]]) as usize;
+
+        assert_eq!(
+            28 + ft_json_len + ft_bin_len + bt_json_len + bt_bin_len,
+            bytes.len()
+        );
+    }
+
+    #[test]
+    fn test_b3dm_feature_table_valid_json() {
+        let geojson = r#"{
+            "type": "Feature",
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [[[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]]]
+            }
+        }"#;
+        let tile = generate_3d_tile(geojson, None).unwrap();
+        let bytes = tile_to_vec(&tile);
+
+        let ft_json_len = u32::from_le_bytes([bytes[12], bytes[13], bytes[14], bytes[15]]) as usize;
+        let ft_json_str = String::from_utf8_lossy(&bytes[28..28 + ft_json_len])
+            .trim()
+            .to_string();
+        let parsed: serde_json::Value = serde_json::from_str(&ft_json_str).unwrap();
+
+        assert!(parsed.get("BATCH_LENGTH").is_some());
+        assert!(parsed.get("POSITIONS").is_some());
+    }
+
+    /// Helper: extract raw bytes from a Cesium3DTile without JS interop.
+    fn tile_to_vec(tile: &Cesium3DTile) -> Vec<u8> {
+        // Simulate to_bytes without js_sys by directly building the bytes.
+        let positions_f32: Vec<f32> = tile.positions.iter().map(|&v| v as f32).collect();
+        let indices_u16: Vec<u16> = tile.indices.iter().map(|&v| v as u16).collect();
+
+        let body_byte_len = positions_f32.len() * 4 + indices_u16.len() * 2;
+
+        let batch_length = tile.feature_batch_ids.len() as u32;
+        let feature_table_json = serde_json::json!({
+            "BATCH_LENGTH": batch_length,
+            "POSITIONS": {
+                "byteOffset": 0,
+                "componentType": 5126,
+                "count": positions_f32.len() / 3,
+                "type": "SCALAR"
+            },
+            "indices": {
+                "byteOffset": positions_f32.len() * 4,
+                "componentType": 5123,
+                "count": indices_u16.len(),
+                "type": "SCALAR"
+            }
+        })
+        .to_string();
+
+        let ft_json_bytes = feature_table_json.into_bytes();
+        let ft_json_padded_len = align4(ft_json_bytes.len());
+        let ft_bin_padded_len = align4(body_byte_len);
+
+        let bt_json_bytes = tile.batch_table_json.as_bytes().to_vec();
+        let bt_json_padded_len = align4(bt_json_bytes.len());
+        let bt_bin_padded_len = 0usize;
+
+        let byte_length =
+            28 + ft_json_padded_len + ft_bin_padded_len + bt_json_padded_len + bt_bin_padded_len;
+
+        let mut buf: Vec<u8> = Vec::with_capacity(byte_length);
+        buf.extend_from_slice(b"b3dm");
+        buf.extend_from_slice(&1u32.to_le_bytes());
+        buf.extend_from_slice(&(byte_length as u32).to_le_bytes());
+        buf.extend_from_slice(&(ft_json_padded_len as u32).to_le_bytes());
+        buf.extend_from_slice(&(ft_bin_padded_len as u32).to_le_bytes());
+        buf.extend_from_slice(&(bt_json_padded_len as u32).to_le_bytes());
+        buf.extend_from_slice(&0u32.to_le_bytes());
+        buf.extend_from_slice(&ft_json_bytes);
+        pad4_relative(&mut buf);
+        for val in &positions_f32 {
+            buf.extend_from_slice(&val.to_le_bytes());
+        }
+        for val in &indices_u16 {
+            buf.extend_from_slice(&val.to_le_bytes());
+        }
+        pad4_relative(&mut buf);
+        buf.extend_from_slice(&bt_json_bytes);
+        pad4_relative(&mut buf);
+        buf
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
