@@ -29,17 +29,15 @@ mod point_cloud;
 
 // Re-export core functions for integration testing and advanced usage
 pub use coordinate::{
-    batch_wgs84_to_gcj02_in_place, batch_gcj02_to_wgs84_in_place,
-    batch_wgs84_to_bd09_in_place, batch_bd09_to_wgs84_in_place,
-    batch_gcj02_to_bd09_in_place, batch_bd09_to_gcj02_in_place,
-    batch_wgs84_to_mercator_in_place, batch_mercator_to_wgs84_in_place,
+    batch_bd09_to_gcj02_in_place, batch_bd09_to_wgs84_in_place, batch_gcj02_to_bd09_in_place,
+    batch_gcj02_to_wgs84_in_place, batch_mercator_to_wgs84_in_place, batch_wgs84_to_bd09_in_place,
+    batch_wgs84_to_gcj02_in_place, batch_wgs84_to_mercator_in_place,
 };
 
 #[cfg(feature = "point-cloud")]
 pub use point_cloud::{
-    parse_las_header_core, parse_las_points_core,
-    voxel_grid_decimate_core, random_decimate_core,
-    read_f64_le, read_u32_le, read_u16_le,
+    parse_las_header_core, parse_las_points_core, random_decimate_core, read_f64_le, read_u16_le,
+    read_u32_le, voxel_grid_decimate_core,
 };
 
 pub use ifc_reader::{parse_ifc_geometry_core, IfcGeometryResult, IfcMesh};
@@ -74,7 +72,7 @@ pub fn memory_info() -> MemoryInfo {
     let total = wasm_memory_total();
     MemoryInfo {
         total,
-        used: total, // approximation
+        used: total,  // approximation
         remaining: 0, // approximation
     }
 }
@@ -113,8 +111,8 @@ fn wasm_memory_total() -> usize {
     #[cfg(target_arch = "wasm32")]
     {
         let mem = wasm_bindgen::memory();
-        let buffer = js_sys::Reflect::get(&mem, &"buffer".into())
-            .expect("memory.buffer should exist");
+        let buffer =
+            js_sys::Reflect::get(&mem, &"buffer".into()).expect("memory.buffer should exist");
         let byte_length = js_sys::Reflect::get(&buffer, &"byteLength".into())
             .expect("buffer.byteLength should exist");
         byte_length.as_f64().expect("byteLength should be a number") as usize
