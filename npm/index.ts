@@ -147,6 +147,21 @@ export {
   IfcMesh,
   // ── glTF / GLB Writer ──────────────────────────────────────
   GltfBuilder,
+  pointCloudToGlb,
+  terrainToGlb,
+  meshToGlb,
+  // ── GeoTIFF / Terrain ──────────────────────────────────────
+  parseGeotiff,
+  encodeQuantizedMesh,
+  encodeTerrainTileset,
+  ColorRamp,
+  hillshade,
+  contourLines,
+  // ── Web Worker ──────────────────────────────────────────────
+  WorkerHandle,
+  WorkerOptions,
+  supportsWorker,
+  processChunked,
   // ── TIN & Interpolation ───────────────────────────────────
   buildTin,
   tinInterpolate,
