@@ -1700,6 +1700,24 @@ export function dracoStatus(): string;
 export function e57Status(): string;
 
 /**
+ * WASM-exported b3dm encoder.
+ *
+ * # Arguments
+ * * `glb_bytes` — Uint8Array containing a complete GLB.
+ * * `batch_length` — Number of batches (default 1).
+ * * `batch_table_json` — Optional JSON string for batch table metadata.
+ *
+ * # Returns
+ * Uint8Array containing the `.b3dm` binary.
+ */
+export function encodeB3dmTile(glb_bytes: Uint8Array, batch_length: number, batch_table_json?: string | null): Uint8Array;
+
+/**
+ * WASM-exported i3dm encoder.
+ */
+export function encodeI3dmTile(glb_bytes: Uint8Array, positions: Float32Array, orientations?: Float32Array | null, scales?: Float32Array | null): Uint8Array;
+
+/**
  * WASM export: encode a single normal to Oct16 (for testing/visualization).
  */
 export function encodeOct16Normal(nx: number, ny: number, nz: number): number;
@@ -2111,6 +2129,59 @@ export function meshToGlb(vertices: Float32Array, indices: Uint32Array, normals?
  * Returns `Float64Array` `[lng, lat]` of the midpoint.
  */
 export function midpoint(lng1: number, lat1: number, lng2: number, lat2: number): Float64Array;
+
+/**
+ * Parse an MVT tile and return layer metadata as a JSON string.
+ *
+ * Returns information about all layers in the tile: name, extent,
+ * feature count, and geometry type distribution.
+ *
+ * ## Parameters
+ *
+ * - `bytes` — Raw MVT protobuf bytes.
+ *
+ * ## Returns
+ *
+ * A JSON string with layer info:
+ * ```json
+ * [{"name":"layer_name","extent":4096,"version":2,"featureCount":42,"geometryTypes":{"point":10,"linestring":20,"polygon":12}}]
+ * ```
+ *
+ * ## Usage (JS)
+ *
+ * ```js
+ * const info = mvtLayerInfo(new Uint8Array(buffer));
+ * // info = '[{"name":"water","extent":4096,"featureCount":23,...}]'
+ * ```
+ */
+export function mvtLayerInfo(bytes: Uint8Array): string;
+
+/**
+ * Decode an MVT tile and convert all features to GeoJSON with WGS84 coordinates.
+ *
+ * Transforms tile-space coordinates to geographic WGS84 (longitude, latitude)
+ * using the Web Mercator (EPSG:3857) inverse projection.
+ *
+ * ## Parameters
+ *
+ * - `bytes` — Raw MVT protobuf bytes.
+ * - `extent` — Tile extent (typically 4096).
+ * - `x` — Tile column (x coordinate in the slippy map scheme).
+ * - `y` — Tile row (y coordinate in the slippy map scheme).
+ * - `z` — Zoom level.
+ *
+ * ## Returns
+ *
+ * A GeoJSON FeatureCollection string with WGS84 coordinates.
+ *
+ * ## Usage (JS)
+ *
+ * ```js
+ * const response = await fetch('/tiles/10/868/387.pbf');
+ * const geojson = mvtToGeoJson(new Uint8Array(await response.arrayBuffer()), 4096, 868, 387, 10);
+ * ```
+ */
+export function mvtToGeoJson(bytes: Uint8Array, extent: number, x: number, y: number, z: number): string;
 
 /**
  * Normalize coordinates to [0,1] range.
@@ -2977,6 +3048,8 @@ export interface InitOutput {
     readonly disjoint: (a: number, b: number) => number;
     readonly dracoStatus: (a: number) => void;
     readonly e57Status: (a: number) => void;
+    readonly encodeB3dmTile: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly encodeI3dmTile: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly encodeOct16Normal: (a: number, b: number, c: number) => number;
     readonly encodePntsTile: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
     readonly encodePntsTileWithNormals: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => void;
@@ -3058,6 +3131,8 @@ export interface InitOutput {
     readonly memoryinfo_used: (a: number) => number;
     readonly meshToGlb: (a: number, b: number, c: number) => number;
     readonly midpoint: (a: number, b: number, c: number, d: number) => number;
+    readonly mvtLayerInfo: (a: number, b: number) => void;
+    readonly mvtToGeoJson: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly mvtfeaturedecoded_geometry: (a: number) => number;
     readonly mvtfeaturedecoded_geometry_type: (a: number) => number;
     readonly mvtfeaturedecoded_id: (a: number) => number;
@@ -3226,16 +3301,16 @@ export interface InitOutput {
     readonly tinresult_vertexCount: (a: number) => number;
     readonly tinresult_triangleCount: (a: number) => number;
     readonly pcdpointcloud_pointCount: (a: number) => number;
-    readonly ifcmesh_positions: (a: number) => number;
     readonly tinresult_positions: (a: number) => number;
-    readonly pcdpointcloud_positions: (a: number) => number;
+    readonly ifcmesh_positions: (a: number) => number;
     readonly tinresult_indices: (a: number) => number;
+    readonly pcdpointcloud_positions: (a: number) => number;
     readonly ifcmesh_indices: (a: number) => number;
     readonly __wbg_pcdpointcloud_free: (a: number, b: number) => void;
     readonly pcdpointcloud_colors: (a: number) => number;
-    readonly __wasm_bindgen_func_elem_3249: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_3251: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_948: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_3270: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_3272: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_956: (a: number, b: number, c: number) => void;
     readonly __wbindgen_export: (a: number, b: number) => number;
     readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_export3: (a: number) => void;
