@@ -65,6 +65,43 @@ LAZ decompression is near-instant at this scale — the `laz` crate uses vectori
 > Note: JS benchmarks are approximate from published reports and may vary by engine/device.
 > WASM consistently achieves 5–10× speedup on compute-heavy operations.
 
+## WASM Build (wasm-pack 0.14.0)
+
+| Metric | Value |
+|--------|-------|
+| Target | `wasm32-unknown-unknown` (web) |
+| Features | `point-cloud`, `geotiff` |
+| WASM binary | 1.24 MB |
+| JS glue | 246 KB |
+| TypeScript d.ts | 3,344 lines |
+| Exported functions | 174 |
+| Exported classes | 30 |
+| Build time | ~7.6 s (incremental) |
+
+### Build Commands
+
+```bash
+# Web target (bundler / ESM)
+wasm-pack build --target web --features point-cloud,geotiff
+
+# Node.js target (for smoke tests)
+wasm-pack build --target nodejs --features point-cloud,geotiff
+```
+
+### Smoke Test
+
+```bash
+node tests/wasm_smoke_test.mjs  # 47 API tests, all pass in <1s
+```
+
+### Demo Server
+
+```bash
+./scripts/serve_demo.sh          # http://localhost:8080
+```
+
+> `pkg/` is git-ignored (build artifact). Rebuild after `git clone`.
+
 ## Running Benchmarks
 
 ```bash
