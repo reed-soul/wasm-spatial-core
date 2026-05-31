@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-06-01
+
+### Added
+- **GeoTIFF terrain decoder** (`src/geotiff.rs`) — Hand-written TIFF/GeoTIFF parser with zero external TIFF dependencies. Supports:
+  - Float32, Uint16, Uint8 elevation grids
+  - Strip-organized and tile-organized layouts
+  - Uncompressed and DEFLATE/ZLib compression (LZW marked as TODO)
+  - GeoKey metadata parsing (GTModelType, GeographicType, etc.)
+  - Geographic bounds, resolution, and CRS extraction
+- **Quantized-mesh encoder** — Cesium terrain tile binary format. Encodes height matrices into quantized-mesh tiles with:
+  - 88-byte header (center ECEF, min/max height, oct-normal, water mask)
+  - Quantized vertex coordinates (uint16)
+  - Triangle indices (uint16 or uint32 based on vertex count)
+  - Edge indices (west, south, east, north borders)
+- **Terrain tileset generator** — `encodeTerrainTileset()` generates tileset.json + quantized-mesh tile pyramid with LOD levels. Each level downsamples 2× automatically.
+- **Terrain demo** (`examples/terrain-demo/index.html`) — Three.js-based GeoTIFF terrain viewer with:
+  - Drag-and-drop file loading
+  - Height gradient coloring (blue → green → yellow → red → white)
+  - Interactive OrbitControls (rotate, zoom, pan)
+  - Height scale slider and color mode selection
+  - Built-in demo terrain generator (128×128 procedural terrain)
+- **WASM exports**: `parseGeotiff()`, `parseGeotiffTile()`, `encodeQuantizedMesh()`, `encodeTerrainTileset()`, `supportsGeotiff()`, `geotiffStatus()`
+- **New dependency**: `flate2` 1.1 for DEFLATE/ZLib decompression (pure Rust, WASM-compatible)
+- **New feature flag**: `geotiff`
+
+### Changed
+- Test count: 460 → 455 (refactored GeoTIFF tests to use core functions for native targets)
+- Total lines: ~24737 → ~27000
+
 ## [0.4.0] - 2026-05-31
 
 ### Added

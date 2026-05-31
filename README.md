@@ -33,11 +33,11 @@
 
 ## ✨ What is this?
 
-🚀 **LAS/LAZ/COPC/E57/PLY/OBJ → 3D Tiles** in the browser
+🚀 **LAS/LAZ/COPC/E57/PLY/OBJ → 3D Tiles + GeoTIFF → Terrain** in the browser
 ⚡ **10M points in seconds**, not minutes
 🔒 **Zero server, zero upload, zero dependencies** — your data never leaves the device
 
-`wasm-spatial-core` is a high-performance WebAssembly engine that moves heavy spatial computing from the server to the browser. Point cloud parsing, octree spatial partitioning, 3D Tiles generation, coordinate projection, GeoJSON processing — all compiled from Rust for near-native performance.
+`wasm-spatial-core` is a high-performance WebAssembly engine that moves heavy spatial computing from the server to the browser. Point cloud parsing, octree spatial partitioning, 3D Tiles generation, GeoTIFF terrain decoding, quantized-mesh encoding, coordinate projection, GeoJSON processing — all compiled from Rust for near-native performance.
 
 ---
 
@@ -83,6 +83,30 @@ wasm-pack build --target web --release --out-dir pkg -- --features point-cloud
 > Drag a LAS/LAZ file into the browser → get a Cesium-ready 3D Tiles tileset.
 > **Zero server, zero upload, zero dependencies.**
 
+## 🏔️ Core Capability: GeoTIFF → Terrain Tiles
+
+> Drag a GeoTIFF elevation file into the browser → get Cesium quantized-mesh terrain tiles.
+> **Hand-written parser, zero external TIFF dependencies, WASM-optimized.**
+
+```
+File Drop (GeoTIFF .tif)
+        │
+        ▼
+  ┌──────────────┐
+  │ GeoTIFF Parser │  ← Float32/16/8, strip/tile, DEFLATE
+  └──────┬───────┘
+         │
+         ▼
+  ┌──────────────┐
+  │ Quantized-Mesh │  ← Cesium terrain binary format
+  └──────┬───────┘
+         │
+         ▼
+  ┌──────────────┐
+  │ tileset.json   │  ← LOD pyramid (zoom 0..N)
+  └───────────────┘
+```
+
 ```
 File Drop (LAS/LAZ/COPC/E57/PLY/OBJ)
         │
@@ -120,6 +144,7 @@ File Drop (LAS/LAZ/COPC/E57/PLY/OBJ)
 | Interactive GeoJSON + CRS + R-tree | https://reed-soul.github.io/wasm-spatial-core/examples/demo/index.html |
 | **Three.js Point Cloud** | https://reed-soul.github.io/wasm-spatial-core/examples/point-cloud-demo/index.html |
 | **Cesium 3D Tiles Point Cloud** | https://reed-soul.github.io/wasm-spatial-core/examples/point-cloud-cesium/index.html |
+| **Terrain Viewer (GeoTIFF)** | https://reed-soul.github.io/wasm-spatial-core/examples/terrain-demo/index.html |
 | WASM vs JS benchmark | https://reed-soul.github.io/wasm-spatial-core/bench/browser/index.html |
 
 Run locally: `npm run demo` (builds `pkg/` and serves on port 8080).
@@ -149,9 +174,11 @@ Run locally: `npm run demo` (builds `pkg/` and serves on port 8080).
 | WKT / WKB | ✅ | ✅ |
 | TopoJSON | ✅ | — |
 | GPX | ✅ | — |
+| GeoTIFF (Terrain) | ✅ | — |
 | glTF 2.0 / GLB | — | ✅ |
 | 3D Tiles (b3dm) | — | ✅ |
 | 3D Tiles (pnts) | — | ✅ |
+| 3D Tiles (quantized-mesh) | — | ✅ |
 
 ### Coordinate Systems
 
