@@ -276,20 +276,19 @@ fn test_pipeline_las_header_range_access() {
 
     let mut buf = vec![0u8; header_size as usize];
     buf[0..4].copy_from_slice(b"LASF");
-    buf[96..98].copy_from_slice(&(header_size as u16).to_le_bytes());
-    buf[98..102].copy_from_slice(&header_size.to_le_bytes()); // point offset = header_size
-    buf[106] = point_format;
-    buf[108..110].copy_from_slice(&record_len.to_le_bytes());
-    buf[110..114].copy_from_slice(&num_points.to_le_bytes());
-    buf[134..142].copy_from_slice(&1.0f64.to_le_bytes());
-    buf[142..150].copy_from_slice(&1.0f64.to_le_bytes());
-    buf[150..158].copy_from_slice(&1.0f64.to_le_bytes());
-    buf[182..190].copy_from_slice(&90.0f64.to_le_bytes());
-    buf[190..198].copy_from_slice(&90.0f64.to_le_bytes());
-    buf[198..206].copy_from_slice(&90.0f64.to_le_bytes());
-    buf[206..214].copy_from_slice(&10.0f64.to_le_bytes());
-    buf[214..222].copy_from_slice(&20.0f64.to_le_bytes());
-    buf[222..230].copy_from_slice(&30.0f64.to_le_bytes());
+    buf[96..100].copy_from_slice(&header_size.to_le_bytes()); // point offset = header_size
+    buf[104] = point_format;
+    buf[105..107].copy_from_slice(&record_len.to_le_bytes());
+    buf[107..111].copy_from_slice(&num_points.to_le_bytes());
+    buf[131..139].copy_from_slice(&1.0f64.to_le_bytes());
+    buf[139..147].copy_from_slice(&1.0f64.to_le_bytes());
+    buf[147..155].copy_from_slice(&1.0f64.to_le_bytes());
+    buf[179..187].copy_from_slice(&90.0f64.to_le_bytes()); // max_x
+    buf[187..195].copy_from_slice(&90.0f64.to_le_bytes()); // max_y
+    buf[195..203].copy_from_slice(&90.0f64.to_le_bytes()); // max_z
+    buf[203..211].copy_from_slice(&10.0f64.to_le_bytes()); // min_x
+    buf[211..219].copy_from_slice(&20.0f64.to_le_bytes()); // min_y
+    buf[219..227].copy_from_slice(&30.0f64.to_le_bytes()); // min_z
 
     for &(x, y, z) in &points {
         let base = buf.len();
@@ -304,8 +303,8 @@ fn test_pipeline_las_header_range_access() {
     assert_eq!(header.point_format_id(), 0);
     assert_eq!(header.point_data_record_length(), 20);
 
-    let p_offset = read_u32_le(&buf, 98);
-    let p_record_len = read_u16_le(&buf, 108);
+    let p_offset = read_u32_le(&buf, 96);
+    let p_record_len = read_u16_le(&buf, 105);
     for i in 0..3u32 {
         let expected = p_offset as usize + i as usize * p_record_len as usize;
         assert_eq!(expected, 230 + i as usize * 20);

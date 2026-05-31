@@ -2809,65 +2809,7 @@ pub(crate) fn point_cloud_centroid_core(positions: &[f32]) -> (f64, f64, f64) {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-
-    /// Build a minimal valid LAS 1.2 header (227 bytes) with format 0 or 2,
-    /// followed by point data.
-    fn build_test_las_blob(points: &[(f64, f64, f64)], has_color: bool) -> Vec<u8> {
-        let num_points = points.len() as u32;
-        let header_size = 230u32;
-        let point_offset = header_size;
-        let point_format: u8 = if has_color { 2 } else { 0 };
-        let record_len: u16 = if has_color { 26 } else { 20 };
-
-        let (mut min_x, mut min_y, mut min_z) = (f64::MAX, f64::MAX, f64::MAX);
-        let (mut max_x, mut max_y, mut max_z) = (f64::MIN, f64::MIN, f64::MIN);
-        for &(x, y, z) in points {
-            min_x = min_x.min(x);
-            min_y = min_y.min(y);
-            min_z = min_z.min(z);
-            max_x = max_x.max(x);
-            max_y = max_y.max(y);
-            max_z = max_z.max(z);
-        }
-
-        let x_scale = 1.0_f64;
-        let y_scale = 1.0_f64;
-        let z_scale = 1.0_f64;
-
-        let mut buf = vec![0u8; header_size as usize];
-        buf[0..4].copy_from_slice(b"LASF");
-        buf[24] = 1; // version major
-        buf[25] = 2; // version minor
-        buf[96..100].copy_from_slice(&point_offset.to_le_bytes());
-        buf[104] = point_format;
-        buf[105..107].copy_from_slice(&record_len.to_le_bytes());
-        buf[107..111].copy_from_slice(&num_points.to_le_bytes());
-        buf[131..139].copy_from_slice(&x_scale.to_le_bytes());
-        buf[139..147].copy_from_slice(&y_scale.to_le_bytes());
-        buf[147..155].copy_from_slice(&z_scale.to_le_bytes());
-        buf[179..187].copy_from_slice(&max_x.to_le_bytes());
-        buf[187..195].copy_from_slice(&max_y.to_le_bytes());
-        buf[195..203].copy_from_slice(&max_z.to_le_bytes());
-        buf[203..211].copy_from_slice(&min_x.to_le_bytes());
-        buf[211..219].copy_from_slice(&min_y.to_le_bytes());
-        buf[219..227].copy_from_slice(&min_z.to_le_bytes());
-
-        for &(x, y, z) in points {
-            let base = buf.len();
-            let point_size = record_len as usize;
-            buf.resize(base + point_size, 0);
-            buf[base..base + 4].copy_from_slice(&(x as i32).to_le_bytes());
-            buf[base + 4..base + 8].copy_from_slice(&(y as i32).to_le_bytes());
-            buf[base + 8..base + 12].copy_from_slice(&(z as i32).to_le_bytes());
-            if has_color {
-                buf[base + 20] = 255; // R
-                buf[base + 21] = 128; // G
-                buf[base + 22] = 0; // B
-            }
-        }
-
-        buf
-    }
+    use crate::point_cloud::test_helpers::build_test_las_blob;
 
     // ── LAS header tests ────────────────────────────────────────────
 
