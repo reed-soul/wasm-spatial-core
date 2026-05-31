@@ -86,6 +86,8 @@ pub mod test_exports {
         count_geojson_features, geojson_feature_collection_native, geojson_from_coords_native,
         parse_geojson_coords,
     };
+    #[cfg(any(test, feature = "test-helpers"))]
+    pub use crate::point_cloud::test_helpers;
     pub use crate::topology::{polygon_intersection_native, polygon_union_native};
     pub use crate::utils::{
         clean_coords_native, deduplicate_coords_native, validate_coords_native,
