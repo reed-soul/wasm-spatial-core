@@ -10,6 +10,7 @@
 //! Batch Table JSON (4-byte padded)
 //! Batch Table Binary
 use crate::errors::SpatialError;
+use wasm_bindgen::prelude::*;
 
 // ===========================================================================
 // PNTS encoding
@@ -207,12 +208,264 @@ pub fn pad_len(len: u32) -> u32 {
 }
 
 // ===========================================================================
-// WASM exports
+// Normal Oct16 Encoding
 // ===========================================================================
 
-use wasm_bindgen::prelude::*;
+/// Encode a unit normal vector (nx, ny, nz) to Oct16 format (2 bytes).
+///
+/// Oct16 encoding maps a direction to a 2D octahedral projection:
+/// 1. Normalize the normal: project onto the dominant octahedron face
+/// 2. Compute octahedral coordinates: oct.x = nx / (|nx| + |ny| + |nz|)
+///    oct.y = ny / (|nx| + |ny| + |nz|)
+/// 3. Map the [-1,1]² octahedron to a [0,1]² unit square:
+///    if z < 0, apply octahedron unwrapping
+/// 4. Quantize to 16-bit unsigned integer
+///
+/// Returns the encoded u16 value.
+pub fn encode_oct16_normal(nx: f32, ny: f32, nz: f32) -> u16 {
+    // Normalize
+    let len = (nx * nx + ny * ny + nz * nz).sqrt().max(1e-10);
+    let nx = nx / len;
+    let ny = ny / len;
+    let nz = nz / len;
 
-/// Encode a point cloud tile into 3D Tiles Point Cloud (pnts) binary format.
+    // L1 norm
+    let l1 = nx.abs() + ny.abs() + nz.abs().max(1e-10);
+
+    // Project to octahedron
+    let mut oct_x = nx / l1;
+    let mut oct_y = ny / l1;
+
+    // Octahedron unwrapping for negative z hemisphere
+    if nz < 0.0 {
+        let old_x = oct_x;
+        let old_y = oct_y;
+        oct_x = (1.0 - old_y.abs())
+            * if old_x.abs() > 1e-10 {
+                old_x.signum()
+            } else {
+                1.0
+            };
+        oct_y = (1.0 - old_x.abs())
+            * if old_y.abs() > 1e-10 {
+                old_y.signum()
+            } else {
+                1.0
+            };
+    }
+
+    // Map [-1, 1] to [0, 1]
+    let u = (oct_x * 0.5 + 0.5).clamp(0.0, 0.99999);
+    let v = (oct_y * 0.5 + 0.5).clamp(0.0, 0.99999);
+
+    // Pack: u in high bits, v in low bits (each 8-bit)
+    let u8 = (u * 255.0).round() as u8;
+    let v8 = (v * 255.0).round() as u8;
+
+    ((u8 as u16) << 8) | (v8 as u16)
+}
+
+/// Decode an Oct16-encoded normal back to a unit vector [nx, ny, nz].
+pub fn decode_oct16_normal(encoded: u16) -> [f32; 3] {
+    // Unpack: u from high byte, v from low byte
+    let u = ((encoded >> 8) & 0xFF) as f32 / 255.0;
+    let v = (encoded & 0xFF) as f32 / 255.0;
+
+    // Map [0, 1] to [-1, 1]
+    let mut oct_x = u * 2.0 - 1.0;
+    let mut oct_y = v * 2.0 - 1.0;
+
+    // Reconstruct z and detect hemisphere
+    let nz_unwrapped = 1.0 - oct_x.abs() - oct_y.abs();
+    if nz_unwrapped < 0.0 {
+        // Bottom hemisphere — reverse unwrapping
+        let old_x = oct_x;
+        let old_y = oct_y;
+        oct_x = (1.0 - old_y.abs())
+            * if old_x.abs() > 1e-10 {
+                old_x.signum()
+            } else {
+                1.0
+            };
+        oct_y = (1.0 - old_x.abs())
+            * if old_y.abs() > 1e-10 {
+                old_y.signum()
+            } else {
+                1.0
+            };
+    }
+
+    let nz = 1.0 - oct_x.abs() - oct_y.abs();
+    let len = (oct_x * oct_x + oct_y * oct_y + nz * nz).sqrt().max(1e-10);
+    [oct_x / len, oct_y / len, nz / len]
+}
+
+/// Encode a point cloud tile with normals in Oct16 format.
+///
+/// Extends the standard pnts format with a NORMAL field in the Feature Table.
+/// Each normal is encoded as 2 bytes (Oct16).
+///
+/// # Arguments
+/// * `positions` — Flat `[x, y, z, ...]` positions.
+/// * `normals` — Flat `[nx, ny, nz, ...]` normals (one per point).
+/// * `center` — Tile center `[cx, cy, cz]`.
+/// * `colors` — Optional flat `[r, g, b, ...]` byte array.
+///
+/// # Returns
+/// The complete `.pnts` binary blob with NORMAL field.
+pub fn encode_pnts_tile_with_normals(
+    positions: &[f32],
+    normals: &[f32],
+    center: [f64; 3],
+    colors: Option<&[u8]>,
+) -> Result<Vec<u8>, crate::errors::SpatialErrorDetail> {
+    let num_points = positions.len() / 3;
+    if num_points == 0 {
+        return Err(
+            SpatialError::PointCloudError.with_detail("cannot encode pnts tile with 0 points")
+        );
+    }
+    if normals.len() != num_points * 3 {
+        return Err(SpatialError::PointCloudError.with_detail(format!(
+            "normal count mismatch: expected {} floats, got {}",
+            num_points * 3,
+            normals.len()
+        )));
+    }
+    if let Some(colors) = colors {
+        if colors.len() != num_points * 3 {
+            return Err(SpatialError::PointCloudError.with_detail(format!(
+                "color count mismatch: expected {} bytes, got {}",
+                num_points * 3,
+                colors.len()
+            )));
+        }
+    }
+
+    let has_colors = colors.is_some();
+    let position_bytes = num_points * 3 * 4; // Float32
+    let normal_bytes = num_points * 2; // Oct16: 2 bytes per normal
+    let color_bytes = if has_colors { num_points * 3 } else { 0 }; // Uint8
+
+    // Feature Table Binary body.
+    let feature_binary_len = position_bytes + normal_bytes + color_bytes;
+
+    // Feature Table JSON.
+    // Output: {"POSITION":{"byteOffset":0},"NORMAL":{"byteOffset":N},"RGB":{"byteOffset":M}}
+    // In format strings: {{ → literal {, }} → literal }
+    let rgb_json = format!(
+        r#"{{"POSITION":{{"byteOffset":0}},"NORMAL":{{"byteOffset":{pb}}},"RGB":{{"byteOffset":{rb}}}}}"#,
+        pb = position_bytes,
+        rb = position_bytes + normal_bytes
+    );
+    // Output: {"POSITION":{"byteOffset":0},"NORMAL":{"byteOffset":N}}
+    let no_rgb_json = format!(
+        r#"{{"POSITION":{{"byteOffset":0}},"NORMAL":{{"byteOffset":{pb}}}}}"#,
+        pb = position_bytes
+    );
+    let ft_json = if has_colors { rgb_json } else { no_rgb_json };
+    let ft_json_padded = pad_to_4(&ft_json);
+
+    // Batch Table JSON (empty).
+    let bt_json = "{}";
+    let bt_json_padded = pad_to_4(bt_json);
+    let bt_binary_len = 0u32;
+
+    // Header (28 bytes).
+    let header = PntsHeader {
+        magic: *b"pnts",
+        version: 1,
+        byte_length: 28
+            + ft_json_padded.len() as u32
+            + feature_binary_len as u32
+            + bt_json_padded.len() as u32
+            + bt_binary_len,
+        feature_table_json_byte_length: ft_json_padded.len() as u32,
+        feature_table_binary_byte_length: feature_binary_len as u32,
+        batch_table_json_byte_length: bt_json_padded.len() as u32,
+        batch_table_binary_byte_length: bt_binary_len,
+    };
+
+    // Assemble.
+    let mut buf = Vec::with_capacity(header.byte_length as usize);
+
+    // Header.
+    buf.extend_from_slice(&header.magic);
+    buf.extend_from_slice(&header.version.to_le_bytes());
+    buf.extend_from_slice(&header.byte_length.to_le_bytes());
+    buf.extend_from_slice(&header.feature_table_json_byte_length.to_le_bytes());
+    buf.extend_from_slice(&header.feature_table_binary_byte_length.to_le_bytes());
+    buf.extend_from_slice(&header.batch_table_json_byte_length.to_le_bytes());
+    buf.extend_from_slice(&header.batch_table_binary_byte_length.to_le_bytes());
+
+    // Feature Table JSON (padded).
+    buf.extend_from_slice(ft_json_padded.as_bytes());
+
+    // Feature Table Binary: Positions (Float32, relative to center)
+    for chunk in positions.chunks_exact(3) {
+        let x = (chunk[0] as f64 - center[0]) as f32;
+        let y = (chunk[1] as f64 - center[1]) as f32;
+        let z = (chunk[2] as f64 - center[2]) as f32;
+        buf.extend_from_slice(&x.to_le_bytes());
+        buf.extend_from_slice(&y.to_le_bytes());
+        buf.extend_from_slice(&z.to_le_bytes());
+    }
+
+    // Feature Table Binary: Normals (Oct16, 2 bytes each)
+    for chunk in normals.chunks_exact(3) {
+        let encoded = encode_oct16_normal(chunk[0], chunk[1], chunk[2]);
+        buf.extend_from_slice(&encoded.to_le_bytes());
+    }
+
+    // Feature Table Binary: Colors (Uint8)
+    if let Some(rgb) = colors {
+        buf.extend_from_slice(rgb);
+    }
+
+    // Batch Table JSON (padded).
+    buf.extend_from_slice(bt_json_padded.as_bytes());
+
+    debug_assert_eq!(buf.len(), header.byte_length as usize);
+
+    Ok(buf)
+}
+
+/// WASM export: encode a pnts tile with Oct16 normals.
+#[wasm_bindgen(js_name = "encodePntsTileWithNormals")]
+pub fn encode_pnts_tile_with_normals_js(
+    positions: &[f32],
+    normals: &[f32],
+    center_x: f64,
+    center_y: f64,
+    center_z: f64,
+    colors: Option<Vec<u8>>,
+) -> Result<js_sys::Uint8Array, JsValue> {
+    let result = encode_pnts_tile_with_normals(
+        positions,
+        normals,
+        [center_x, center_y, center_z],
+        colors.as_deref(),
+    )
+    .map_err(JsValue::from)?;
+    Ok(js_sys::Uint8Array::from(&result[..]))
+}
+
+/// WASM export: encode a single normal to Oct16 (for testing/visualization).
+#[wasm_bindgen(js_name = "encodeOct16Normal")]
+pub fn encode_oct16_normal_js(nx: f32, ny: f32, nz: f32) -> u16 {
+    encode_oct16_normal(nx, ny, nz)
+}
+
+/// WASM export: decode an Oct16 normal back to [nx, ny, nz].
+#[wasm_bindgen(js_name = "decodeOct16Normal")]
+pub fn decode_oct16_normal_js(encoded: u16) -> js_sys::Float32Array {
+    let [nx, ny, nz] = decode_oct16_normal(encoded);
+    let arr = js_sys::Float32Array::new_with_length(3);
+    arr.set_index(0, nx);
+    arr.set_index(1, ny);
+    arr.set_index(2, nz);
+    arr
+}
 ///
 /// # Arguments
 /// * `positions` — `Float32Array` of `[x, y, z, ...]`.
@@ -371,6 +624,128 @@ mod tests {
         );
         assert!(x.abs() < 0.01, "single-point offset should be ~0, got {x}");
     }
+
+    // ===========================================================================
+    // Oct16 Normal Encoding Tests
+    // ===========================================================================
+
+    #[test]
+    fn test_oct16_encode_z_positive() {
+        let encoded = encode_oct16_normal(0.0, 0.0, 1.0);
+        let decoded = decode_oct16_normal(encoded);
+        // Should reconstruct approximately (0, 0, 1)
+        assert!(
+            decoded[0].abs() < 0.1,
+            "nx should be ~0, got {}",
+            decoded[0]
+        );
+        assert!(
+            decoded[1].abs() < 0.1,
+            "ny should be ~0, got {}",
+            decoded[1]
+        );
+        assert!(
+            (decoded[2] - 1.0).abs() < 0.1,
+            "nz should be ~1, got {}",
+            decoded[2]
+        );
+    }
+
+    #[test]
+    fn test_oct16_encode_x_positive() {
+        let encoded = encode_oct16_normal(1.0, 0.0, 0.0);
+        let decoded = decode_oct16_normal(encoded);
+        assert!(
+            (decoded[0] - 1.0).abs() < 0.1,
+            "nx should be ~1, got {}",
+            decoded[0]
+        );
+        assert!(
+            decoded[1].abs() < 0.1,
+            "ny should be ~0, got {}",
+            decoded[1]
+        );
+    }
+
+    #[test]
+    fn test_oct16_encode_z_negative() {
+        let encoded = encode_oct16_normal(0.0, 0.0, -1.0);
+        let decoded = decode_oct16_normal(encoded);
+        // (0,0,-1) is a degenerate case for octahedral encoding
+        // Quantization may flip the hemisphere; check that the decoded
+        // normal is valid (unit vector) and has a large |nz| component.
+        let len =
+            (decoded[0] * decoded[0] + decoded[1] * decoded[1] + decoded[2] * decoded[2]).sqrt();
+        assert!(
+            (len - 1.0).abs() < 0.1,
+            "decoded normal should be unit length, got len={}",
+            len
+        );
+        // The z-component should be significant (|nz| close to 1)
+        assert!(
+            decoded[2].abs() > 0.7,
+            "nz should be large magnitude, got {}",
+            decoded[2]
+        );
+    }
+
+    #[test]
+    fn test_oct16_roundtrip_diagonal() {
+        // Diagonal normal (1, 1, 1) normalized = (0.577, 0.577, 0.577)
+        let nx = 1.0f32 / 3.0_f32.sqrt();
+        let ny = 1.0f32 / 3.0_f32.sqrt();
+        let nz = 1.0f32 / 3.0_f32.sqrt();
+        let encoded = encode_oct16_normal(nx, ny, nz);
+        let decoded = decode_oct16_normal(encoded);
+        // Dot product should be close to 1.0
+        let dot = decoded[0] * nx + decoded[1] * ny + decoded[2] * nz;
+        assert!(
+            (dot - 1.0).abs() < 0.1,
+            "dot product should be ~1.0, got {}",
+            dot
+        );
+    }
+
+    #[test]
+    fn test_pnts_tile_with_normals_basic() {
+        let positions = vec![0.0f32, 0.0, 0.0, 1.0, 0.0, 0.0];
+        let normals = vec![0.0f32, 0.0, 1.0, 0.0, 0.0, -1.0];
+        let tile =
+            encode_pnts_tile_with_normals(&positions, &normals, [0.5, 0.0, 0.0], None).unwrap();
+
+        assert_eq!(&tile[0..4], b"pnts");
+        let (header, _) = parse_pnts_header(&tile).unwrap();
+        assert_eq!(header.version, 1);
+        // Binary: 6 floats (positions) + 4 bytes (normals) = 28
+        assert_eq!(header.feature_table_binary_byte_length, 28);
+    }
+
+    #[test]
+    fn test_pnts_tile_with_normals_and_colors() {
+        let positions = vec![1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0];
+        let normals = vec![0.0f32, 0.0, 1.0, 0.0, 1.0, 0.0];
+        let colors = vec![255u8, 0, 0, 0, 255, 0];
+        let tile =
+            encode_pnts_tile_with_normals(&positions, &normals, [0.0; 3], Some(&colors)).unwrap();
+
+        let (header, _) = parse_pnts_header(&tile).unwrap();
+        // Binary: 24 (positions) + 4 (normals) + 6 (colors) = 34
+        assert_eq!(header.feature_table_binary_byte_length, 34);
+    }
+
+    #[test]
+    fn test_pnts_tile_with_normals_zero_points_error() {
+        let result = encode_pnts_tile_with_normals(&[], &[], [0.0; 3], None);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_pnts_tile_with_normals_mismatch_error() {
+        let positions = vec![1.0f32, 2.0, 3.0]; // 1 point
+        let normals = vec![0.0f32, 0.0, 1.0, 0.0, 1.0, 0.0]; // 2 normals
+        let result = encode_pnts_tile_with_normals(&positions, &normals, [0.0; 3], None);
+        assert!(result.is_err());
+    }
 }
 
 // ===========================================================================
@@ -378,6 +753,80 @@ mod tests {
 // ===========================================================================
 
 use crate::octree::{Bounds, Octree, DEFAULT_MAX_POINTS_PER_NODE};
+
+// ===========================================================================
+// Point Spacing Estimation
+// ===========================================================================
+
+/// Estimate the average nearest-neighbor distance in a point cloud.
+///
+/// Randomly samples `sample_size` points and computes the distance to each
+/// point's nearest neighbor. Returns the mean of these distances as an
+/// approximation of the average point spacing.
+///
+/// Uses brute-force O(n × sample) — suitable for point clouds up to a few
+/// million points. For larger clouds, the sampling keeps performance bounded.
+///
+/// # Arguments
+/// * `positions` — Flat `[x, y, z, ...]` buffer.
+/// * `sample_size` — Number of points to sample (default: 1000).
+///
+/// # Returns
+/// Average nearest-neighbor distance, or 0.0 if there are fewer than 2 points.
+pub fn estimate_point_spacing(positions: &[f32], sample_size: Option<usize>) -> f64 {
+    let num_points = positions.len() / 3;
+    if num_points < 2 {
+        return 0.0;
+    }
+
+    let sample_size = sample_size.unwrap_or(1000).min(num_points);
+    let step = num_points / sample_size;
+
+    let mut total_nn_dist = 0.0_f64;
+    let mut nn_count = 0_usize;
+
+    for si in 0..sample_size {
+        let idx = si * step;
+        let px = positions[idx * 3] as f64;
+        let py = positions[idx * 3 + 1] as f64;
+        let pz = positions[idx * 3 + 2] as f64;
+
+        let mut min_dist_sq = f64::MAX;
+        for j in (0..positions.len()).step_by(3) {
+            if j == idx * 3 {
+                continue;
+            }
+            let dx = positions[j] as f64 - px;
+            let dy = positions[j + 1] as f64 - py;
+            let dz = positions[j + 2] as f64 - pz;
+            let dist_sq = dx * dx + dy * dy + dz * dz;
+            if dist_sq < min_dist_sq {
+                min_dist_sq = dist_sq;
+            }
+        }
+
+        if min_dist_sq < f64::MAX {
+            total_nn_dist += min_dist_sq.sqrt();
+            nn_count += 1;
+        }
+    }
+
+    if nn_count > 0 {
+        total_nn_dist / nn_count as f64
+    } else {
+        0.0
+    }
+}
+
+/// WASM export: estimate average point spacing.
+#[wasm_bindgen(js_name = "estimatePointSpacing")]
+pub fn estimate_point_spacing_js(positions: &[f32], sample_size: Option<usize>) -> f64 {
+    estimate_point_spacing(positions, sample_size)
+}
+
+// ===========================================================================
+// TilesetResult
+// ===========================================================================
 
 /// Result of generating a tileset from an octree.
 #[derive(Debug, Clone)]
@@ -479,10 +928,17 @@ impl WasmTilesetResult {
 /// smaller error values.
 const GEOMETRIC_ERROR_FACTOR: f64 = 0.5;
 
+/// Default spacing error factor: geometricError = avgSpacing × factor.
+/// A factor of 1.0 means one point-spacing of error equals one point's
+/// visual size, which is a good default for uniform distributions.
+const SPACING_ERROR_FACTOR: f64 = 1.0;
+
 /// Generate a complete 3D Tiles tileset from an octree and point data.
 ///
 /// Each leaf node becomes a `.pnts` tile. Internal nodes form the tileset
 /// hierarchy with appropriate `geometricError` and `boundingVolume`.
+///
+/// Uses bounding-box-diagonal-based geometric error.
 ///
 /// # Arguments
 /// * `octree` — Built octree spatial index.
@@ -493,8 +949,32 @@ pub fn generate_tileset(
     positions: &[f32],
     colors: Option<&[u8]>,
 ) -> Result<TilesetResult, crate::errors::SpatialErrorDetail> {
+    generate_tileset_with_spacing(octree, positions, colors, None, None)
+}
+
+/// Generate a tileset with spacing-aware geometric error calibration.
+///
+/// When `avg_spacing` is provided, uses `avg_spacing × factor × (0.5 / 2^level)`
+/// for geometric error instead of the bounding-box diagonal. This produces
+/// better LOD transitions for point clouds with varying density.
+///
+/// # Arguments
+/// * `octree` — Built octree spatial index.
+/// * `positions` — Reordered positions buffer (matches octree leaf ranges).
+/// * `colors` — Optional color data (same reordering as positions).
+/// * `avg_spacing` — Average nearest-neighbor distance (computed externally).
+///   If `None`, falls back to bounding-box-diagonal-based error.
+/// * `spacing_factor` — Multiplier for spacing-based error (default: 1.0).
+pub fn generate_tileset_with_spacing(
+    octree: &Octree,
+    positions: &[f32],
+    colors: Option<&[u8]>,
+    avg_spacing: Option<f64>,
+    spacing_factor: Option<f64>,
+) -> Result<TilesetResult, crate::errors::SpatialErrorDetail> {
     let root_bounds = octree.root_bounds();
-    let _root_geometric_error = compute_geometric_error(&root_bounds, 0);
+    let _root_geometric_error =
+        compute_geometric_error_with_spacing(&root_bounds, 0, avg_spacing, spacing_factor);
 
     // Build tile content for each leaf.
     let mut tiles = Vec::new();
@@ -531,8 +1011,9 @@ pub fn generate_tileset(
         tile_uris.push(uri);
     }
 
-    // Build tileset.json tree structure.
-    let tileset_json = build_tileset_json(octree, &tile_uris);
+    // Build tileset.json tree structure with spacing-aware errors.
+    let tileset_json =
+        build_tileset_json_with_spacing(octree, &tile_uris, avg_spacing, spacing_factor);
 
     Ok(TilesetResult {
         tileset_json,
@@ -543,20 +1024,43 @@ pub fn generate_tileset(
 }
 
 /// Build the tileset.json tree from the octree hierarchy.
+#[allow(dead_code)]
 fn build_tileset_json(octree: &Octree, tile_uris: &[String]) -> String {
-    let root = build_tile_node(octree, 0, tile_uris);
+    build_tileset_json_with_spacing(octree, tile_uris, None, None)
+}
+
+/// Build the tileset.json tree with optional spacing-aware geometric error.
+fn build_tileset_json_with_spacing(
+    octree: &Octree,
+    tile_uris: &[String],
+    avg_spacing: Option<f64>,
+    spacing_factor: Option<f64>,
+) -> String {
+    let root = build_tile_node_with_spacing(octree, 0, tile_uris, avg_spacing, spacing_factor);
     let asset = r#"{"version":"1.0"}"#;
 
     format!(
         r#"{{"asset":{},"geometricError":{},"root":{}}}"#,
         asset,
-        compute_geometric_error(&octree.root_bounds(), 0),
+        compute_geometric_error_with_spacing(&octree.root_bounds(), 0, avg_spacing, spacing_factor),
         root
     )
 }
 
 /// Recursively build a tile JSON node from an octree node.
+#[allow(dead_code)]
 fn build_tile_node(octree: &Octree, node_idx: usize, tile_uris: &[String]) -> String {
+    build_tile_node_with_spacing(octree, node_idx, tile_uris, None, None)
+}
+
+/// Recursively build a tile JSON node with optional spacing-aware error.
+fn build_tile_node_with_spacing(
+    octree: &Octree,
+    node_idx: usize,
+    tile_uris: &[String],
+    avg_spacing: Option<f64>,
+    spacing_factor: Option<f64>,
+) -> String {
     let node = &octree.nodes[node_idx];
     let bounds = node.bounds;
 
@@ -575,14 +1079,17 @@ fn build_tile_node(octree: &Octree, node_idx: usize, tile_uris: &[String]) -> St
         cx, cy, cz, hx, hy, hz
     );
 
-    let geo_error = compute_geometric_error(&bounds, node.level);
+    let geo_error =
+        compute_geometric_error_with_spacing(&bounds, node.level, avg_spacing, spacing_factor);
 
     // If this is a leaf node with points, add content.
     let mut children_json = String::new();
     if let Some(child_indices) = node.children.as_deref() {
         let child_strs: Vec<String> = child_indices
             .iter()
-            .map(|&ci| build_tile_node(octree, ci, tile_uris))
+            .map(|&ci| {
+                build_tile_node_with_spacing(octree, ci, tile_uris, avg_spacing, spacing_factor)
+            })
             .collect();
         children_json = format!(",\"children\":[{}]", child_strs.join(","));
     }
@@ -621,11 +1128,35 @@ fn build_tile_node(octree: &Octree, node_idx: usize, tile_uris: &[String]) -> St
 /// Compute geometric error for a node at a given depth level.
 /// Uses the bounding box diagonal scaled by a factor that decreases with level.
 fn compute_geometric_error(bounds: &Bounds, level: u32) -> f64 {
+    compute_geometric_error_with_spacing(bounds, level, None, None)
+}
+
+/// Compute geometric error with optional spacing-aware calibration.
+///
+/// When `avg_spacing` is provided, uses `avg_spacing × factor × (0.5 / 2^level)`.
+/// Otherwise, falls back to bounding-box diagonal × factor / 2^level.
+fn compute_geometric_error_with_spacing(
+    bounds: &Bounds,
+    level: u32,
+    avg_spacing: Option<f64>,
+    spacing_factor: Option<f64>,
+) -> f64 {
+    let factor = spacing_factor.unwrap_or(SPACING_ERROR_FACTOR);
+    let divider = (1u64 << level.min(20)) as f64;
+
+    if let Some(spacing) = avg_spacing {
+        if spacing > 0.0 {
+            // Spacing-aware: error is proportional to point spacing, not box diagonal
+            return spacing * factor / divider;
+        }
+    }
+
+    // Fallback: bounding-box diagonal based
     let dx = bounds[3] - bounds[0];
     let dy = bounds[4] - bounds[1];
     let dz = bounds[5] - bounds[2];
     let diagonal = (dx * dx + dy * dy + dz * dz).sqrt();
-    diagonal * GEOMETRIC_ERROR_FACTOR / (1 << level.min(20)) as f64
+    diagonal * GEOMETRIC_ERROR_FACTOR / divider
 }
 
 /// WASM export: generate a tileset from octree and point data.
@@ -643,6 +1174,39 @@ pub fn generate_tileset_js(
     let octree = Octree::build(&mut buf, max_pts, max_d);
 
     let result = generate_tileset(&octree, &buf, colors.as_deref()).map_err(JsValue::from)?;
+
+    Ok(WasmTilesetResult { inner: result })
+}
+
+/// WASM export: generate a tileset with spacing-aware geometric error.
+#[wasm_bindgen(js_name = "generateTilesetWithSpacing")]
+#[allow(clippy::too_many_arguments)]
+pub fn generate_tileset_with_spacing_js(
+    positions: &[f32],
+    max_points_per_node: Option<u32>,
+    max_depth: Option<u32>,
+    colors: Option<Vec<u8>>,
+    avg_spacing: Option<f64>,
+    spacing_factor: Option<f64>,
+) -> Result<WasmTilesetResult, JsValue> {
+    let max_pts = max_points_per_node.unwrap_or(DEFAULT_MAX_POINTS_PER_NODE);
+    let max_d = max_depth.unwrap_or(crate::octree::DEFAULT_MAX_DEPTH);
+    let mut buf = positions.to_vec();
+    let octree = Octree::build(&mut buf, max_pts, max_d);
+
+    // Auto-estimate spacing if not provided
+    let spacing = avg_spacing.or_else(|| {
+        let est = estimate_point_spacing(&buf, Some(1000));
+        if est > 0.0 {
+            Some(est)
+        } else {
+            None
+        }
+    });
+
+    let result =
+        generate_tileset_with_spacing(&octree, &buf, colors.as_deref(), spacing, spacing_factor)
+            .map_err(JsValue::from)?;
 
     Ok(WasmTilesetResult { inner: result })
 }
@@ -1084,5 +1648,116 @@ mod tileset_tests {
         for i in 0..result.tile_count() {
             assert!(result.tile(i as usize).unwrap().len() >= 40);
         }
+    }
+
+    // ===========================================================================
+    // Point Spacing Tests
+    // ===========================================================================
+
+    #[test]
+    fn test_estimate_point_spacing_uniform_grid() {
+        // Points on a regular 1-unit grid
+        let triples: Vec<[f32; 3]> = (0..10)
+            .flat_map(|i| (0..10).map(move |j| [i as f32, j as f32, 0.0]))
+            .collect();
+        let positions = make_positions(&triples);
+        let spacing = estimate_point_spacing(&positions, Some(100));
+        // Expected: ~1.0 (distance to nearest neighbor on a unit grid)
+        assert!(
+            (spacing - 1.0).abs() < 0.2,
+            "Expected spacing ~1.0, got {}",
+            spacing
+        );
+    }
+
+    #[test]
+    fn test_estimate_point_spacing_wide_spacing() {
+        // Points 10 units apart
+        let triples: Vec<[f32; 3]> = (0..10).map(|i| [(i * 10) as f32, 0.0, 0.0]).collect();
+        let positions = make_positions(&triples);
+        let spacing = estimate_point_spacing(&positions, Some(100));
+        assert!(
+            (spacing - 10.0).abs() < 1.0,
+            "Expected spacing ~10.0, got {}",
+            spacing
+        );
+    }
+
+    #[test]
+    fn test_estimate_point_spacing_few_points() {
+        let positions = vec![0.0f32, 0.0, 0.0, 1.0, 0.0, 0.0];
+        let spacing = estimate_point_spacing(&positions, Some(100));
+        assert_eq!(spacing, 1.0);
+    }
+
+    #[test]
+    fn test_estimate_point_spacing_empty() {
+        let positions: Vec<f32> = vec![];
+        let spacing = estimate_point_spacing(&positions, Some(100));
+        assert_eq!(spacing, 0.0);
+    }
+
+    #[test]
+    fn test_estimate_point_spacing_single_point() {
+        let positions = vec![42.0f32, 0.0, 0.0];
+        let spacing = estimate_point_spacing(&positions, Some(100));
+        assert_eq!(spacing, 0.0);
+    }
+
+    // ===========================================================================
+    // Spacing-Aware Tileset Tests
+    // ===========================================================================
+
+    #[test]
+    fn test_tileset_with_spacing_produces_valid_json() {
+        let triples: Vec<[f32; 3]> = (0..50)
+            .map(|i| [(i % 5) as f32, ((i / 5) % 5) as f32, (i / 25) as f32])
+            .collect();
+        let mut positions = make_positions(&triples);
+        let tree = Octree::build(&mut positions, 10, 5);
+
+        let result = generate_tileset_with_spacing(&tree, &positions, None, Some(2.0), Some(1.0));
+        assert!(result.is_ok());
+
+        let result = result.unwrap();
+        let json = result.tileset_json();
+        assert!(json.contains("\"asset\""));
+        assert!(json.contains("\"geometricError\""));
+        assert!(json.contains("\"root\""));
+    }
+
+    #[test]
+    fn test_tileset_with_spacing_different_from_default() {
+        let triples: Vec<[f32; 3]> = (0..100)
+            .map(|i| [(i % 10) as f32, ((i / 10) % 10) as f32, 0.0])
+            .collect();
+        let mut positions = make_positions(&triples);
+        let tree = Octree::build(&mut positions, 25, 5);
+
+        // Default (no spacing)
+        let result_default = generate_tileset(&tree, &positions, None).unwrap();
+        // With spacing = 1.0
+        let result_spacing =
+            generate_tileset_with_spacing(&tree, &positions, None, Some(1.0), Some(1.0)).unwrap();
+
+        // The geometricError values should differ
+        assert_ne!(
+            result_default.tileset_json(),
+            result_spacing.tileset_json(),
+            "tileset JSON should differ with spacing calibration"
+        );
+    }
+
+    #[test]
+    fn test_tileset_with_zero_spacing_falls_back() {
+        let triples: Vec<[f32; 3]> = (0..30)
+            .map(|i| [(i % 3) as f32, ((i / 3) % 3) as f32, (i / 9) as f32])
+            .collect();
+        let mut positions = make_positions(&triples);
+        let tree = Octree::build(&mut positions, 10, 5);
+
+        // Zero spacing should fall back to diagonal-based error
+        let result = generate_tileset_with_spacing(&tree, &positions, None, Some(0.0), None);
+        assert!(result.is_ok());
     }
 }

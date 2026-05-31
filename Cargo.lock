@@ -1597,7 +1597,7 @@ dependencies = [
 
 [[package]]
 name = "wasm-spatial-core"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "byteorder",
  "console_error_panic_hook",
@@ -1619,6 +1619,7 @@ dependencies = [
  "serde",
  "serde_json",
  "wasm-bindgen",
+ "wasm-bindgen-futures",
  "wasm-bindgen-rayon",
  "wasm-bindgen-test",
  "web-sys",

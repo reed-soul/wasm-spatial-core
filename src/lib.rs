@@ -29,7 +29,10 @@ mod utils;
 mod vector_tile;
 
 pub use octree::{Bounds, Octree, OctreeNode, DEFAULT_MAX_DEPTH, DEFAULT_MAX_POINTS_PER_NODE};
-pub use pnts::{encode_pnts_tile, generate_tileset, pad_len, parse_pnts_header, TilesetResult};
+pub use pnts::{
+    encode_pnts_tile, estimate_point_spacing, generate_tileset, pad_len, parse_pnts_header,
+    TilesetResult,
+};
 mod wkb_wkt;
 
 use errors::input_too_large_js;
@@ -101,12 +104,20 @@ use std::sync::{LazyLock, RwLock};
 
 static INPUT_SIZE_LIMIT: LazyLock<RwLock<usize>> = LazyLock::new(|| RwLock::new(100 * 1024 * 1024));
 
+/// WASM linear memory maximum limit (0 = no limit, use WASM default).
+static WASM_MEMORY_MAX: LazyLock<RwLock<usize>> = LazyLock::new(|| RwLock::new(0));
+
 /// Get the current input size limit.
 pub(crate) fn get_current_input_limit() -> usize {
     INPUT_SIZE_LIMIT
         .read()
         .map(|v| *v)
         .unwrap_or(DEFAULT_MAX_INPUT_SIZE)
+}
+
+/// Get the current WASM memory max limit (0 = no limit).
+pub(crate) fn get_wasm_memory_max() -> usize {
+    WASM_MEMORY_MAX.read().map(|v| *v).unwrap_or(0)
 }
 
 /// Initialize the WASM module. Call this once before any other function.
@@ -162,9 +173,7 @@ pub use e57::parse_e57_stream;
 
 /// WebWorker parallel processing support.
 #[cfg(feature = "point-cloud")]
-pub use worker::{
-    chunked_processing_info, process_point_cloud_in_worker, supports_worker, WorkerHandle,
-};
+pub use worker::{supports_worker, WorkerHandle, WorkerOptions};
 
 // ---------------------------------------------------------------------------
 // Dynamic Input Size Limit
@@ -271,6 +280,91 @@ fn wasm_memory_total() -> usize {
 /// Default maximum allowed input size: 100 MB.
 pub(crate) const DEFAULT_MAX_INPUT_SIZE: usize = 100 * 1024 * 1024;
 
+// ---------------------------------------------------------------------------
+// WASM Memory Control (Task 4)
+// ---------------------------------------------------------------------------
+
+/// Set the maximum WASM linear memory in bytes.
+///
+/// When set to a non-zero value, `checkMemoryAvailable` and `buildOctree`
+/// will pre-check that estimated memory usage does not exceed this limit.
+/// Set to 0 (default) to disable the limit.
+///
+/// Note: This does NOT change the actual WASM memory.grow limit — that is
+/// configured at module instantiation time. This is a software-level guard
+/// that pre-checks before allocating.
+///
+/// # Example (JS)
+/// ```js
+/// core.setMaxWasmMemory(256 * 1024 * 1024); // 256 MB
+/// ```
+#[wasm_bindgen(js_name = "setMaxWasmMemory")]
+pub fn set_max_wasm_memory(bytes: usize) {
+    if let Ok(mut val) = WASM_MEMORY_MAX.write() {
+        *val = bytes;
+    }
+}
+
+/// Get the current WASM memory max limit.
+///
+/// Returns 0 if no limit is set (WASM default applies).
+#[wasm_bindgen(js_name = "getMaxWasmMemory")]
+pub fn get_max_wasm_memory() -> usize {
+    get_wasm_memory_max()
+}
+
+/// Check if estimated memory is available given the current WASM memory limit.
+///
+/// Compares the estimated byte requirement against the configured maximum.
+/// Always returns `true` if no limit is set (max == 0).
+///
+/// # Arguments
+/// * `estimated_bytes` — Estimated memory needed for an operation.
+///
+/// # Returns
+/// `true` if there is enough memory, `false` if the estimate exceeds the limit.
+#[wasm_bindgen(js_name = "checkMemoryAvailable")]
+pub fn check_memory_available(estimated_bytes: usize) -> bool {
+    let max = get_wasm_memory_max();
+    if max == 0 {
+        return true;
+    }
+
+    // Current WASM memory usage
+    let current = wasm_memory_total();
+
+    // Check if current + estimated exceeds the limit
+    current.saturating_add(estimated_bytes) <= max
+}
+
+/// Estimate memory required for octree construction.
+///
+/// Upper-bound estimate:
+/// - Positions buffer: `num_points × 12` bytes (Float32 × 3)
+/// - Reorder map: `num_points × 8` bytes (usize)
+/// - Octree nodes: ~100 bytes per estimated node
+/// - Temp buffers: ~50% overhead for intermediate state
+///
+/// # Arguments
+/// * `num_points` — Number of points in the dataset.
+///
+/// # Returns
+/// Estimated memory in bytes.
+#[wasm_bindgen(js_name = "estimateOctreeMemory")]
+pub fn estimate_octree_memory(num_points: u32) -> usize {
+    let n = num_points as usize;
+    let positions_bytes = n * 3 * 4; // f32
+    let reorder_bytes = n * 8; // usize
+                               // Rough estimate: 1 root + up to 2^21 internal nodes, but realistically
+                               // num_points / maxPointsPerNode * 8 leaves * 140 bytes each
+    let estimated_nodes = (n / 50000).max(1) * 9;
+    let nodes_bytes = estimated_nodes * 140;
+    // Temp buffers (partition, etc.)
+    let temp_bytes = positions_bytes / 2;
+
+    positions_bytes + reorder_bytes + nodes_bytes + temp_bytes + 1024 // 1KB overhead
+}
+
 /// Validate input length is reasonable. Returns an error if input exceeds the current limit.
 #[inline]
 pub(crate) fn validate_input_size(len: usize, label: &str) -> Result<(), JsValue> {
@@ -317,5 +411,49 @@ mod tests {
     #[test]
     fn test_validate_input_size_too_large() {
         assert!(validate_input_size(100 * 1024 * 1024 + 1, "test").is_err());
+    }
+
+    // ===========================================================================
+    // Memory Control Tests (Task 4)
+    // ===========================================================================
+
+    #[test]
+    fn test_set_max_wasm_memory() {
+        set_max_wasm_memory(128 * 1024 * 1024);
+        assert_eq!(get_max_wasm_memory(), 128 * 1024 * 1024);
+        // Reset
+        set_max_wasm_memory(0);
+        assert_eq!(get_max_wasm_memory(), 0);
+    }
+
+    #[test]
+    fn test_check_memory_available_no_limit() {
+        set_max_wasm_memory(0); // No limit
+        assert!(check_memory_available(usize::MAX)); // Always true with no limit
+    }
+
+    #[test]
+    fn test_check_memory_available_within_limit() {
+        set_max_wasm_memory(1024 * 1024); // 1 MB limit
+                                          // Result depends on current usage — just ensure no panic
+        let _available = check_memory_available(100);
+        set_max_wasm_memory(0); // Reset
+    }
+
+    #[test]
+    fn test_estimate_octree_memory_basic() {
+        // 1M points
+        let estimate = estimate_octree_memory(1_000_000);
+        // Positions: 12MB, reorder: 8MB, nodes: ~140 bytes * ~180 = 25KB, temp: ~6MB
+        // Total should be roughly 26MB+
+        assert!(estimate > 20_000_000, "Expected > 20MB, got {}", estimate);
+        assert!(estimate < 100_000_000, "Expected < 100MB, got {}", estimate);
+    }
+
+    #[test]
+    fn test_estimate_octree_memory_small() {
+        let estimate = estimate_octree_memory(1000);
+        // Positions: 12KB, reorder: 8KB, nodes: ~1KB, temp: ~6KB
+        assert!(estimate > 10_000, "Expected > 10KB, got {}", estimate);
     }
 }
