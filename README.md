@@ -16,6 +16,17 @@
 [📖 API Reference](#-api-reference) ·
 [🗺️ Roadmap](./ROADMAP_V1.md)
 
+**🧪 Try it now — no build needed:**
+
+```html
+<script type="module">
+  import init, { parsePointCloudAuto, buildOctree, generateTileset }
+    from 'https://esm.run/wasm-spatial-core';
+  await init();
+  // Drop a LAS/LAZ file, parse → octree → 3D Tiles — all in-browser.
+</script>
+```
+
 </div>
 
 ---
@@ -171,7 +182,7 @@ Run locally: `npm run demo` (builds `pkg/` and serves on port 8080).
 
 ## ⚡ Performance
 
-Benchmarks on Apple M1 (Chrome, 1M coordinate pairs):
+Benchmarks on **Apple M2 (macOS, debug)**, see [PERFORMANCE.md](./PERFORMANCE.md) for details.
 
 | Operation | Pure JS | wasm-spatial-core | Speedup |
 |-----------|---------|-------------------|---------|
@@ -179,12 +190,23 @@ Benchmarks on Apple M1 (Chrome, 1M coordinate pairs):
 | WGS84 → Mercator | ~800 ms | ~12 ms | **~67×** |
 | GeoJSON parse (50 MB) | ~3,500 ms | ~320 ms | **~11×** |
 
-### Point Cloud Pipeline
+### Point Cloud Pipeline (LAS → Octree → 3D Tiles)
 
-| Dataset | Points | Octree Build | Tileset Gen | Total |
-|---------|--------|-------------|-------------|-------|
-| Synthetic | 1K | < 1 ms | < 1 ms | < 5 ms |
-| LAS (typical) | 1M | ~2-3s | < 1s | ~3-4s |
+| Dataset | Points | Octree Build | Tileset Gen | Output |
+|---------|--------|-------------|-------------|--------|
+| sample.las | 1,065 | < 1 ms | < 1 ms | 4 tiles, 8 KB |
+| Synthetic | 100K | 24 ms | 4 ms | 97 tiles, 1.15 MB |
+| Synthetic | 1M | 270 ms | 41 ms | 401 tiles, 11.5 MB |
+| Synthetic | 10M | 2,944 ms | — | octree only |
+
+### Real File Test: `sample.las`
+
+Using `tests/fixtures/sample.las` (1,065 points, LAS 1.2, format 3 with color):
+
+```
+Header:  version 1.2, format 3, 1,065 points
+Octree:  17 nodes, depth 2, 15 leaves
+Tiles:   15 pnts tiles, 16.89 KB
 
 > Benchmarks are indicative. Run `cargo bench` for local results.
 
