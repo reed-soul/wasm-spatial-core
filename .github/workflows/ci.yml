@@ -15,7 +15,7 @@ env:
 
 jobs:
   # ------------------------------------------------------------------
-  # 1. Rust checks — lint, test, build WASM
+  # 1. Rust checks — format, clippy, test (all features), WASM build
   # ------------------------------------------------------------------
   rust:
     name: Rust CI
@@ -29,8 +29,8 @@ jobs:
           targets: wasm32-unknown-unknown
           components: clippy, rustfmt
 
-      - name: Verify MSRV (1.90)
-        run: rustup toolchain install 1.90.0 --target wasm32-unknown-unknown && cargo +1.90.0 build --lib
+      - name: Verify MSRV (1.87)
+        run: rustup toolchain install 1.87.0 --target wasm32-unknown-unknown && cargo +1.87.0 build --lib
 
       - name: Cache cargo registry & build
         uses: actions/cache@v4
@@ -44,20 +44,29 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
 
-      - name: Clippy lints
+      - name: Clippy lints (all features)
         run: cargo clippy --all-targets --all-features -- -D warnings
 
-      - name: Run unit tests
-        run: cargo test --verbose
+      - name: Run unit tests (all features)
+        run: cargo test --all-features --verbose
 
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
-      - name: Build WASM package (default features)
-        run: wasm-pack build --target web --release --out-dir pkg
+      - name: Build WASM package (web target, point-cloud + geotiff)
+        run: wasm-pack build --target web --release --out-dir pkg --features point-cloud,geotiff
 
-      - name: Run WASM integration tests (Node.js harness)
-        run: wasm-pack test --node --release -- --test web
+      - name: Verify WASM output
+        run: |
+          test -f pkg/wasm_spatial_core_bg.wasm && echo "✅ WASM binary exists"
+          test -s pkg/wasm_spatial_core_bg.wasm && echo "✅ WASM binary non-empty ($(stat -c%s pkg/wasm_spatial_core_bg.wasm) bytes)"
+          test -f pkg/wasm_spatial_core.js && echo "✅ JS bindings exist"
+
+      - name: Build WASM (Node.js target)
+        run: wasm-pack build --target nodejs --release --out-dir pkg-node --features point-cloud,geotiff
+
+      - name: Run WASM smoke tests (Node.js)
+        run: node tests/wasm_smoke_test.mjs
 
       - name: Upload WASM artifacts
         uses: actions/upload-artifact@v4
@@ -66,7 +75,7 @@ jobs:
           path: pkg/
 
   # ------------------------------------------------------------------
-  # 2. Deploy Demo — GitHub Pages on push to main
+  # 2. Deploy Demo — GitHub Pages on push to master
   # ------------------------------------------------------------------
   demo:
     name: Deploy Demo to GitHub Pages
@@ -114,7 +123,7 @@ jobs:
             features: ""
             out_dir: pkg
           - name: point-cloud
-            features: "--features point-cloud"
+            features: "--features point-cloud,geotiff"
             out_dir: pkg-point-cloud
           - name: multi-thread
             features: ""
@@ -219,7 +228,7 @@ jobs:
 
             ### Downloads
             - **Default build** — `wasm-spatial-core-default.tar.gz` (zero-config, works everywhere)
-            - **Point Cloud build** — `wasm-spatial-core-point-cloud.tar.gz` (with LAS/PCD parsing + voxel decimation)
+            - **Point Cloud build** — `wasm-spatial-core-point-cloud.tar.gz` (with LAS/PCD parsing + voxel decimation + GeoTIFF terrain)
             - **Multi-thread build** — `wasm-spatial-core-multi-thread.tar.gz` (requires COOP/COEP headers)
 
             ### Changes
