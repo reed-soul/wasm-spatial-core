@@ -27,6 +27,18 @@ pub struct PlyResult {
     face_count: u32,
 }
 
+impl PlyResult {
+    /// Core accessor for vertex positions as &[f32] (non-WASM).
+    pub fn positions_core(&self) -> &[f32] {
+        &self.positions
+    }
+
+    /// Core accessor for vertex colors as Option<&[u8]> (non-WASM).
+    pub fn colors_core(&self) -> Option<&[u8]> {
+        self.colors.as_deref()
+    }
+}
+
 #[wasm_bindgen]
 impl PlyResult {
     /// Vertex positions as Float32Array [x, y, z, x, y, z, ...].
