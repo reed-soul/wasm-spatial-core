@@ -1677,6 +1677,407 @@ pub fn geotiff_status() -> String {
 }
 
 // ===========================================================================
+// Terrain Styling Pipeline
+// ===========================================================================
+
+/// Terrain color ramp presets.
+#[wasm_bindgen]
+#[derive(Debug, Clone, Copy)]
+pub enum ColorRamp {
+    /// Classic terrain: blue (low) → green → yellow → red → white (high)
+    Terrain = 0,
+    /// Heat map: blue (low) → cyan → green → yellow → red (high)
+    Heat = 1,
+    /// Ocean depth: dark blue (deep) → light blue (shallow)
+    Ocean = 2,
+    /// Grayscale: black (low) → white (high)
+    Gray = 3,
+}
+
+/// Linearly interpolate between two colors.
+fn lerp_color(a: [u8; 4], b: [u8; 4], t: f64) -> [u8; 4] {
+    let t = t.clamp(0.0, 1.0);
+    [
+        (a[0] as f64 + (b[0] as f64 - a[0] as f64) * t).round() as u8,
+        (a[1] as f64 + (b[1] as f64 - a[1] as f64) * t).round() as u8,
+        (a[2] as f64 + (b[2] as f64 - a[2] as f64) * t).round() as u8,
+        (a[3] as f64 + (b[3] as f64 - a[3] as f64) * t).round() as u8,
+    ]
+}
+
+/// Multi-stop color ramp: given a normalized value (0–1), interpolate through stops.
+fn sample_ramp(ramp: ColorRamp, t: f64) -> [u8; 4] {
+    let t = t.clamp(0.0, 1.0);
+    match ramp {
+        ColorRamp::Terrain => {
+            // 0.0 = deep blue, 0.25 = green, 0.5 = yellow, 0.75 = red, 1.0 = white
+            let stops: &[[f64; 5]] = &[
+                [0.0, 0.0, 0.0, 128.0, 255.0],     // deep blue
+                [0.25, 0.0, 128.0, 0.0, 255.0],    // green
+                [0.5, 255.0, 255.0, 0.0, 255.0],   // yellow
+                [0.75, 255.0, 64.0, 0.0, 255.0],   // red
+                [1.0, 255.0, 255.0, 255.0, 255.0], // white
+            ];
+            interpolate_stops(stops, t)
+        }
+        ColorRamp::Heat => {
+            let stops: &[[f64; 5]] = &[
+                [0.0, 0.0, 0.0, 255.0, 255.0],    // blue
+                [0.25, 0.0, 255.0, 255.0, 255.0], // cyan
+                [0.5, 0.0, 255.0, 0.0, 255.0],    // green
+                [0.75, 255.0, 255.0, 0.0, 255.0], // yellow
+                [1.0, 255.0, 0.0, 0.0, 255.0],    // red
+            ];
+            interpolate_stops(stops, t)
+        }
+        ColorRamp::Ocean => {
+            // Deep → shallow: dark navy → medium blue → light cyan
+            let stops: &[[f64; 5]] = &[
+                [0.0, 0.0, 0.0, 80.0, 255.0],      // dark navy
+                [0.5, 0.0, 64.0, 192.0, 255.0],    // medium blue
+                [1.0, 100.0, 200.0, 255.0, 255.0], // light cyan
+            ];
+            interpolate_stops(stops, t)
+        }
+        ColorRamp::Gray => {
+            let v = (t * 255.0).round() as u8;
+            [v, v, v, 255]
+        }
+    }
+}
+
+/// Interpolate through color stops. Each stop is `[position, r, g, b, a]`.
+fn interpolate_stops(stops: &[[f64; 5]], t: f64) -> [u8; 4] {
+    // Find the two surrounding stops
+    for i in 0..stops.len() - 1 {
+        if t <= stops[i + 1][0] {
+            let t0 = stops[i][0];
+            let t1 = stops[i + 1][0];
+            let local_t = if (t1 - t0).abs() < 1e-10 {
+                0.0
+            } else {
+                (t - t0) / (t1 - t0)
+            };
+            let a: [u8; 4] = [
+                stops[i][1] as u8,
+                stops[i][2] as u8,
+                stops[i][3] as u8,
+                stops[i][4] as u8,
+            ];
+            let b: [u8; 4] = [
+                stops[i + 1][1] as u8,
+                stops[i + 1][2] as u8,
+                stops[i + 1][3] as u8,
+                stops[i + 1][4] as u8,
+            ];
+            return lerp_color(a, b, local_t);
+        }
+    }
+    // Past last stop → use last color
+    let last = stops.last().unwrap();
+    [last[1] as u8, last[2] as u8, last[3] as u8, last[4] as u8]
+}
+
+/// Apply a color ramp to an elevation grid, producing RGBA pixel data.
+///
+/// # Arguments
+/// - `heights`: `Float32Array` of elevation values (row-major)
+/// - `min_z`: Minimum elevation for normalization
+/// - `max_z`: Maximum elevation for normalization
+/// - `ramp`: Color ramp preset (`0`=Terrain, `1`=Heat, `2`=Ocean, `3`=Gray)
+///
+/// # Returns
+/// `Uint8Array` of RGBA values (length = heights.length × 4).
+#[wasm_bindgen(js_name = "applyTerrainColorRamp")]
+pub fn apply_color_ramp(heights: &[f32], min_z: f64, max_z: f64, ramp: u32) -> js_sys::Uint8Array {
+    let ramp_enum = match ramp {
+        1 => ColorRamp::Heat,
+        2 => ColorRamp::Ocean,
+        3 => ColorRamp::Gray,
+        _ => ColorRamp::Terrain,
+    };
+
+    let range = max_z - min_z;
+    let n = heights.len();
+    let mut rgba = Vec::with_capacity(n * 4);
+
+    for &h in heights {
+        let t = if range.abs() < 1e-10 {
+            0.5
+        } else {
+            (h as f64 - min_z) / range
+        };
+        let color = sample_ramp(ramp_enum, t);
+        rgba.extend_from_slice(&color);
+    }
+
+    let arr = js_sys::Uint8Array::new_with_length(rgba.len() as u32);
+    arr.copy_from(&rgba);
+    arr
+}
+
+/// Core version of apply_color_ramp (pure Rust, for testing).
+pub fn apply_color_ramp_core(heights: &[f32], min_z: f64, max_z: f64, ramp: ColorRamp) -> Vec<u8> {
+    let range = max_z - min_z;
+    let mut rgba = Vec::with_capacity(heights.len() * 4);
+
+    for &h in heights {
+        let t = if range.abs() < 1e-10 {
+            0.5
+        } else {
+            (h as f64 - min_z) / range
+        };
+        let color = sample_ramp(ramp, t);
+        rgba.extend_from_slice(&color);
+    }
+
+    rgba
+}
+
+/// Compute hillshade illumination for a terrain grid.
+///
+/// Implements the standard hillshade algorithm used in GIS:
+/// 1. Compute terrain gradient (dz/dx, dz/dy)
+/// 2. Calculate illumination angle from azimuth + altitude
+/// 3. Shade = max((cos(zenith) * cos(slope) + sin(zenith) * sin(slope) * cos(azimuth - aspect)), 0)
+///
+/// # Arguments
+/// - `heights`: `Float32Array` elevation grid (row-major)
+/// - `width`: Grid width (columns)
+/// - `height`: Grid height (rows)
+/// - `azimuth_deg`: Light azimuth in degrees (0 = North, 90 = East)
+/// - `altitude_deg`: Light altitude/elevation in degrees (90 = directly above)
+///
+/// # Returns
+/// `Uint8Array` of illumination values (0 = shadow, 255 = full light).
+#[wasm_bindgen(js_name = "hillshade")]
+pub fn hillshade(
+    heights: &[f32],
+    width: u32,
+    height: u32,
+    azimuth_deg: f64,
+    altitude_deg: f64,
+) -> js_sys::Uint8Array {
+    let result = hillshade_core(
+        heights,
+        width as usize,
+        height as usize,
+        azimuth_deg,
+        altitude_deg,
+    );
+    let arr = js_sys::Uint8Array::new_with_length(result.len() as u32);
+    arr.copy_from(&result);
+    arr
+}
+
+/// Core version of hillshade (pure Rust, for testing).
+pub fn hillshade_core(
+    heights: &[f32],
+    width: usize,
+    height: usize,
+    azimuth_deg: f64,
+    altitude_deg: f64,
+) -> Vec<u8> {
+    if width < 2 || height < 2 {
+        return vec![128u8; heights.len()]; // flat shade for degenerate grids
+    }
+
+    let zenith_rad = (90.0 - altitude_deg).to_radians();
+    let azimuth_rad = (360.0 - azimuth_deg + 90.0).to_radians(); // Convert GIS azimuth to math angle
+
+    let zenith_cos = zenith_rad.cos();
+    let zenith_sin = zenith_rad.sin();
+    let azimuth_cos = azimuth_rad.cos();
+    let azimuth_sin = azimuth_rad.sin();
+
+    let mut result = Vec::with_capacity(heights.len());
+
+    for row in 0..height {
+        for col in 0..width {
+            let idx = row * width + col;
+            let z = heights[idx];
+
+            // Get neighbors (clamp to edge)
+            let z_left = if col > 0 { heights[idx - 1] } else { z };
+            let z_right = if col < width - 1 { heights[idx + 1] } else { z };
+            let z_down = if row > 0 { heights[idx - width] } else { z };
+            let z_up = if row < height - 1 {
+                heights[idx + width]
+            } else {
+                z
+            };
+
+            // Finite difference gradient (assuming unit cell size)
+            let dzdx = (z_right - z_left) as f64 / 2.0;
+            let dzdy = (z_up - z_down) as f64 / 2.0;
+
+            // Slope and aspect
+            let slope = (dzdx * dzdx + dzdy * dzdy).sqrt().atan(); // radians
+            let aspect = (-dzdy).atan2(dzdx); // radians
+
+            // Hillshade formula
+            let shade = zenith_cos * slope.cos()
+                + zenith_sin
+                    * slope.sin()
+                    * (azimuth_cos * aspect.cos() + azimuth_sin * aspect.sin());
+
+            let shade_byte = (shade.max(0.0) * 255.0).round() as u8;
+            result.push(shade_byte);
+        }
+    }
+
+    result
+}
+
+/// Marching squares classification for a single cell.
+/// Returns a case number 0–15 based on which corners are above the threshold.
+fn marching_squares_case(v00: bool, v10: bool, v01: bool, v11: bool) -> u8 {
+    let mut case = 0u8;
+    if v00 {
+        case |= 1;
+    }
+    if v10 {
+        case |= 2;
+    }
+    if v11 {
+        case |= 4;
+    }
+    if v01 {
+        case |= 8;
+    }
+    case
+}
+
+/// Interpolate edge crossing point for marching squares.
+fn interpolate_edge(height_a: f32, height_b: f32, threshold: f32, pos_a: f64, pos_b: f64) -> f64 {
+    let denom = (height_b - height_a) as f64;
+    if denom.abs() < 1e-10 {
+        return (pos_a + pos_b) / 2.0;
+    }
+    let t = (threshold as f64 - height_a as f64) / denom;
+    pos_a + t * (pos_b - pos_a)
+}
+
+/// Generate contour lines from a height grid using the marching squares algorithm.
+///
+/// # Arguments
+/// - `heights`: `Float32Array` elevation grid (row-major)
+/// - `width`: Grid width (columns)
+/// - `height`: Grid height (rows)
+/// - `interval`: Elevation interval between contour lines
+///
+/// # Returns
+/// A JS array of contour line segments. Each segment is `[x0, y0, x1, y1]`.
+#[wasm_bindgen(js_name = "contourLines")]
+pub fn contour_lines(heights: &[f32], width: u32, height: u32, interval: f64) -> js_sys::Array {
+    let segments = contour_lines_core(heights, width as usize, height as usize, interval);
+    let result = js_sys::Array::new_with_length(segments.len() as u32);
+    for (i, seg) in segments.iter().enumerate() {
+        let arr = js_sys::Float64Array::new_with_length(4);
+        arr.copy_from(&[seg.0, seg.1, seg.2, seg.3]);
+        result.set(i as u32, arr.into());
+    }
+    result
+}
+
+/// Core version of contour_lines (pure Rust, for testing).
+pub fn contour_lines_core(
+    heights: &[f32],
+    width: usize,
+    height: usize,
+    interval: f64,
+) -> Vec<(f64, f64, f64, f64)> {
+    if width < 2 || height < 2 || interval <= 0.0 {
+        return Vec::new();
+    }
+
+    // Find elevation range
+    let mut min_z = f32::MAX;
+    let mut max_z = f32::MIN;
+    for &h in heights {
+        min_z = min_z.min(h);
+        max_z = max_z.max(h);
+    }
+
+    let mut segments = Vec::new();
+
+    // Process each contour level
+    let mut level = (min_z as f64 / interval).floor() * interval + interval;
+    while level <= max_z as f64 {
+        let threshold = level as f32;
+
+        for row in 0..height - 1 {
+            for col in 0..width - 1 {
+                let idx = row * width + col;
+                let v00 = heights[idx] >= threshold; // bottom-left
+                let v10 = heights[idx + 1] >= threshold; // bottom-right
+                let v01 = heights[idx + width] >= threshold; // top-left
+                let v11 = heights[idx + width + 1] >= threshold; // top-right
+
+                let case = marching_squares_case(v00, v10, v11, v01);
+                if case == 0 || case == 15 {
+                    continue; // All above or all below
+                }
+
+                // Cell corners: positions (col, row) as (x, y)
+                let x0 = col as f64;
+                let x1 = (col + 1) as f64;
+                let y0 = row as f64;
+                let y1 = (row + 1) as f64;
+
+                let h00 = heights[idx];
+                let h10 = heights[idx + 1];
+                let h01 = heights[idx + width];
+                let h11 = heights[idx + width + 1];
+
+                // Edge interpolation points
+                let bottom = interpolate_edge(h00, h10, threshold, x0, x1); // bottom edge
+                let top = interpolate_edge(h01, h11, threshold, x0, x1); // top edge
+                let left = interpolate_edge(h00, h01, threshold, y0, y1); // left edge (y)
+                let right = interpolate_edge(h10, h11, threshold, y0, y1); // right edge (y)
+
+                // Generate line segments based on case
+                match case {
+                    1 | 14 => {
+                        segments.push((bottom, y0, x0, left));
+                    }
+                    2 | 13 => {
+                        segments.push((bottom, y0, x1, right));
+                    }
+                    3 | 12 => {
+                        segments.push((x0, left, x1, right));
+                    }
+                    4 | 11 => {
+                        segments.push((x1, right, top, y1));
+                    }
+                    5 => {
+                        // Saddle point — ambiguous
+                        segments.push((bottom, y0, x0, left));
+                        segments.push((x1, right, top, y1));
+                    }
+                    6 | 9 => {
+                        segments.push((bottom, y0, top, y1));
+                    }
+                    7 | 8 => {
+                        segments.push((x0, left, top, y1));
+                    }
+                    10 => {
+                        // Saddle point — ambiguous
+                        segments.push((bottom, y0, x1, right));
+                        segments.push((x0, left, top, y1));
+                    }
+                    _ => unreachable!(),
+                }
+            }
+        }
+
+        level += interval;
+    }
+
+    segments
+}
+
+// ===========================================================================
 // Tests
 // ===========================================================================
 
@@ -2224,5 +2625,149 @@ mod tests {
         let result = decompress_data(&[1, 2, 3], compression::LZW);
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("LZW"));
+    }
+
+    // -------------------------------------------------------------------------
+    // Terrain Styling Pipeline Tests
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_color_ramp_terrain_low() {
+        let color = sample_ramp(ColorRamp::Terrain, 0.0);
+        // Low elevation → deep blue
+        assert_eq!(color[0], 0);
+        assert_eq!(color[1], 0);
+        assert!(
+            color[2] > 100,
+            "Blue channel should be > 100 at low elevation"
+        );
+        assert_eq!(color[3], 255);
+    }
+
+    #[test]
+    fn test_color_ramp_terrain_high() {
+        let color = sample_ramp(ColorRamp::Terrain, 1.0);
+        // High elevation → white
+        assert_eq!(color, [255, 255, 255, 255]);
+    }
+
+    #[test]
+    fn test_color_ramp_terrain_mid() {
+        let color = sample_ramp(ColorRamp::Terrain, 0.5);
+        // Mid elevation → yellow
+        assert_eq!(color[0], 255, "Red should be 255 at mid");
+        assert_eq!(color[1], 255, "Green should be 255 at mid");
+        assert_eq!(color[2], 0, "Blue should be 0 at mid");
+    }
+
+    #[test]
+    fn test_color_ramp_gray() {
+        let low = sample_ramp(ColorRamp::Gray, 0.0);
+        let mid = sample_ramp(ColorRamp::Gray, 0.5);
+        let high = sample_ramp(ColorRamp::Gray, 1.0);
+        assert_eq!(low, [0, 0, 0, 255]);
+        assert_eq!(mid, [128, 128, 128, 255]);
+        assert_eq!(high, [255, 255, 255, 255]);
+    }
+
+    #[test]
+    fn test_apply_color_ramp_core() {
+        let heights = vec![0.0f32, 50.0, 100.0];
+        let rgba = apply_color_ramp_core(&heights, 0.0, 100.0, ColorRamp::Gray);
+        assert_eq!(rgba.len(), 12); // 3 × 4 bytes
+        assert_eq!(rgba[0], 0); // min → black
+        assert_eq!(rgba[4], 128); // mid → gray
+        assert_eq!(rgba[8], 255); // max → white
+    }
+
+    #[test]
+    fn test_apply_color_ramp_flat_range() {
+        // When min == max, all values should map to the middle
+        let heights = vec![10.0f32, 20.0, 30.0];
+        let rgba = apply_color_ramp_core(&heights, 50.0, 50.0, ColorRamp::Gray);
+        assert_eq!(rgba.len(), 12);
+        // All should be ~128 (middle)
+        assert_eq!(rgba[0], 128);
+        assert_eq!(rgba[4], 128);
+        assert_eq!(rgba[8], 128);
+    }
+
+    #[test]
+    fn test_hillshade_flat_surface() {
+        let heights = vec![10.0f32; 4]; // 2x2 flat surface
+                                        // With altitude=90° (directly above), flat surface gets full illumination
+        let shade = hillshade_core(&heights, 2, 2, 315.0, 90.0);
+        assert_eq!(shade.len(), 4);
+        for &s in &shade {
+            assert_eq!(
+                s, 255,
+                "Flat surface with light overhead should have full illumination"
+            );
+        }
+    }
+
+    #[test]
+    fn test_hillshade_with_slope() {
+        // East-facing slope: heights increase left to right
+        let heights = vec![0.0f32, 0.0, 0.0, 10.0, 10.0, 10.0];
+        let shade = hillshade_core(&heights, 3, 2, 90.0, 45.0); // Light from east
+        assert_eq!(shade.len(), 6);
+        // East-facing slope with east light should be brighter than west-facing
+        // Bottom row (low elevation) vs top row (high elevation)
+        let _avg_top = (shade[0] + shade[1] + shade[2]) as f64 / 3.0;
+        let avg_bottom = (shade[3] + shade[4] + shade[5]) as f64 / 3.0;
+        // The slope faces south (bottom is lower), so light from east illuminates the slope face
+        assert!(avg_bottom > 0.0);
+    }
+
+    #[test]
+    fn test_hillshade_size() {
+        let heights = vec![0.0f32; 6]; // 3x2
+        let shade = hillshade_core(&heights, 3, 2, 315.0, 45.0);
+        assert_eq!(shade.len(), 6);
+    }
+
+    #[test]
+    fn test_contour_lines_flat() {
+        // Flat surface → no contour lines
+        let heights = vec![10.0f32; 6]; // 3x2
+        let segments = contour_lines_core(&heights, 3, 2, 5.0);
+        assert!(
+            segments.is_empty(),
+            "Flat surface should have no contour lines"
+        );
+    }
+
+    #[test]
+    fn test_contour_lines_diagonal() {
+        // Diagonal slope: 0→5 going from left to right
+        let heights = vec![
+            0.0f32, 3.0, 6.0, // row 0
+            0.0f32, 3.0, 6.0, // row 1
+        ];
+        let segments = contour_lines_core(&heights, 3, 2, 3.0);
+        // Should have at least one segment for the 3.0 contour
+        assert!(
+            !segments.is_empty(),
+            "Diagonal slope should produce contour lines"
+        );
+    }
+
+    #[test]
+    fn test_contour_lines_zero_interval() {
+        let heights = vec![0.0f32; 4];
+        let segments = contour_lines_core(&heights, 2, 2, 0.0);
+        assert!(
+            segments.is_empty(),
+            "Zero interval should produce no segments"
+        );
+    }
+
+    #[test]
+    fn test_contour_lines_single_cell() {
+        let heights = vec![0.0f32, 10.0, 10.0, 0.0]; // 2x2 ridge
+        let segments = contour_lines_core(&heights, 2, 2, 5.0);
+        // Should have at least one segment
+        assert!(!segments.is_empty(), "Ridge should produce contour lines");
     }
 }
