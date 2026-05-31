@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-05-31
+
+### Added
+- **glTF/GLB Writer enhancements** — `meshToGlb()` one-shot API for generic indexed meshes with optional normals. Multiple material support per builder instance.
+- **Terrain styling pipeline** — Color ramp application (`applyTerrainColorRamp()`), hillshade generation (`hillshade()`), and contour line extraction (`contourLines()`) for GeoTIFF elevation grids.
+- **b3dm 3D Tiles encoder** — `encodeB3dmTile()` encodes glTF/GLB geometry into 3D Tiles Batched 3D Model format with batch table JSON support.
+- **i3dm 3D Tiles encoder** — `encodeI3dmTile()` encodes instanced 3D Tiles with positions, orientations (quaternions), and per-instance scales. `createInstancedTileset()` / `createInstancedTilesetI3dm()` generate complete tileset trees.
+- **Mesh tileset generator** — `createMeshTileset()` generates tileset.json trees from pre-encoded b3dm tile data with bounding volumes and geometric error.
+- **Cesium geometry adapter** — `generateCesiumGeometry()` converts GeoJSON polygons to Cesium `MeshGeometry` with indexed triangles. `generate3DTile()` wraps geometry into `Cesium3DTile` with batch IDs.
+- **Worker terrain pipeline** — `WorkerHandle` with `processTerrain()` for streaming GeoTIFF → quantized-mesh processing in Web Workers. Progress callbacks (`onProgress`, `onComplete`, `onError`), cancellation, and chunked processing support.
+- **MVT GeoJSON projection** — `decodeMvtToGeoJson()` and `mvtToGeoJson()` now project tile-space coordinates back to WGS-84 geographic coordinates.
+- **MVT layer info** — `mvtLayerInfo()` returns per-layer metadata (feature count, extent, name) from MVT tiles.
+- **Point cloud classification coloring** — `colorizeByClassification()` applies ASPRS standard classification colors. `colorizeByHeatmap()` for density-based heat coloring.
+- **Build color ramp** — `buildColorRamp()` creates gradient color ramps from key-value pairs for reusable colorization.
+- **Point cloud statistics & bounds** — `pointCloudStats()` computes min/max/mean/stddev for XYZ + intensity. `pointCloudBounds()` returns axis-aligned bounding box.
+- **CesiumJS complete demo** — Full-featured demo page with point cloud rendering, terrain visualization, and 3D Tiles display on Cesium globe.
+- **npm publish readiness** — `npm/` package with TypeScript re-exports, typed bindings, and build scripts for all feature combinations.
+- **IFC geometry parser** — Extract `IFCEXTRUDEDAREASOLID` mesh geometry from IFC-SPF text files.
+- **Spatial edge index** — `SpatialEdgeIndex` for bounding box search and nearest-neighbor on line segment collections.
+
+### Changed
+- Test count: 520 → 529 (added boundary condition and edge case tests across gltf_writer, spatial_analysis)
+- Source lines: ~30,029 lines (26 modules)
+- WASM binary: 1.2 MB (point-cloud + geotiff), 1.5 MB (all features, single-thread)
+- WASM build now uses `wasm-pack --target web` with `--` separator for cargo features
+- d.ts generation: 3,343 lines (core), 3,470 lines (all features)
+- Exported functions: 173 (core), 182 (all features)
+- `multi-thread` feature documented as requiring `atomics` + `bulk-memory` RUSTFLAGS
+
+### Security
+- All WASM exports consistently use camelCase (JS) / PascalCase (structs)
+- Error returns: `Result<T, JsValue>` for WASM boundary, `SpatialErrorDetail` for internal — both auto-convert to JS Error
+
 ## [0.5.0] - 2026-06-01
 
 ### Added
