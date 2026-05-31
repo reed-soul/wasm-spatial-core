@@ -18,6 +18,7 @@ mod coordinate;
 mod errors;
 mod geojson_parser;
 mod geojson_streaming;
+mod geotiff;
 mod gltf_writer;
 mod ifc_reader;
 mod octree;
@@ -79,6 +80,11 @@ pub use point_cloud_stream::compute_region_byte_range;
 pub use point_cloud_stream::{laz_status, supports_laz, PointCloudStreamer};
 
 pub use ifc_reader::{parse_ifc_geometry_core, IfcGeometryResult, IfcMesh};
+
+pub use geotiff::{
+    encode_quantized_mesh_core, encode_terrain_tileset_core, parse_geotiff_core, GeotiffInfo,
+    QuantizedMeshResult, TerrainTilesetResult,
+};
 
 // Re-export internal helpers for integration/stress testing.
 // These are exposed via a public "test_exports" module that is only

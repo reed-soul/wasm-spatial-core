@@ -35,6 +35,8 @@ pub enum SpatialError {
     TileError,
     /// Point cloud (LAS / PCD) parsing failed
     PointCloudError,
+    /// GeoTIFF terrain processing failed
+    TerrainError,
 }
 
 impl SpatialError {
@@ -48,6 +50,7 @@ impl SpatialError {
             SpatialError::IndexError => "INDEX_ERROR",
             SpatialError::TileError => "TILE_ERROR",
             SpatialError::PointCloudError => "POINT_CLOUD_ERROR",
+            SpatialError::TerrainError => "TERRAIN_ERROR",
         }
     }
 
@@ -61,6 +64,7 @@ impl SpatialError {
             SpatialError::IndexError => "Spatial index is empty or out of bounds",
             SpatialError::TileError => "Vector tile generation failed",
             SpatialError::PointCloudError => "Point cloud (LAS/PCD) parsing failed",
+            SpatialError::TerrainError => "GeoTIFF terrain processing failed",
         }
     }
 
@@ -95,6 +99,10 @@ impl SpatialError {
     /// Convenience: IndexError with detail
     pub fn index_error(detail: impl std::fmt::Display) -> SpatialErrorDetail {
         SpatialError::IndexError.with_detail(detail)
+    }
+    /// Convenience: TerrainError with detail
+    pub fn terrain_error(detail: impl std::fmt::Display) -> SpatialErrorDetail {
+        SpatialError::TerrainError.with_detail(detail)
     }
 }
 
@@ -195,6 +203,12 @@ pub(crate) fn geometry_js(detail: impl std::fmt::Display) -> JsValue {
     SpatialError::geometry_error(detail).into()
 }
 
+#[inline]
+#[allow(dead_code)]
+pub(crate) fn terrain_js(detail: impl std::fmt::Display) -> JsValue {
+    SpatialError::terrain_error(detail).into()
+}
+
 // ===========================================================================
 // Tests
 // ===========================================================================
@@ -212,6 +226,7 @@ mod tests {
         assert_eq!(SpatialError::IndexError.code(), "INDEX_ERROR");
         assert_eq!(SpatialError::TileError.code(), "TILE_ERROR");
         assert_eq!(SpatialError::PointCloudError.code(), "POINT_CLOUD_ERROR");
+        assert_eq!(SpatialError::TerrainError.code(), "TERRAIN_ERROR");
     }
 
     #[test]
@@ -224,6 +239,7 @@ mod tests {
             SpatialError::IndexError,
             SpatialError::TileError,
             SpatialError::PointCloudError,
+            SpatialError::TerrainError,
         ] {
             assert!(!variant.description().is_empty());
             assert!(variant.description().len() > 10);

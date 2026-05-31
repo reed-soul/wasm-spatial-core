@@ -30,6 +30,8 @@ laz-support = ["point-cloud", "dep:laz"]
 e57-support = ["dep:e57"]
 # Draco compression support (optional — uses pure-Rust draco-oxide)
 draco-support = []
+# GeoTIFF terrain support (TIFF parsing + quantized-mesh encoding)
+geotiff = []
 # Test helpers (exposes internal fields for integration tests — never ship to WASM)
 test-helpers = []
 
@@ -53,6 +55,7 @@ laz = { version = "0.12.1", optional = true }
 wasm-bindgen-futures = "0.4"
 byteorder = "1.5"
 e57 = { version = "0.11.12", optional = true }
+flate2 = "1.1"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.2", features = ["js"] }
