@@ -183,20 +183,22 @@ fn test_las_invalid_magic() {
 #[test]
 #[cfg(feature = "point-cloud")]
 fn test_las_truncated_no_point_data() {
-    // Build a valid internal-format LAS blob (using same offsets as our parser)
+    // Build a valid LAS 1.2 header with 100 points declared but no point data.
+    // Offsets follow ASPRS LAS 1.2 spec.
     let mut blob = vec![0u8; 230];
     blob[0..4].copy_from_slice(b"LASF");
     blob[24] = 1; // version major
-    blob[26] = 2; // version minor
-                  // num_points = 100
-    blob[110..114].copy_from_slice(&100u32.to_le_bytes());
-    // point_offset = 230
-    blob[98..102].copy_from_slice(&230u32.to_le_bytes());
-    // record length = 20
-    blob[108..110].copy_from_slice(&20u16.to_le_bytes());
-    blob[134..142].copy_from_slice(&1.0_f64.to_le_bytes()); // x_scale
-    blob[142..150].copy_from_slice(&1.0_f64.to_le_bytes()); // y_scale
-    blob[150..158].copy_from_slice(&1.0_f64.to_le_bytes()); // z_scale
+    blob[25] = 2; // version minor
+    blob[104] = 0; // point format 0
+                   // point_offset = 230 (header size)
+    blob[96..100].copy_from_slice(&230u32.to_le_bytes());
+    // record length = 20 (format 0)
+    blob[105..107].copy_from_slice(&20u16.to_le_bytes());
+    // num_points = 100
+    blob[107..111].copy_from_slice(&100u32.to_le_bytes());
+    blob[131..139].copy_from_slice(&1.0_f64.to_le_bytes()); // x_scale
+    blob[139..147].copy_from_slice(&1.0_f64.to_le_bytes()); // y_scale
+    blob[147..155].copy_from_slice(&1.0_f64.to_le_bytes()); // z_scale
 
     let cloud = parse_las_points_core(&blob).unwrap();
     assert_eq!(cloud.point_count(), 0);
@@ -208,14 +210,14 @@ fn test_las_header_partial_data() {
     let mut blob = vec![0u8; 230];
     blob[0..4].copy_from_slice(b"LASF");
     blob[24] = 1;
-    blob[26] = 2;
-    blob[98..102].copy_from_slice(&230u32.to_le_bytes());
-    blob[106] = 0; // format 0
-    blob[108..110].copy_from_slice(&20u16.to_le_bytes());
-    blob[110..114].copy_from_slice(&5u32.to_le_bytes());
-    blob[134..142].copy_from_slice(&1.0_f64.to_le_bytes());
-    blob[142..150].copy_from_slice(&1.0_f64.to_le_bytes());
-    blob[150..158].copy_from_slice(&1.0_f64.to_le_bytes());
+    blob[25] = 2;
+    blob[96..100].copy_from_slice(&230u32.to_le_bytes());
+    blob[104] = 0; // format 0
+    blob[105..107].copy_from_slice(&20u16.to_le_bytes());
+    blob[107..111].copy_from_slice(&5u32.to_le_bytes());
+    blob[131..139].copy_from_slice(&1.0_f64.to_le_bytes());
+    blob[139..147].copy_from_slice(&1.0_f64.to_le_bytes());
+    blob[147..155].copy_from_slice(&1.0_f64.to_le_bytes());
 
     // Add 2 complete point records (40 bytes)
     blob.resize(230 + 40, 0);
