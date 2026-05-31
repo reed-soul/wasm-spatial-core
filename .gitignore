@@ -3,6 +3,7 @@
 /pkg
 /wasm-pkg
 /_site
+# NOTE: docs/pkg/ is intentionally NOT ignored — GitHub Pages serves these WASM files
 
 # Node / npm
 node_modules/

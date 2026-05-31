@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>wasm-spatial-core — Interactive Demo</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card: #161b22;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --green: #3fb950;
+      --orange: #d29922;
+      --red: #f85149;
+      --purple: #bc8cff;
+      --cyan: #39d2c0;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 2rem;
+      max-width: 1100px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+    h1 {
+      font-size: 1.8rem;
+      margin-bottom: 0.25rem;
+      background: linear-gradient(135deg, var(--accent), var(--purple));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .subtitle { color: var(--text-muted); margin-bottom: 2rem; font-size: 0.9rem; }
+    .note {
+      background: rgba(88, 166, 255, 0.08); border: 1px solid rgba(88, 166, 255, 0.25);
+      border-radius: 6px; padding: 0.75rem 1rem; margin-bottom: 1.5rem;
+      font-size: 0.85rem; color: var(--accent);
+    }
+    .grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem;
+      margin-bottom: 2rem;
+    }
+    @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+    .panel {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 8px; padding: 1.25rem;
+    }
+    .panel-title {
+      font-weight: 600; font-size: 0.95rem; margin-bottom: 1rem;
+      display: flex; align-items: center; gap: 0.5rem;
+    }
+    .panel-title .icon { font-size: 1.1rem; }
+    label { color: var(--text-muted); font-size: 0.85rem; display: block; margin-bottom: 0.3rem; }
+    select, button {
+      background: var(--card); color: var(--text); border: 1px solid var(--border);
+      padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.85rem;
+      cursor: pointer; transition: border-color 0.2s; width: 100%;
+    }
+    select:hover, button:hover { border-color: var(--accent); }
+    select { margin-bottom: 0.75rem; }
+    button.run {
+      background: linear-gradient(135deg, #238636, #2ea043);
+      border: none; font-weight: 600; padding: 0.6rem 1.5rem; width: 100%;
+    }
+    button.run:hover { opacity: 0.9; }
+    button.run:disabled { opacity: 0.5; cursor: not-allowed; }
+    .result-area {
+      margin-top: 0.75rem; background: rgba(0,0,0,0.3); border-radius: 6px;
+      padding: 0.75rem; font-size: 0.8rem; color: var(--text-muted);
+      max-height: 300px; overflow-y: auto;
+    }
+    .result-area code {
+      font-family: 'JetBrains Mono', monospace; font-size: 0.8rem;
+      color: var(--green); word-break: break-all;
+    }
+    .result-area table {
+      width: 100%; border-collapse: collapse; font-size: 0.8rem;
+    }
+    .result-area th, .result-area td {
+      text-align: left; padding: 0.35rem 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .result-area th { color: var(--accent); font-weight: 600; }
+    .result-area td { color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; }
+    .full-width { grid-column: 1 / -1; }
+    canvas {
+      width: 100%; border-radius: 6px;
+      background: rgba(0,0,0,0.3); border: 1px solid var(--border);
+    }
+    .status {
+      text-align: center; padding: 2rem; color: var(--text-muted); font-size: 0.9rem;
+    }
+    .spinner {
+      display: inline-block; width: 18px; height: 18px;
+      border: 2px solid var(--border); border-top-color: var(--accent);
+      border-radius: 50%; animation: spin 0.8s linear infinite;
+      margin-right: 0.5rem; vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .tag {
+      display: inline-block; font-size: 0.7rem; padding: 0.15rem 0.4rem;
+      border-radius: 3px; font-weight: 600;
+    }
+    .tag-green { background: rgba(63,185,80,0.15); color: var(--green); }
+    .tag-purple { background: rgba(188,140,255,0.15); color: var(--purple); }
+    .tag-cyan { background: rgba(57,210,192,0.15); color: var(--cyan); }
+    .legend {
+      display: flex; gap: 1rem; margin-top: 0.5rem; flex-wrap: wrap;
+    }
+    .legend-item { display: flex; align-items: center; gap: 0.3rem; font-size: 0.8rem; color: var(--text-muted); }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .nav-link { color: var(--accent); font-size: 0.85rem; }
+    footer {
+      margin-top: 3rem; text-align: center; color: var(--text-muted);
+      font-size: 0.8rem; border-top: 1px solid var(--border); padding-top: 1.5rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>🌍 wasm-spatial-core Demo</h1>
+  <p class="subtitle">Interactive demo — GeoJSON parsing, coordinate projection, spatial indexing &amp; visualization</p>
+  <p style="margin-bottom:1rem"><a href="../" class="nav-link">← Back to Home</a></p>
+
+  <div class="note">
+    💡 This runs entirely in your browser. The WASM module handles all spatial computation — no server needed.
+  </div>
+
+  <div id="initStatus" class="status"><span class="spinner"></span>Loading WASM module…</div>
+
+  <!-- Row 1: Controls -->
+  <div class="grid" id="mainGrid" style="display:none">
+    <!-- Data Selection -->
+    <div class="panel">
+      <div class="panel-title"><span class="icon">📦</span> Data Source</div>
+      <label for="dataset">Select dataset:</label>
+      <select id="dataset">
+        <option value="cities">China Major Cities (Point)</option>
+        <option value="provinces" selected>China Provinces (Polygon)</option>
+        <option value="mixed">Mixed: Cities + Provinces</option>
+      </select>
+      <label for="transform">Coordinate transform:</label>
+      <select id="transform">
+        <option value="gcj02" selected>WGS-84 → GCJ-02</option>
+        <option value="bd09">WGS-84 → BD-09</option>
+        <option value="mercator">WGS-84 → Web Mercator</option>
+      </select>
+      <button class="run" id="runBtn" onclick="runDemo()">▶ Run Analysis</button>
+    </div>
+
+    <!-- Stats -->
+    <div class="panel">
+      <div class="panel-title"><span class="icon">📊</span> Analysis Results</div>
+      <div class="result-area" id="statsArea">
+        Click "Run Analysis" to see results.
+      </div>
+    </div>
+
+    <!-- Coordinate Table -->
+    <div class="panel full-width">
+      <div class="panel-title"><span class="icon">🔄</span> Coordinate Transform Comparison</div>
+      <div class="result-area" id="tableArea">
+        Results will appear here.
+      </div>
+    </div>
+
+    <!-- Canvas Visualization -->
+    <div class="panel full-width">
+      <div class="panel-title"><span class="icon">🗺️</span> Coordinate Visualization</div>
+      <canvas id="mapCanvas" width="1060" height="500"></canvas>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot" style="background: var(--green)"></div> WGS-84 (Original)</div>
+        <div class="legend-item"><div class="legend-dot" style="background: var(--orange)"></div> Transformed</div>
+        <div class="legend-item"><div class="legend-dot" style="background: var(--cyan); opacity:0.5"></div> Connecting line</div>
+      </div>
+    </div>
+
+    <!-- Spatial Index -->
+    <div class="panel">
+      <div class="panel-title"><span class="icon">🔍</span> Spatial Index Query</div>
+      <label for="bboxQuery">Bounding box search:</label>
+      <select id="bboxQuery">
+        <option value="north">North China (35°–45°N, 105°–125°E)</option>
+        <option value="south">South China (20°–35°N, 100°–120°E)</option>
+        <option value="east">East Coast (25°–45°N, 115°–125°E)</option>
+        <option value="west">Western China (25°–45°N, 75°–105°E)</option>
+      </select>
+      <div class="result-area" id="indexArea">
+        Run analysis first to build the spatial index.
+      </div>
+    </div>
+
+    <!-- Nearest Neighbor -->
+    <div class="panel">
+      <div class="panel-title"><span class="icon">📍</span> Nearest Neighbor</div>
+      <label for="queryCoord">Query point:</label>
+      <select id="queryCoord">
+        <option value="beijing">Beijing (116.4, 39.9)</option>
+        <option value="shanghai">Shanghai (121.5, 31.2)</option>
+        <option value="guangzhou">Guangzhou (113.3, 23.1)</option>
+        <option value="urumqi">Ürümqi (87.6, 43.8)</option>
+        <option value="lhasa">Lhasa (91.1, 29.6)</option>
+      </select>
+      <div class="result-area" id="nnArea">
+        Run analysis first to build the spatial index.
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <code>wasm-spatial-core</code> — Built with 🦀 Rust + 🕸️ WebAssembly — © 2026 智启未来
+  </footer>
+
+  <script type="module">
+    import init, {
+      batchWgs84ToGcj02,
+      batchGcj02ToWgs84,
+      batchWgs84ToBd09,
+      batchBd09ToWgs84,
+      batchWgs84ToMercator,
+      batchMercatorToWgs84,
+      parseGeoJsonCoords,
+      countGeoJsonFeatures,
+      SpatialIndex,
+      version,
+    } from '../pkg/wasm-spatial-core.js';
+
+    // ── Sample Data ──────────────────────────────────────────────
+
+    const CITIES_GEOJSON = JSON.stringify({
+      type: "FeatureCollection",
+      features: [
+        { type: "Feature", geometry: { type: "Point", coordinates: [116.404, 39.915] }, properties: { name: "北京", population: 21540000 } },
+        { type: "Feature", geometry: { type: "Point", coordinates: [121.474, 31.230] }, properties: { name: "上海", population: 24870000 } },
+        { type: "Feature", geometry: { type: "Point", coordinates: [113.264, 23.129] }, properties: { name: "广州", population: 18680000 } },
+        { type: "Feature", geometry: { type: "Point", coordinates: [114.058, 22.543] }, properties: { name: "深圳", population: 17560000 } },
+        { type: "Feature", geometry: { type: "Point", coordinates: [104.066, 30.572] }, properties: { name: "成都", population: 16330000 } },
+        { type: "Feature", geometry: { type: "Point", coordinates: [106.551, 29.563] }, properties: { name: "重庆", population: 32050000 } },
+        { type: "Feature", geometry: { type: "Point", coordinates: [120.153, 30.287] }, properties: { name: "杭州", population: 10360000 } },
+        { type: "Feature", geometry: { type: "Point", coordinates: [114.298, 30.584] }, properties: { name: "武汉", population: 11210000 } },
+        { type: "Feature", geometry: { type: "Point", coordinates: [118.796, 32.060] }, properties: { name: "南京", population: 9314000 } },
+        { type: "Feature", geometry: { type: "Point", coordinates: [117.283, 31.861] }, properties: { name: "合肥", population: 8187000 } },
+        { type: "Feature", geometry: { type: "Point", coordinates: [112.982, 28.194] }, properties: { name: "长沙", population: 8395000 } },
+        { type: "Feature", geometry: { type: "Point", coordinates: [113.017, 23.022] }, properties: { name: "佛山", population: 7906000 } },
+        { type: "Feature", geometry: { type: "Point", coordinates: [108.940, 34.341] }, properties: { name: "西安", population: 10040000 } },
+        { type: "Feature", geometry: { type: "Point", coordinates: [126.653, 45.732] }, properties: { name: "哈尔滨", population: 10010000 } },
+        { type: "Feature", geometry: { type: "Point", coordinates: [123.429, 41.796] }, properties: { name: "沈阳", population: 8316000 } },
+        { type: "Feature", geometry: { type: "Point", coordinates: [125.323, 43.817] }, properties: { name: "长春", population: 7869000 } },
+        { type: "Feature", geometry: { type: "Point", coordinates: [117.200, 39.084] }, properties: { name: "天津", population: 13866000 } },
+        { type: "Feature", geometry: { type: "Point", coordinates: [117.000, 36.675] }, properties: { name: "济南", population: 7967000 } },
+        { type: "Feature", geometry: { type: "Point", coordinates: [117.283, 36.605] }, properties: { name: "青岛", population: 9507000 } },
+        { type: "Feature", geometry: { type: "Point", coordinates: [87.617, 43.793] }, properties: { name: "乌鲁木齐", population: 4054000 } },
+        { type: "Feature", geometry: { type: "Point", coordinates: [91.117, 29.650] }, properties: { name: "拉萨", population: 902000 } },
+        { type: "Feature", geometry: { type: "Point", coordinates: [102.712, 25.040] }, properties: { name: "昆明", population: 6783000 } },
+        { type: "Feature", geometry: { type: "Point", coordinates: [106.713, 26.647] }, properties: { name: "贵阳", population: 4848000 } },
+        { type: "Feature", geometry: { type: "Point", coordinates: [108.320, 22.824] }, properties: { name: "南宁", population: 7387000 } },
+        { type: "Feature", geometry: { type: "Point", coordinates: [110.350, 20.020] }, properties: { name: "海口", population: 2049000 } },
+        { type: "Feature", geometry: { type: "Point", coordinates: [116.697, 23.391] }, properties: { name: "汕头", population: 4865000 } },
+        { type: "Feature", geometry: { type: "Point", coordinates: [118.093, 24.479] }, properties: { name: "厦门", population: 4286000 } },
+        { type: "Feature", geometry: { type: "Point", coordinates: [119.306, 26.075] }, properties: { name: "福州", population: 7153000 } },
+        { type: "Feature", geometry: { type: "Point", coordinates: [116.697, 39.529] }, properties: { name: "石家庄", population: 11030000 } },
+        { type: "Feature", geometry: { type: "Point", coordinates: [112.549, 37.870] }, properties: { name: "太原", population: 4462000 } },
+      ]
+    });
+
+    const PROVINCES_GEOJSON = JSON.stringify({
+      type: "FeatureCollection",
+      features: [
+        { type: "Feature", geometry: { type: "Polygon", coordinates: [[[116.4,39.9],[117.2,40.0],[117.5,39.4],[116.8,39.0],[116.4,39.9]]] }, properties: { name: "北京" } },
+        { type: "Feature", geometry: { type: "Polygon", coordinates: [[[121.0,31.0],[121.8,31.4],[122.0,30.8],[121.3,30.6],[121.0,31.0]]] }, properties: { name: "上海" } },
+        { type: "Feature", geometry: { type: "Polygon", coordinates: [[[113.0,23.0],[113.5,23.2],[114.0,22.5],[113.3,22.2],[113.0,23.0]]] }, properties: { name: "广东(部分)" } },
+        { type: "Feature", geometry: { type: "Polygon", coordinates: [[[104.0,30.5],[104.8,30.8],[104.6,30.3],[103.9,30.2],[104.0,30.5]]] }, properties: { name: "四川(部分)" } },
+        { type: "Feature", geometry: { type: "Polygon", coordinates: [[[108.8,34.2],[109.2,34.5],[109.0,34.0],[108.6,34.0],[108.8,34.2]]] }, properties: { name: "陕西(部分)" } },
+        { type: "Feature", geometry: { type: "Polygon", coordinates: [[[87.5,43.7],[88.0,43.9],[87.8,43.5],[87.3,43.5],[87.5,43.7]]] }, properties: { name: "新疆(部分)" } },
+        { type: "Feature", geometry: { type: "Polygon", coordinates: [[[91.0,29.5],[91.3,29.8],[91.2,29.3],[90.9,29.3],[91.0,29.5]]] }, properties: { name: "西藏(部分)" } },
+        { type: "Feature", geometry: { type: "Polygon", coordinates: [[[120.1,30.2],[120.3,30.4],[120.2,30.0],[120.0,30.1],[120.1,30.2]]] }, properties: { name: "浙江(部分)" } },
+      ]
+    });
+
+    // ── WASM Init ────────────────────────────────────────────────
+    let wasmReady = false;
+    let spatialIndex = null;
+    let cityFeatures = null;
+    let lastOriginal = null;
+    let lastTransformed = null;
+    let lastTransformName = '';
+
+    try {
+      await init();
+      wasmReady = true;
+      document.getElementById('initStatus').style.display = 'none';
+      document.getElementById('mainGrid').style.display = 'grid';
+    } catch (e) {
+      document.getElementById('initStatus').innerHTML =
+        `❌ Failed to load WASM: ${e.message}<br>Ensure the WASM module is built in docs/pkg/.`;
+    }
+
+    // ── Utility ────────────────────────────────────────────────────
+    function fmt(v, d = 6) { return v.toFixed(d); }
+
+    function formatNumber(n) {
+      if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+      if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+      return n.toString();
+    }
+
+    // ── Main Demo ────────────────────────────────────────────────
+    window.runDemo = async function() {
+      if (!wasmReady) return alert('WASM not loaded!');
+      const btn = document.getElementById('runBtn');
+      btn.disabled = true;
+
+      const dataset = document.getElementById('dataset').value;
+      const transform = document.getElementById('transform').value;
+
+      let geojson;
+      if (dataset === 'cities') {
+        geojson = CITIES_GEOJSON;
+      } else if (dataset === 'provinces') {
+        geojson = PROVINCES_GEOJSON;
+      } else {
+        const parsed1 = JSON.parse(CITIES_GEOJSON);
+        const parsed2 = JSON.parse(PROVINCES_GEOJSON);
+        geojson = JSON.stringify({
+          type: "FeatureCollection",
+          features: [...parsed1.features, ...parsed2.features]
+        });
+      }
+
+      const t0 = performance.now();
+      const featureCount = countGeoJsonFeatures(geojson);
+      const countTime = performance.now() - t0;
+
+      const t1 = performance.now();
+      const coords = parseGeoJsonCoords(geojson);
+      const parseTime = performance.now() - t1;
+      const coordCount = coords.length / 2;
+
+      const t2 = performance.now();
+      let transformed, transformName;
+      switch (transform) {
+        case 'gcj02':
+          transformed = batchWgs84ToGcj02(coords);
+          transformName = 'GCJ-02';
+          break;
+        case 'bd09':
+          transformed = batchWgs84ToBd09(coords);
+          transformName = 'BD-09';
+          break;
+        case 'mercator':
+          transformed = batchWgs84ToMercator(coords);
+          transformName = 'Web Mercator';
+          break;
+      }
+      const transformTime = performance.now() - t2;
+
+      const t3 = performance.now();
+      spatialIndex = new SpatialIndex(coords);
+      const indexTime = performance.now() - t3;
+
+      lastOriginal = coords;
+      lastTransformed = transformed;
+      lastTransformName = transformName;
+
+      const fc = JSON.parse(geojson);
+      cityFeatures = fc.features;
+
+      document.getElementById('statsArea').innerHTML = `
+        <div style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.75rem">
+          <span class="tag tag-green">${featureCount} features</span>
+          <span class="tag tag-purple">${coordCount} coord pairs</span>
+          <span class="tag tag-cyan">WGS84 → ${transformName}</span>
+        </div>
+        <table>
+          <tr><th>Operation</th><th>Time</th></tr>
+          <tr><td>countGeoJsonFeatures</td><td>${fmt(countTime, 2)} ms</td></tr>
+          <tr><td>parseGeoJsonCoords</td><td>${fmt(parseTime, 2)} ms</td></tr>
+          <tr><td>batchTransform (${transformName})</td><td>${fmt(transformTime, 2)} ms</td></tr>
+          <tr><td>SpatialIndex build</td><td>${fmt(indexTime, 2)} ms</td></tr>
+          <tr style="border-top:2px solid var(--border)"><td><strong>Total</strong></td><td><strong>${fmt(countTime + parseTime + transformTime + indexTime, 2)} ms</strong></td></tr>
+        </table>
+      `;
+
+      const maxRows = 10;
+      const mercatorCoords = batchWgs84ToMercator(coords);
+      let tableHtml = `<table>
+        <tr><th>#</th><th>Name</th><th>WGS-84 (lng, lat)</th><th>GCJ-02</th><th>BD-09</th><th>Web Mercator (x, y)</th></tr>`;
+      for (let i = 0; i < Math.min(maxRows, coordCount); i++) {
+        const name = cityFeatures[i]?.properties?.name || `Point ${i}`;
+        const lng0 = coords[i*2], lat0 = coords[i*2+1];
+        const gcj = batchWgs84ToGcj02(new Float64Array([lng0, lat0]));
+        const bd = batchWgs84ToBd09(new Float64Array([lng0, lat0]));
+        tableHtml += `<tr>
+          <td>${i}</td><td>${name}</td>
+          <td>${fmt(lng0)}, ${fmt(lat0)}</td>
+          <td>${fmt(gcj[0])}, ${fmt(gcj[1])}</td>
+          <td>${fmt(bd[0])}, ${fmt(bd[1])}</td>
+          <td>${fmt(mercatorCoords[i*2])}, ${fmt(mercatorCoords[i*2+1])}</td>
+        </tr>`;
+      }
+      if (coordCount > maxRows) {
+        tableHtml += `<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">… ${coordCount - maxRows} more rows</td></tr>`;
+      }
+      tableHtml += `</table>`;
+      document.getElementById('tableArea').innerHTML = tableHtml;
+
+      drawCanvas(coords, transformed, transformName, fc);
+      updateSpatialIndex();
+
+      btn.disabled = false;
+    };
+
+    // ── Canvas Drawing ────────────────────────────────────────────
+    function drawCanvas(original, transformed, transformName, fc) {
+      const canvas = document.getElementById('mapCanvas');
+      const ctx = canvas.getContext('2d');
+      const W = canvas.width, H = canvas.height;
+      ctx.clearRect(0, 0, W, H);
+
+      ctx.strokeStyle = 'rgba(48, 54, 61, 0.5)';
+      ctx.lineWidth = 0.5;
+      for (let x = 0; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+      for (let y = 0; y < H; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+      const coordCount = original.length / 2;
+      let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
+      for (let i = 0; i < coordCount; i++) {
+        const lng = original[i*2], lat = original[i*2+1];
+        if (lng < minLng) minLng = lng; if (lng > maxLng) maxLng = lng;
+        if (lat < minLat) minLat = lat; if (lat > maxLat) maxLat = lat;
+      }
+      const padLng = (maxLng - minLng) * 0.15 || 5;
+      const padLat = (maxLat - minLat) * 0.15 || 5;
+      minLng -= padLng; maxLng += padLng; minLat -= padLat; maxLat += padLat;
+
+      function toScreen(lng, lat) {
+        const x = 40 + ((lng - minLng) / (maxLng - minLng)) * (W - 80);
+        const y = H - 40 - ((lat - minLat) / (maxLat - minLat)) * (H - 80);
+        return [x, y];
+      }
+
+      const isMercator = transformName === 'Web Mercator';
+
+      ctx.strokeStyle = 'rgba(57, 210, 192, 0.3)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < coordCount; i++) {
+        if (!isMercator) {
+          const [x1, y1] = toScreen(original[i*2], original[i*2+1]);
+          const [x2, y2] = toScreen(transformed[i*2], transformed[i*2+1]);
+          ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+        }
+      }
+
+      ctx.strokeStyle = 'rgba(63, 185, 80, 0.4)';
+      ctx.lineWidth = 1.5;
+      for (const feat of fc.features) {
+        if (feat.geometry?.type === 'Polygon') {
+          const ring = feat.geometry.coordinates[0];
+          ctx.beginPath();
+          for (let i = 0; i < ring.length; i++) {
+            const [sx, sy] = toScreen(ring[i][0], ring[i][1]);
+            i === 0 ? ctx.moveTo(sx, sy) : ctx.lineTo(sx, sy);
+          }
+          ctx.closePath(); ctx.stroke();
+        }
+      }
+
+      ctx.fillStyle = '#3fb950';
+      for (let i = 0; i < coordCount; i++) {
+        const [x, y] = toScreen(original[i*2], original[i*2+1]);
+        ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill();
+      }
+
+      if (!isMercator) {
+        ctx.fillStyle = '#d29922';
+        for (let i = 0; i < coordCount; i++) {
+          const [x, y] = toScreen(transformed[i*2], transformed[i*2+1]);
+          ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+
+      ctx.font = '11px Inter, sans-serif';
+      ctx.fillStyle = 'rgba(201, 209, 217, 0.8)';
+      for (let i = 0; i < Math.min(coordCount, cityFeatures.length); i++) {
+        if (cityFeatures[i]?.geometry?.type === 'Point') {
+          const [x, y] = toScreen(original[i*2], original[i*2+1]);
+          ctx.fillText(cityFeatures[i].properties?.name || '', x + 7, y + 3);
+        }
+      }
+    }
+
+    // ── Spatial Index Query ───────────────────────────────────────
+    const BBOX_QUERIES = {
+      north: [105, 35, 125, 45],
+      south: [100, 20, 120, 35],
+      east:  [115, 25, 125, 45],
+      west:  [75, 25, 105, 45],
+    };
+
+    document.getElementById('bboxQuery').addEventListener('change', updateSpatialIndex);
+    document.getElementById('queryCoord').addEventListener('change', updateNearestNeighbor);
+
+    function updateSpatialIndex() {
+      if (!spatialIndex || !cityFeatures) return;
+      const bbox = document.getElementById('bboxQuery').value;
+      const [minX, minY, maxX, maxY] = BBOX_QUERIES[bbox];
+      const t0 = performance.now();
+      const result = spatialIndex.searchBBox(minX, minY, maxX, maxY);
+      const elapsed = performance.now() - t0;
+      const ids = Array.from(result);
+      const names = ids.map(id => cityFeatures[id]?.properties?.name || `#${id}`).join(', ');
+      document.getElementById('indexArea').innerHTML = `
+        <div style="margin-bottom:0.5rem"><strong>${ids.length} points</strong> found in ${fmt(elapsed, 3)} ms</div>
+        <div style="font-size:0.8rem">${names || '<em>none</em>'}</div>
+      `;
+      updateNearestNeighbor();
+    }
+
+    const QUERY_COORDS = {
+      beijing:   [116.4, 39.9], shanghai:  [121.5, 31.2],
+      guangzhou: [113.3, 23.1], urumqi:    [87.6, 43.8],
+      lhasa:     [91.1, 29.6],
+    };
+
+    function updateNearestNeighbor() {
+      if (!spatialIndex || !cityFeatures) return;
+      const query = document.getElementById('queryCoord').value;
+      const [qx, qy] = QUERY_COORDS[query];
+      const t0 = performance.now();
+      const nearestId = spatialIndex.nearestNeighbor(qx, qy);
+      const elapsed = performance.now() - t0;
+      const k = 5;
+      const kNearest = spatialIndex.kNearestNeighbors(qx, qy, k);
+      const ids = Array.from(kNearest);
+      let html = `<div style="margin-bottom:0.5rem">Nearest: <strong>${cityFeatures[nearestId]?.properties?.name || '#' + nearestId}</strong> (${fmt(elapsed, 3)} ms)</div>`;
+      for (let i = 0; i < ids.length; i++) {
+        const id = ids[i];
+        const name = cityFeatures[id]?.properties?.name || `#${id}`;
+        const lng = cityFeatures[id]?.geometry?.coordinates?.[0] || '?';
+        const lat = cityFeatures[id]?.geometry?.coordinates?.[1] || '?';
+        html += `<div style="font-size:0.78rem">${i + 1}. ${name} (${fmt(lng, 2)}, ${fmt(lat, 2)})</div>`;
+      }
+      document.getElementById('nnArea').innerHTML = html;
+    }
+  </script>
+</body>
+</html>
