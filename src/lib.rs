@@ -20,6 +20,7 @@ mod geojson_parser;
 mod geojson_streaming;
 mod geotiff;
 mod gltf_writer;
+pub use gltf_writer::{mesh_to_glb, point_cloud_to_glb, terrain_to_glb, GltfBuilder};
 mod ifc_reader;
 mod octree;
 mod pnts;
@@ -82,7 +83,8 @@ pub use point_cloud_stream::{laz_status, supports_laz, PointCloudStreamer};
 pub use ifc_reader::{parse_ifc_geometry_core, IfcGeometryResult, IfcMesh};
 
 pub use geotiff::{
-    encode_quantized_mesh_core, encode_terrain_tileset_core, parse_geotiff_core, GeotiffInfo,
+    apply_color_ramp_core, contour_lines_core, encode_quantized_mesh_core,
+    encode_terrain_tileset_core, hillshade_core, parse_geotiff_core, ColorRamp, GeotiffInfo,
     QuantizedMeshResult, TerrainTilesetResult,
 };
 
