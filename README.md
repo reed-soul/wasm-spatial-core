@@ -8,9 +8,9 @@
 [![npm version](https://img.shields.io/npm/v/wasm-spatial-core)](https://www.npmjs.com/package/wasm-spatial-core)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-![Lines](https://img.shields.io/badge/code-23K-blue)
-![Tests](https://img.shields.io/badge/tests-432-success)
-![Formats](https://img.shields.io/badge/formats-10-green)
+![Lines](https://img.shields.io/badge/code-30K-blue)
+![Tests](https://img.shields.io/badge/tests-529-success)
+![Formats](https://img.shields.io/badge/formats-15-green)
 
 **[🌐 Live Demo](https://reed-soul.github.io/wasm-spatial-core/examples/index.html)** ·
 [📖 API Reference](#-api-reference) ·
@@ -163,7 +163,7 @@ Run locally: `npm run demo` (builds `pkg/` and serves on port 8080).
 | PLY (ASCII + binary) | ✅ | — | `point-cloud` |
 | OBJ | ✅ | — | `point-cloud` |
 | PCD (ASCII + binary) | ✅ | — | `point-cloud` |
-| E57 | 🔜 | — | `e57-support` |
+| E57 | ✅ | — | `e57-support` |
 
 ### Vector & Geometry Formats
 
@@ -387,10 +387,12 @@ npm run demo
 | Feature | Default | Description |
 |---------|---------|-------------|
 | `single-thread` | ✅ | Zero-config, works everywhere |
-| `multi-thread` | ❌ | Web Workers + SharedArrayBuffer |
+| `multi-thread` | ❌ | Web Workers + SharedArrayBuffer (requires atomics + bulk-memory) |
 | `point-cloud` | ❌ | LAS/PCD/PLY/OBJ parsing + octree + 3D Tiles |
 | `laz-support` | ❌ | LAZ/COPC decompression (implies `point-cloud`) |
-| `e57-support` | ❌ | E57 format support |
+| `e57-support` | ❌ | E57 format support (architectural/industrial scans) |
+| `geotiff` | ❌ | GeoTIFF terrain parsing + quantized-mesh + hillshade |
+| `draco-support` | ❌ | Draco compression status API |
 
 ---
 
