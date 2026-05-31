@@ -4081,6 +4081,63 @@ export function e57Status() {
 }
 
 /**
+ * WASM-exported b3dm encoder.
+ *
+ * # Arguments
+ * * `glb_bytes` — Uint8Array containing a complete GLB.
+ * * `batch_length` — Number of batches (default 1).
+ * * `batch_table_json` — Optional JSON string for batch table metadata.
+ *
+ * # Returns
+ * Uint8Array containing the `.b3dm` binary.
+ * @param {Uint8Array} glb_bytes
+ * @param {number} batch_length
+ * @param {string | null} [batch_table_json]
+ * @returns {Uint8Array}
+ */
+export function encodeB3dmTile(glb_bytes, batch_length, batch_table_json) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        var ptr0 = isLikeNone(batch_table_json) ? 0 : passStringToWasm0(batch_table_json, wasm.__wbindgen_export, wasm.__wbindgen_export2);
+        var len0 = WASM_VECTOR_LEN;
+        wasm.encodeB3dmTile(retptr, addHeapObject(glb_bytes), batch_length, ptr0, len0);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return takeObject(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
+}
+
+/**
+ * WASM-exported i3dm encoder.
+ * @param {Uint8Array} glb_bytes
+ * @param {Float32Array} positions
+ * @param {Float32Array | null} [orientations]
+ * @param {Float32Array | null} [scales]
+ * @returns {Uint8Array}
+ */
+export function encodeI3dmTile(glb_bytes, positions, orientations, scales) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        wasm.encodeI3dmTile(retptr, addHeapObject(glb_bytes), addHeapObject(positions), isLikeNone(orientations) ? 0 : addHeapObject(orientations), isLikeNone(scales) ? 0 : addHeapObject(scales));
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return takeObject(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
+}
+
+/**
  * WASM export: encode a single normal to Oct16 (for testing/visualization).
  * @param {number} nx
  * @param {number} ny
@@ -5054,6 +5111,113 @@ export function meshToGlb(vertices, indices, normals) {
 export function midpoint(lng1, lat1, lng2, lat2) {
     const ret = wasm.midpoint(lng1, lat1, lng2, lat2);
     return takeObject(ret);
+}
+
+/**
+ * Parse an MVT tile and return layer metadata as a JSON string.
+ *
+ * Returns information about all layers in the tile: name, extent,
+ * feature count, and geometry type distribution.
+ *
+ * ## Parameters
+ *
+ * - `bytes` — Raw MVT protobuf bytes.
+ *
+ * ## Returns
+ *
+ * A JSON string with layer info:
+ * ```json
+ * [{"name":"layer_name","extent":4096,"version":2,"featureCount":42,"geometryTypes":{"point":10,"linestring":20,"polygon":12}}]
+ * ```
+ *
+ * ## Usage (JS)
+ *
+ * ```js
+ * const info = mvtLayerInfo(new Uint8Array(buffer));
+ * // info = '[{"name":"water","extent":4096,"featureCount":23,...}]'
+ * ```
+ * @param {Uint8Array} bytes
+ * @returns {string}
+ */
+export function mvtLayerInfo(bytes) {
+    let deferred2_0;
+    let deferred2_1;
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        wasm.mvtLayerInfo(retptr, addHeapObject(bytes));
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        var r3 = getDataViewMemory0().getInt32(retptr + 4 * 3, true);
+        var ptr1 = r0;
+        var len1 = r1;
+        if (r3) {
+            ptr1 = 0; len1 = 0;
+            throw takeObject(r2);
+        }
+        deferred2_0 = ptr1;
+        deferred2_1 = len1;
+        return getStringFromWasm0(ptr1, len1);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        wasm.__wbindgen_export4(deferred2_0, deferred2_1, 1);
+    }
+}
+
+/**
+ * Decode an MVT tile and convert all features to GeoJSON with WGS84 coordinates.
+ *
+ * Transforms tile-space coordinates to geographic WGS84 (longitude, latitude)
+ * using the Web Mercator (EPSG:3857) inverse projection.
+ *
+ * ## Parameters
+ *
+ * - `bytes` — Raw MVT protobuf bytes.
+ * - `extent` — Tile extent (typically 4096).
+ * - `x` — Tile column (x coordinate in the slippy map scheme).
+ * - `y` — Tile row (y coordinate in the slippy map scheme).
+ * - `z` — Zoom level.
+ *
+ * ## Returns
+ *
+ * A GeoJSON FeatureCollection string with WGS84 coordinates.
+ *
+ * ## Usage (JS)
+ *
+ * ```js
+ * const response = await fetch('/tiles/10/868/387.pbf');
+ * const geojson = mvtToGeoJson(new Uint8Array(await response.arrayBuffer()), 4096, 868, 387, 10);
+ * ```
+ * @param {Uint8Array} bytes
+ * @param {number} extent
+ * @param {number} x
+ * @param {number} y
+ * @param {number} z
+ * @returns {string}
+ */
+export function mvtToGeoJson(bytes, extent, x, y, z) {
+    let deferred2_0;
+    let deferred2_1;
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        wasm.mvtToGeoJson(retptr, addHeapObject(bytes), extent, x, y, z);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        var r3 = getDataViewMemory0().getInt32(retptr + 4 * 3, true);
+        var ptr1 = r0;
+        var len1 = r1;
+        if (r3) {
+            ptr1 = 0; len1 = 0;
+            throw takeObject(r2);
+        }
+        deferred2_0 = ptr1;
+        deferred2_1 = len1;
+        return getStringFromWasm0(ptr1, len1);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        wasm.__wbindgen_export4(deferred2_0, deferred2_1, 1);
+    }
 }
 
 /**
@@ -6785,7 +6949,7 @@ function __wbg_get_imports() {
                     const a = state0.a;
                     state0.a = 0;
                     try {
-                        return __wasm_bindgen_func_elem_3251(a, state0.b, arg0, arg1);
+                        return __wasm_bindgen_func_elem_3272(a, state0.b, arg0, arg1);
                     } finally {
                         state0.a = a;
                     }
@@ -6916,12 +7080,12 @@ function __wbg_get_imports() {
         },
         __wbindgen_cast_0000000000000001: function(arg0, arg1) {
             // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 11, ret: Unit, inner_ret: Some(Unit) }, mutable: false }) -> Externref`.
-            const ret = makeClosure(arg0, arg1, __wasm_bindgen_func_elem_948);
+            const ret = makeClosure(arg0, arg1, __wasm_bindgen_func_elem_956);
             return addHeapObject(ret);
         },
         __wbindgen_cast_0000000000000002: function(arg0, arg1) {
             // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 191, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
-            const ret = makeMutClosure(arg0, arg1, __wasm_bindgen_func_elem_3249);
+            const ret = makeMutClosure(arg0, arg1, __wasm_bindgen_func_elem_3270);
             return addHeapObject(ret);
         },
         __wbindgen_cast_0000000000000003: function(arg0) {
@@ -6948,14 +7112,14 @@ function __wbg_get_imports() {
     };
 }
 
-function __wasm_bindgen_func_elem_948(arg0, arg1, arg2) {
-    wasm.__wasm_bindgen_func_elem_948(arg0, arg1, addHeapObject(arg2));
+function __wasm_bindgen_func_elem_956(arg0, arg1, arg2) {
+    wasm.__wasm_bindgen_func_elem_956(arg0, arg1, addHeapObject(arg2));
 }
 
-function __wasm_bindgen_func_elem_3249(arg0, arg1, arg2) {
+function __wasm_bindgen_func_elem_3270(arg0, arg1, arg2) {
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-        wasm.__wasm_bindgen_func_elem_3249(retptr, arg0, arg1, addHeapObject(arg2));
+        wasm.__wasm_bindgen_func_elem_3270(retptr, arg0, arg1, addHeapObject(arg2));
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
         var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
         if (r1) {
@@ -6966,8 +7130,8 @@ function __wasm_bindgen_func_elem_3249(arg0, arg1, arg2) {
     }
 }
 
-function __wasm_bindgen_func_elem_3251(arg0, arg1, arg2, arg3) {
-    wasm.__wasm_bindgen_func_elem_3251(arg0, arg1, addHeapObject(arg2), addHeapObject(arg3));
+function __wasm_bindgen_func_elem_3272(arg0, arg1, arg2, arg3) {
+    wasm.__wasm_bindgen_func_elem_3272(arg0, arg1, addHeapObject(arg2), addHeapObject(arg3));
 }
 
 const Cesium3DTileFinalization = (typeof FinalizationRegistry === 'undefined')
