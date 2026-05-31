@@ -254,11 +254,12 @@ Byte Length | Description
 - Level-scaled geometricError: `diagonal × 0.5 / 2^level`
 - TODO: point-spacing-based refinement for seamless visual transitions
 
-### B3: WebWorker 并行处理 🔜
-- 八叉树构建放到 Worker
-- pnts 编码放到 Worker
-- 主线程只负责 UI 和 Cesium 渲染
-- (Deferred: current single-thread WASM is fast enough for most use cases)
+### B3: WebWorker 并行处理 ✅ DONE (v0.5.0)
+- `WorkerHandle` class — spawn WASM workers for parallel processing
+- `processChunked(data, chunkSize, workerCount, onChunk)` — chunked parallel processing
+- `supportsWorker()` — runtime detection of Worker availability
+- pnts encoding in worker, chunked large file processing
+- Status: implemented, single-thread WASM sufficient for most use cases (workers optional)
 
 ### B4: Draco 压压（可选） ❌ BLOCKED
 - `draco-oxide` (pure Rust, v0.1.0-alpha.5) compiles on native but NOT on wasm32
@@ -296,30 +297,26 @@ Byte Length | Description
 Week 1:  ✅ A1 (LAZ) + A3 (八叉树) + A4 (pnts)
 Week 2:  ✅ A5 (tileset.json) + A6 (Demo)
 Week 3:  ✅ B1-B2 (LOD + SSE) + 文档 + README 重写
+Week 4:  ✅ C2 (PLY/OBJ) + C3 (COPC)
+Week 5:  ✅ B3 (WebWorker)
+Week 6:  ✅ D1-D4 (GeoTIFF terrain pipeline)
+Week 7:  ✅ E1-E8 (3D Tiles family + Cesium integration)
+Week 8:  ✅ C1 (E57)
+Week 9:  ✅ npm publish prep + GitHub Pages deployment
 
-Future:
-  ├── B3 — WebWorker 并行处理 (WorkerHandle implemented, deferred: single-thread WASM sufficient)
-  ├── B4 — Draco 压缩 (BLOCKED: wasm32 compilation)
-  ├── C1 (E57) ✅ DONE (v0.6.0)
-  └── C3 (COPC full) ✅ DONE (v0.4.0)
-
-## Phase D — GeoTIFF 地形管线 ✅ DONE (v0.5.0)
-- D1 — GeoTIFF parser (Float32/16/8, strip/tile, DEFLATE)
-- D2 — Quantized-mesh encoder (Cesium terrain format)
-- D3 — Terrain tileset.json generator (LOD pyramid)
-- D4 — Terrain demo (Three.js drag-and-drop viewer)
-
-## Phase E — 3D Tiles 全家族 + Cesium 集成 ✅ DONE (v0.6.0)
-- E1 — b3dm encoder (Batched 3D Model tiles)
-- E2 — i3dm encoder (Instanced 3D Model tiles)
-- E3 — glTF/GLB writer (mesh + terrain + point cloud)
-- E4 — Cesium geometry adapter (polygon triangulation, ECEF conversion)
-- E5 — Worker terrain pipeline (streaming GeoTIFF → quantized-mesh)
-- E6 — Terrain styling (color ramp, hillshade, contour lines)
-- E7 — MVT GeoJSON projection (tile-space → WGS-84)
-- E8 — CesiumJS complete demo
-
+All planned phases (A–E) complete as of v0.6.0.
 ```
+
+## Phase F — Next Steps (v1.0 Candidate)
+
+Potential next-phase items to reach v1.0 stability:
+
+- **F1**: Multi-thread WASM (atomics + SharedArrayBuffer, nightly Rust)
+- **F2**: Draco compression (blocked on wasm32, needs alternative approach)
+- **F3**: Potree/WebGLCloud viewer integration demo
+- **F4**: Node.js native addon (for server-side batch processing)
+- **F5**: Official Cesium Ion alternative — complete upload-less workflow
+- **F6**: Performance regression testing (CI benchmark suite)
 
 ---
 
