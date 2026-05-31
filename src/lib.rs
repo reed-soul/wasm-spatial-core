@@ -21,11 +21,11 @@ mod geojson_parser;
 mod geojson_streaming;
 mod geotiff;
 mod gltf_writer;
-pub use gltf_writer::{mesh_to_glb, point_cloud_to_glb, terrain_to_glb, GltfBuilder};
 pub use b3dm::{
-    create_instanced_tileset, create_instanced_tileset_i3dm, create_mesh_tileset,
-    encode_b3dm_tile, encode_i3dm_tile,
+    create_instanced_tileset, create_instanced_tileset_i3dm, create_mesh_tileset, encode_b3dm_tile,
+    encode_i3dm_tile,
 };
+pub use gltf_writer::{mesh_to_glb, point_cloud_to_glb, terrain_to_glb, GltfBuilder};
 mod ifc_reader;
 mod octree;
 mod pnts;

@@ -673,7 +673,9 @@ pub fn mvt_to_geojson(
             feat.geometry_type,
             &feat.geometry,
             extent as f64,
-            x, y, z,
+            x,
+            y,
+            z,
         );
 
         // Build tags JSON
@@ -764,14 +766,7 @@ fn build_geojson_geometry_wgs84(
 /// 2. Add tile offset to get global fraction
 /// 3. Convert fraction to WGS84 degrees using the standard formulas
 #[inline]
-fn tile_to_wgs84(
-    px: f64,
-    py: f64,
-    extent: f64,
-    tile_x: u32,
-    tile_y: u32,
-    n: f64,
-) -> (f64, f64) {
+fn tile_to_wgs84(px: f64, py: f64, extent: f64, tile_x: u32, tile_y: u32, n: f64) -> (f64, f64) {
     // Fractional position within tile [0, 1)
     let fx = px / extent;
     let fy = py / extent;
@@ -868,9 +863,9 @@ pub fn mvt_layer_info(bytes: js_sys::Uint8Array) -> Result<String, JsValue> {
 /// Decode MVT protobuf bytes into structured layer data (native Rust version).
 ///
 /// Returns all layers in the tile.
+#[cfg(test)]
 fn decode_mvt_native(bytes: &[u8]) -> Result<Vec<NativeMvtLayer>, String> {
-    let tile_proto = MvtProtoTile::decode(bytes)
-        .map_err(|e| format!("MVT decode error: {e}"))?;
+    let tile_proto = MvtProtoTile::decode(bytes).map_err(|e| format!("MVT decode error: {e}"))?;
 
     Ok(tile_proto
         .layers
@@ -926,6 +921,7 @@ fn decode_mvt_native(bytes: &[u8]) -> Result<Vec<NativeMvtLayer>, String> {
         .collect())
 }
 
+#[cfg(test)]
 #[derive(Debug)]
 struct NativeMvtLayer {
     name: String,
@@ -934,10 +930,12 @@ struct NativeMvtLayer {
     features: Vec<NativeMvtFeature>,
 }
 
+#[cfg(test)]
 #[derive(Debug)]
 struct NativeMvtFeature {
     geometry_type: u32,
     geometry: Vec<f64>,
+    #[allow(dead_code)]
     tag_count: usize,
 }
 
@@ -1227,7 +1225,10 @@ mod tests {
         // Tile (0,0) at zoom 0 — origin of Web Mercator
         // Pixel (0,0) = top-left ≈ (-180, 85.05) near Mercator limit
         let (lng, lat) = tile_to_wgs84(0.0, 0.0, 4096.0, 0, 0, 1.0);
-        assert!((lng + 180.0).abs() < 0.01, "Expected lng near -180, got {lng}");
+        assert!(
+            (lng + 180.0).abs() < 0.01,
+            "Expected lng near -180, got {lng}"
+        );
         assert!(lat > 85.0, "Expected lat > 85, got {lat}");
     }
 
@@ -1248,8 +1249,14 @@ mod tests {
         // But pixel (4096, 4096) is at the tile edge which in the Mercator grid
         // corresponds to about (180, 2.5°) — the equator isn't at the center of tiles
         let (lng, lat) = tile_to_wgs84(4096.0, 4096.0, 4096.0, 0, 0, 1.0);
-        assert!((lng - 180.0).abs() < 0.01, "Expected lng near 180, got {lng}");
-        assert!(lat > 0.0, "Expected positive lat at tile bottom edge, got {lat}");
+        assert!(
+            (lng - 180.0).abs() < 0.01,
+            "Expected lng near 180, got {lng}"
+        );
+        assert!(
+            lat > 0.0,
+            "Expected positive lat at tile bottom edge, got {lat}"
+        );
     }
 
     #[test]
@@ -1323,7 +1330,9 @@ mod tests {
                 feat.geometry_type as u8,
                 &feat.geometry,
                 4096.0,
-                868, 387, 10,
+                868,
+                387,
+                10,
             );
             if feat.geometry_type == 1 && feat.geometry.len() >= 2 {
                 // Point — should be [lng, lat] with reasonable values
@@ -1376,8 +1385,10 @@ mod tests {
         // Our sample has a Point and a LineString — at least one should be present
         // (both might be in different tiles)
         // This test mainly verifies the structure is parseable
-        assert!(has_point || has_linestring || mvt_layer.features.is_empty(),
+        assert!(
+            has_point || has_linestring || mvt_layer.features.is_empty(),
             "Expected at least one feature type, got {} features with no recognized types",
-            mvt_layer.features.len());
+            mvt_layer.features.len()
+        );
     }
 }
