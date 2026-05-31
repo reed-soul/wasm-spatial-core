@@ -1,12 +1,13 @@
 // WASM Smoke Test — verifies the wasm-spatial-core module loads and basic APIs work
 // Run: node tests/wasm_smoke_test.mjs
 
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const pkgDir = join(__dirname, '..', 'pkg');
+const targetDir = process.env.WASM_PKG_DIR || join(__dirname, '..', 'pkg-node');
+const pkgDir = existsSync(targetDir) ? targetDir : join(__dirname, '..', 'pkg');
 
 let passed = 0;
 let failed = 0;
@@ -26,9 +27,12 @@ async function main() {
   console.log('─'.repeat(50));
 
   // Load and init WASM
-  const wasmBytes = readFileSync(join(pkgDir, 'wasm_spatial_core_bg.wasm'));
+  // nodejs target: wasm-bindgen auto-initializes; web target: needs manual init
   const mod = await import(join(pkgDir, 'wasm_spatial_core.js'));
-  await mod.default(wasmBytes);
+  if (mod.default && typeof mod.default === 'function') {
+    const wasmBytes = readFileSync(join(pkgDir, 'wasm_spatial_core_bg.wasm'));
+    await mod.default(wasmBytes);
+  }
   console.log('  ✅ WASM initialized');
   passed++;
 

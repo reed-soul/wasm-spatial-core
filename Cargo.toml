@@ -2,7 +2,7 @@
 name = "wasm-spatial-core"
 version = "0.6.0"
 edition = "2021"
-rust-version = "1.90"
+rust-version = "1.87"
 authors = ["Qingxi <qingxi@zhiqiweilai.com>"]
 license = "MIT"
 description = "A high-performance WebAssembly spatial data processing engine for frontend Web3D/GIS applications"
