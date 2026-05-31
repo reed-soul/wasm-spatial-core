@@ -63,7 +63,7 @@
     "build:wasm:all": "cd .. && wasm-pack build --target web --release --out-dir npm/pkg -- --features point-cloud,geotiff",
     "build": "npm run build:wasm:all && npm run build:types",
     "build:types": "cd pkg && npx -p typescript tsc --declaration --emitDeclarationOnly --outDir . index.ts --ignoreConfig --target esnext --moduleResolution bundler --module esnext --lib esnext --skipLibCheck",
-    "prepack": "echo 'pkg/' > .npmignore && echo 'node_modules/' >> .npmignore && npm run build:wasm:all",
+    "prepack": "npm run build:wasm:all",
     "pack:dry-run": "npm pack --dry-run"
   },
   "devDependencies": {
