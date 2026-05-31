@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-05-31
+
+### Fixed
+
+- **LAS header offset bug** — Point data was read from incorrect offset when `header.point_data_offset` differed from the default 227 bytes. Now correctly uses the offset value from the LAS header, fixing parsing failures on files with custom VLRs or non-standard header sizes.
+
+### Changed
+
+- Extracted duplicated `build_test_las_blob` helper into the shared `test_helpers` module, reducing code duplication across `point_cloud.rs` and `point_cloud_stream.rs`.
+
+### Added
+
+- `PERFORMANCE.md` — Benchmark data for octree build, tileset generation, LAZ decompression, and WASM binary sizes.
+- `tests/pipeline_integration_test.rs` — End-to-end pipeline integration test using real `sample.las` fixture.
+- README badges for npm version, CI status, license, WASM size, and test count.
+
 ## [0.3.0] - 2026-05-31
 
 ### Added
