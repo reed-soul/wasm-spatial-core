@@ -74,7 +74,7 @@ struct GltfBuffer {
 }
 
 #[derive(Clone, Serialize)]
-struct GltfMaterial {
+pub(crate) struct GltfMaterial {
     #[serde(rename = "pbrMetallicRoughness")]
     pbr_metallic_roughness: GltfPbr,
     #[serde(rename = "doubleSided")]
@@ -117,13 +117,13 @@ struct GltfAsset {
 // Builder
 // ===========================================================================
 
-struct MeshData {
-    positions: Vec<f32>,
-    indices: Vec<u32>,
-    normals: Option<Vec<f32>>,
-    colors: Option<Vec<u8>>,
-    material_index: Option<usize>,
-    mode: u32, // 4 = TRIANGLES, 0 = POINTS
+pub(crate) struct MeshData {
+    pub(crate) positions: Vec<f32>,
+    pub(crate) indices: Vec<u32>,
+    pub(crate) normals: Option<Vec<f32>>,
+    pub(crate) colors: Option<Vec<u8>>,
+    pub(crate) material_index: Option<usize>,
+    pub(crate) mode: u32, // 4 = TRIANGLES, 0 = POINTS
 }
 
 /// glTF 2.0 builder — collect meshes and materials, then export as GLB or JSON.
@@ -367,7 +367,7 @@ pub fn mesh_to_glb(
 // Core GLB building (pure Rust, no WASM dependency — testable)
 // ===========================================================================
 
-fn build_glb(meshes: &[MeshData], materials: &[GltfMaterial]) -> Vec<u8> {
+pub(crate) fn build_glb(meshes: &[MeshData], materials: &[GltfMaterial]) -> Vec<u8> {
     let (json_bytes, bin_bytes) = build_glb_parts(meshes, materials);
     let total_length = 12 + 8 + json_bytes.len() + 8 + bin_bytes.len();
 

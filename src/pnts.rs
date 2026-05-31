@@ -1045,13 +1045,13 @@ pub fn draco_status_js() -> String {
 #[derive(Debug, Clone)]
 pub struct TilesetResult {
     /// Serialized tileset.json content.
-    tileset_json: String,
+    pub(crate) tileset_json: String,
     /// Per-tile pnts binary blobs, indexed by leaf node order.
-    tiles: Vec<Vec<u8>>,
+    pub(crate) tiles: Vec<Vec<u8>>,
     /// Bounding box for each tile.
-    tile_bounds: Vec<Bounds>,
+    pub(crate) tile_bounds: Vec<Bounds>,
     /// URI for each tile.
-    tile_uris: Vec<String>,
+    pub(crate) tile_uris: Vec<String>,
 }
 
 impl TilesetResult {
