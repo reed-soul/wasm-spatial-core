@@ -1106,6 +1106,49 @@ mod tests {
         assert!(labels.iter().all(|&l| l == -1));
     }
 
+    // ── Additional edge case tests ──────────────────────────────
+
+    #[test]
+    fn test_bearing_same_point() {
+        let b = bearing(116.4074, 39.9042, 116.4074, 39.9042);
+        assert!(
+            b.is_nan() || b == 0.0,
+            "Bearing to same point should be NaN or 0"
+        );
+    }
+
+    #[test]
+    fn test_destination_antimeridian() {
+        let result = native_destination(0.0, 0.0, 90.0, 10000.0);
+        assert!(!result[0].is_nan());
+        assert!(!result[1].is_nan());
+    }
+
+    #[test]
+    fn test_midpoint_same_point() {
+        let result = native_midpoint(116.4074, 39.9042, 116.4074, 39.9042);
+        assert!((result[0] - 116.4074).abs() < 0.001);
+        assert!((result[1] - 39.9042).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_rhumb_distance_same_point() {
+        let dist = rhumb_distance(116.4074, 39.9042, 116.4074, 39.9042);
+        assert!(
+            (dist - 0.0).abs() < 0.001,
+            "Distance to same point should be ~0"
+        );
+    }
+
+    #[test]
+    fn test_rhumb_bearing_same_point() {
+        let b = rhumb_bearing(116.4074, 39.9042, 116.4074, 39.9042);
+        assert!(
+            b.is_nan() || b == 0.0,
+            "Rhumb bearing to same point should be NaN or 0"
+        );
+    }
+
     // ── Native helpers for clustering ──────────────────────────────
 
     fn native_grid_cluster(coords: &[f64], cell_size: f64, min_points: u32) -> Vec<f64> {
