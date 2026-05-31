@@ -113,8 +113,8 @@ pub fn encode_b3dm_tile_js(
     let mut buf = vec![0u8; glb_bytes.length() as usize];
     glb_bytes.copy_to(&mut buf);
 
-    let result = encode_b3dm_tile(&buf, batch_length, batch_table_json.as_deref())
-        .map_err(|e| JsValue::from(e))?;
+    let result =
+        encode_b3dm_tile(&buf, batch_length, batch_table_json.as_deref()).map_err(JsValue::from)?;
 
     let arr = js_sys::Uint8Array::new_with_length(result.len() as u32);
     arr.copy_from(&result);
@@ -144,8 +144,9 @@ pub fn create_mesh_tileset(
     geometric_error: f64,
 ) -> Result<TilesetResult, crate::errors::SpatialErrorDetail> {
     if positions.is_empty() || indices.is_empty() {
-        return Err(SpatialError::InvalidInput
-            .with_detail("positions and indices must not be empty"));
+        return Err(
+            SpatialError::InvalidInput.with_detail("positions and indices must not be empty")
+        );
     }
 
     let num_vertices = (positions.len() / 3) as u32;
@@ -192,7 +193,8 @@ pub fn create_mesh_tileset(
     ];
 
     // Generate tileset.json
-    let tileset_json = build_b3dm_tileset_json(center, geometric_error, num_vertices, num_triangles);
+    let tileset_json =
+        build_b3dm_tileset_json(center, geometric_error, num_vertices, num_triangles);
 
     Ok(TilesetResult {
         tileset_json,
@@ -217,7 +219,7 @@ pub fn create_instanced_tileset(
     center: [f64; 3],
     geometric_error: f64,
 ) -> Result<TilesetResult, crate::errors::SpatialErrorDetail> {
-    if transforms.len() % 16 != 0 {
+    if !transforms.len().is_multiple_of(16) {
         return Err(SpatialError::InvalidInput
             .with_detail("transforms must be a flat array of 4x4 matrices (16 floats each)"));
     }
@@ -298,7 +300,11 @@ fn build_b3dm_tileset_json(
 }
 
 /// Build tileset.json for instanced tiles.
-fn build_instanced_tileset_json(center: [f64; 3], geometric_error: f64, num_instances: usize) -> String {
+fn build_instanced_tileset_json(
+    center: [f64; 3],
+    geometric_error: f64,
+    num_instances: usize,
+) -> String {
     let children: Vec<String> = (0..num_instances)
         .map(|i| {
             format!(
@@ -356,10 +362,14 @@ fn build_instanced_tileset_json(center: [f64; 3], geometric_error: f64, num_inst
 ///
 /// Parses the GLB JSON chunk to find position accessor offsets, then
 /// modifies the BIN chunk in-place.
-fn transform_glb(glb: &[u8], transform: &[f32]) -> Result<Vec<u8>, crate::errors::SpatialErrorDetail> {
+fn transform_glb(
+    glb: &[u8],
+    transform: &[f32],
+) -> Result<Vec<u8>, crate::errors::SpatialErrorDetail> {
     if glb.len() < 12 || &glb[0..4] != b"glTF" {
-        return Err(SpatialError::InvalidInput
-            .with_detail("transform_glb requires valid GLB input"));
+        return Err(
+            SpatialError::InvalidInput.with_detail("transform_glb requires valid GLB input")
+        );
     }
 
     // Parse GLB chunks
@@ -368,9 +378,8 @@ fn transform_glb(glb: &[u8], transform: &[f32]) -> Result<Vec<u8>, crate::errors
     let json_data = &glb[json_start..json_start + json_len];
 
     let bin_len_offset = json_start + json_len;
-    let bin_data_len = u32::from_le_bytes(
-        glb[bin_len_offset..bin_len_offset + 4].try_into().unwrap(),
-    ) as usize;
+    let bin_data_len =
+        u32::from_le_bytes(glb[bin_len_offset..bin_len_offset + 4].try_into().unwrap()) as usize;
     let bin_start = bin_len_offset + 8;
     let _bin_end = bin_start + bin_data_len;
 
@@ -386,7 +395,10 @@ fn transform_glb(glb: &[u8], transform: &[f32]) -> Result<Vec<u8>, crate::errors
         for acc in accessors {
             if let Some(attrs) = acc.get("type").and_then(|t| t.as_str()) {
                 if attrs == "VEC3" {
-                    bin_offset = acc.get("byteOffset").and_then(|o| o.as_u64()).map(|o| o as usize);
+                    bin_offset = acc
+                        .get("byteOffset")
+                        .and_then(|o| o.as_u64())
+                        .map(|o| o as usize);
                     count = acc.get("count").and_then(|c| c.as_u64()).unwrap_or(0) as u32;
                     break; // Use first VEC3 accessor as positions
                 }
@@ -452,6 +464,7 @@ struct I3dmHeader {
 
 /// Instance transform data.
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct InstanceTransform {
     position: [f32; 3],
     rotation: [f32; 4], // quaternion (x, y, z, w)
@@ -485,26 +498,31 @@ pub fn encode_i3dm_tile(
     scales: Option<&[f32]>,
 ) -> Result<Vec<u8>, crate::errors::SpatialErrorDetail> {
     if glb_bytes.len() < 12 || &glb_bytes[0..4] != b"glTF" {
-        return Err(SpatialError::InvalidInput
-            .with_detail("i3dm requires a valid GLB input"));
+        return Err(SpatialError::InvalidInput.with_detail("i3dm requires a valid GLB input"));
     }
 
     let n = positions.len() / 3;
     if n == 0 {
-        return Err(SpatialError::InvalidInput
-            .with_detail("i3dm requires at least one instance"));
+        return Err(SpatialError::InvalidInput.with_detail("i3dm requires at least one instance"));
     }
 
     if let Some(orient) = orientations {
         if orient.len() != n * 4 {
-            return Err(SpatialError::InvalidInput
-                .with_detail(format!("orientations length mismatch: expected {} ({}×4), got {}", n * 4, n, orient.len())));
+            return Err(SpatialError::InvalidInput.with_detail(format!(
+                "orientations length mismatch: expected {} ({}×4), got {}",
+                n * 4,
+                n,
+                orient.len()
+            )));
         }
     }
     if let Some(sc) = scales {
         if sc.len() != n {
-            return Err(SpatialError::InvalidInput
-                .with_detail(format!("scales length mismatch: expected {}, got {}", n, sc.len())));
+            return Err(SpatialError::InvalidInput.with_detail(format!(
+                "scales length mismatch: expected {}, got {}",
+                n,
+                sc.len()
+            )));
         }
     }
 
@@ -613,7 +631,8 @@ pub fn encode_i3dm_tile(
             let qw = orient[i * 4 + 3];
 
             // Quaternion to rotation matrix (column-major for i3dm: UP, RIGHT, FORWARD)
-            let (up_x, up_y, up_z, right_x, right_y, right_z) = quat_to_rotation_columns(qx, qy, qz, qw);
+            let (up_x, up_y, up_z, right_x, right_y, right_z) =
+                quat_to_rotation_columns(qx, qy, qz, qw);
 
             // NORMAL_UP
             buf.extend_from_slice(&up_x.to_le_bytes());
@@ -628,8 +647,8 @@ pub fn encode_i3dm_tile(
 
     // Scale
     if let Some(sc) = scales {
-        for i in 0..n {
-            buf.extend_from_slice(&sc[i].to_le_bytes());
+        for &s in sc {
+            buf.extend_from_slice(&s.to_le_bytes());
         }
     }
 
@@ -669,14 +688,14 @@ pub fn encode_i3dm_tile_js(
     let mut scale_opt: Option<Vec<f32>> = None;
     if let Some(ref s) = scales {
         if s.length() > 0 {
-            let mut v = vec![0.0f32; s.length() as usize];
-            s.copy_from(&mut v);
+            let v = vec![0.0f32; s.length() as usize];
+            s.copy_from(&v);
             scale_opt = Some(v);
         }
     }
 
     let result = encode_i3dm_tile(&glb, &pos, orient_opt.as_deref(), scale_opt.as_deref())
-        .map_err(|e| JsValue::from(e))?;
+        .map_err(JsValue::from)?;
 
     let arr = js_sys::Uint8Array::new_with_length(result.len() as u32);
     arr.copy_from(&result);
@@ -702,8 +721,7 @@ pub fn create_instanced_tileset_i3dm(
 ) -> Result<TilesetResult, crate::errors::SpatialErrorDetail> {
     let n = positions.len() / 3;
     if n == 0 {
-        return Err(SpatialError::InvalidInput
-            .with_detail("need at least one instance position"));
+        return Err(SpatialError::InvalidInput.with_detail("need at least one instance position"));
     }
 
     // Compute bounding sphere radius from positions
@@ -874,7 +892,11 @@ mod tests {
         // Header: magic(4) + version(4) + byteLength(4) + ftJSONLen(4) + ftBinLen(4) + btJSONLen(4) + btBinLen(4)
         let ft_json_len = u32::from_le_bytes(b3dm[12..16].try_into().unwrap()) as usize;
         let ft_json = std::str::from_utf8(&b3dm[28..28 + ft_json_len]).unwrap();
-        assert!(ft_json.contains("5"), "FT JSON should contain BATCH_LENGTH=5, got: {}", ft_json);
+        assert!(
+            ft_json.contains("5"),
+            "FT JSON should contain BATCH_LENGTH=5, got: {}",
+            ft_json
+        );
     }
 
     #[test]
@@ -920,7 +942,14 @@ mod tests {
         let positions = vec![0.0f32, 0.0, 0.0, 1.0, 0.0, 0.0, 0.5, 1.0, 0.0];
         let indices = vec![0, 1, 2];
         let normals = vec![0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0];
-        let result = create_mesh_tileset(&positions, &indices, Some(&normals), None, [0.0, 0.0, 0.0], 100.0);
+        let result = create_mesh_tileset(
+            &positions,
+            &indices,
+            Some(&normals),
+            None,
+            [0.0, 0.0, 0.0],
+            100.0,
+        );
         assert!(result.is_ok());
         let ts = result.unwrap();
         assert!(ts.tile(0).unwrap().len() > 28);
@@ -931,7 +960,14 @@ mod tests {
         let positions = vec![0.0f32, 0.0, 0.0, 1.0, 0.0, 0.0, 0.5, 1.0, 0.0];
         let indices = vec![0, 1, 2];
         let colors = vec![255u8, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255];
-        let result = create_mesh_tileset(&positions, &indices, None, Some(&colors), [0.0, 0.0, 0.0], 200.0);
+        let result = create_mesh_tileset(
+            &positions,
+            &indices,
+            None,
+            Some(&colors),
+            [0.0, 0.0, 0.0],
+            200.0,
+        );
         assert!(result.is_ok());
     }
 
@@ -948,21 +984,15 @@ mod tests {
         let glb = make_test_glb();
         // Two instances: identity + translate(10,0,0)
         let transforms = vec![
-            1.0, 0.0, 0.0, 0.0,
-            0.0, 1.0, 0.0, 0.0,
-            0.0, 0.0, 1.0, 0.0,
-            0.0, 0.0, 0.0, 1.0,
-            1.0, 0.0, 0.0, 0.0,
-            0.0, 1.0, 0.0, 0.0,
-            0.0, 0.0, 1.0, 0.0,
-            10.0, 0.0, 0.0, 1.0,
+            1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0,
+            0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 10.0, 0.0, 0.0, 1.0,
         ];
         let result = create_instanced_tileset(&glb, &transforms, [0.0, 0.0, 0.0], 500.0);
         assert!(result.is_ok());
         let ts = result.unwrap();
         assert_eq!(ts.tile_count(), 2);
-        assert_eq!(ts.tile_uri(0).as_deref(), Some("0.b3dm"));
-        assert_eq!(ts.tile_uri(1).as_deref(), Some("1.b3dm"));
+        assert_eq!(ts.tile_uri(0), Some("0.b3dm"));
+        assert_eq!(ts.tile_uri(1), Some("1.b3dm"));
     }
 
     #[test]
@@ -1063,10 +1093,8 @@ mod tests {
     fn test_create_instanced_tileset_i3dm() {
         let glb = make_test_glb();
         let positions = vec![0.0f32, 0.0, 0.0, 10.0, 0.0, 0.0, 0.0, 10.0, 0.0];
-        let result = create_instanced_tileset_i3dm(
-            &glb, &positions, None, None,
-            [0.0, 0.0, 0.0], 500.0,
-        );
+        let result =
+            create_instanced_tileset_i3dm(&glb, &positions, None, None, [0.0, 0.0, 0.0], 500.0);
         assert!(result.is_ok());
         let ts = result.unwrap();
         assert_eq!(ts.tile_count(), 1);
@@ -1079,10 +1107,7 @@ mod tests {
     #[test]
     fn test_create_instanced_tileset_i3dm_empty() {
         let glb = make_test_glb();
-        let result = create_instanced_tileset_i3dm(
-            &glb, &[], None, None,
-            [0.0, 0.0, 0.0], 500.0,
-        );
+        let result = create_instanced_tileset_i3dm(&glb, &[], None, None, [0.0, 0.0, 0.0], 500.0);
         assert!(result.is_err());
     }
 
@@ -1109,7 +1134,7 @@ mod tests {
     #[test]
     fn test_quat_rotate_90_y() {
         // 90° rotation around Y: (1,0,0) → (0,0,-1)
-        let q = 0.7071068f32;
+        let q = std::f32::consts::FRAC_1_SQRT_2;
         let (rx, ry, rz) = quat_rotate(0.0, q, 0.0, q, 1.0, 0.0, 0.0);
         assert!((rx).abs() < 1e-5);
         assert!((ry).abs() < 1e-5);
@@ -1133,10 +1158,7 @@ mod tests {
     fn test_transform_glb_identity() {
         let glb = make_test_glb();
         let identity = vec![
-            1.0, 0.0, 0.0, 0.0,
-            0.0, 1.0, 0.0, 0.0,
-            0.0, 0.0, 1.0, 0.0,
-            0.0, 0.0, 0.0, 1.0,
+            1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0,
         ];
         let result = transform_glb(&glb, &identity).unwrap();
         // Same GLB magic and length
@@ -1148,10 +1170,7 @@ mod tests {
     fn test_transform_glb_translate() {
         let glb = make_test_glb();
         let translate = vec![
-            1.0, 0.0, 0.0, 0.0,
-            0.0, 1.0, 0.0, 0.0,
-            0.0, 0.0, 1.0, 0.0,
-            100.0, 200.0, 300.0, 1.0,
+            1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 100.0, 200.0, 300.0, 1.0,
         ];
         let result = transform_glb(&glb, &translate).unwrap();
         assert_eq!(&result[0..4], b"glTF");
