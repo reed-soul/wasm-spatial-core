@@ -270,17 +270,13 @@ Byte Length | Description
 
 ## Phase C — 扩展数据源
 
-### C1: E57 格式 🔜
-- **Status**: `e57` crate (v0.11.12) compiles to wasm32 ✅
-  - Pure Rust implementation, uses `roxmltree` for XML header parsing
-  - No native dependencies — fully WASM-compatible
-- **Remaining work**:
-  1. Implement `parseE57(bytes) -> E57Result` wrapper around `e57::SimpleReader`
-  2. Extract point positions + optional colors from E57 files
-  3. Handle E57's XML header (coordinate system, transforms)
-  4. Handle large E57 files with chunked reading
-- **Complexity**: Medium — the crate does the heavy lifting
-- **WASM size impact**: TBD (roxmltree is small, e57 main crate TBD)
+### C1: E57 格式 ✅ DONE (v0.6.0)
+- `e57` crate (v0.11.12) compiles to wasm32 ✅
+- Pure Rust implementation, uses `roxmltree` for XML header parsing
+- `parseE57(bytes) -> E57Result` — full E57 file parsing
+- `parseE57Stream(bytes, progress) -> E57Result` — streaming with progress
+- Extracts Cartesian/Spherical coordinates, colors, intensities
+- `isE57Format(bytes) -> boolean` — magic byte detection
 
 ### C2: PLY/OBJ ✅ DONE (v0.3.0)
 - PLY: ASCII + binary_little_endian parsing
@@ -302,16 +298,27 @@ Week 2:  ✅ A5 (tileset.json) + A6 (Demo)
 Week 3:  ✅ B1-B2 (LOD + SSE) + 文档 + README 重写
 
 Future:
-  ├── B3 — WebWorker 并行处理 (deferred: single-thread WASM sufficient)
+  ├── B3 — WebWorker 并行处理 (WorkerHandle implemented, deferred: single-thread WASM sufficient)
   ├── B4 — Draco 压缩 (BLOCKED: wasm32 compilation)
-  ├── C1 (E57) — crate 已编译到 wasm32，需写 wrapper
+  ├── C1 (E57) ✅ DONE (v0.6.0)
   └── C3 (COPC full) ✅ DONE (v0.4.0)
 
-Phase D: ✅ GeoTIFF Terrain (v0.5.0)
-  ├── D1 — GeoTIFF parser (Float32/16/8, strip/tile, DEFLATE)
-  ├── D2 — Quantized-mesh encoder (Cesium terrain format)
-  ├── D3 — Terrain tileset.json generator (LOD pyramid)
-  └── D4 — Terrain demo (Three.js drag-and-drop viewer)
+## Phase D — GeoTIFF 地形管线 ✅ DONE (v0.5.0)
+- D1 — GeoTIFF parser (Float32/16/8, strip/tile, DEFLATE)
+- D2 — Quantized-mesh encoder (Cesium terrain format)
+- D3 — Terrain tileset.json generator (LOD pyramid)
+- D4 — Terrain demo (Three.js drag-and-drop viewer)
+
+## Phase E — 3D Tiles 全家族 + Cesium 集成 ✅ DONE (v0.6.0)
+- E1 — b3dm encoder (Batched 3D Model tiles)
+- E2 — i3dm encoder (Instanced 3D Model tiles)
+- E3 — glTF/GLB writer (mesh + terrain + point cloud)
+- E4 — Cesium geometry adapter (polygon triangulation, ECEF conversion)
+- E5 — Worker terrain pipeline (streaming GeoTIFF → quantized-mesh)
+- E6 — Terrain styling (color ramp, hillshade, contour lines)
+- E7 — MVT GeoJSON projection (tile-space → WGS-84)
+- E8 — CesiumJS complete demo
+
 ```
 
 ---
