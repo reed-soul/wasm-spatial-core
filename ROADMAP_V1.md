@@ -306,6 +306,12 @@ Future:
   ├── B4 — Draco 压缩 (BLOCKED: wasm32 compilation)
   ├── C1 (E57) — crate 已编译到 wasm32，需写 wrapper
   └── C3 (COPC full) ✅ DONE (v0.4.0)
+
+Phase D: ✅ GeoTIFF Terrain (v0.5.0)
+  ├── D1 — GeoTIFF parser (Float32/16/8, strip/tile, DEFLATE)
+  ├── D2 — Quantized-mesh encoder (Cesium terrain format)
+  ├── D3 — Terrain tileset.json generator (LOD pyramid)
+  └── D4 — Terrain demo (Three.js drag-and-drop viewer)
 ```
 
 ---
