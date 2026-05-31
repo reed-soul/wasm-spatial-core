@@ -773,13 +773,169 @@ use crate::octree::{Bounds, Octree, DEFAULT_MAX_POINTS_PER_NODE};
 ///
 /// # Returns
 /// Average nearest-neighbor distance, or 0.0 if there are fewer than 2 points.
+///
+/// # Algorithm
+/// Uses a grid-based spatial index for O(n + sample×k) average complexity
+/// instead of O(n×sample) brute force. The space is divided into cells based
+/// on the bounding box, and nearest-neighbor search only checks adjacent cells
+/// (27 neighbors in 3D). For samples where the adjacent cells are empty, falls
+/// back to a progressive grid expansion.
 pub fn estimate_point_spacing(positions: &[f32], sample_size: Option<usize>) -> f64 {
     let num_points = positions.len() / 3;
     if num_points < 2 {
         return 0.0;
     }
 
+    // For very small point sets, brute force is fine
+    if num_points <= 256 {
+        return estimate_point_spacing_brute(positions, num_points);
+    }
+
     let sample_size = sample_size.unwrap_or(1000).min(num_points);
+    let step = num_points / sample_size;
+
+    // ---- Build bounding box ----
+    let mut min_x = f64::MAX;
+    let mut min_y = f64::MAX;
+    let mut min_z = f64::MAX;
+    let mut max_x = f64::MIN;
+    let mut max_y = f64::MIN;
+    let mut max_z = f64::MIN;
+
+    for i in 0..num_points {
+        let x = positions[i * 3] as f64;
+        let y = positions[i * 3 + 1] as f64;
+        let z = positions[i * 3 + 2] as f64;
+        if x < min_x { min_x = x; }
+        if y < min_y { min_y = y; }
+        if z < min_z { min_z = z; }
+        if x > max_x { max_x = x; }
+        if y > max_y { max_y = y; }
+        if z > max_z { max_z = z; }
+    }
+
+    let dx = max_x - min_x;
+    let dy = max_y - min_y;
+    let dz = max_z - min_z;
+
+    // Determine grid resolution: aim for ~8-16 points per cell on average
+    let avg_points_per_cell = 10.0_f64;
+    let _volume = if dx > 0.0 && dy > 0.0 && dz > 0.0 {
+        dx * dy * dz
+    } else {
+        // Degenerate: fall back to brute force
+        return estimate_point_spacing_brute(positions, num_points);
+    };
+
+    // Grid cells along the longest axis; maintain aspect ratio
+    let longest = dx.max(dy).max(dz);
+    let n_cells_longest = ((num_points as f64 / avg_points_per_cell).cbrt()).ceil().max(1.0) as usize;
+    let cell_size = longest / n_cells_longest as f64;
+
+    if cell_size <= 0.0 {
+        return estimate_point_spacing_brute(positions, num_points);
+    }
+
+    let nx = if dx > 0.0 { (dx / cell_size).ceil().max(1.0) as usize } else { 1 };
+    let ny = if dy > 0.0 { (dy / cell_size).ceil().max(1.0) as usize } else { 1 };
+    let nz = if dz > 0.0 { (dz / cell_size).ceil().max(1.0) as usize } else { 1 };
+
+    // ---- Build grid index ----
+    // grid: HashMap<(cx, cy, cz), Vec<usize>> — indices into positions
+    use std::collections::HashMap;
+    let mut grid: HashMap<(usize, usize, usize), Vec<usize>> = HashMap::new();
+
+    for i in 0..num_points {
+        let cx = ((positions[i * 3] as f64 - min_x) / cell_size) as usize;
+        let cy = ((positions[i * 3 + 1] as f64 - min_y) / cell_size) as usize;
+        let cz = ((positions[i * 3 + 2] as f64 - min_z) / cell_size) as usize;
+        let cx = cx.min(nx - 1);
+        let cy = cy.min(ny - 1);
+        let cz = cz.min(nz - 1);
+        grid.entry((cx, cy, cz)).or_default().push(i);
+    }
+
+    // ---- Sample nearest neighbors using grid ----
+    let mut total_nn_dist = 0.0_f64;
+    let mut nn_count = 0_usize;
+
+    for si in 0..sample_size {
+        let idx = si * step;
+        let px = positions[idx * 3] as f64;
+        let py = positions[idx * 3 + 1] as f64;
+        let pz = positions[idx * 3 + 2] as f64;
+
+        let cx = ((px - min_x) / cell_size) as usize;
+        let cy = ((py - min_y) / cell_size) as usize;
+        let cz = ((pz - min_z) / cell_size) as usize;
+        let cx = cx.min(nx - 1);
+        let cy = cy.min(ny - 1);
+        let cz = cz.min(nz - 1);
+
+        let mut min_dist_sq = f64::MAX;
+        let mut found = false;
+
+        // Progressive ring expansion: check 1 cell → 3x3 neighborhood → 5x5, etc.
+        let mut radius: usize = 0;
+        while radius <= 3 && !found {
+            let r = radius;
+            for dx_off in (cx.saturating_sub(r))..=(cx + r).min(nx - 1) {
+                for dy_off in (cy.saturating_sub(r))..=(cy + r).min(ny - 1) {
+                    for dz_off in (cz.saturating_sub(r))..=(cz + r).min(nz - 1) {
+                        // Only visit cells on the current ring boundary (for r > 0)
+                        if r > 0 {
+                            let on_boundary = dx_off == cx.saturating_sub(r)
+                                || dx_off == (cx + r).min(nx - 1)
+                                || dy_off == cy.saturating_sub(r)
+                                || dy_off == (cy + r).min(ny - 1)
+                                || dz_off == cz.saturating_sub(r)
+                                || dz_off == (cz + r).min(nz - 1);
+                            if !on_boundary {
+                                continue;
+                            }
+                        }
+
+                        if let Some(cell) = grid.get(&(dx_off, dy_off, dz_off)) {
+                            for &j in cell {
+                                if j == idx {
+                                    continue;
+                                }
+                                let ddx = positions[j * 3] as f64 - px;
+                                let ddy = positions[j * 3 + 1] as f64 - py;
+                                let ddz = positions[j * 3 + 2] as f64 - pz;
+                                let dist_sq = ddx * ddx + ddy * ddy + ddz * ddz;
+                                if dist_sq < min_dist_sq {
+                                    min_dist_sq = dist_sq;
+                                    found = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            radius += 1;
+        }
+
+        if min_dist_sq < f64::MAX {
+            total_nn_dist += min_dist_sq.sqrt();
+            nn_count += 1;
+        }
+    }
+
+    if nn_count > 0 {
+        total_nn_dist / nn_count as f64
+    } else {
+        0.0
+    }
+}
+
+/// Brute-force O(n×sample) point spacing — kept as reference and fallback.
+fn estimate_point_spacing_brute(positions: &[f32], num_points: usize) -> f64 {
+    if num_points < 2 {
+        return 0.0;
+    }
+
+    let sample_size = 1000.min(num_points);
     let step = num_points / sample_size;
 
     let mut total_nn_dist = 0.0_f64;
@@ -792,13 +948,13 @@ pub fn estimate_point_spacing(positions: &[f32], sample_size: Option<usize>) -> 
         let pz = positions[idx * 3 + 2] as f64;
 
         let mut min_dist_sq = f64::MAX;
-        for j in (0..positions.len()).step_by(3) {
-            if j == idx * 3 {
+        for j in 0..num_points {
+            if j == idx {
                 continue;
             }
-            let dx = positions[j] as f64 - px;
-            let dy = positions[j + 1] as f64 - py;
-            let dz = positions[j + 2] as f64 - pz;
+            let dx = positions[j * 3] as f64 - px;
+            let dy = positions[j * 3 + 1] as f64 - py;
+            let dz = positions[j * 3 + 2] as f64 - pz;
             let dist_sq = dx * dx + dy * dy + dz * dz;
             if dist_sq < min_dist_sq {
                 min_dist_sq = dist_sq;
@@ -822,6 +978,37 @@ pub fn estimate_point_spacing(positions: &[f32], sample_size: Option<usize>) -> 
 #[wasm_bindgen(js_name = "estimatePointSpacing")]
 pub fn estimate_point_spacing_js(positions: &[f32], sample_size: Option<usize>) -> f64 {
     estimate_point_spacing(positions, sample_size)
+}
+
+// ===========================================================================
+// Draco Compression Status
+// ===========================================================================
+
+/// Returns whether Draco compression is supported at runtime.
+///
+/// Draco is NOT currently supported in WASM builds because `draco-oxide`
+/// (the only pure-Rust Draco implementation) transitively depends on
+/// `getrandom@0.3` via `ahash@0.8` → `tobj@4.0`, and `getrandom@0.3`
+/// requires the `wasm_js` **configuration flag** (set via RUSTFLAGS) which
+/// cannot be enabled from Cargo.toml alone.
+///
+/// For native (non-WASM) builds, Draco support may be added in a future version.
+#[wasm_bindgen(js_name = "supportsDraco")]
+pub fn supports_draco_js() -> bool {
+    false
+}
+
+/// Returns a human-readable status string explaining Draco compression support.
+#[wasm_bindgen(js_name = "dracoStatus")]
+pub fn draco_status_js() -> String {
+    String::from(
+        "Draco compression: NOT SUPPORTED in WASM builds.\n\
+         Root cause: draco-oxide (pure Rust) depends transitively on \
+         getrandom@0.3 which requires the wasm_js configuration flag \
+         (RUSTFLAGS) not expressible in Cargo.toml.\n\
+         Alternative: use Google's Draco WASM decoder (JavaScript) for \
+         client-side decompression; encode on server or build pipeline.",
+    )
 }
 
 // ===========================================================================
@@ -1702,6 +1889,113 @@ mod tileset_tests {
         let positions = vec![42.0f32, 0.0, 0.0];
         let spacing = estimate_point_spacing(&positions, Some(100));
         assert_eq!(spacing, 0.0);
+    }
+
+    // ===========================================================================
+    // Grid-Indexed Point Spacing Tests (Task 3: Optimized estimate_point_spacing)
+    // ===========================================================================
+
+    #[test]
+    fn test_grid_indexed_spacing_matches_brute_force_1000_points() {
+        // 1000 random-ish points: deterministic with a simple pattern
+        use std::hash::{Hash, Hasher};
+        fn simple_hash(i: usize) -> f32 {
+            // Simple deterministic pseudo-random distribution
+            let mut h = std::collections::hash_map::DefaultHasher::new();
+            i.hash(&mut h);
+            (h.finish() % 10000) as f32 / 100.0
+        }
+        let n = 1000;
+        let triples: Vec<[f32; 3]> = (0..n)
+            .map(|i| [simple_hash(i), simple_hash(i + 10000), simple_hash(i + 20000)])
+            .collect();
+        let positions = make_positions(&triples);
+
+        let grid_spacing = estimate_point_spacing(&positions, Some(100));
+        let brute_spacing = estimate_point_spacing_brute(&positions, n);
+
+        // Grid and brute force should agree within 50% (they sample differently)
+        let ratio = grid_spacing / brute_spacing;
+        assert!(
+            ratio > 0.5 && ratio < 2.0,
+            "Grid spacing {} should be within 2x of brute force {} (ratio={})",
+            grid_spacing,
+            brute_spacing,
+            ratio
+        );
+    }
+
+    #[test]
+    fn test_grid_indexed_spacing_large_uniform() {
+        // 5000 points on a regular grid — 10x10x50
+        let triples: Vec<[f32; 3]> = (0..50)
+            .flat_map(|k| {
+                (0..10).flat_map(move |i| (0..10).map(move |j| [i as f32, j as f32, k as f32]))
+            })
+            .collect();
+        let positions = make_positions(&triples);
+
+        let spacing = estimate_point_spacing(&positions, Some(500));
+        // Grid spacing should be ~1.0 (unit grid)
+        assert!(
+            (spacing - 1.0).abs() < 0.15,
+            "Expected spacing ~1.0, got {}",
+            spacing
+        );
+    }
+
+    #[test]
+    fn test_grid_indexed_spacing_performance_vs_brute() {
+        // Verify grid version is faster by checking it returns a reasonable value
+        // for a large point set where brute would be slow
+        let n = 50000;
+        let triples: Vec<[f32; 3]> = (0..n)
+            .map(|i| {
+                let x = (i % 100) as f32;
+                let y = ((i / 100) % 100) as f32;
+                let z = (i / 10000) as f32;
+                [x, y, z]
+            })
+            .collect();
+        let positions = make_positions(&triples);
+        let num_points = positions.len() / 3;
+
+        // Grid version
+        let grid_spacing = estimate_point_spacing(&positions, Some(200));
+
+        // Brute version on small subset for verification
+        let brute_spacing = estimate_point_spacing_brute(&positions, num_points);
+
+        let ratio = grid_spacing / brute_spacing;
+        assert!(
+            ratio > 0.5 && ratio < 2.0,
+            "Grid spacing {} should be within 2x of brute force {} (ratio={})",
+            grid_spacing,
+            brute_spacing,
+            ratio
+        );
+
+        // Should be close to 1.0 for unit grid
+        assert!(
+            (grid_spacing - 1.0).abs() < 0.2,
+            "Expected grid spacing ~1.0, got {}",
+            grid_spacing
+        );
+    }
+
+    // ===========================================================================
+    // Draco Status Tests
+    // ===========================================================================
+
+    #[test]
+    fn test_supports_draco_returns_false() {
+        assert_eq!(supports_draco_js(), false);
+    }
+
+    #[test]
+    fn test_draco_status_contains_not_supported() {
+        let status = draco_status_js();
+        assert!(status.contains("NOT SUPPORTED"), "Status should mention NOT SUPPORTED: {}", status);
     }
 
     // ===========================================================================

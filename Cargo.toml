@@ -28,6 +28,8 @@ point-cloud = []
 laz-support = ["point-cloud", "dep:laz"]
 # E57 format support (optional — architectural/industrial scan format)
 e57-support = ["dep:e57"]
+# Draco compression support (optional — uses pure-Rust draco-oxide)
+draco-support = []
 # Test helpers (exposes internal fields for integration tests — never ship to WASM)
 test-helpers = []
 
@@ -51,6 +53,9 @@ laz = { version = "0.12.1", optional = true }
 wasm-bindgen-futures = "0.4"
 byteorder = "1.5"
 e57 = { version = "0.11.12", optional = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.2", features = ["js"] }
 
 [dependencies.web-sys]
 version = "0.3"
@@ -87,6 +92,8 @@ strip = true           # Strip debug info
 # wasm-opt = false for local builds (avoids binary dependency).
 # CI release builds should use wasm-opt = ["-Oz"] for max compression.
 wasm-opt = false
+
+[patch.crates-io]
 
 [[bench]]
 name = "spatial_benchmarks"

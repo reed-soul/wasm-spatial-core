@@ -31,6 +31,7 @@ mod vector_tile;
 pub use octree::{Bounds, Octree, OctreeNode, DEFAULT_MAX_DEPTH, DEFAULT_MAX_POINTS_PER_NODE};
 pub use pnts::{
     encode_pnts_tile, estimate_point_spacing, generate_tileset, pad_len, parse_pnts_header,
+    supports_draco_js, draco_status_js,
     TilesetResult,
 };
 mod wkb_wkt;
