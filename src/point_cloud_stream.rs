@@ -102,16 +102,16 @@ impl PointCloudStreamer {
             ));
         }
 
-        self.num_points = read_u32_le(bytes, 110);
-        self.point_offset = read_u32_le(bytes, 98);
-        self.point_format_id = bytes[106];
-        self.point_record_length = read_u16_le(bytes, 108);
-        self.x_scale = read_f64_le(bytes, 134);
-        self.y_scale = read_f64_le(bytes, 142);
-        self.z_scale = read_f64_le(bytes, 150);
-        self.x_offset = read_f64_le(bytes, 158);
-        self.y_offset = read_f64_le(bytes, 166);
-        self.z_offset = read_f64_le(bytes, 174);
+        self.num_points = read_u32_le(bytes, 107);
+        self.point_offset = read_u32_le(bytes, 96);
+        self.point_format_id = bytes[104];
+        self.point_record_length = read_u16_le(bytes, 105);
+        self.x_scale = read_f64_le(bytes, 131);
+        self.y_scale = read_f64_le(bytes, 139);
+        self.z_scale = read_f64_le(bytes, 147);
+        self.x_offset = read_f64_le(bytes, 155);
+        self.y_offset = read_f64_le(bytes, 163);
+        self.z_offset = read_f64_le(bytes, 171);
         self.initialized = true;
 
         Ok(crate::point_cloud::LasHeaderInfo::new_from_parts(
@@ -736,12 +736,12 @@ pub fn read_copc_chunk_core(
     let point_format_id = read_u8_from_cursor(&mut cursor)?;
 
     // Scale/offset
-    let x_scale = read_f64_le(header_bytes, 134);
-    let y_scale = read_f64_le(header_bytes, 142);
-    let z_scale = read_f64_le(header_bytes, 150);
-    let x_offset = read_f64_le(header_bytes, 158);
-    let y_offset = read_f64_le(header_bytes, 166);
-    let z_offset = read_f64_le(header_bytes, 174);
+    let x_scale = read_f64_le(header_bytes, 131);
+    let y_scale = read_f64_le(header_bytes, 139);
+    let z_scale = read_f64_le(header_bytes, 147);
+    let x_offset = read_f64_le(header_bytes, 155);
+    let y_offset = read_f64_le(header_bytes, 163);
+    let z_offset = read_f64_le(header_bytes, 171);
 
     cursor
         .seek(SeekFrom::Start(header_size_val as u64))
@@ -1015,20 +1015,20 @@ mod tests {
         let mut buf = vec![0u8; header_size as usize];
         buf[0..4].copy_from_slice(b"LASF");
         buf[24] = 1; // version major
-        buf[26] = 2; // version minor
-        buf[98..102].copy_from_slice(&point_offset.to_le_bytes());
-        buf[106] = point_format;
-        buf[108..110].copy_from_slice(&record_len.to_le_bytes());
-        buf[110..114].copy_from_slice(&num_points.to_le_bytes());
-        buf[134..142].copy_from_slice(&x_scale.to_le_bytes());
-        buf[142..150].copy_from_slice(&y_scale.to_le_bytes());
-        buf[150..158].copy_from_slice(&z_scale.to_le_bytes());
-        buf[182..190].copy_from_slice(&max_x.to_le_bytes());
-        buf[190..198].copy_from_slice(&max_y.to_le_bytes());
-        buf[198..206].copy_from_slice(&max_z.to_le_bytes());
-        buf[206..214].copy_from_slice(&min_x.to_le_bytes());
-        buf[214..222].copy_from_slice(&min_y.to_le_bytes());
-        buf[222..230].copy_from_slice(&min_z.to_le_bytes());
+        buf[25] = 2; // version minor
+        buf[96..100].copy_from_slice(&point_offset.to_le_bytes());
+        buf[104] = point_format;
+        buf[105..107].copy_from_slice(&record_len.to_le_bytes());
+        buf[107..111].copy_from_slice(&num_points.to_le_bytes());
+        buf[131..139].copy_from_slice(&x_scale.to_le_bytes());
+        buf[139..147].copy_from_slice(&y_scale.to_le_bytes());
+        buf[147..155].copy_from_slice(&z_scale.to_le_bytes());
+        buf[179..187].copy_from_slice(&max_x.to_le_bytes());
+        buf[187..195].copy_from_slice(&max_y.to_le_bytes());
+        buf[195..203].copy_from_slice(&max_z.to_le_bytes());
+        buf[203..211].copy_from_slice(&min_x.to_le_bytes());
+        buf[211..219].copy_from_slice(&min_y.to_le_bytes());
+        buf[219..227].copy_from_slice(&min_z.to_le_bytes());
 
         for &(x, y, z) in points {
             let base = buf.len();
