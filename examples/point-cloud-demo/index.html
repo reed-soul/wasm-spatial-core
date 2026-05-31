@@ -445,7 +445,7 @@ async function loadWasm() {
 
   try {
     // Try local pkg
-    const module = await import('../pkg/wasm_spatial_core.js');
+    const module = await import('../../pkg/wasm_spatial_core.js');
     await module.default();
     wasm = module;
     return true;
