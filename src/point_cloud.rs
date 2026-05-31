@@ -191,16 +191,16 @@ pub fn parse_las_header_core(bytes: &[u8]) -> Result<LasHeader, String> {
 
     Ok(LasHeader {
         version_major: bytes[24],
-        version_minor: bytes[26],
-        point_format_id: bytes[106],
-        point_data_record_length: read_u16_le(bytes, 108),
-        num_points: read_u32_le(bytes, 110),
-        bounds_max_x: read_f64_le(bytes, 182),
-        bounds_max_y: read_f64_le(bytes, 190),
-        bounds_max_z: read_f64_le(bytes, 198),
-        bounds_min_x: read_f64_le(bytes, 206),
-        bounds_min_y: read_f64_le(bytes, 214),
-        bounds_min_z: read_f64_le(bytes, 222),
+        version_minor: bytes[25],
+        point_format_id: bytes[104],
+        point_data_record_length: read_u16_le(bytes, 105),
+        num_points: read_u32_le(bytes, 107),
+        bounds_max_x: read_f64_le(bytes, 179),
+        bounds_max_y: read_f64_le(bytes, 187),
+        bounds_max_z: read_f64_le(bytes, 195),
+        bounds_min_x: read_f64_le(bytes, 203),
+        bounds_min_y: read_f64_le(bytes, 211),
+        bounds_min_z: read_f64_le(bytes, 219),
     })
 }
 
@@ -209,18 +209,18 @@ pub fn parse_las_points_core(bytes: &[u8]) -> Result<LasPointCloud, String> {
         return Err("LAS data too short for point parsing (need at least 230 bytes)".to_string());
     }
 
-    let num_points = read_u32_le(bytes, 110) as usize;
-    let point_offset = read_u32_le(bytes, 98) as usize;
-    let point_format = bytes[106];
-    let point_record_len = read_u16_le(bytes, 108) as usize;
+    let num_points = read_u32_le(bytes, 107) as usize;
+    let point_offset = read_u32_le(bytes, 96) as usize;
+    let point_format = bytes[104];
+    let point_record_len = read_u16_le(bytes, 105) as usize;
 
     // Scale/offset for coordinate reconstruction
-    let x_scale = read_f64_le(bytes, 134);
-    let y_scale = read_f64_le(bytes, 142);
-    let z_scale = read_f64_le(bytes, 150);
-    let x_offset = read_f64_le(bytes, 158);
-    let y_offset = read_f64_le(bytes, 166);
-    let z_offset = read_f64_le(bytes, 174);
+    let x_scale = read_f64_le(bytes, 131);
+    let y_scale = read_f64_le(bytes, 139);
+    let z_scale = read_f64_le(bytes, 147);
+    let x_offset = read_f64_le(bytes, 155);
+    let y_offset = read_f64_le(bytes, 163);
+    let z_offset = read_f64_le(bytes, 171);
 
     // Format 0: 20 bytes, Format 2: 26 bytes (with RGB)
     let has_color = point_format == 2 || point_format == 3;
@@ -1380,10 +1380,10 @@ fn parse_las_points_with_progress_core<F>(
 where
     F: FnMut(u32, u32),
 {
-    let num_points = read_u32_le(bytes, 110);
-    let point_offset = read_u32_le(bytes, 98) as usize;
-    let point_format = bytes[106];
-    let point_record_len = read_u16_le(bytes, 108) as usize;
+    let num_points = read_u32_le(bytes, 107);
+    let point_offset = read_u32_le(bytes, 96) as usize;
+    let point_format = bytes[104];
+    let point_record_len = read_u16_le(bytes, 105) as usize;
 
     let x_scale = read_f64_le(bytes, 134);
     let y_scale = read_f64_le(bytes, 142);
@@ -1456,7 +1456,7 @@ pub fn parse_las_points_with_progress(
     bytes: &[u8],
     on_progress: &js_sys::Function,
 ) -> Result<LasPointCloud, SpatialErrorDetail> {
-    let _num_points = read_u32_le(bytes, 110);
+    let _num_points = read_u32_le(bytes, 107);
     let this = JsValue::NULL;
 
     parse_las_points_with_progress_core(
@@ -1809,10 +1809,10 @@ pub fn parse_las_header_only(bytes: &[u8]) -> Result<LasHeaderInfo, SpatialError
     }
 
     Ok(LasHeaderInfo {
-        num_points: read_u32_le(bytes, 110),
-        point_offset: read_u32_le(bytes, 98),
-        point_format_id: bytes[106],
-        point_record_length: read_u16_le(bytes, 108),
+        num_points: read_u32_le(bytes, 107),
+        point_offset: read_u32_le(bytes, 96),
+        point_format_id: bytes[104],
+        point_record_length: read_u16_le(bytes, 105),
         x_scale: read_f64_le(bytes, 134),
         y_scale: read_f64_le(bytes, 142),
         z_scale: read_f64_le(bytes, 150),
@@ -2837,21 +2837,20 @@ pub(crate) mod tests {
         let mut buf = vec![0u8; header_size as usize];
         buf[0..4].copy_from_slice(b"LASF");
         buf[24] = 1; // version major
-        buf[26] = 2; // version minor
-        buf[94..96].copy_from_slice(&(header_size as u16).to_le_bytes());
-        buf[98..102].copy_from_slice(&point_offset.to_le_bytes());
-        buf[106] = point_format;
-        buf[108..110].copy_from_slice(&record_len.to_le_bytes());
-        buf[110..114].copy_from_slice(&num_points.to_le_bytes());
-        buf[134..142].copy_from_slice(&x_scale.to_le_bytes());
-        buf[142..150].copy_from_slice(&y_scale.to_le_bytes());
-        buf[150..158].copy_from_slice(&z_scale.to_le_bytes());
-        buf[182..190].copy_from_slice(&max_x.to_le_bytes());
-        buf[190..198].copy_from_slice(&max_y.to_le_bytes());
-        buf[198..206].copy_from_slice(&max_z.to_le_bytes());
-        buf[206..214].copy_from_slice(&min_x.to_le_bytes());
-        buf[214..222].copy_from_slice(&min_y.to_le_bytes());
-        buf[222..230].copy_from_slice(&min_z.to_le_bytes());
+        buf[25] = 2; // version minor
+        buf[96..100].copy_from_slice(&point_offset.to_le_bytes());
+        buf[104] = point_format;
+        buf[105..107].copy_from_slice(&record_len.to_le_bytes());
+        buf[107..111].copy_from_slice(&num_points.to_le_bytes());
+        buf[131..139].copy_from_slice(&x_scale.to_le_bytes());
+        buf[139..147].copy_from_slice(&y_scale.to_le_bytes());
+        buf[147..155].copy_from_slice(&z_scale.to_le_bytes());
+        buf[179..187].copy_from_slice(&max_x.to_le_bytes());
+        buf[187..195].copy_from_slice(&max_y.to_le_bytes());
+        buf[195..203].copy_from_slice(&max_z.to_le_bytes());
+        buf[203..211].copy_from_slice(&min_x.to_le_bytes());
+        buf[211..219].copy_from_slice(&min_y.to_le_bytes());
+        buf[219..227].copy_from_slice(&min_z.to_le_bytes());
 
         for &(x, y, z) in points {
             let base = buf.len();
@@ -3388,10 +3387,10 @@ DATA ascii
         let blob = build_test_las_blob(&points, false);
 
         // parse_las_header_only is the WASM function, but we can test the core logic
-        let num_points = read_u32_le(&blob, 110);
-        let point_offset = read_u32_le(&blob, 98);
-        let point_format = blob[106];
-        let point_record_length = read_u16_le(&blob, 108);
+        let num_points = read_u32_le(&blob, 107);
+        let point_offset = read_u32_le(&blob, 96);
+        let point_format = blob[104];
+        let point_record_length = read_u16_le(&blob, 105);
 
         assert_eq!(num_points, 2);
         assert_eq!(point_offset, 230);
@@ -3417,8 +3416,8 @@ DATA ascii
         ];
         let blob = build_test_las_blob(&points, false);
 
-        let point_offset = read_u32_le(&blob, 98) as usize;
-        let point_format = blob[106];
+        let point_offset = read_u32_le(&blob, 96) as usize;
+        let point_format = blob[104];
 
         // Parse point 0 (at point_offset)
         let (x0, y0, z0) = parse_las_point_at_core(
@@ -4209,21 +4208,20 @@ pub mod test_helpers {
         let mut buf = vec![0u8; header_size as usize];
         buf[0..4].copy_from_slice(b"LASF");
         buf[24] = 1;
-        buf[26] = 2;
-        buf[94..96].copy_from_slice(&(header_size as u16).to_le_bytes());
-        buf[98..102].copy_from_slice(&point_offset.to_le_bytes());
-        buf[106] = point_format;
-        buf[108..110].copy_from_slice(&record_len.to_le_bytes());
-        buf[110..114].copy_from_slice(&num_points.to_le_bytes());
-        buf[134..142].copy_from_slice(&1.0_f64.to_le_bytes());
-        buf[142..150].copy_from_slice(&1.0_f64.to_le_bytes());
-        buf[150..158].copy_from_slice(&1.0_f64.to_le_bytes());
-        buf[182..190].copy_from_slice(&max_x.to_le_bytes());
-        buf[190..198].copy_from_slice(&max_y.to_le_bytes());
-        buf[198..206].copy_from_slice(&max_z.to_le_bytes());
-        buf[206..214].copy_from_slice(&min_x.to_le_bytes());
-        buf[214..222].copy_from_slice(&min_y.to_le_bytes());
-        buf[222..230].copy_from_slice(&min_z.to_le_bytes());
+        buf[25] = 2;
+        buf[96..100].copy_from_slice(&point_offset.to_le_bytes());
+        buf[104] = point_format;
+        buf[105..107].copy_from_slice(&record_len.to_le_bytes());
+        buf[107..111].copy_from_slice(&num_points.to_le_bytes());
+        buf[131..139].copy_from_slice(&1.0_f64.to_le_bytes());
+        buf[139..147].copy_from_slice(&1.0_f64.to_le_bytes());
+        buf[147..155].copy_from_slice(&1.0_f64.to_le_bytes());
+        buf[179..187].copy_from_slice(&max_x.to_le_bytes());
+        buf[187..195].copy_from_slice(&max_y.to_le_bytes());
+        buf[195..203].copy_from_slice(&max_z.to_le_bytes());
+        buf[203..211].copy_from_slice(&min_x.to_le_bytes());
+        buf[211..219].copy_from_slice(&min_y.to_le_bytes());
+        buf[219..227].copy_from_slice(&min_z.to_le_bytes());
 
         for &(x, y, z) in points {
             let base = buf.len();

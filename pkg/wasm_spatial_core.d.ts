@@ -409,6 +409,44 @@ export class PcdPointCloud {
 }
 
 /**
+ * Result of parsing a PLY file. Contains vertex positions, optional colors,
+ * optional normals, and face count.
+ */
+export class PlyResult {
+    private constructor();
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * Whether color data is present.
+     */
+    hasColors(): boolean;
+    /**
+     * Whether normal data is present.
+     */
+    hasNormals(): boolean;
+    /**
+     * Vertex colors as Uint8Array [r, g, b, ...], or null if no color data.
+     */
+    readonly colors: Uint8Array;
+    /**
+     * Number of faces (polygons).
+     */
+    readonly faceCount: number;
+    /**
+     * Vertex normals as Float32Array [nx, ny, nz, ...], or null if no normal data.
+     */
+    readonly normals: Float32Array;
+    /**
+     * Vertex positions as Float32Array [x, y, z, x, y, z, ...].
+     */
+    readonly positions: Float32Array;
+    /**
+     * Number of vertices.
+     */
+    readonly vertexCount: number;
+}
+
+/**
  * Streaming point cloud loader.
  *
  * Parse a LAS header first, then read points or regions on demand without
@@ -711,6 +749,30 @@ export class VectorTileOptions {
 }
 
 /**
+ * Handle for a background point cloud processing task.
+ *
+ * Use this with `processPointCloudInWorker` to manage a background job.
+ * The Worker is created on the JS side; this Rust struct tracks state.
+ */
+export class WorkerHandle {
+    private constructor();
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * Cancel the processing task.
+     */
+    cancel(): void;
+    /**
+     * Check if the task has been cancelled.
+     */
+    readonly isCancelled: boolean;
+    /**
+     * Number of points being processed.
+     */
+    readonly pointCount: number;
+}
+
+/**
  * Add a property to all features in a GeoJSON FeatureCollection.
  *
  * Operates at the `serde_json::Value` level — no full GeoJSON DOM
@@ -973,6 +1035,23 @@ export function bufferLineString(coords: Float64Array, radius_meters: number, se
 export function bufferPoint(lng: number, lat: number, radius_meters: number, segments?: number | null): Float64Array;
 
 /**
+ * Build a smooth color ramp from discrete color stops.
+ *
+ * Creates a linearly interpolated gradient between the provided colors.
+ *
+ * # Parameters
+ *
+ * - `colors`: Uint8Array of color stops `[r0, g0, b0, r1, g1, b1, ...]`
+ *   Must have at least 2 colors (6 bytes).
+ * - `num_steps`: Number of output colors to generate
+ *
+ * # Returns
+ *
+ * Uint8Array of interpolated colors `[r0, g0, b0, r1, g1, b1, ...]`
+ */
+export function buildColorRamp(colors: Uint8Array, num_steps: number): Uint8Array;
+
+/**
  * Build an octree from a flat `[x, y, z, ...]` position buffer.
  *
  * The input buffer is **not** modified (a copy is made internally).
@@ -1019,6 +1098,29 @@ export function centroid(coords: Float64Array): Float64Array;
 export function cgcs2000IsWgs84Compatible(): boolean;
 
 /**
+ * Process point cloud data in chunks on the main thread.
+ *
+ * This is a synchronous helper that computes bounds and creates a result.
+ * The actual async chunking with `setTimeout(0)` is best done in JS.
+ *
+ * Use this from JavaScript like:
+ *
+ * ```js
+ * async function processChunked(positions, chunkSize, callback) {
+ *   const total = positions.length / 3;
+ *   const chunks = Math.ceil(total / chunkSize);
+ *   for (let i = 0; i < chunks; i++) {
+ *     // Process chunk i...
+ *     callback(i, chunks, (i + 1) * chunkSize);
+ *     await new Promise(r => setTimeout(r, 0)); // yield to event loop
+ *   }
+ *   return core.generateTileset(positions, 50000, 21);
+ * }
+ * ```
+ */
+export function chunkedProcessingInfo(point_count: number, chunk_size?: number | null): object;
+
+/**
  * Clean coordinate data by removing, clamping, or snapping invalid values.
  *
  * # Arguments
@@ -1056,6 +1158,39 @@ export function clusterByDensity(coords: Float64Array, epsilon: number, min_poin
  * Flat `Float64Array` of cluster centers `[lng, lat, lng, lat, ...]`.
  */
 export function clusterByGrid(coords: Float64Array, cell_size: number, min_points: number): Float64Array;
+
+/**
+ * Colorize points by ASPRS classification IDs.
+ *
+ * Each point is assigned a color from the standard ASPRS classification
+ * color table based on its class ID.
+ *
+ * # Parameters
+ *
+ * - `classes`: Uint8Array where each element is a classification ID (0-255)
+ *
+ * # Returns
+ *
+ * Uint8Array of RGB values `[r0, g0, b0, r1, g1, b1, ...]`
+ */
+export function colorizeByClassification(classes: Uint8Array): Uint8Array;
+
+/**
+ * Colorize points by a heatmap gradient.
+ *
+ * Maps scalar values to a blue→cyan→green→yellow→red color gradient.
+ *
+ * # Parameters
+ *
+ * - `values`: Float32Array of scalar values (one per point)
+ * - `min`: Minimum value for the gradient range
+ * - `max`: Maximum value for the gradient range
+ *
+ * # Returns
+ *
+ * Uint8Array of RGB values `[r0, g0, b0, r1, g1, b1, ...]`
+ */
+export function colorizeByHeatmap(values: Float32Array, min: number, max: number): Uint8Array;
 
 /**
  * Colorize points by height gradient.
@@ -1311,6 +1446,11 @@ export function destination(lng: number, lat: number, bearing_deg: number, dista
  * * `ring2` — Second polygon as flat closed ring
  */
 export function disjoint(ring1: Float64Array, ring2: Float64Array): boolean;
+
+/**
+ * Get E57 support status as a human-readable string.
+ */
+export function e57Status(): string;
 
 /**
  * Encode a point cloud tile into 3D Tiles Point Cloud (pnts) binary format.
@@ -1634,11 +1774,6 @@ export function normalizeCoords(coords: Float64Array, target_bounds: Float64Arra
 export function octreeMemoryUsage(node_count: number, internal_count: number, point_count: number): number;
 
 /**
- * WASM binding: Parse COPC header and return info as JSON object.
- */
-export function parseCopcHeader(bytes: Uint8Array): object;
-
-/**
  * Parse a GeoJSON string and return **all** coordinate pairs as a flat
  * `Float64Array` — `[lng0, lat0, lng1, lat1, …]`.
  *
@@ -1829,16 +1964,20 @@ export function parseLasPoints(bytes: Uint8Array): LasPointCloud;
 export function parseLasPointsWithProgress(bytes: Uint8Array, on_progress: Function): LasPointCloud;
 
 /**
- * WASM binding for LAZ point decompression.
+ * Extract vertex positions from an OBJ file.
  *
- * Parses a LAZ compressed file and returns decompressed points.
+ * Returns a Float32Array of [x0, y0, z0, x1, y1, z1, ...].
+ * Only processes `v` lines; faces, materials, etc. are ignored.
  */
-export function parseLazPoints(bytes: Uint8Array): LasPointCloud;
+export function parseObjVertices(text: string): Float32Array;
 
 /**
- * Parse LAZ points with a JS progress callback. Reports every 10,000 points.
+ * Extract vertex positions and normals from an OBJ file.
+ *
+ * Returns a JS object: `{ positions: Float32Array, normals: Float32Array | null }`.
+ * Normals are matched to vertices by order; returns null if counts don't match.
  */
-export function parseLazPointsStream(bytes: Uint8Array, on_progress: Function): LasPointCloud;
+export function parseObjWithNormals(text: string): object;
 
 /**
  * Parse ASCII PCD format text into a point cloud.
@@ -1851,13 +1990,31 @@ export function parsePcdAscii(text: string): PcdPointCloud;
 export function parsePcdBinary(bytes: Uint8Array): PcdPointCloud;
 
 /**
+ * Parse a PLY (Polygon File Format) file.
+ *
+ * Supports ASCII and binary_little_endian formats.
+ * Returns a `PlyResult` with vertex positions, optional colors, optional normals.
+ *
+ * # Example (JS)
+ * ```js
+ * const result = core.parsePly(arrayBuffer);
+ * const positions = result.positions();
+ * const colors = result.colors();
+ * const vertexCount = result.vertexCount;
+ * ```
+ */
+export function parsePly(bytes: Uint8Array): PlyResult;
+
+/**
  * Unified entry point: automatically detects LAS/LAZ/COPC format and parses points.
  *
  * # Format Detection
  *
  * - **LAS**: `LASF` magic, version ≤ 1.3, no compression bit
  * - **LAZ**: `LASF` magic, any version, compression bit set at byte 104
+ *   (requires `laz-support` feature)
  * - **COPC**: `LASF` magic, version 1.4, compression bit set, COPC VLR present
+ *   (requires `laz-support` feature)
  *
  * All three formats use the same decompression path internally. COPC adds
  * spatial indexing but falls back to full decompression for the auto path.
@@ -1897,6 +2054,35 @@ export function parseWkb(bytes: Uint8Array): Float64Array;
  * ```
  */
 export function parseWkt(input: string): Float64Array;
+
+/**
+ * Compute axis-aligned bounding box of a point cloud.
+ *
+ * Returns a Float64Array `[min_x, min_y, min_z, max_x, max_y, max_z]`.
+ */
+export function pointCloudBounds(positions: Float32Array): Float64Array;
+
+/**
+ * Compute the centroid (geometric center) of a point cloud.
+ *
+ * Returns a Float64Array `[cx, cy, cz]`.
+ */
+export function pointCloudCentroid(positions: Float32Array): Float64Array;
+
+/**
+ * Compute comprehensive statistics for a point cloud.
+ *
+ * Returns a JSON string with:
+ * - `pointCount`: Number of points
+ * - `bounds`: `{ minX, minY, minZ, maxX, maxY, maxZ }`
+ * - `centroid`: `[cx, cy, cz]`
+ * - `averagePointSpacing`: Average nearest-neighbor distance (sampled)
+ * - `density`: Points per cubic meter
+ *
+ * For large point clouds (>100K points), nearest-neighbor computation
+ * is sampled to keep performance reasonable.
+ */
+export function pointCloudStats(positions: Float32Array): string;
 
 /**
  * Calculate the area of a polygon in square meters using the spherical
@@ -1957,17 +2143,43 @@ export function polygonUnion(ring1: Float64Array, ring2: Float64Array): Float64A
 export function polylineLength(coords: Float64Array): number;
 
 /**
- * WASM binding: Read a single COPC chunk.
- */
-export function readCopcChunk(bytes: Uint8Array, chunk_offset: number, chunk_size: number, expected_points: number, header_bytes: Uint8Array): LasPointCloud;
-
-/**
- * WASM binding: Read COPC points from a bounding box region.
+ * Process point cloud data in a Web Worker.
  *
- * Iterates through all chunks, decompresses each one, and filters
- * points that fall within the specified bounding box.
+ * Creates a `WorkerHandle` to track the processing state. The actual Worker
+ * creation and communication happens on the JavaScript side.
+ *
+ * # Parameters
+ *
+ * - `point_count`: Number of points to process
+ * - `options`: Optional JS object with `maxPointsPerNode` and `maxDepth`
+ *
+ * # Returns
+ *
+ * A `WorkerHandle` for tracking the task.
+ *
+ * # Example (JavaScript)
+ *
+ * ```js
+ * const handle = core.processPointCloudInWorker(positions.length / 3, {
+ *   maxPointsPerNode: 50000,
+ *   maxDepth: 21,
+ * });
+ *
+ * // Create the actual worker
+ * const workerBlob = new Blob([`
+ *   self.onmessage = function(e) {
+ *     const { positions, maxPointsPerNode, maxDepth } = e.data;
+ *     // Process here...
+ *     self.postMessage({ type: 'complete', result: tileset });
+ *   };
+ * `], { type: 'application/javascript' });
+ * const worker = new Worker(URL.createObjectURL(workerBlob));
+ *
+ * handle.onProgress((pct, msg) => console.log(`${pct}%: ${msg}`));
+ * handle.onComplete((result) => { /* use tileset */ });
+ * ```
  */
-export function readCopcRegion(bytes: Uint8Array, min_x: number, min_y: number, min_z: number, max_x: number, max_y: number, max_z: number): LasPointCloud;
+export function processPointCloudInWorker(point_count: number, options: any): WorkerHandle;
 
 /**
  * Remove a property key from all features of a GeoJSON FeatureCollection.
@@ -2080,9 +2292,28 @@ export function sortCoordsByLat(coords: Float64Array): Float64Array;
 export function sortCoordsByLng(coords: Float64Array): Float64Array;
 
 /**
+ * Check if E57 format is supported (requires `e57-support` feature).
+ */
+export function supportsE57(): boolean;
+
+/**
  * Check if LAZ (compressed LAS) is supported.
  */
 export function supportsLaz(): boolean;
+
+/**
+ * Check if the environment has COOP/COEP headers set (for SharedArrayBuffer).
+ *
+ * Returns `true` if `SharedArrayBuffer` is available and functional.
+ */
+export function supportsSharedArrayBuffer(): boolean;
+
+/**
+ * Check if Web Worker is available in the current environment.
+ *
+ * Returns `true` in browser contexts with Worker support.
+ */
+export function supportsWorker(): boolean;
 
 /**
  * Interpolate a Z value on a TIN surface at (x, y) using barycentric interpolation.
@@ -2225,6 +2456,7 @@ export interface InitOutput {
     readonly __wbg_mvtfeature_free: (a: number, b: number) => void;
     readonly __wbg_mvtlayer_free: (a: number, b: number) => void;
     readonly __wbg_octree_free: (a: number, b: number) => void;
+    readonly __wbg_plyresult_free: (a: number, b: number) => void;
     readonly __wbg_pointdata_free: (a: number, b: number) => void;
     readonly __wbg_set_vectortileoptions_buffer: (a: number, b: number) => void;
     readonly __wbg_set_vectortileoptions_extent: (a: number, b: number) => void;
@@ -2240,6 +2472,7 @@ export interface InitOutput {
     readonly __wbg_validationresult_free: (a: number, b: number) => void;
     readonly __wbg_vectortileengine_free: (a: number, b: number) => void;
     readonly __wbg_vectortileoptions_free: (a: number, b: number) => void;
+    readonly __wbg_workerhandle_free: (a: number, b: number) => void;
     readonly addProperty: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
     readonly applyColorRamp: (a: number, b: number) => number;
     readonly areaWithHoles: (a: number, b: number, c: number) => void;
@@ -2275,6 +2508,7 @@ export interface InitOutput {
     readonly boundingBox: (a: number) => number;
     readonly bufferLineString: (a: number, b: number, c: number) => number;
     readonly bufferPoint: (a: number, b: number, c: number, d: number) => number;
+    readonly buildColorRamp: (a: number, b: number, c: number) => void;
     readonly buildOctree: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly buildTin: (a: number, b: number) => void;
     readonly centroid: (a: number) => number;
@@ -2284,9 +2518,12 @@ export interface InitOutput {
     readonly cesiummeshgeometry_indices: (a: number) => number;
     readonly cesiummeshgeometry_positions: (a: number) => number;
     readonly cgcs2000IsWgs84Compatible: () => number;
+    readonly chunkedProcessingInfo: (a: number, b: number) => number;
     readonly cleanCoords: (a: number, b: number, c: number, d: number) => void;
     readonly clusterByDensity: (a: number, b: number, c: number) => number;
     readonly clusterByGrid: (a: number, b: number, c: number) => number;
+    readonly colorizeByClassification: (a: number) => number;
+    readonly colorizeByHeatmap: (a: number, b: number, c: number) => number;
     readonly colorizeByHeight: (a: number, b: number, c: number, d: number, e: number) => number;
     readonly colorizeByIntensity: (a: number, b: number) => number;
     readonly computeBounds: (a: number) => number;
@@ -2309,6 +2546,7 @@ export interface InitOutput {
     readonly denormalizeCoords: (a: number, b: number) => number;
     readonly destination: (a: number, b: number, c: number, d: number) => number;
     readonly disjoint: (a: number, b: number) => number;
+    readonly e57Status: (a: number) => void;
     readonly encodePntsTile: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
     readonly estimateNormals: (a: number, b: number) => number;
     readonly filterGeoJsonByBBox: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
@@ -2391,7 +2629,6 @@ export interface InitOutput {
     readonly octree_nodePointCount: (a: number, b: number) => number;
     readonly octree_rootBounds: (a: number) => number;
     readonly octree_total_points: (a: number) => number;
-    readonly parseCopcHeader: (a: number, b: number, c: number) => void;
     readonly parseGeoJsonCoords: (a: number, b: number, c: number) => void;
     readonly parseGeoJsonFeatures: (a: number, b: number, c: number) => void;
     readonly parseGeoJsonLazy: (a: number, b: number, c: number) => void;
@@ -2404,13 +2641,24 @@ export interface InitOutput {
     readonly parseLasPointAt: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly parseLasPoints: (a: number, b: number, c: number) => void;
     readonly parseLasPointsWithProgress: (a: number, b: number, c: number, d: number) => void;
-    readonly parseLazPoints: (a: number, b: number, c: number) => void;
-    readonly parseLazPointsStream: (a: number, b: number, c: number, d: number) => void;
+    readonly parseObjVertices: (a: number, b: number) => number;
+    readonly parseObjWithNormals: (a: number, b: number, c: number) => void;
     readonly parsePcdAscii: (a: number, b: number, c: number) => void;
     readonly parsePcdBinary: (a: number, b: number, c: number) => void;
+    readonly parsePly: (a: number, b: number, c: number) => void;
     readonly parsePointCloudAuto: (a: number, b: number, c: number) => void;
     readonly parseWkb: (a: number, b: number) => void;
     readonly parseWkt: (a: number, b: number, c: number) => void;
+    readonly plyresult_colors: (a: number) => number;
+    readonly plyresult_faceCount: (a: number) => number;
+    readonly plyresult_hasColors: (a: number) => number;
+    readonly plyresult_hasNormals: (a: number) => number;
+    readonly plyresult_normals: (a: number) => number;
+    readonly plyresult_positions: (a: number) => number;
+    readonly plyresult_vertexCount: (a: number) => number;
+    readonly pointCloudBounds: (a: number) => number;
+    readonly pointCloudCentroid: (a: number) => number;
+    readonly pointCloudStats: (a: number, b: number) => void;
     readonly pointcloudstreamer_new: () => number;
     readonly pointcloudstreamer_parseHeader: (a: number, b: number, c: number, d: number) => void;
     readonly pointcloudstreamer_readPoints: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
@@ -2425,8 +2673,7 @@ export interface InitOutput {
     readonly polygonIntersects: (a: number, b: number) => number;
     readonly polygonUnion: (a: number, b: number) => number;
     readonly polylineLength: (a: number, b: number) => void;
-    readonly readCopcChunk: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
-    readonly readCopcRegion: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => void;
+    readonly processPointCloudInWorker: (a: number, b: number, c: number) => void;
     readonly removeProperty: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly renameProperty: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
     readonly rhumbBearing: (a: number, b: number, c: number, d: number) => number;
@@ -2444,6 +2691,9 @@ export interface InitOutput {
     readonly spatialindex_new: (a: number) => number;
     readonly spatialindex_searchBBox: (a: number, b: number, c: number, d: number, e: number) => number;
     readonly spatialindex_size: (a: number) => number;
+    readonly supportsE57: () => number;
+    readonly supportsSharedArrayBuffer: () => number;
+    readonly supportsWorker: () => number;
     readonly tilesetresult_tile: (a: number, b: number) => number;
     readonly tilesetresult_tileBounds: (a: number, b: number) => number;
     readonly tilesetresult_tileUri: (a: number, b: number, c: number) => void;
@@ -2470,6 +2720,9 @@ export interface InitOutput {
     readonly version: (a: number) => void;
     readonly vincentyDistance: (a: number, b: number, c: number, d: number) => number;
     readonly wgs84ToUtm: (a: number, b: number) => number;
+    readonly workerhandle_cancel: (a: number) => void;
+    readonly workerhandle_isCancelled: (a: number) => number;
+    readonly workerhandle_pointCount: (a: number) => number;
     readonly supportsLaz: () => number;
     readonly lasheader_boundsMaxX: (a: number) => number;
     readonly lasheader_boundsMaxY: (a: number) => number;
@@ -2499,10 +2752,10 @@ export interface InitOutput {
     readonly tinresult_triangleCount: (a: number) => number;
     readonly pcdpointcloud_pointCount: (a: number) => number;
     readonly tinresult_indices: (a: number) => number;
-    readonly tinresult_positions: (a: number) => number;
-    readonly ifcmesh_positions: (a: number) => number;
     readonly pcdpointcloud_positions: (a: number) => number;
+    readonly tinresult_positions: (a: number) => number;
     readonly ifcmesh_indices: (a: number) => number;
+    readonly ifcmesh_positions: (a: number) => number;
     readonly __wbg_pcdpointcloud_free: (a: number, b: number) => void;
     readonly pcdpointcloud_colors: (a: number) => number;
     readonly __wbindgen_export: (a: number, b: number) => number;
