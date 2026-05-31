@@ -1126,4 +1126,65 @@ mod tests {
         assert!(json.contains("\"meshes\""), "Should have meshes");
         assert!(json.contains("\"nodes\""), "Should have nodes");
     }
+
+    // -------------------------------------------------------------------------
+    // Edge case: empty inputs
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_empty_positions() {
+        let mesh = MeshData {
+            positions: vec![],
+            indices: vec![],
+            normals: None,
+            colors: None,
+            material_index: None,
+            mode: 4,
+        };
+        let (json_bytes, bin_bytes) = build_glb_parts(&[mesh], &[]);
+        // Should produce valid GLB structure even with empty data
+        assert!(!json_bytes.is_empty(), "JSON chunk should exist");
+        assert!(bin_bytes.is_empty(), "BIN chunk should be empty");
+    }
+
+    #[test]
+    fn test_empty_mesh_list() {
+        let (json_bytes, bin_bytes) = build_glb_parts(&[], &[]);
+        assert!(!json_bytes.is_empty(), "JSON chunk should exist");
+        assert!(bin_bytes.is_empty(), "BIN chunk should be empty");
+    }
+
+    #[test]
+    fn test_point_cloud_to_glb_empty() {
+        let mesh = MeshData {
+            positions: vec![],
+            indices: vec![],
+            normals: None,
+            colors: None,
+            material_index: None,
+            mode: 0, // POINTS
+        };
+        let glb = build_glb(&[mesh], &[]);
+        assert!(
+            glb.len() >= 12,
+            "GLB should have header (magic + version + length)"
+        );
+        // Verify GLB magic
+        assert_eq!(&glb[0..4], b"glTF");
+    }
+
+    #[test]
+    fn test_single_point() {
+        let mesh = MeshData {
+            positions: vec![1.0, 2.0, 3.0],
+            indices: vec![],
+            normals: None,
+            colors: None,
+            material_index: None,
+            mode: 0, // POINTS
+        };
+        let (json_bytes, _) = build_glb_parts(&[mesh], &[]);
+        let json = String::from_utf8_lossy(&json_bytes);
+        assert!(json.contains("POSITION"), "Should have POSITION accessor");
+    }
 }
