@@ -945,6 +945,127 @@ pub fn read_copc_region(
     })
 }
 
+// ===========================================================================
+// COPC HTTP Range Query Functions
+// ===========================================================================
+
+/// Compute HTTP Range headers needed to fetch COPC chunks that may intersect
+/// a given bounding box.
+///
+/// Since COPC chunk table entries don't include per-chunk bounding boxes,
+/// this function returns Range headers for ALL chunks. The caller can then
+/// decompress each chunk and filter points by bbox on the client side.
+///
+/// For a more refined approach, callers should use the COPC hierarchy nodes
+/// (available in the COPC EVLR) to pre-filter which chunks intersect the bbox.
+///
+/// # Arguments
+/// * `copc_info_json` — JSON string from `parseCopcHeader()`, containing
+///   `pointDataOffset`, `chunkTable`, and `fileSize` fields.
+/// * `min_x, min_y, min_z, max_x, max_y, max_z` — Query bounding box.
+///
+/// # Returns
+/// JSON string: `{"ranges": ["bytes=START-END", ...], "totalBytes": N}`
+#[cfg(feature = "laz-support")]
+#[wasm_bindgen(js_name = "copcQueryRanges")]
+pub fn copc_query_ranges(
+    copc_info_json: &str,
+    min_x: f64,
+    min_y: f64,
+    min_z: f64,
+    max_x: f64,
+    max_y: f64,
+    max_z: f64,
+) -> Result<String, SpatialErrorDetail> {
+    let val: serde_json::Value = serde_json::from_str(copc_info_json)
+        .map_err(|e| SpatialError::point_cloud_error(format!("Invalid COPC info JSON: {}", e)))?;
+
+    let point_data_offset = val["pointDataOffset"]
+        .as_u64()
+        .ok_or_else(|| SpatialError::point_cloud_error("Missing pointDataOffset"))?;
+    let file_size = val["fileSize"]
+        .as_u64()
+        .ok_or_else(|| SpatialError::point_cloud_error("Missing fileSize"))?;
+
+    let chunks = val["chunkTable"]
+        .as_array()
+        .ok_or_else(|| SpatialError::point_cloud_error("Missing chunkTable"))?;
+
+    let mut ranges: Vec<String> = Vec::new();
+    let mut total_bytes: u64 = 0;
+
+    for chunk in chunks {
+        let offset = chunk["offset"].as_u64().unwrap_or(0);
+        let byte_size = chunk["size"].as_u64().unwrap_or(0);
+
+        if byte_size == 0 {
+            continue;
+        }
+
+        let abs_start = point_data_offset + offset;
+        let abs_end = abs_start + byte_size - 1;
+
+        // Clamp to file size
+        if abs_start >= file_size {
+            continue;
+        }
+        let abs_end = abs_end.min(file_size - 1);
+
+        ranges.push(format!("bytes={}-{}", abs_start, abs_end));
+        total_bytes += abs_end - abs_start + 1;
+    }
+
+    // Also need the COPC header + VLRs for LASZIP VLR (needed to decompress)
+    let header_range = format!("bytes=0-{}", point_data_offset.saturating_sub(1));
+
+    let result = serde_json::json!({
+        "headerRange": header_range,
+        "ranges": ranges,
+        "totalChunkBytes": total_bytes,
+        "numChunks": ranges.len(),
+        // Note: bbox filtering is post-decompression.
+        // The queryBbox is echoed back for reference.
+        "queryBbox": {
+            "min": [min_x, min_y, min_z],
+            "max": [max_x, max_y, max_z]
+        }
+    });
+
+    Ok(result.to_string())
+}
+
+/// Estimate the total download size needed to fetch COPC chunks intersecting
+/// a given bounding box.
+///
+/// Returns the sum of all chunk byte sizes (in bytes) plus the header size.
+/// This is an upper bound since we include all chunks (COPC chunk tables
+/// don't have per-chunk bounding boxes).
+#[cfg(feature = "laz-support")]
+#[wasm_bindgen(js_name = "copcEstimateDownloadSize")]
+pub fn copc_estimate_download_size(
+    copc_info_json: &str,
+) -> Result<usize, SpatialErrorDetail> {
+    let val: serde_json::Value = serde_json::from_str(copc_info_json)
+        .map_err(|e| SpatialError::point_cloud_error(format!("Invalid COPC info JSON: {}", e)))?;
+
+    let point_data_offset = val["pointDataOffset"]
+        .as_u64()
+        .ok_or_else(|| SpatialError::point_cloud_error("Missing pointDataOffset"))?;
+
+    let chunks = val["chunkTable"]
+        .as_array()
+        .ok_or_else(|| SpatialError::point_cloud_error("Missing chunkTable"))?;
+
+    let mut total: u64 = point_data_offset; // header + VLRs
+
+    for chunk in chunks {
+        let byte_size = chunk["size"].as_u64().unwrap_or(0);
+        total += byte_size;
+    }
+
+    Ok(total as usize)
+}
+
 // Helper read functions for Cursor
 #[cfg(feature = "laz-support")]
 fn read_u8_from_cursor(cursor: &mut Cursor<&[u8]>) -> Result<u8, String> {
@@ -1365,5 +1486,87 @@ mod tests {
         let (offset, size) = compute_region_byte_range(100, 20, 0, 10);
         assert_eq!(offset, 100);
         assert_eq!(size, 200); // 10 points × 20 bytes
+    }
+
+    // ── COPC HTTP Range tests ──────────────────────────────────
+
+    #[cfg(feature = "laz-support")]
+    #[test]
+    fn test_copc_query_ranges_basic() {
+        // Simulate a COPC info JSON with 2 chunks
+        let copc_info = serde_json::json!({
+            "pointDataOffset": 1000,
+            "fileSize": 50000,
+            "chunkTable": [
+                {"offset": 0, "count": 500, "size": 8192},
+                {"offset": 8192, "count": 500, "size": 8192}
+            ]
+        })
+        .to_string();
+
+        let result = copc_query_ranges(&copc_info, 0.0, 0.0, 0.0, 100.0, 100.0, 100.0).unwrap();
+        let val: serde_json::Value = serde_json::from_str(&result).unwrap();
+
+        assert_eq!(val["numChunks"], 2);
+        assert_eq!(val["totalChunkBytes"], 16384);
+        assert_eq!(val["headerRange"], "bytes=0-999");
+
+        let ranges = val["ranges"].as_array().unwrap();
+        assert_eq!(ranges.len(), 2);
+        assert_eq!(ranges[0], "bytes=1000-9191");
+        assert_eq!(ranges[1], "bytes=9192-17383");
+    }
+
+    #[cfg(feature = "laz-support")]
+    #[test]
+    fn test_copc_query_ranges_single_chunk() {
+        let copc_info = serde_json::json!({
+            "pointDataOffset": 500,
+            "fileSize": 10000,
+            "chunkTable": [
+                {"offset": 0, "count": 100, "size": 2000}
+            ]
+        })
+        .to_string();
+
+        let result = copc_query_ranges(&copc_info, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0).unwrap();
+        let val: serde_json::Value = serde_json::from_str(&result).unwrap();
+
+        assert_eq!(val["numChunks"], 1);
+        assert_eq!(val["ranges"][0], "bytes=500-2499");
+    }
+
+    #[cfg(feature = "laz-support")]
+    #[test]
+    fn test_copc_estimate_download_size() {
+        let copc_info = serde_json::json!({
+            "pointDataOffset": 2000,
+            "fileSize": 100000,
+            "chunkTable": [
+                {"offset": 0, "count": 1000, "size": 10000},
+                {"offset": 10000, "count": 1000, "size": 10000},
+                {"offset": 20000, "count": 1000, "size": 10000}
+            ]
+        })
+        .to_string();
+
+        let size = copc_estimate_download_size(&copc_info).unwrap();
+        // header (2000) + 3 chunks (30000) = 32000
+        assert_eq!(size, 32000);
+    }
+
+    #[cfg(feature = "laz-support")]
+    #[test]
+    fn test_copc_estimate_download_size_empty() {
+        let copc_info = serde_json::json!({
+            "pointDataOffset": 1000,
+            "fileSize": 5000,
+            "chunkTable": []
+        })
+        .to_string();
+
+        let size = copc_estimate_download_size(&copc_info).unwrap();
+        // Just the header
+        assert_eq!(size, 1000);
     }
 }
