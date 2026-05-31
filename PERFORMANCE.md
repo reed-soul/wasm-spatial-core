@@ -29,16 +29,16 @@ Benchmarks measured on **Apple M2 (arm64)**, Rust `debug` profile (native), May 
 
 LAZ decompression is near-instant at this scale — the `laz` crate uses vectorized bitstream decoding.
 
-## WASM Binary Size
+## WASM Binary Size (v0.6.0, wasm-pack --target web, release)
 
-| Build | Size | Notes |
-|-------|------|-------|
-| Default (GeoJSON + coords) | **1.0 MB** | No point cloud features |
-| point-cloud | **1.1 MB** | +LAS parsing, octree, pnts, tileset |
-| laz-support | **1.2 MB** | +LAZ/COPC decompression (~200KB overhead) |
+| Build | WASM Size | d.ts Lines | Exported Fns | Notes |
+|-------|-----------|------------|-------------|-------|
+| `point-cloud,geotiff` | **1.2 MB** | 3,343 | 173 | Core GIS + point cloud + terrain |
+| All features (single-thread) | **1.5 MB** | 3,470 | 182 | +E57, LAZ/COPC, Draco |
 
-> After gzip/brotli compression, typical transfer size is 200–400 KB.
+> After gzip/brotli compression, typical transfer size is 200–500 KB.
 > WASM streaming compilation means the browser can start executing before the full download completes.
+> `multi-thread` feature requires `atomics` + `bulk-memory` and COOP/COEP headers — build separately with `RUSTFLAGS='-C target-feature=+atomics,+bulk-memory'`.
 
 ## Point Spacing Estimation (Grid-Indexed)
 
