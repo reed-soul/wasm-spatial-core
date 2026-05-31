@@ -1042,9 +1042,7 @@ pub fn copc_query_ranges(
 /// don't have per-chunk bounding boxes).
 #[cfg(feature = "laz-support")]
 #[wasm_bindgen(js_name = "copcEstimateDownloadSize")]
-pub fn copc_estimate_download_size(
-    copc_info_json: &str,
-) -> Result<usize, SpatialErrorDetail> {
+pub fn copc_estimate_download_size(copc_info_json: &str) -> Result<usize, SpatialErrorDetail> {
     let val: serde_json::Value = serde_json::from_str(copc_info_json)
         .map_err(|e| SpatialError::point_cloud_error(format!("Invalid COPC info JSON: {}", e)))?;
 

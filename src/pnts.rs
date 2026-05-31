@@ -806,12 +806,24 @@ pub fn estimate_point_spacing(positions: &[f32], sample_size: Option<usize>) -> 
         let x = positions[i * 3] as f64;
         let y = positions[i * 3 + 1] as f64;
         let z = positions[i * 3 + 2] as f64;
-        if x < min_x { min_x = x; }
-        if y < min_y { min_y = y; }
-        if z < min_z { min_z = z; }
-        if x > max_x { max_x = x; }
-        if y > max_y { max_y = y; }
-        if z > max_z { max_z = z; }
+        if x < min_x {
+            min_x = x;
+        }
+        if y < min_y {
+            min_y = y;
+        }
+        if z < min_z {
+            min_z = z;
+        }
+        if x > max_x {
+            max_x = x;
+        }
+        if y > max_y {
+            max_y = y;
+        }
+        if z > max_z {
+            max_z = z;
+        }
     }
 
     let dx = max_x - min_x;
@@ -829,16 +841,30 @@ pub fn estimate_point_spacing(positions: &[f32], sample_size: Option<usize>) -> 
 
     // Grid cells along the longest axis; maintain aspect ratio
     let longest = dx.max(dy).max(dz);
-    let n_cells_longest = ((num_points as f64 / avg_points_per_cell).cbrt()).ceil().max(1.0) as usize;
+    let n_cells_longest = ((num_points as f64 / avg_points_per_cell).cbrt())
+        .ceil()
+        .max(1.0) as usize;
     let cell_size = longest / n_cells_longest as f64;
 
     if cell_size <= 0.0 {
         return estimate_point_spacing_brute(positions, num_points);
     }
 
-    let nx = if dx > 0.0 { (dx / cell_size).ceil().max(1.0) as usize } else { 1 };
-    let ny = if dy > 0.0 { (dy / cell_size).ceil().max(1.0) as usize } else { 1 };
-    let nz = if dz > 0.0 { (dz / cell_size).ceil().max(1.0) as usize } else { 1 };
+    let nx = if dx > 0.0 {
+        (dx / cell_size).ceil().max(1.0) as usize
+    } else {
+        1
+    };
+    let ny = if dy > 0.0 {
+        (dy / cell_size).ceil().max(1.0) as usize
+    } else {
+        1
+    };
+    let nz = if dz > 0.0 {
+        (dz / cell_size).ceil().max(1.0) as usize
+    } else {
+        1
+    };
 
     // ---- Build grid index ----
     // grid: HashMap<(cx, cy, cz), Vec<usize>> — indices into positions
@@ -1907,7 +1933,13 @@ mod tileset_tests {
         }
         let n = 1000;
         let triples: Vec<[f32; 3]> = (0..n)
-            .map(|i| [simple_hash(i), simple_hash(i + 10000), simple_hash(i + 20000)])
+            .map(|i| {
+                [
+                    simple_hash(i),
+                    simple_hash(i + 10000),
+                    simple_hash(i + 20000),
+                ]
+            })
             .collect();
         let positions = make_positions(&triples);
 
@@ -1989,13 +2021,17 @@ mod tileset_tests {
 
     #[test]
     fn test_supports_draco_returns_false() {
-        assert_eq!(supports_draco_js(), false);
+        assert!(!supports_draco_js());
     }
 
     #[test]
     fn test_draco_status_contains_not_supported() {
         let status = draco_status_js();
-        assert!(status.contains("NOT SUPPORTED"), "Status should mention NOT SUPPORTED: {}", status);
+        assert!(
+            status.contains("NOT SUPPORTED"),
+            "Status should mention NOT SUPPORTED: {}",
+            status
+        );
     }
 
     // ===========================================================================
