@@ -1,2 +1,4 @@
-pkg/
 node_modules/
+*.tgz
+tsconfig.json
+.DS_Store
