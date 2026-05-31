@@ -205,6 +205,10 @@ pub fn parse_las_header_core(bytes: &[u8]) -> Result<LasHeader, String> {
 }
 
 pub fn parse_las_points_core(bytes: &[u8]) -> Result<LasPointCloud, String> {
+    if bytes.len() < 230 {
+        return Err("LAS data too short for point parsing (need at least 230 bytes)".to_string());
+    }
+
     let num_points = read_u32_le(bytes, 110) as usize;
     let point_offset = read_u32_le(bytes, 98) as usize;
     let point_format = bytes[106];
@@ -4160,5 +4164,80 @@ DATA ascii
         assert!(stats.get("centroid").is_some());
         assert!(stats.get("density").is_some());
         assert!(stats.get("averagePointSpacing").is_some());
+    }
+}
+
+/// Test-only helpers for integration tests (non-WASM targets).
+#[cfg(any(test, feature = "test-helpers"))]
+pub mod test_helpers {
+    use super::*;
+
+    /// Extract positions from a LasPointCloud without WASM typed arrays.
+    pub fn get_positions(cloud: &LasPointCloud) -> &[f32] {
+        &cloud.positions
+    }
+
+    /// Extract colors from a LasPointCloud without WASM typed arrays.
+    pub fn get_colors(cloud: &LasPointCloud) -> Option<&[u8]> {
+        cloud.colors.as_deref()
+    }
+
+    /// Get point count without WASM accessor.
+    pub fn get_point_count(cloud: &LasPointCloud) -> u32 {
+        cloud.point_count
+    }
+
+    /// Build a test LAS blob with given points (uses internal offset conventions).
+    pub fn build_test_las_blob(points: &[(f64, f64, f64)], has_color: bool) -> Vec<u8> {
+        let num_points = points.len() as u32;
+        let header_size = 230u32;
+        let point_offset = header_size;
+        let point_format: u8 = if has_color { 2 } else { 0 };
+        let record_len: u16 = if has_color { 26 } else { 20 };
+
+        let (mut min_x, mut min_y, mut min_z) = (f64::MAX, f64::MAX, f64::MAX);
+        let (mut max_x, mut max_y, mut max_z) = (f64::MIN, f64::MIN, f64::MIN);
+        for &(x, y, z) in points {
+            min_x = min_x.min(x);
+            min_y = min_y.min(y);
+            min_z = min_z.min(z);
+            max_x = max_x.max(x);
+            max_y = max_y.max(y);
+            max_z = max_z.max(z);
+        }
+
+        let mut buf = vec![0u8; header_size as usize];
+        buf[0..4].copy_from_slice(b"LASF");
+        buf[24] = 1;
+        buf[26] = 2;
+        buf[94..96].copy_from_slice(&(header_size as u16).to_le_bytes());
+        buf[98..102].copy_from_slice(&point_offset.to_le_bytes());
+        buf[106] = point_format;
+        buf[108..110].copy_from_slice(&record_len.to_le_bytes());
+        buf[110..114].copy_from_slice(&num_points.to_le_bytes());
+        buf[134..142].copy_from_slice(&1.0_f64.to_le_bytes());
+        buf[142..150].copy_from_slice(&1.0_f64.to_le_bytes());
+        buf[150..158].copy_from_slice(&1.0_f64.to_le_bytes());
+        buf[182..190].copy_from_slice(&max_x.to_le_bytes());
+        buf[190..198].copy_from_slice(&max_y.to_le_bytes());
+        buf[198..206].copy_from_slice(&max_z.to_le_bytes());
+        buf[206..214].copy_from_slice(&min_x.to_le_bytes());
+        buf[214..222].copy_from_slice(&min_y.to_le_bytes());
+        buf[222..230].copy_from_slice(&min_z.to_le_bytes());
+
+        for &(x, y, z) in points {
+            let base = buf.len();
+            let pt_size = record_len as usize;
+            buf.resize(base + pt_size, 0);
+            buf[base..base + 4].copy_from_slice(&(x as i32).to_le_bytes());
+            buf[base + 4..base + 8].copy_from_slice(&(y as i32).to_le_bytes());
+            buf[base + 8..base + 12].copy_from_slice(&(z as i32).to_le_bytes());
+            if has_color {
+                buf[base + 20] = 255;
+                buf[base + 21] = 128;
+                buf[base + 22] = 0;
+            }
+        }
+        buf
     }
 }
