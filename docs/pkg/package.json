@@ -1,0 +1,32 @@
+{
+  "name": "wasm-spatial-core",
+  "type": "module",
+  "collaborators": [
+    "Qingxi <qingxi@zhiqiweilai.com>"
+  ],
+  "description": "A high-performance WebAssembly spatial data processing engine for frontend Web3D/GIS applications",
+  "version": "0.6.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/reed-soul/wasm-spatial-core"
+  },
+  "files": [
+    "wasm-spatial-core_bg.wasm",
+    "wasm-spatial-core.js",
+    "wasm-spatial-core.d.ts"
+  ],
+  "main": "wasm-spatial-core.js",
+  "homepage": "https://github.com/reed-soul/wasm-spatial-core",
+  "types": "wasm-spatial-core.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ],
+  "keywords": [
+    "wasm",
+    "spatial",
+    "gis",
+    "web3d",
+    "geojson"
+  ]
+}
