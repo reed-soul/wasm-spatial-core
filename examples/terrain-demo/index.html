@@ -255,6 +255,18 @@
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
+    // ── WASM Loading ──
+    let wasmLoaded = false;
+    try {
+      const wasm = await import('../../pkg/wasm_spatial_core.js');
+      await wasm.default();
+      Object.assign(window, wasm);
+      wasmLoaded = true;
+      console.log('[terrain-demo] WASM loaded successfully');
+    } catch (e) {
+      console.warn('[terrain-demo] WASM not available, using fallback:', e.message);
+    }
+
     // ── State ──
     let scene, camera, renderer, controls;
     let terrainMesh = null;
