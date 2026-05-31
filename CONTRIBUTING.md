@@ -182,6 +182,68 @@ Add the new exports to the TypeScript convenience wrapper.
 
 ---
 
+## Adding a New 3D Tiles Format
+
+To add a new 3D Tiles content format (e.g., cmpt, gltf, vctr):
+
+### 1. Create a tile encoder module
+
+Add a new file `src/<format>.rs`:
+
+```rust
+use wasm_bindgen::prelude::*;
+
+const <FORMAT>_MAGIC: &[u8; 4] = b"<fmt>";
+
+/// Encode a <FORMAT> 3D Tile.
+#[wasm_bindgen(js_name = "encode<Fmt>Tile")]
+pub fn encode_<format>_tile(
+    glb_bytes: &[u8],       // Inner glTF/GLB content
+    batch_table: Option<&str>, // Optional batch table JSON
+) -> Result<js_sys::Uint8Array, JsValue> {
+    let glb_len = glb_bytes.len();
+    let has_batch = batch_table.is_some();
+
+    // 1. Build feature table JSON (e.g., BATCH_LENGTH)
+    // 2. Build feature table binary
+    // 3. Build batch table JSON (if provided)
+    // 4. Assemble: header(28) + featureTable + batchTable + glb
+    // 5. Pad to 4-byte alignment
+
+    todo!()
+}
+```
+
+### 2. Key requirements
+
+- **28-byte header**: magic(4) + version(4) + byteLength(4) + featureTableJSON(4) + featureTableBinary(4) + batchTableJSON(4) + batchTableBinary(4)
+- **4-byte alignment**: All chunks must be padded to multiples of 4 bytes
+- **Feature table**: Must include `BATCH_LENGTH` for b3dm, or per-instance data for i3dm
+- **Inner content**: b3dm/i3dm wrap glTF/GLB; pnts uses raw position/color arrays
+- **Tests**: Header magic/byte length validation, empty input handling, alignment verification
+
+### 3. Register in `src/lib.rs`
+
+```rust
+mod <format>;
+pub use <format>::encode_<format>_tile;
+```
+
+### 4. Add tileset generator
+
+If the format needs a tileset tree, implement a `create_<format>_tileset()` function that:
+1. Computes bounding volumes per tile
+2. Sets geometricError based on content size
+3. Generates recursive tileset.json
+
+### Existing implementations to reference
+
+- `src/b3dm.rs` — Batched 3D Model (most complete example)
+- `src/pnts.rs` — Point Cloud tiles (separate module)
+- `src/geotiff.rs` — Quantized-mesh terrain tiles
+
+---
+
 ## Performance Testing
 
 ### Benchmarking with Criterion
@@ -304,9 +366,11 @@ chore: upgrade wasm-bindgen to 0.2.97
 
 ### Current Test Coverage
 
-- **400 tests** across all modules
-- **Integration tests**: `tests/integration_test.rs`, `tests/point_cloud_pipeline.rs`
+- **529 tests** across all 26 modules
+- **Integration tests**: `tests/integration_test.rs`, `tests/point_cloud_pipeline.rs`, `tests/pipeline_integration_test.rs`
 - **Stress tests**: `tests/stress_test.rs` (marked `#[ignore]`, run with `--ignored`)
+- **Error path tests**: `tests/error_path_test.rs`
+- **Memory audit**: `tests/memory_audit_test.rs`
 - **WASM tests**: `tests/web.rs` (version smoke test via wasm-bindgen-test)
 
 ---
@@ -321,24 +385,26 @@ src/
 ├── geojson_streaming.rs # Chunked GeoJSON parser with progress callbacks
 ├── spatial_index.rs     # R-Tree spatial index + edge index (bbox/kNN queries)
 ├── vector_tile.rs       # MVT vector tile generation from GeoJSON
-├── cesium_adapter.rs    # WGS84→Cartesian3, polygon triangulation, b3dm 3D Tiles
-├── point_cloud.rs       # LAS/LAZ/PCD parsing + voxel/random decimation
-├── point_cloud_stream.rs # Streaming point cloud loader (range-based access)
+├── cesium_adapter.rs    # WGS84→Cartesian3, polygon triangulation, 3D Tiles generation
+├── b3dm.rs              # 3D Tiles b3dm/i3dm binary encoder + tileset generators
+├── point_cloud.rs       # LAS/LAZ/PCD parsing + voxel/random decimation + colorization
+├── point_cloud_stream.rs # Streaming point cloud loader (range-based access, COPC)
 ├── octree.rs            # 8-way octree spatial partitioning for point clouds
-├── pnts.rs              # 3D Tiles Point Cloud (pnts) binary encoder
+├── pnts.rs              # 3D Tiles Point Cloud (pnts) binary encoder + tileset
+├── geotiff.rs           # GeoTIFF terrain parser + quantized-mesh + hillshade + contour
+├── gltf_writer.rs       # glTF 2.0 / GLB binary scene builder (mesh/terrain/point cloud)
 ├── ply.rs               # PLY format parser (ASCII + binary)
-├── obj.rs               # OBJ mesh parser
-├── e57.rs               # E57 format support (via e57 crate)
+├── obj.rs               # OBJ mesh parser (vertices + normals)
+├── e57.rs               # E57 architectural/industrial scan format (via e57 crate)
 ├── wkb_wkt.rs           # OGC Well-Known Binary / Text format
 ├── topojson.rs          # TopoJSON format parser
 ├── gpx.rs               # GPS Exchange format parser
 ├── ifc_reader.rs        # IFC/BIM geometry extraction (experimental)
-├── gltf_writer.rs       # glTF 2.0 / GLB binary scene builder
-├── spatial_analysis.rs  # Buffer, bounding box, centroid, hull, clustering on WGS-84
-├── topology.rs          # Polygon boolean ops, predicates, area, length
-├── errors.rs            # Structured error types (SpatialError)
-├── utils.rs             # Panic hook setup, coordinate normalization
-└── worker.rs            # WebWorker thread pool initialization
+├── spatial_analysis.rs  # Buffer, bounding box, centroid, hull, clustering, geodesic
+├── topology.rs          # Polygon boolean ops, predicates, area, length, TIN
+├── errors.rs            # Structured error types (SpatialError, SpatialErrorDetail)
+├── utils.rs             # Panic hook setup, coordinate normalization, validation
+└── worker.rs            # WebWorker terrain pipeline (streaming processing)
 ```
 
 ---
