@@ -392,9 +392,15 @@ impl GltfBuilder {
     }
 }
 
-// Minimal bytemuck-compatible cast
+// Minimal bytemuck-compatible cast.
+// SAFETY: This is only called with f32 and u32 slices, both of which are
+// Copy types with no padding bytes. The reinterpreted byte slice covers
+// exactly the same memory region.
+#[allow(clippy::missing_safety_doc)]
 mod bytemuck {
     pub fn cast_slice<T: Copy>(slice: &[T]) -> &[u8] {
+        // SAFETY: f32 and u32 have no padding; transmuting their byte
+        // representation is a valid, non-UB operation.
         unsafe {
             std::slice::from_raw_parts(slice.as_ptr() as *const u8, std::mem::size_of_val(slice))
         }
