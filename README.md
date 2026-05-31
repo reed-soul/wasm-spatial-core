@@ -9,10 +9,11 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 ![Lines](https://img.shields.io/badge/code-30K-blue)
-![Tests](https://img.shields.io/badge/tests-529-success)
+![Tests](https://img.shields.io/badge/tests-633-success)
 ![Formats](https://img.shields.io/badge/formats-15-green)
 
-**[🌐 Live Demo](https://reed-soul.github.io/wasm-spatial-core/examples/index.html)** ·
+**[🌐 Live Demo](https://reed-soul.github.io/wasm-spatial-core/)** ·
+[📦 npm](https://www.npmjs.com/package/wasm-spatial-core) ·
 [📖 API Reference](#-api-reference) ·
 [🗺️ Roadmap](./ROADMAP_V1.md)
 
@@ -140,12 +141,11 @@ File Drop (LAS/LAZ/COPC/E57/PLY/OBJ)
 
 | Demo | URL |
 |------|-----|
-| **Hub** (multi-tab playground) | https://reed-soul.github.io/wasm-spatial-core/examples/index.html |
-| Interactive GeoJSON + CRS + R-tree | https://reed-soul.github.io/wasm-spatial-core/examples/demo/index.html |
-| **Three.js Point Cloud** | https://reed-soul.github.io/wasm-spatial-core/examples/point-cloud-demo/index.html |
-| **Cesium 3D Tiles Point Cloud** | https://reed-soul.github.io/wasm-spatial-core/examples/point-cloud-cesium/index.html |
-| **Terrain Viewer (GeoTIFF)** | https://reed-soul.github.io/wasm-spatial-core/examples/terrain-demo/index.html |
-| WASM vs JS benchmark | https://reed-soul.github.io/wasm-spatial-core/bench/browser/index.html |
+| **🏠 Landing Page** | https://reed-soul.github.io/wasm-spatial-core/ |
+| **Unified Demo** (GeoJSON + CRS + R-tree) | https://reed-soul.github.io/wasm-spatial-core/demo/ |
+| **Three.js Point Cloud** (LAS/LAZ/PLY/OBJ/E57) | https://reed-soul.github.io/wasm-spatial-core/point-cloud/ |
+| **Terrain Viewer** (GeoTIFF) | https://reed-soul.github.io/wasm-spatial-core/terrain/ |
+| **Demos (legacy)** | https://reed-soul.github.io/wasm-spatial-core/examples/index.html |
 
 Run locally: `npm run demo` (builds `pkg/` and serves on port 8080).
 
@@ -400,11 +400,14 @@ npm run demo
 
 See **[ROADMAP_V1.md](./ROADMAP_V1.md)** for the full development roadmap.
 
-- ✅ **Phase A**: Point cloud core pipeline (LAZ, octree, pnts, tileset, demos)
+- ✅ **Phase A**: Point cloud core pipeline (LAS/LAZ/COPC/PLY/OBJ, octree, pnts, tileset, demos)
 - ✅ **Phase B1-B2**: LOD optimization, screen-space error, view-dependent loading
-- 🔜 **Phase B3-B4**: WebWorker parallelism, Draco compression
-- 🔜 **Phase C1**: E57 format (crate compiles to wasm, wrapper pending)
-- 🔜 **Phase C3**: COPC full support
+- ✅ **Phase B3**: WebWorker parallelism (WASM streaming, chunked processing)
+- ✅ **Phase C1**: E57 format support (read + Three.js rendering)
+- ✅ **Phase C2**: GeoTIFF terrain pipeline (parser, quantized-mesh, hillshade, contour)
+- ✅ **Phase C3**: COPC full support (header, chunk reader, region queries)
+- ✅ **Phase D**: npm publish preparation + GitHub Pages deployment
+- 🔜 **Phase E1**: WASM multi-thread (atomics + SharedArrayBuffer)
 
 ---
 
