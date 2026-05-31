@@ -209,6 +209,18 @@ pub struct GeotiffInfo {
     bounds: [f64; 4],
 }
 
+impl GeotiffInfo {
+    /// Core accessor for elevation data (non-WASM).
+    pub fn elevations(&self) -> &[f32] {
+        &self.elevations
+    }
+
+    /// Core accessor for geographic bounds [min_lng, min_lat, max_lng, max_lat].
+    pub fn bounds_slice(&self) -> &[f64; 4] {
+        &self.bounds
+    }
+}
+
 #[wasm_bindgen]
 impl GeotiffInfo {
     /// Image width in pixels.
@@ -349,6 +361,13 @@ pub struct QuantizedMeshResult {
     data: Vec<u8>,
 }
 
+impl QuantizedMeshResult {
+    /// Core accessor for quantized-mesh binary data (non-WASM).
+    pub fn data_core(&self) -> &[u8] {
+        &self.data
+    }
+}
+
 #[wasm_bindgen]
 impl QuantizedMeshResult {
     /// Raw quantized-mesh binary data as Uint8Array.
@@ -372,6 +391,18 @@ pub struct TerrainTilesetResult {
     tileset_json: String,
     tiles: Vec<Vec<u8>>,
     tile_uris: Vec<String>,
+}
+
+impl TerrainTilesetResult {
+    /// Core accessor for tileset JSON string (non-WASM).
+    pub fn tileset_json_str(&self) -> &str {
+        &self.tileset_json
+    }
+
+    /// Core accessor for tile binary data (non-WASM).
+    pub fn tile_core(&self, index: usize) -> Option<&[u8]> {
+        self.tiles.get(index).map(|v| v.as_slice())
+    }
 }
 
 #[wasm_bindgen]

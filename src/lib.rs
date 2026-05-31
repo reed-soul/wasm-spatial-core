@@ -93,6 +93,9 @@ pub use geotiff::{
     QuantizedMeshResult, TerrainTilesetResult,
 };
 
+pub use obj::parse_obj_vertices_core;
+pub use ply::{parse_ply_core, PlyResult};
+
 // Re-export internal helpers for integration/stress testing.
 // These are exposed via a public "test_exports" module that is only
 // intended for testing — not part of the stable API.
