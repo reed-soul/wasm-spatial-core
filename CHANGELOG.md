@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-05-31
+
+### Added
+
+- **Draco compression status** — `supportsDraco()` and `dracoStatus()` runtime checks. Draco encoding is not supported in WASM due to `draco-oxide`'s transitive dependency on `getrandom@0.3` which requires the `wasm_js` configuration flag (not expressible in Cargo.toml). Server-side or build-pipeline Draco encoding with client-side Google Draco WASM decoder is recommended as a workaround.
+- **COPC HTTP Range query** — `copcQueryRanges(copcInfo, bbox)` returns JSON with HTTP `Range` headers needed to fetch COPC chunks. `copcEstimateDownloadSize(copcInfo)` estimates total bytes for a full download.
+- **Grid-indexed point spacing** — `estimatePointSpacing()` optimized from O(n×sample) brute force to O(n + sample×k) using a spatial grid index with progressive ring expansion. Fallback to brute force for small or degenerate point sets.
+
+### Changed
+
+- Point spacing algorithm: grid-based spatial index replaces brute-force nearest-neighbor search. ~10x faster for large point clouds (100K+ points).
+- Test count: 422 → 432 (Draco status tests, COPC Range tests, grid-indexed spacing tests).
+
 ## [0.3.1] - 2026-05-31
 
 ### Fixed
