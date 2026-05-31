@@ -1,6 +1,6 @@
 {
   "name": "wasm-spatial-core",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "A high-performance WebAssembly spatial data processing engine for frontend Web3D/GIS applications",
   "author": "Qingxi <qingxi@zhiqiweilai.com>",
   "license": "MIT",
@@ -28,35 +28,43 @@
     "copc",
     "octree",
     "mvt",
-    "gltf"
+    "gltf",
+    "glb",
+    "terrain",
+    "geotiff",
+    "hillshade",
+    "contour"
   ],
   "type": "module",
-  "main": "./wasm_spatial_core.js",
-  "module": "./wasm_spatial_core.js",
+  "main": "./pkg/wasm_spatial_core.js",
+  "module": "./pkg/wasm_spatial_core.js",
   "types": "./index.d.ts",
   "exports": {
     ".": {
       "types": "./index.d.ts",
-      "import": "./wasm_spatial_core.js",
-      "default": "./wasm_spatial_core.js"
+      "import": "./pkg/wasm_spatial_core.js",
+      "default": "./pkg/wasm_spatial_core.js"
     }
   },
   "files": [
-    "wasm_spatial_core_bg.wasm",
-    "wasm_spatial_core_bg.wasm.d.ts",
-    "wasm_spatial_core.js",
-    "wasm_spatial_core.d.ts",
+    "pkg/wasm_spatial_core_bg.wasm",
+    "pkg/wasm_spatial_core_bg.wasm.d.ts",
+    "pkg/wasm_spatial_core.js",
+    "pkg/wasm_spatial_core.d.ts",
     "index.ts",
     "index.d.ts",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
-    "build:wasm": "cd .. && wasm-pack build --target web --release --out-dir npm/pkg",
-    "build:wasm:mt": "cd .. && RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals' cargo +nightly build -Z build-std=panic_abort,std --target wasm32-unknown-unknown --release --features multi-thread && wasm-bindgen --target web --out-dir npm/pkg target/wasm32-unknown-unknown/release/wasm_spatial_core.wasm",
+    "build:wasm": "cd .. && wasm-pack build --target web --release --out-dir npm/pkg -- --features point-cloud,geotiff",
+    "build:wasm:mt": "cd .. && RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals' cargo +nightly build -Z build-std=panic_abort,std --target wasm32-unknown-unknown --release --features multi-thread,point-cloud,geotiff && wasm-bindgen --target web --out-dir npm/pkg target/wasm32-unknown-unknown/release/wasm_spatial_core.wasm",
     "build:wasm:pc": "cd .. && wasm-pack build --target web --release --out-dir npm/pkg -- --features point-cloud",
-    "build": "npm run build:wasm:pc && npm run build:types",
-    "build:types": "cd pkg && npx -p typescript tsc --declaration --emitDeclarationOnly --outDir . index.ts --ignoreConfig --target esnext --moduleResolution bundler --module esnext --lib esnext --skipLibCheck"
+    "build:wasm:all": "cd .. && wasm-pack build --target web --release --out-dir npm/pkg -- --features point-cloud,geotiff",
+    "build": "npm run build:wasm:all && npm run build:types",
+    "build:types": "cd pkg && npx -p typescript tsc --declaration --emitDeclarationOnly --outDir . index.ts --ignoreConfig --target esnext --moduleResolution bundler --module esnext --lib esnext --skipLibCheck",
+    "prepack": "echo 'pkg/' > .npmignore && echo 'node_modules/' >> .npmignore && npm run build:wasm:all",
+    "pack:dry-run": "npm pack --dry-run"
   },
   "devDependencies": {
     "typescript": "^5.4.0"
