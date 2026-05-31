@@ -522,6 +522,9 @@ impl WasmOctree {
 /// The input buffer is **not** modified (a copy is made internally).
 /// Points with NaN/Infinity coordinates are silently filtered.
 ///
+/// Performs a memory pre-check if `setMaxWasmMemory` has been called with
+/// a non-zero limit. Returns an error if estimated memory exceeds the limit.
+///
 /// # Arguments
 /// * `positions` — `Float32Array` of `[x, y, z, ...]` triples.
 /// * `max_points_per_node` — Max points per leaf (default: 50 000).
@@ -539,6 +542,19 @@ pub fn build_octree(
     }
     let max_pts = max_points_per_node.unwrap_or(DEFAULT_MAX_POINTS_PER_NODE);
     let max_d = max_depth.unwrap_or(DEFAULT_MAX_DEPTH);
+
+    // Memory pre-check
+    let num_points = positions.len() as u32 / 3;
+    let estimated = crate::estimate_octree_memory(num_points);
+    if !crate::check_memory_available(estimated) {
+        return Err(SpatialError::PointCloudError.with_detail(format!(
+            "Insufficient WASM memory for octree: estimated {} bytes, limit {} bytes, current usage {} bytes",
+            estimated,
+            crate::get_max_wasm_memory(),
+            crate::get_allocated_bytes(),
+        )).into());
+    }
+
     let mut buf = positions.to_vec();
     let inner = Octree::build(&mut buf, max_pts, max_d);
     Ok(WasmOctree { inner })
