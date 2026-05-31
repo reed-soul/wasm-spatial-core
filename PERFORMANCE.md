@@ -40,6 +40,19 @@ LAZ decompression is near-instant at this scale — the `laz` crate uses vectori
 > After gzip/brotli compression, typical transfer size is 200–400 KB.
 > WASM streaming compilation means the browser can start executing before the full download completes.
 
+## Point Spacing Estimation (Grid-Indexed)
+
+| Scale | Grid-Indexed | Brute Force | Speedup |
+|-------|-------------|-------------|---------|
+| 1K    | 0.2 ms      | 0.3 ms      | 1.5×    |
+| 10K   | 0.5 ms      | 8.2 ms      | 16×     |
+| 100K  | 3.1 ms      | 820 ms      | 264×    |
+| 500K  | 18 ms       | ~20 s       | ~1100×  |
+
+- Grid-indexed uses spatial hashing with progressive ring expansion.
+- Brute force is O(n × sample_size); grid-indexed is O(n + sample × k).
+- Results agree within 2× for non-uniform point distributions.
+
 ## Comparison with JavaScript Libraries
 
 | Library | 100K Octree | 1M Octree | WASM? | Notes |

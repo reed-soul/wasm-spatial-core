@@ -260,9 +260,11 @@ Byte Length | Description
 - 主线程只负责 UI 和 Cesium 渲染
 - (Deferred: current single-thread WASM is fast enough for most use cases)
 
-### B4: Draco 压缩（可选） 🔜
-- 尝试 `draco-rs` 编译到 wasm32
-- 如果不行，暂时跳过（pnts 不压缩也能用）
+### B4: Draco 压压（可选） ❌ BLOCKED
+- `draco-oxide` (pure Rust, v0.1.0-alpha.5) compiles on native but NOT on wasm32
+- Root cause: transitive dep `ahash@0.8` → `getrandom@0.3` requires `wasm_js` config flag
+- Workaround: use Google's Draco WASM decoder on JS side; encode on server/build pipeline
+- Status: `supportsDraco()` and `dracoStatus()` stubs added
 
 ---
 
@@ -285,10 +287,10 @@ Byte Length | Description
 - OBJ: vertex positions + normals extraction
 - See `src/ply.rs` and `src/obj.rs`
 
-### C3: COPC 完整支持
-- Cloud Optimized Point Cloud
-- LAZ + COPC header
-- 已有基础，需要完善
+### C3: COPC 完整支持 ✅ DONE (v0.4.0)
+- `copcQueryRanges(copcInfo, bbox)` — HTTP Range headers for chunk fetching
+- `copcEstimateDownloadSize(copcInfo)` — total bytes estimate
+- Existing: header parsing, chunk table, chunk decompression, region read
 
 ---
 
@@ -300,9 +302,10 @@ Week 2:  ✅ A5 (tileset.json) + A6 (Demo)
 Week 3:  ✅ B1-B2 (LOD + SSE) + 文档 + README 重写
 
 Future:
-  ├── B3-B4 — WebWorker 并行处理 + Draco 压缩
+  ├── B3 — WebWorker 并行处理 (deferred: single-thread WASM sufficient)
+  ├── B4 — Draco 压缩 (BLOCKED: wasm32 compilation)
   ├── C1 (E57) — crate 已编译到 wasm32，需写 wrapper
-  └── C3 (COPC full) — 已有基础，需完善
+  └── C3 (COPC full) ✅ DONE (v0.4.0)
 ```
 
 ---

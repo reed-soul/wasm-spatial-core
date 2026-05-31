@@ -9,7 +9,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 ![Lines](https://img.shields.io/badge/code-23K-blue)
-![Tests](https://img.shields.io/badge/tests-400-success)
+![Tests](https://img.shields.io/badge/tests-432-success)
 ![Formats](https://img.shields.io/badge/formats-10-green)
 
 **[🌐 Live Demo](https://reed-soul.github.io/wasm-spatial-core/examples/index.html)** ·
