@@ -8,8 +8,8 @@
 [![npm version](https://img.shields.io/npm/v/wasm-spatial-core)](https://www.npmjs.com/package/wasm-spatial-core)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-![Lines](https://img.shields.io/badge/code-30K-blue)
-![Tests](https://img.shields.io/badge/tests-633-success)
+![Lines](https://img.shields.io/badge/code-35K-blue)
+![Tests](https://img.shields.io/badge/tests-689-success)
 ![Formats](https://img.shields.io/badge/formats-15-green)
 
 **[🌐 Live Demo](https://reed-soul.github.io/wasm-spatial-core/)** ·

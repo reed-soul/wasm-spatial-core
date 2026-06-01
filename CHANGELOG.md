@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-06-01
+
+### Added
+- **Point cloud analysis toolkit** (`src/point_cloud_analysis.rs`) — Comprehensive analysis functions:
+  - `pointCloudAnalysis()` — Full statistics: bounds, centroid, std deviation per axis, average spacing, density, color distribution
+  - `filterByBounds()` — Spatial bounding box filter with color preservation
+  - `filterByClassification()` — ASPRS classification filter (ground, vegetation, buildings, water, etc.)
+  - `transformPointCloud()` — 4×4 matrix transformation (column-major, WebGL convention)
+  - `translatePointCloud()` — Translation (dx, dy, dz)
+  - `scalePointCloud()` — Non-uniform scaling (sx, sy, sz)
+  - `rotatePointCloud()` — Rodrigues' rotation around arbitrary axis
+  - `mergePointClouds()` — Merge two point clouds with color handling
+  - `PointCloudStats` struct with JSON serialization
+  - `FilteredResult` struct for filter/merge outputs
+- **WebGL Point Cloud Viewer** (`examples/webgl-pointcloud/`) — Lightweight zero-dependency viewer:
+  - Native WebGL point rendering with custom shaders (circular points, EDL effect)
+  - Hand-written matrix math (perspective, lookAt, multiply, translate, rotate)
+  - Trackball camera (left-drag rotate, right-drag pan, scroll zoom)
+  - Distance-adaptive point sizing (simplified LOD)
+  - Color modes: original, height gradient, classification, density heatmap
+  - WASM integration with JS fallback parser
+  - Touch support, FPS counter, point size control
+- **Cesium Workflow Demo** (`examples/cesium-workflow/`) — Complete "drag→3D" pipeline:
+  - Smart format detection (LAS, LAZ, PLY, OBJ, GeoTIFF, GLB, glTF)
+  - Visual pipeline progress (parse → octree → encode → load)
+  - Simple octree spatial partitioning for tile generation
+  - pnts tile encoding and tileset.json generation
+  - Cesium point primitive rendering with auto-fly-to
+  - Export to ZIP (JSZip), GLB placeholder, clipboard share
+  - Zero token, zero server, fully browser-based
+- **Point cloud analysis documentation** (`docs/webgl-pointcloud/`)
+
+### Changed
+- Test count: 658 → 689 (+31 new analysis tests)
+- Source lines: ~31,544 → ~35,050 (new module + examples)
+- WASM module: `src/point_cloud_analysis.rs` registered under `point-cloud` feature
+- `lib.rs` exports: added `point_cloud_analysis` re-exports
+- Fixed `test_check_memory_available_no_limit` test for native targets (overflow-safe)
+
 ## [0.6.0] - 2026-05-31
 
 ### Added

@@ -303,8 +303,9 @@ Week 6:  ✅ D1-D4 (GeoTIFF terrain pipeline)
 Week 7:  ✅ E1-E8 (3D Tiles family + Cesium integration)
 Week 8:  ✅ C1 (E57)
 Week 9:  ✅ npm publish prep + GitHub Pages deployment
+Week 10: ✅ F1-F6 (Multi-thread, Quantization, WebGL Viewer, Cesium Workflow, Perf Testing)
 
-All planned phases (A–E) complete as of v0.6.0.
+All planned phases (A–F) complete as of v0.7.0.
 ```
 
 ## Phase F — Next Steps (v1.0 Candidate)
@@ -313,9 +314,9 @@ Potential next-phase items to reach v1.0 stability:
 
 - **F1**: ✅ Multi-thread WASM (Rayon parallel octree/tileset/color-ramp, `#[cfg(feature = "multi-thread")]`)
 - **F2**: ✅ Quantization compression (Float32→Uint16, 50% reduction, Draco alternative; meshopt deferred)
-- **F3**: Potree/WebGLCloud viewer integration demo
+- **F3**: ✅ WebGL Point Cloud Viewer (native WebGL, zero deps, trackball camera, EDL shading, WASM integration)
 - **F4**: Node.js native addon (for server-side batch processing)
-- **F5**: Official Cesium Ion alternative — complete upload-less workflow
+- **F5**: ✅ Cesium Ion alternative workflow (drag→parse→octree→3D Tiles→Cesium, zero token, zero server)
 - **F6**: ✅ Performance regression testing (16 CI benchmark tests, JSON output, master-only job)
 
 ---
