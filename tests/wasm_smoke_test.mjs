@@ -2,12 +2,18 @@
 // Run: node tests/wasm_smoke_test.mjs
 
 import { existsSync, readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { fileURLToPath, pathToFileURL } from 'url';
+import { dirname, join, resolve } from 'path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const targetDir = process.env.WASM_PKG_DIR || join(__dirname, '..', 'pkg-node');
-const pkgDir = existsSync(targetDir) ? targetDir : join(__dirname, '..', 'pkg');
+const defaultPkg = join(__dirname, '..', 'pkg-node');
+const envPkg = process.env.WASM_PKG_DIR;
+const candidate = envPkg ? resolve(envPkg) : defaultPkg;
+const pkgDir = existsSync(candidate)
+  ? candidate
+  : existsSync(join(__dirname, '..', 'pkg'))
+    ? resolve(join(__dirname, '..', 'pkg'))
+    : candidate;
 
 let passed = 0;
 let failed = 0;
@@ -28,7 +34,8 @@ async function main() {
 
   // Load and init WASM
   // nodejs target: wasm-bindgen auto-initializes; web target: needs manual init
-  const mod = await import(join(pkgDir, 'wasm_spatial_core.js'));
+  const wasmJs = pathToFileURL(join(pkgDir, 'wasm_spatial_core.js')).href;
+  const mod = await import(wasmJs);
   if (mod.default && typeof mod.default === 'function') {
     const wasmBytes = readFileSync(join(pkgDir, 'wasm_spatial_core_bg.wasm'));
     await mod.default(wasmBytes);
@@ -36,10 +43,17 @@ async function main() {
   console.log('  ✅ WASM initialized');
   passed++;
 
-  // Version
+  // Version (must match wasm-pack output package.json)
   const ver = mod.version();
+  const pkgJsonPath = join(pkgDir, 'package.json');
+  const expectedVer = existsSync(pkgJsonPath)
+    ? JSON.parse(readFileSync(pkgJsonPath, 'utf8')).version
+    : null;
   console.log(`  ℹ️  Version: ${ver}`);
-  assert(ver === '0.6.0', `Version should be 0.6.0`);
+  assert(
+    expectedVer && ver === expectedVer,
+    `Version should be ${expectedVer} (got ${ver})`,
+  );
 
   // ── GeoJSON ──
   console.log('\n📦 GeoJSON:');
