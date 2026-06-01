@@ -334,6 +334,7 @@ fn test_geotiff_256_full_pipeline() {
 // ===========================================================================
 
 #[test]
+#[ignore] // Requires ~10GB RAM — run manually: cargo test test_10m_synthetic_performance -- --ignored --nocapture
 fn test_10m_synthetic_performance() {
     let n = 10_000_000;
     let mut positions = Vec::with_capacity(n * 3);
