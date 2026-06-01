@@ -40,6 +40,8 @@ pub use pnts::{
     draco_status_js, encode_pnts_tile, estimate_point_spacing, generate_tileset, pad_len,
     parse_pnts_header, supports_draco_js, TilesetResult,
 };
+#[cfg(feature = "multi-thread")]
+pub use pnts::generate_tileset_parallel;
 mod wkb_wkt;
 
 use errors::input_too_large_js;

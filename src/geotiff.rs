@@ -1865,6 +1865,39 @@ pub fn apply_color_ramp_core(heights: &[f32], min_z: f64, max_z: f64, ramp: Colo
     rgba
 }
 
+/// Parallel version of `apply_color_ramp_core`.
+///
+/// Uses Rayon's `par_iter` to process height values in parallel.
+/// Requires `multi-thread` feature.
+#[cfg(feature = "multi-thread")]
+pub fn apply_color_ramp_parallel(
+    heights: &[f32],
+    min_z: f64,
+    max_z: f64,
+    ramp: ColorRamp,
+) -> Vec<u8> {
+    use rayon::prelude::*;
+
+    let range = max_z - min_z;
+    let results: Vec<[u8; 4]> = heights
+        .par_iter()
+        .map(|&h| {
+            let t = if range.abs() < 1e-10 {
+                0.5
+            } else {
+                (h as f64 - min_z) / range
+            };
+            sample_ramp(ramp, t)
+        })
+        .collect();
+
+    let mut rgba = Vec::with_capacity(results.len() * 4);
+    for color in results {
+        rgba.extend_from_slice(&color);
+    }
+    rgba
+}
+
 /// Compute hillshade illumination for a terrain grid.
 ///
 /// Implements the standard hillshade algorithm used in GIS:
@@ -2800,5 +2833,29 @@ mod tests {
         let segments = contour_lines_core(&heights, 2, 2, 5.0);
         // Should have at least one segment
         assert!(!segments.is_empty(), "Ridge should produce contour lines");
+    }
+
+    // -----------------------------------------------------------------------
+    // Parallel color ramp tests
+    // -----------------------------------------------------------------------
+
+    #[cfg(feature = "multi-thread")]
+    #[test]
+    fn test_parallel_color_ramp_consistent() {
+        let heights: Vec<f32> = (0..1000).map(|i| i as f32 * 0.1).collect();
+        let seq = apply_color_ramp_core(&heights, 0.0, 100.0, ColorRamp::Terrain);
+        let par = apply_color_ramp_parallel(&heights, 0.0, 100.0, ColorRamp::Terrain);
+        assert_eq!(seq, par);
+    }
+
+    #[cfg(feature = "multi-thread")]
+    #[test]
+    fn test_parallel_color_ramp_flat_range() {
+        let heights = vec![10.0f32, 20.0, 30.0];
+        let par = apply_color_ramp_parallel(&heights, 50.0, 50.0, ColorRamp::Gray);
+        assert_eq!(par.len(), 12);
+        assert_eq!(par[0], 128);
+        assert_eq!(par[4], 128);
+        assert_eq!(par[8], 128);
     }
 }
