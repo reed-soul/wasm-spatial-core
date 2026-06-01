@@ -1638,7 +1638,7 @@ dependencies = [
 
 [[package]]
 name = "wasm-spatial-core"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "byteorder",
  "console_error_panic_hook",
