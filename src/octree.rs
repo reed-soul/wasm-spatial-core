@@ -574,7 +574,14 @@ impl Octree {
                 children_indices[i] = nodes.len();
                 if c > 0 {
                     Self::build_recursive_parallel(
-                        nodes, positions, reorder_map, cb, out_s, c, lvl, config,
+                        nodes,
+                        positions,
+                        reorder_map,
+                        cb,
+                        out_s,
+                        c,
+                        lvl,
+                        config,
                     );
                 } else {
                     // Empty child — create a zero-count leaf.
@@ -833,9 +840,7 @@ pub fn supports_multi_thread() -> bool {
     {
         // Check SharedArrayBuffer availability at runtime.
         // In WASM, we use js_sys to test this.
-        let _shared = js_sys::eval(
-            "typeof SharedArrayBuffer !== 'undefined'",
-        );
+        let _shared = js_sys::eval("typeof SharedArrayBuffer !== 'undefined'");
         // If it doesn't throw, SharedArrayBuffer is available.
         true
     }
@@ -1252,14 +1257,13 @@ mod tests {
     }
 
     #[test]
-    fn test_supports_multi_thread_flag() {
-        #[cfg(feature = "multi-thread")]
-        {
-            assert!(cfg!(feature = "multi-thread"));
-        }
-        #[cfg(not(feature = "multi-thread"))]
-        {
-            assert!(!cfg!(feature = "multi-thread"));
-        }
+    fn test_supports_multi_thread_exports_exist() {
+        // thread_count() is always callable (returns Rayon thread count or 1).
+        let _tc = thread_count();
+        // supports_multi_thread() calls js_sys::eval() which is WASM-only,
+        // so we skip it in native tests. The function itself is validated
+        // by the WASM smoke tests.
+        #[cfg(target_arch = "wasm32")]
+        let _mt = supports_multi_thread();
     }
 }

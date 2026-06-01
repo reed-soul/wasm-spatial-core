@@ -311,12 +311,12 @@ All planned phases (A–E) complete as of v0.6.0.
 
 Potential next-phase items to reach v1.0 stability:
 
-- **F1**: Multi-thread WASM (atomics + SharedArrayBuffer, nightly Rust)
-- **F2**: Draco compression (blocked on wasm32, needs alternative approach)
+- **F1**: ✅ Multi-thread WASM (Rayon parallel octree/tileset/color-ramp, `#[cfg(feature = "multi-thread")]`)
+- **F2**: ✅ Quantization compression (Float32→Uint16, 50% reduction, Draco alternative; meshopt deferred)
 - **F3**: Potree/WebGLCloud viewer integration demo
 - **F4**: Node.js native addon (for server-side batch processing)
 - **F5**: Official Cesium Ion alternative — complete upload-less workflow
-- **F6**: Performance regression testing (CI benchmark suite)
+- **F6**: ✅ Performance regression testing (16 CI benchmark tests, JSON output, master-only job)
 
 ---
 

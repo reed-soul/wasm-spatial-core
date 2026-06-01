@@ -438,11 +438,7 @@ pub fn estimate_memory_for_points(num_points: usize, has_color: bool, has_normal
 /// - **Voxel Grid** (2): Same as grid but uses dedicated voxel grid decimation
 ///   (useful when colors are also available).
 #[wasm_bindgen(js_name = "autoDecimate")]
-pub fn auto_decimate_core(
-    positions: &[f32],
-    target_count: usize,
-    method: u32,
-) -> Vec<f32> {
+pub fn auto_decimate_core(positions: &[f32], target_count: usize, method: u32) -> Vec<f32> {
     let point_count = positions.len() / 3;
     if point_count == 0 || target_count == 0 || target_count >= point_count {
         return positions.to_vec();
@@ -582,7 +578,9 @@ where
     };
 
     let total_points = header.num_points as usize;
-    let end = bytes.len().min(point_data_start + total_points * record_length);
+    let end = bytes
+        .len()
+        .min(point_data_start + total_points * record_length);
 
     let mut parsed = 0usize;
     let mut pos = point_data_start;
@@ -4359,6 +4357,112 @@ DATA ascii
         assert!(stats.get("density").is_some());
         assert!(stats.get("averagePointSpacing").is_some());
     }
+
+    // -----------------------------------------------------------------------
+    // Large file processing tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_estimate_memory_basic() {
+        // 100K points, positions only: 100K * 12 = 1.2MB + octree + pnts
+        let mem = estimate_memory_for_points(100_000, false, false);
+        assert!(mem > 1_000_000, "Expected > 1MB, got {}", mem);
+        assert!(mem < 5_000_000, "Expected < 5MB, got {}", mem);
+    }
+
+    #[test]
+    fn test_estimate_memory_with_colors() {
+        let mem_no_color = estimate_memory_for_points(10_000, false, false);
+        let mem_color = estimate_memory_for_points(10_000, true, false);
+        // Color adds 3 bytes/point = 30KB
+        assert!(mem_color > mem_no_color);
+        assert_eq!(mem_color - mem_no_color, 30_000);
+    }
+
+    #[test]
+    fn test_estimate_memory_with_normals() {
+        let mem_normals = estimate_memory_for_points(10_000, false, true);
+        let mem_no_normals = estimate_memory_for_points(10_000, false, false);
+        // Normals add 12 bytes/point = 120KB
+        assert!(mem_normals > mem_no_normals);
+        assert_eq!(mem_normals - mem_no_normals, 120_000);
+    }
+
+    #[test]
+    fn test_auto_decimate_random() {
+        let positions: Vec<f32> = (0..1000)
+            .flat_map(|i| [i as f32 * 0.1, i as f32 * 0.2, i as f32 * 0.3])
+            .collect();
+        let result = auto_decimate_core(&positions, 100, 0);
+        assert_eq!(result.len(), 300); // 100 points × 3
+    }
+
+    #[test]
+    fn test_auto_decimate_grid() {
+        let positions: Vec<f32> = (0..1000)
+            .flat_map(|i| [i as f32 * 0.1, i as f32 * 0.2, i as f32 * 0.3])
+            .collect();
+        let result = auto_decimate_core(&positions, 100, 1);
+        // Grid decimation keeps ≤ target_count points
+        assert!(result.len() <= 300);
+        assert!(!result.is_empty());
+    }
+
+    #[test]
+    fn test_auto_decimate_identity() {
+        // Target >= source → should return all points
+        let positions: Vec<f32> = vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0];
+        let result = auto_decimate_core(&positions, 100, 0);
+        assert_eq!(result.len(), 6);
+    }
+
+    #[test]
+    fn test_auto_decimate_empty() {
+        let positions: Vec<f32> = vec![];
+        let result = auto_decimate_core(&positions, 100, 0);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_chunked_las_parse() {
+        // Create a minimal LAS file with 10 points
+        let las_data = build_test_las_blob(
+            &[
+                (0.0, 0.0, 0.0),
+                (1.0, 0.0, 0.0),
+                (0.0, 1.0, 0.0),
+                (1.0, 1.0, 0.0),
+                (0.0, 0.0, 1.0),
+                (1.0, 0.0, 1.0),
+                (0.0, 1.0, 1.0),
+                (1.0, 1.0, 1.0),
+                (2.0, 0.0, 0.0),
+                (2.0, 1.0, 0.0),
+            ],
+            true, // has color
+        );
+
+        let mut chunks = Vec::new();
+        let total = parse_las_points_chunked(&las_data, 3, |pos, col, count| {
+            chunks.push((pos.len() / 3, col.is_some(), count));
+        })
+        .unwrap();
+
+        assert_eq!(total, 10);
+        assert_eq!(chunks.len(), 4); // 3 + 3 + 3 + 1
+        let total_from_chunks: u32 = chunks.iter().map(|c| c.2).sum();
+        assert_eq!(total_from_chunks, 10);
+    }
+
+    #[test]
+    fn test_chunked_las_empty() {
+        let las_data = build_test_las_blob(&[], false);
+        let total = parse_las_points_chunked(&las_data, 100, |_, _, _| {
+            panic!("should not call callback for empty LAS");
+        })
+        .unwrap();
+        assert_eq!(total, 0);
+    }
 }
 
 /// Test-only helpers for integration tests (non-WASM targets).
@@ -4432,102 +4536,5 @@ pub mod test_helpers {
             }
         }
         buf
-    }
-
-    // -----------------------------------------------------------------------
-    // Large file processing tests
-    // -----------------------------------------------------------------------
-
-    fn test_estimate_memory_basic() {
-        // 100K points, positions only: 100K * 12 = 1.2MB + octree + pnts
-        let mem = estimate_memory_for_points(100_000, false, false);
-        assert!(mem > 1_000_000, "Expected > 1MB, got {}", mem);
-        assert!(mem < 5_000_000, "Expected < 5MB, got {}", mem);
-    }
-
-    fn test_estimate_memory_with_colors() {
-        let mem_no_color = estimate_memory_for_points(10_000, false, false);
-        let mem_color = estimate_memory_for_points(10_000, true, false);
-        // Color adds 3 bytes/point = 30KB
-        assert!(mem_color > mem_no_color);
-        assert_eq!(mem_color - mem_no_color, 30_000);
-    }
-
-    fn test_estimate_memory_with_normals() {
-        let mem_normals = estimate_memory_for_points(10_000, false, true);
-        let mem_no_normals = estimate_memory_for_points(10_000, false, false);
-        // Normals add 12 bytes/point = 120KB
-        assert!(mem_normals > mem_no_normals);
-        assert_eq!(mem_normals - mem_no_normals, 120_000);
-    }
-
-    fn test_auto_decimate_random() {
-        let positions: Vec<f32> = (0..1000)
-            .flat_map(|i| [i as f32 * 0.1, i as f32 * 0.2, i as f32 * 0.3])
-            .collect();
-        let result = auto_decimate_core(&positions, 100, 0);
-        assert_eq!(result.len(), 300); // 100 points × 3
-    }
-
-    fn test_auto_decimate_grid() {
-        let positions: Vec<f32> = (0..1000)
-            .flat_map(|i| [i as f32 * 0.1, i as f32 * 0.2, i as f32 * 0.3])
-            .collect();
-        let result = auto_decimate_core(&positions, 100, 1);
-        // Grid decimation keeps ≤ target_count points
-        assert!(result.len() <= 300);
-        assert!(result.len() > 0);
-    }
-
-    fn test_auto_decimate_identity() {
-        // Target >= source → should return all points
-        let positions: Vec<f32> = vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0];
-        let result = auto_decimate_core(&positions, 100, 0);
-        assert_eq!(result.len(), 6);
-    }
-
-    fn test_auto_decimate_empty() {
-        let positions: Vec<f32> = vec![];
-        let result = auto_decimate_core(&positions, 100, 0);
-        assert!(result.is_empty());
-    }
-
-    fn test_chunked_las_parse() {
-        // Create a minimal LAS file with 10 points
-        let las_data = build_test_las_blob(
-            &[
-                (0.0, 0.0, 0.0),
-                (1.0, 0.0, 0.0),
-                (0.0, 1.0, 0.0),
-                (1.0, 1.0, 0.0),
-                (0.0, 0.0, 1.0),
-                (1.0, 0.0, 1.0),
-                (0.0, 1.0, 1.0),
-                (1.0, 1.0, 1.0),
-                (2.0, 0.0, 0.0),
-                (2.0, 1.0, 0.0),
-            ],
-            true, // has color
-        );
-
-        let mut chunks = Vec::new();
-        let total = parse_las_points_chunked(&las_data, 3, |pos, col, count| {
-            chunks.push((pos.len() / 3, col.is_some(), count));
-        })
-        .unwrap();
-
-        assert_eq!(total, 10);
-        assert_eq!(chunks.len(), 4); // 3 + 3 + 3 + 1
-        let total_from_chunks: u32 = chunks.iter().map(|c| c.2).sum();
-        assert_eq!(total_from_chunks, 10);
-    }
-
-    fn test_chunked_las_empty() {
-        let las_data = build_test_las_blob(&[], false);
-        let total = parse_las_points_chunked(&las_data, 100, |_, _, _| {
-            panic!("should not call callback for empty LAS")
-        })
-        .unwrap();
-        assert_eq!(total, 0);
     }
 }
