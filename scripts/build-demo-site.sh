@@ -29,7 +29,11 @@ fi
 echo "WASM size: $(du -h "$OUT/pkg/wasm_spatial_core_bg.wasm" | cut -f1)"
 cp -r examples "$OUT/examples"
 mkdir -p "$OUT/bench"
-cp -r bench/browser "$OUT/bench/browser"
+if [[ -d bench/browser ]]; then
+  cp -r bench/browser "$OUT/bench/browser"
+else
+  echo "⚠️ bench/browser/ not found — skipping benchmark page"
+fi
 
 cat >"$OUT/index.html" <<'HTML'
 <!DOCTYPE html>
