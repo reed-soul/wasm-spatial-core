@@ -416,6 +416,7 @@
   <span>Points: <span id="pointCountValue" class="stat-value">0</span></span>
   <span>Tiles: <span id="tileCountValue" class="stat-value">0</span></span>
   <span>Memory: <span id="memoryValue" class="stat-value">—</span></span>
+  <span>Mode: <span id="processingMode" class="stat-value">—</span></span>
 </footer>
 
 <!-- Three.js from CDN -->
@@ -444,7 +445,7 @@ async function loadWasm() {
 
   try {
     // Try local pkg
-    const module = await import('../pkg/wasm_spatial_core.js');
+    const module = await import('../../pkg/wasm_spatial_core.js');
     await module.default();
     wasm = module;
     return true;
@@ -453,6 +454,30 @@ async function loadWasm() {
     showError('Failed to load WASM module. Run `wasm-pack build` first.');
     return false;
   }
+}
+
+// =========================================================================
+// Environment Detection
+// =========================================================================
+
+function detectProcessingMode() {
+  // Check if SharedArrayBuffer is available (requires COOP/COEP headers)
+  const hasSAB = typeof SharedArrayBuffer !== 'undefined';
+  const mode = hasSAB ? 'Worker' : 'Main Thread';
+  document.getElementById('processingMode').textContent = mode;
+  return mode;
+}
+
+function showDracoStatus() {
+  try {
+    if (wasm && wasm.supportsDraco) {
+      const supported = wasm.supportsDraco();
+      console.log('[Draco] Supported:', supported);
+      if (!supported && wasm.dracoStatus) {
+        console.log('[Draco]', wasm.dracoStatus());
+      }
+    }
+  } catch (e) { /* Draco API not available */ }
 }
 
 // =========================================================================
@@ -974,6 +999,10 @@ function showFileInfoAndRender(fileName, fileSize, positions, rgbBytes, meta) {
     document.getElementById('memoryValue').textContent = formatBytes(mem.used());
   } catch (e) { /* memoryInfo not available */ }
 
+  // Show processing mode and Draco status
+  detectProcessingMode();
+  showDracoStatus();
+
   document.getElementById('pointCountValue').textContent = (positions.length / 3).toLocaleString();
   document.getElementById('tileCountValue').textContent = tileCount;
 
@@ -1296,6 +1325,9 @@ function setColorMode(mode) {
       document.getElementById('e57Badge').style.display = '';
     }
     formats.push('PLY', 'OBJ');
+
+    // Detect processing mode immediately
+    detectProcessingMode();
 
     document.getElementById('dropZone').innerHTML = `
       <span class="icon">📂</span>

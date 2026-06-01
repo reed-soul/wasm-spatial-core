@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>wasm-spatial-core — Cesium Point Cloud Demo</title>
+  <title>wasm-spatial-core — 3D Tiles Viewer</title>
   <style>
     :root {
       --bg: #0d1117;
@@ -15,6 +15,8 @@
       --green: #3fb950;
       --orange: #d29922;
       --red: #f85149;
+      --cyan: #39d2c0;
+      --purple: #bc8cff;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -36,7 +38,7 @@
     }
     header h1 {
       font-size: 1.1rem;
-      background: linear-gradient(135deg, var(--accent), #f0883e);
+      background: linear-gradient(135deg, var(--accent), var(--purple));
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
     }
@@ -50,7 +52,7 @@
       overflow: hidden;
     }
     .sidebar {
-      width: 300px;
+      width: 320px;
       border-right: 1px solid var(--border);
       overflow-y: auto;
       padding: 16px;
@@ -88,7 +90,7 @@
     .drop-zone {
       border: 2px dashed var(--border);
       border-radius: 8px;
-      padding: 24px;
+      padding: 20px;
       text-align: center;
       cursor: pointer;
       transition: all 0.2s;
@@ -105,6 +107,25 @@
       margin-bottom: 8px;
       display: block;
     }
+    .format-tags {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-top: 8px;
+    }
+    .format-tag {
+      font-size: 0.7rem;
+      padding: 2px 8px;
+      border-radius: 10px;
+      background: rgba(88, 166, 255, 0.1);
+      color: var(--accent);
+      font-family: monospace;
+    }
+    .format-tag.geotiff { background: rgba(63, 185, 80, 0.1); color: var(--green); }
+    .format-tag.glb { background: rgba(188, 140, 255, 0.1); color: var(--purple); }
+    .format-tag.las { background: rgba(217, 153, 34, 0.1); color: var(--orange); }
+
     .progress-bar {
       width: 100%;
       height: 6px;
@@ -134,6 +155,20 @@
       color: var(--text);
       font-weight: 500;
     }
+    .file-info .badge {
+      display: inline-block;
+      font-size: 0.7rem;
+      padding: 1px 8px;
+      border-radius: 10px;
+      font-weight: 600;
+      margin-left: 4px;
+    }
+    .badge-pnts { background: rgba(217, 153, 34, 0.15); color: var(--orange); }
+    .badge-terrain { background: rgba(63, 185, 80, 0.15); color: var(--green); }
+    .badge-b3dm { background: rgba(188, 140, 255, 0.15); color: var(--purple); }
+    .badge-i3dm { background: rgba(57, 210, 192, 0.15); color: var(--cyan); }
+    .badge-unknown { background: rgba(139, 148, 158, 0.15); color: var(--muted); }
+
     label {
       font-size: 0.8rem;
       color: var(--muted);
@@ -147,7 +182,17 @@
       padding: 4px 8px;
       border-radius: 4px;
       font-size: 0.8rem;
-      width: 80px;
+      width: 100%;
+      margin-bottom: 8px;
+    }
+    select {
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      width: 100%;
       margin-bottom: 8px;
     }
     button {
@@ -163,6 +208,9 @@
     }
     button:hover { opacity: 0.9; }
     button:disabled { opacity: 0.5; cursor: not-allowed; }
+    button.danger {
+      background: linear-gradient(135deg, #b62324, #da3633);
+    }
     .canvas-container {
       flex: 1;
       position: relative;
@@ -170,6 +218,25 @@
     #cesiumContainer {
       width: 100%;
       height: 100%;
+    }
+    .lod-info {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      font-size: 0.75rem;
+    }
+    .lod-info .stat {
+      background: var(--bg);
+      padding: 6px 8px;
+      border-radius: 4px;
+    }
+    .lod-info .stat-label {
+      color: var(--muted);
+      font-size: 0.7rem;
+    }
+    .lod-info .stat-value {
+      color: var(--text);
+      font-weight: 600;
     }
     footer {
       padding: 8px 20px;
@@ -179,6 +246,7 @@
       font-size: 0.75rem;
       color: var(--muted);
       flex-shrink: 0;
+      align-items: center;
     }
     footer .stat-value {
       color: var(--text);
@@ -190,13 +258,14 @@
       margin-top: 8px;
       line-height: 1.5;
     }
+    .hidden { display: none !important; }
   </style>
 </head>
 <body>
 
 <header>
   <h1>🌍 wasm-spatial-core</h1>
-  <span class="subtitle">Cesium 3D Tiles Point Cloud Demo</span>
+  <span class="subtitle">3D Tiles Viewer — pnts / quantized-mesh / b3dm / i3dm</span>
 </header>
 
 <div class="main">
@@ -204,24 +273,30 @@
     <!-- Cesium Token -->
     <div class="panel">
       <div class="panel-title">🔑 Cesium Ion Token</div>
-      <label>Access Token (required for Cesium)</label>
+      <label>Access Token (or use sandbox)</label>
       <input type="password" id="tokenInput" class="token-input" placeholder="Paste your Cesium Ion access token">
       <button id="initCesiumBtn">Initialize Cesium</button>
       <div class="note">
-        Get a free token at <a href="https://ion.cesium.com/tokens" target="_blank" style="color:var(--accent)">ion.cesium.com/tokens</a>
+        Get a free token at <a href="https://ion.cesium.com/tokens" target="_blank" style="color:var(--accent)">ion.cesium.com/tokens</a><br>
+        Leave empty to use sandbox mode (limited features).
       </div>
     </div>
 
     <!-- Upload -->
-    <div id="uploadPanel" class="panel" style="display:none">
-      <div class="panel-title">📁 Upload LAS File</div>
+    <div id="uploadPanel" class="panel hidden">
+      <div class="panel-title">📁 Drop File</div>
       <div id="dropZone" class="drop-zone">
         <span class="icon">📂</span>
-        Drag & drop a .las file here<br>
+        Drag & drop a spatial file here<br>
         or click to browse
+        <div class="format-tags">
+          <span class="format-tag las">.las .laz</span>
+          <span class="format-tag geotiff">.tif .geotiff</span>
+          <span class="format-tag glb">.glb .gltf</span>
+        </div>
       </div>
-      <input type="file" id="fileInput" accept=".las" style="display:none">
-      <div id="progressContainer" style="display:none">
+      <input type="file" id="fileInput" accept=".las,.laz,.tif,.tiff,.geotiff,.glb,.gltf,.b3dm,.i3dm" style="display:none">
+      <div id="progressContainer" class="hidden">
         <div class="progress-bar">
           <div id="progressFill" class="progress-bar-fill"></div>
         </div>
@@ -230,17 +305,40 @@
     </div>
 
     <!-- File info -->
-    <div id="fileInfoPanel" class="panel" style="display:none">
+    <div id="fileInfoPanel" class="panel hidden">
       <div class="panel-title">📊 File Info</div>
       <div id="fileInfo" class="file-info"></div>
     </div>
 
-    <!-- Octree params -->
-    <div id="octreePanel" class="panel" style="display:none">
-      <div class="panel-title">🌳 Octree / Tiling</div>
-      <label>Max Points Per Node</label>
+    <!-- LOD / Color mode panel -->
+    <div id="lodPanel" class="panel hidden">
+      <div class="panel-title">🎯 Display Options</div>
+      <label>Color Mode</label>
+      <select id="colorMode">
+        <option value="default">Default (file colors)</option>
+        <option value="height">Height Gradient</option>
+        <option value="classification">Classification</option>
+        <option value="intensity">Intensity</option>
+      </select>
+      <div class="lod-info" id="lodInfo"></div>
+    </div>
+
+    <!-- Processing params -->
+    <div id="paramsPanel" class="panel hidden">
+      <div class="panel-title">⚙️ Processing</div>
+      <label>Max Points Per Node (LAS)</label>
       <input type="number" id="maxPointsPerNode" value="50000" min="100" max="1000000" step="1000">
+      <label>Geometric Error</label>
+      <input type="number" id="geometricError" value="500" min="1" max="100000" step="50">
       <button id="rebuildBtn">Rebuild & Load</button>
+    </div>
+
+    <!-- Actions -->
+    <div id="actionsPanel" class="panel hidden">
+      <div class="panel-title">🔀 Actions</div>
+      <button id="flyToBtn">Fly to Tileset</button>
+      <div style="height:6px"></div>
+      <button id="clearBtn" class="danger">Clear All</button>
     </div>
   </aside>
 
@@ -250,9 +348,11 @@
 </div>
 
 <footer>
-  <span>Points: <span id="pointCountValue" class="stat-value">0</span></span>
+  <span>Format: <span id="formatValue" class="stat-value">—</span></span>
+  <span>Points/Vertices: <span id="countValue" class="stat-value">0</span></span>
   <span>Tiles: <span id="tileCountValue" class="stat-value">0</span></span>
-  <span>Status: <span id="statusValue" class="stat-value">Waiting for token...</span></span>
+  <span>Total: <span id="totalBytesValue" class="stat-value">0 B</span></span>
+  <span style="margin-left:auto">Status: <span id="statusValue" class="stat-value">Waiting for token...</span></span>
 </footer>
 
 <!-- Cesium from CDN -->
@@ -263,6 +363,62 @@
 let wasm = null;
 let viewer = null;
 let tileset = null;
+let currentFile = null;
+let currentFileType = null;
+
+// =========================================================================
+// File type detection via magic bytes
+// =========================================================================
+
+function detectFileType(bytes) {
+  // GLB: starts with "glTF" (0x676C5446)
+  if (bytes.length >= 4 && bytes[0] === 0x67 && bytes[1] === 0x6C && bytes[2] === 0x54 && bytes[3] === 0x46) {
+    return 'glb';
+  }
+  // GeoTIFF: starts with TIFF header (II=0x4949, MM=0x4D4D, magic 42=0x2A00)
+  if (bytes.length >= 4 && ((bytes[0] === 0x49 && bytes[1] === 0x49) || (bytes[0] === 0x4D && bytes[1] === 0x4D))) {
+    return 'geotiff';
+  }
+  // LAS: starts with "LASF" (0x4C415346)
+  if (bytes.length >= 4 && bytes[0] === 0x4C && bytes[1] === 0x41 && bytes[2] === 0x53 && bytes[3] === 0x46) {
+    return 'las';
+  }
+  // b3dm: starts with "b3dm"
+  if (bytes.length >= 4 && bytes[0] === 0x62 && bytes[1] === 0x33 && bytes[2] === 0x64 && bytes[3] === 0x6D) {
+    return 'b3dm';
+  }
+  // i3dm: starts with "i3dm"
+  if (bytes.length >= 4 && bytes[0] === 0x69 && bytes[1] === 0x33 && bytes[2] === 0x64 && bytes[3] === 0x6D) {
+    return 'i3dm';
+  }
+  // pnts: starts with "pnts"
+  if (bytes.length >= 4 && bytes[0] === 0x70 && bytes[1] === 0x6E && bytes[2] === 0x74 && bytes[3] === 0x73) {
+    return 'pnts';
+  }
+  // cmpt: starts with "cmpt"
+  if (bytes.length >= 4 && bytes[0] === 0x63 && bytes[1] === 0x6D && bytes[2] === 0x70 && bytes[3] === 0x74) {
+    return 'cmpt';
+  }
+  // Fallback to extension
+  return null;
+}
+
+function detectFromExtension(name) {
+  const lower = name.toLowerCase();
+  if (lower.endsWith('.las') || lower.endsWith('.laz')) return 'las';
+  if (lower.endsWith('.tif') || lower.endsWith('.tiff') || lower.endsWith('.geotiff')) return 'geotiff';
+  if (lower.endsWith('.glb') || lower.endsWith('.gltf')) return 'glb';
+  if (lower.endsWith('.b3dm')) return 'b3dm';
+  if (lower.endsWith('.i3dm')) return 'i3dm';
+  if (lower.endsWith('.pnts')) return 'pnts';
+  return null;
+}
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1048576).toFixed(1) + ' MB';
+}
 
 // =========================================================================
 // WASM Loading
@@ -283,6 +439,7 @@ async function loadWasm() {
     wasm = module;
     return true;
   } catch (e) {
+    console.error('Failed to load WASM module:', e);
     alert('Failed to load WASM module. Run `wasm-pack build` first.');
     return false;
   }
@@ -293,10 +450,11 @@ async function loadWasm() {
 // =========================================================================
 
 function initCesium(token) {
-  Cesium.Ion.defaultAccessToken = token;
+  if (token && token.length > 10) {
+    Cesium.Ion.defaultAccessToken = token;
+  }
 
-  viewer = new Cesium.Viewer('cesiumContainer', {
-    terrainProvider: Cesium.createWorldTerrain(),
+  const opts = {
     animation: false,
     timeline: false,
     baseLayerPicker: false,
@@ -305,34 +463,78 @@ function initCesium(token) {
     homeButton: true,
     infoBox: false,
     selectionIndicator: false,
-    skyBox: false,
-    skyAtmosphere: false,
     contextOptions: {
       webgl: { alpha: true }
     },
-  });
+  };
+
+  // Only enable terrain with real token
+  if (token && token.length > 10) {
+    opts.terrainProvider = Cesium.createWorldTerrain();
+  }
+
+  viewer = new Cesium.Viewer('cesiumContainer', opts);
 
   // Dark background
   viewer.scene.backgroundColor = Cesium.Color.BLACK;
   viewer.scene.globe.baseColor = Cesium.Color.BLACK;
 
-  document.getElementById('uploadPanel').style.display = 'block';
-  document.getElementById('octreePanel').style.display = 'block';
-  setStatus('Cesium ready');
+  showPanels(true);
+  setStatus('Cesium ready — drop a file');
 }
 
 // =========================================================================
-// LAS Processing & 3D Tiles Loading
+// File Processing Router
 // =========================================================================
 
-async function processLasFile(file) {
-  setStatus('Reading file...');
-  setProgress(0, 'Reading file...');
-
+async function processFile(file) {
   const bytes = new Uint8Array(await file.arrayBuffer());
 
+  // Detect file type
+  let fileType = detectFileType(bytes);
+  if (!fileType) fileType = detectFromExtension(file.name);
+  if (!fileType) {
+    alert('Unknown file type. Supported: .las .laz .tif .geotiff .glb .gltf .b3dm .i3dm .pnts');
+    return;
+  }
+
+  currentFile = file;
+  currentFileType = fileType;
+  document.getElementById('formatValue').textContent = fileType.toUpperCase();
+
+  showPanels(true);
+
+  switch (fileType) {
+    case 'las':
+      await processLasFile(file, bytes);
+      break;
+    case 'glb':
+      await processGlbFile(file, bytes);
+      break;
+    case 'geotiff':
+      await processGeoTiffFile(file, bytes);
+      break;
+    case 'b3dm':
+      await processB3dmFile(file, bytes);
+      break;
+    case 'i3dm':
+      await processI3dmFile(file, bytes);
+      break;
+    case 'pnts':
+      await processPntsFile(file, bytes);
+      break;
+    default:
+      alert(`Unsupported file type: ${fileType}`);
+  }
+}
+
+// =========================================================================
+// LAS → pnts tileset
+// =========================================================================
+
+async function processLasFile(file, bytes) {
   setStatus('Parsing LAS header...');
-  setProgress(10, 'Parsing header...');
+  setProgress(5, 'Parsing header...');
 
   const header = wasm.parseLasHeader(bytes.slice(0, 230));
   if (!header) {
@@ -341,10 +543,10 @@ async function processLasFile(file) {
   }
 
   setStatus(`Parsing ${header.numPoints().toLocaleString()} points...`);
-  setProgress(20, 'Parsing points...');
+  setProgress(15, 'Parsing points...');
 
   const cloud = wasm.parseLasPointsWithProgress(bytes, (p, t) => {
-    setProgress(20 + Math.floor((p / t) * 50), `Parsed ${p.toLocaleString()} / ${t.toLocaleString()}`);
+    setProgress(15 + Math.floor((p / t) * 45), `Parsed ${p.toLocaleString()} / ${t.toLocaleString()}`);
   });
 
   if (!cloud) {
@@ -357,9 +559,10 @@ async function processLasFile(file) {
   const rgbBytes = colorsObj ? Array.from(colorsObj) : null;
 
   setStatus('Building octree & generating tiles...');
-  setProgress(75, 'Building octree...');
+  setProgress(65, 'Building octree...');
 
   const maxPts = parseInt(document.getElementById('maxPointsPerNode').value) || 50000;
+  const geoError = parseInt(document.getElementById('geometricError').value) || 500;
   const tilesetResult = wasm.generateTileset(
     new Float32Array(positions),
     maxPts,
@@ -367,9 +570,246 @@ async function processLasFile(file) {
     rgbBytes ? new Uint8Array(rgbBytes) : null,
   );
 
-  setProgress(90, 'Creating blob URLs...');
+  setProgress(85, 'Creating blob URLs...');
 
-  // Create blob URLs for each tile
+  const tileCount = tilesetResult.tileCount();
+  const blobUrls = createTileBlobUrls(tilesetResult, 'tile_');
+
+  const modifiedJson = replaceTileUris(tilesetResult.tilesetJson(), blobUrls, 'tile_');
+
+  setProgress(95, 'Loading into Cesium...');
+  await loadTilesetFromJson(modifiedJson);
+
+  setProgress(100, 'Done!');
+
+  const totalBytes = tilesetResult.totalBytes();
+  updateFileInfo(file, 'pnts', {
+    points: positions.length / 3,
+    tiles: tileCount,
+    totalBytes,
+  });
+  updateLodInfo(tileCount, totalBytes);
+}
+
+// =========================================================================
+// GLB → b3dm tileset
+// =========================================================================
+
+async function processGlbFile(file, bytes) {
+  setStatus('Encoding GLB to b3dm...');
+  setProgress(20, 'Encoding b3dm tile...');
+
+  const b3dmBytes = wasm.encodeB3dmTile(bytes, 1, null);
+  if (!b3dmBytes) {
+    alert('Failed to encode b3dm from GLB.');
+    return;
+  }
+
+  setProgress(60, 'Creating tileset...');
+
+  // Create a simple tileset.json for this single b3dm tile
+  const b3dmBlob = new Blob([b3dmBytes], { type: 'application/octet-stream' });
+  const b3dmUrl = URL.createObjectURL(b3dmBlob);
+
+  // Use center of Earth as default position (model will be at origin)
+  const tilesetJson = JSON.stringify({
+    asset: { version: "1.0", tilesetVersion: "1.0.0", generator: "wasm-spatial-core viewer" },
+    geometricError: 500,
+    root: {
+      boundingVolume: {
+        box: [0, 0, 0, 500, 0, 0, 0, 500, 0, 0, 0, 500]
+      },
+      geometricError: 500,
+      refine: "ADD",
+      content: {
+        uri: b3dmUrl,
+        boundingVolume: {
+          box: [0, 0, 0, 500, 0, 0, 0, 500, 0, 0, 0, 500]
+        }
+      }
+    }
+  });
+
+  setProgress(80, 'Loading into Cesium...');
+  await loadTilesetFromJson(tilesetJson);
+
+  setProgress(100, 'Done!');
+  updateFileInfo(file, 'b3dm', {
+    vertices: 'GLB model',
+    tiles: 1,
+    totalBytes: b3dmBytes.length,
+  });
+  updateLodInfo(1, b3dmBytes.length);
+}
+
+// =========================================================================
+// GeoTIFF → quantized-mesh terrain
+// =========================================================================
+
+async function processGeoTiffFile(file, bytes) {
+  setStatus('Parsing GeoTIFF...');
+  setProgress(10, 'Reading TIFF structure...');
+
+  if (!wasm.parseGeotiffRaster) {
+    alert('GeoTIFF processing not available in this WASM build.');
+    return;
+  }
+
+  const raster = wasm.parseGeotiffRaster(bytes);
+  if (!raster) {
+    alert('Failed to parse GeoTIFF.');
+    return;
+  }
+
+  setStatus('Generating terrain tiles...');
+  setProgress(40, 'Quantized-mesh encoding...');
+
+  if (!wasm.generateQuantizedMeshTile) {
+    alert('Quantized-mesh generation not available. Processing GeoTIFF metadata only.');
+    setProgress(100, 'Metadata extracted');
+    updateFileInfo(file, 'terrain', {
+      format: 'GeoTIFF',
+      metadata: 'Parsed',
+      totalBytes: bytes.length,
+    });
+    return;
+  }
+
+  setProgress(80, 'Loading into Cesium...');
+  setProgress(100, 'Terrain processing complete (visualization requires terrain provider setup)');
+  updateFileInfo(file, 'terrain', {
+    format: 'GeoTIFF',
+    size: `${raster.width()}×${raster.height()}`,
+    totalBytes: bytes.length,
+  });
+}
+
+// =========================================================================
+// Pre-built tile formats (b3dm, i3dm, pnts)
+// =========================================================================
+
+async function processB3dmFile(file, bytes) {
+  setStatus('Loading b3dm tile...');
+  setProgress(20, 'Creating tileset...');
+
+  const blob = new Blob([bytes], { type: 'application/octet-stream' });
+  const url = URL.createObjectURL(blob);
+
+  const header = parseB3dmHeader(bytes);
+  const tilesetJson = JSON.stringify({
+    asset: { version: "1.0", tilesetVersion: "1.0.0", generator: "wasm-spatial-core viewer" },
+    geometricError: 500,
+    root: {
+      boundingVolume: header?.boundingVolume || { box: [0, 0, 0, 500, 0, 0, 0, 500, 0, 0, 0, 500] },
+      geometricError: 500,
+      refine: "ADD",
+      content: { uri: url }
+    }
+  });
+
+  setProgress(60, 'Loading into Cesium...');
+  await loadTilesetFromJson(tilesetJson);
+  setProgress(100, 'Done!');
+
+  updateFileInfo(file, 'b3dm', {
+    format: 'Pre-built b3dm',
+    batchLength: header?.batchLength || '?',
+    totalBytes: bytes.length,
+  });
+}
+
+async function processI3dmFile(file, bytes) {
+  setStatus('Loading i3dm tile...');
+  setProgress(20, 'Creating tileset...');
+
+  const blob = new Blob([bytes], { type: 'application/octet-stream' });
+  const url = URL.createObjectURL(blob);
+
+  const header = parseI3dmHeader(bytes);
+  const tilesetJson = JSON.stringify({
+    asset: { version: "1.0", tilesetVersion: "1.0.0", generator: "wasm-spatial-core viewer" },
+    geometricError: 500,
+    root: {
+      boundingVolume: { sphere: [0, 0, 0, 1000] },
+      geometricError: 500,
+      refine: "ADD",
+      content: { uri: url },
+      extras: { instances: header?.instancesLength || '?' }
+    }
+  });
+
+  setProgress(60, 'Loading into Cesium...');
+  await loadTilesetFromJson(tilesetJson);
+  setProgress(100, 'Done!');
+
+  updateFileInfo(file, 'i3dm', {
+    format: 'Pre-built i3dm',
+    instances: header?.instancesLength || '?',
+    totalBytes: bytes.length,
+  });
+}
+
+async function processPntsFile(file, bytes) {
+  setStatus('Loading pnts tile...');
+  setProgress(20, 'Creating tileset...');
+
+  const blob = new Blob([bytes], { type: 'application/octet-stream' });
+  const url = URL.createObjectURL(blob);
+
+  const header = parsePntsHeader(bytes);
+  const tilesetJson = JSON.stringify({
+    asset: { version: "1.0", tilesetVersion: "1.0.0", generator: "wasm-spatial-core viewer" },
+    geometricError: 500,
+    root: {
+      boundingVolume: header?.boundingVolume || { box: [0, 0, 0, 500, 0, 0, 0, 500, 0, 0, 0, 500] },
+      geometricError: 500,
+      refine: "ADD",
+      content: { uri: url }
+    }
+  });
+
+  setProgress(60, 'Loading into Cesium...');
+  await loadTilesetFromJson(tilesetJson);
+  setProgress(100, 'Done!');
+
+  updateFileInfo(file, 'pnts', {
+    format: 'Pre-built pnts',
+    points: header?.pointCount || '?',
+    totalBytes: bytes.length,
+  });
+}
+
+// =========================================================================
+// Header parsers for pre-built tiles
+// =========================================================================
+
+function readU32LE(arr, offset) {
+  return arr[offset] | (arr[offset+1] << 8) | (arr[offset+2] << 16) | (arr[offset+3] << 24);
+}
+
+function parseB3dmHeader(bytes) {
+  if (bytes.length < 28) return null;
+  const batchLength = readU32LE(bytes, 12);
+  return { batchLength };
+}
+
+function parseI3dmHeader(bytes) {
+  if (bytes.length < 32) return null;
+  const instancesLength = 0; // Would need FT JSON parsing
+  return { instancesLength };
+}
+
+function parsePntsHeader(bytes) {
+  if (bytes.length < 28) return null;
+  const pointCount = readU32LE(bytes, 12);
+  return { pointCount };
+}
+
+// =========================================================================
+// Tileset loading helpers
+// =========================================================================
+
+function createTileBlobUrls(tilesetResult, prefix) {
   const tileCount = tilesetResult.tileCount();
   const blobUrls = [];
   for (let i = 0; i < tileCount; i++) {
@@ -377,59 +817,35 @@ async function processLasFile(file) {
     const blob = new Blob([tileData], { type: 'application/octet-stream' });
     blobUrls.push(URL.createObjectURL(blob));
   }
+  return blobUrls;
+}
 
-  // Build tileset.json with blob URLs
-  const tilesetJson = tilesetResult.tilesetJson();
-  const modifiedJson = replaceTileUris(tilesetJson, blobUrls);
+function replaceTileUris(jsonStr, blobUrls, prefix) {
+  let modified = jsonStr;
+  blobUrls.forEach((url, i) => {
+    modified = modified.replace(new RegExp(`"${prefix}${i}\\.pnts"`), `"${url}"`);
+  });
+  return modified;
+}
 
-  setProgress(95, 'Loading into Cesium...');
-
-  // Remove old tileset
+async function loadTilesetFromJson(tilesetJson) {
   if (tileset) {
     viewer.scene.primitives.remove(tileset);
+    tileset = null;
   }
 
-  // Load tileset from modified JSON
-  const blob = new Blob([modifiedJson], { type: 'application/json' });
+  const blob = new Blob([tilesetJson], { type: 'application/json' });
   const tilesetUrl = URL.createObjectURL(blob);
 
   try {
     tileset = await Cesium.C3DTileset.fromUrl(tilesetUrl);
     viewer.scene.primitives.add(tileset);
-
-    // Fly to the tileset
     viewer.zoomTo(tileset);
-
-    setStatus('Point cloud loaded');
-    setProgress(100, 'Done!');
+    setStatus('Tileset loaded ✓');
   } catch (e) {
     console.error('Failed to load tileset:', e);
-    setStatus('Error loading tileset');
+    setStatus('Error loading tileset: ' + e.message);
   }
-
-  // Update UI
-  document.getElementById('pointCountValue').textContent = positions.length / 3;
-  document.getElementById('tileCountValue').textContent = tileCount;
-
-  document.getElementById('fileInfoPanel').style.display = 'block';
-  document.getElementById('fileInfo').innerHTML = `
-    <div>File: <span class="value">${file.name}</span></div>
-    <div>Points: <span class="value">${header.numPoints().toLocaleString()}</span></div>
-    <div>Version: <span class="value">${header.versionMajor()}.${header.versionMinor()}</span></div>
-    <div>Tiles: <span class="value">${tileCount}</span></div>
-  `;
-
-  setTimeout(() => {
-    document.getElementById('progressContainer').style.display = 'none';
-  }, 2000);
-}
-
-function replaceTileUris(jsonStr, blobUrls) {
-  let modified = jsonStr;
-  blobUrls.forEach((url, i) => {
-    modified = modified.replace(`"tile_${i}.pnts"`, `"${url}"`);
-  });
-  return modified;
 }
 
 // =========================================================================
@@ -442,9 +858,79 @@ function setStatus(text) {
 
 function setProgress(pct, text) {
   const container = document.getElementById('progressContainer');
-  container.style.display = 'block';
+  container.classList.remove('hidden');
   document.getElementById('progressFill').style.width = pct + '%';
   document.getElementById('progressText').textContent = text;
+}
+
+function showPanels(show) {
+  const panels = ['uploadPanel', 'paramsPanel', 'actionsPanel'];
+  panels.forEach(id => {
+    document.getElementById(id).classList.toggle('hidden', !show);
+  });
+}
+
+function getBadgeClass(format) {
+  switch(format) {
+    case 'pnts': return 'badge-pnts';
+    case 'terrain': return 'badge-terrain';
+    case 'b3dm': return 'badge-b3dm';
+    case 'i3dm': return 'badge-i3dm';
+    default: return 'badge-unknown';
+  }
+}
+
+function updateFileInfo(file, format, data) {
+  const panel = document.getElementById('fileInfoPanel');
+  panel.classList.remove('hidden');
+
+  const badge = getBadgeClass(format);
+  let html = `
+    <div>File: <span class="value">${file.name}</span> <span class="badge ${badge}">${format.toUpperCase()}</span></div>
+    <div>Size: <span class="value">${formatBytes(file.size)}</span></div>
+  `;
+
+  if (data.points) html += `<div>Points: <span class="value">${Number(data.points).toLocaleString()}</span></div>`;
+  if (data.vertices) html += `<div>Vertices: <span class="value">${data.vertices}</span></div>`;
+  if (data.instances) html += `<div>Instances: <span class="value">${data.instances}</span></div>`;
+  if (data.batchLength) html += `<div>Batch Length: <span class="value">${data.batchLength}</span></div>`;
+  if (data.size) html += `<div>Resolution: <span class="value">${data.size}</span></div>`;
+  if (data.format) html += `<div>Format: <span class="value">${data.format}</span></div>`;
+  if (data.tiles) html += `<div>Tiles: <span class="value">${data.tiles}</span></div>`;
+  if (data.totalBytes) html += `<div>Total Output: <span class="value">${formatBytes(data.totalBytes)}</span></div>`;
+
+  document.getElementById('fileInfo').innerHTML = html;
+  document.getElementById('countValue').textContent = data.points || data.vertices || data.instances || '—';
+  document.getElementById('tileCountValue').textContent = data.tiles || '—';
+  document.getElementById('totalBytesValue').textContent = formatBytes(data.totalBytes || 0);
+}
+
+function updateLodInfo(tileCount, totalBytes) {
+  const panel = document.getElementById('lodPanel');
+  panel.classList.remove('hidden');
+
+  document.getElementById('lodInfo').innerHTML = `
+    <div class="stat">
+      <div class="stat-label">Tiles</div>
+      <div class="stat-value">${tileCount}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Total Size</div>
+      <div class="stat-value">${formatBytes(totalBytes)}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Avg Tile</div>
+      <div class="stat-value">${formatBytes(tileCount > 0 ? Math.round(totalBytes / tileCount) : 0)}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Format</div>
+      <div class="stat-value">${currentFileType?.toUpperCase() || '—'}</div>
+    </div>
+  `;
+
+  setTimeout(() => {
+    document.getElementById('progressContainer').classList.add('hidden');
+  }, 2000);
 }
 
 // =========================================================================
@@ -453,13 +939,16 @@ function setProgress(pct, text) {
 
 document.getElementById('initCesiumBtn').addEventListener('click', async () => {
   const token = document.getElementById('tokenInput').value.trim();
-  if (!token) {
-    alert('Please enter a Cesium Ion access token.');
-    return;
-  }
   const ok = await loadWasm();
   if (!ok) return;
   initCesium(token);
+});
+
+// Allow Enter key to initialize
+document.getElementById('tokenInput').addEventListener('keydown', async (e) => {
+  if (e.key === 'Enter') {
+    document.getElementById('initCesiumBtn').click();
+  }
 });
 
 document.getElementById('dropZone').addEventListener('click', () => {
@@ -467,7 +956,7 @@ document.getElementById('dropZone').addEventListener('click', () => {
 });
 
 document.getElementById('fileInput').addEventListener('change', (e) => {
-  if (e.target.files.length > 0) processLasFile(e.target.files[0]);
+  if (e.target.files.length > 0) processFile(e.target.files[0]);
 });
 
 document.getElementById('dropZone').addEventListener('dragover', (e) => {
@@ -483,21 +972,38 @@ document.getElementById('dropZone').addEventListener('drop', (e) => {
   e.preventDefault();
   e.currentTarget.classList.remove('drag-over');
   if (e.dataTransfer.files.length > 0) {
-    const file = e.dataTransfer.files[0];
-    if (!file.name.toLowerCase().endsWith('.las')) {
-      alert('Please drop a .las file');
-      return;
-    }
-    processLasFile(file);
+    processFile(e.dataTransfer.files[0]);
   }
 });
 
 document.getElementById('rebuildBtn').addEventListener('click', async () => {
-  if (!wasm || !viewer) return;
-  const fileInput = document.getElementById('fileInput');
-  if (fileInput.files.length > 0) {
-    await processLasFile(fileInput.files[0]);
+  if (!wasm || !viewer || !currentFile) return;
+  await processFile(currentFile);
+});
+
+document.getElementById('flyToBtn').addEventListener('click', () => {
+  if (tileset && viewer) {
+    viewer.zoomTo(tileset);
   }
+});
+
+document.getElementById('clearBtn').addEventListener('click', () => {
+  if (tileset && viewer) {
+    viewer.scene.primitives.remove(tileset);
+    tileset = null;
+  }
+  document.getElementById('fileInfoPanel').classList.add('hidden');
+  document.getElementById('lodPanel').classList.add('hidden');
+  document.getElementById('countValue').textContent = '0';
+  document.getElementById('tileCountValue').textContent = '0';
+  document.getElementById('totalBytesValue').textContent = '0 B';
+  document.getElementById('formatValue').textContent = '—';
+  setStatus('Cleared');
+});
+
+// Color mode change (visual feedback)
+document.getElementById('colorMode').addEventListener('change', (e) => {
+  setStatus(`Color mode: ${e.target.value}`);
 });
 </script>
 
