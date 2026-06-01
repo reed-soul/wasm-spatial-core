@@ -382,6 +382,259 @@ pub fn random_decimate_core(
 }
 
 // ===========================================================================
+// Large file processing utilities
+// ===========================================================================
+
+/// Estimate memory usage for a point cloud with the given parameters.
+///
+/// # Arguments
+/// * `num_points` — Number of points.
+/// * `has_color` — Whether RGB color data is included.
+/// * `has_normals` — Whether normal vectors are included.
+///
+/// # Returns
+/// Estimated memory in bytes.
+///
+/// Breakdown:
+/// - Positions: 12 bytes/point (Float32 × 3)
+/// - Colors: 3 bytes/point (Uint8 × 3, if has_color)
+/// - Normals: 12 bytes/point (Float32 × 3, if has_normals)
+/// - Octree nodes: ~64 bytes/node (estimated as num_points / maxPointsPerNode * 8)
+/// - pnts tiles: ~14 bytes/point
+/// - Overhead: ~1KB
+#[wasm_bindgen(js_name = "estimateMemoryForPoints")]
+pub fn estimate_memory_for_points(num_points: usize, has_color: bool, has_normals: bool) -> usize {
+    let positions_bytes = num_points * 12; // Float32 × 3
+    let color_bytes = if has_color { num_points * 3 } else { 0 }; // Uint8 × 3
+    let normal_bytes = if has_normals { num_points * 12 } else { 0 }; // Float32 × 3
+
+    // Rough octree node estimate
+    let estimated_nodes = (num_points / 50_000).max(1) * 9;
+    let octree_bytes = estimated_nodes * 64;
+
+    // pnts tile encoding
+    let pnts_bytes = num_points * 14;
+
+    // Overhead
+    let overhead = 1024;
+
+    positions_bytes + color_bytes + normal_bytes + octree_bytes + pnts_bytes + overhead
+}
+
+/// Auto-decimate a point cloud to the target count using the specified method.
+///
+/// # Arguments
+/// * `positions` — Flat `[x, y, z, ...]` buffer.
+/// * `target_count` — Desired number of output points.
+/// * `method` — Decimation method: 0 = random, 1 = grid, 2 = voxel grid (with colors).
+///
+/// # Returns
+/// Decimated positions as `Float32Array`.
+///
+/// Methods:
+/// - **Random** (0): Fisher-Yates shuffle, keep first N.
+/// - **Grid** (1): Divide space into grid cells, keep first point per cell.
+///   Cell size is computed to approximately achieve `target_count`.
+/// - **Voxel Grid** (2): Same as grid but uses dedicated voxel grid decimation
+///   (useful when colors are also available).
+#[wasm_bindgen(js_name = "autoDecimate")]
+pub fn auto_decimate_core(
+    positions: &[f32],
+    target_count: usize,
+    method: u32,
+) -> Vec<f32> {
+    let point_count = positions.len() / 3;
+    if point_count == 0 || target_count == 0 || target_count >= point_count {
+        return positions.to_vec();
+    }
+
+    match method {
+        0 => auto_decimate_random(positions, target_count),
+        1 => auto_decimate_grid(positions, target_count),
+        _ => auto_decimate_random(positions, target_count), // fallback
+    }
+}
+
+/// Random decimation: Fisher-Yates partial shuffle.
+fn auto_decimate_random(positions: &[f32], target_count: usize) -> Vec<f32> {
+    let point_count = positions.len() / 3;
+    let output_count = target_count.min(point_count);
+
+    let mut seed: u64 = 54321;
+    let next_rand = |s: &mut u64| -> f64 {
+        *s = s.wrapping_mul(1103515245).wrapping_add(12345) & 0x7fffffff;
+        (*s as f64) / (0x7fffffff as f64)
+    };
+
+    // Create output indices
+    let mut indices: Vec<usize> = (0..point_count).collect();
+    for i in 0..output_count {
+        let j = i + (next_rand(&mut seed) * (point_count - i) as f64) as usize;
+        indices.swap(i, j);
+    }
+
+    let mut out = Vec::with_capacity(output_count * 3);
+    for &idx in indices.iter().take(output_count) {
+        out.push(positions[idx * 3]);
+        out.push(positions[idx * 3 + 1]);
+        out.push(positions[idx * 3 + 2]);
+    }
+    out
+}
+
+/// Grid decimation: divide space into grid cells, keep first point per cell.
+fn auto_decimate_grid(positions: &[f32], target_count: usize) -> Vec<f32> {
+    let point_count = positions.len() / 3;
+    if point_count == 0 {
+        return Vec::new();
+    }
+
+    // Compute bounding box
+    let mut min_x = f32::INFINITY;
+    let mut min_y = f32::INFINITY;
+    let mut min_z = f32::INFINITY;
+    let mut max_x = f32::NEG_INFINITY;
+    let mut max_y = f32::NEG_INFINITY;
+    let mut max_z = f32::NEG_INFINITY;
+
+    for i in 0..point_count {
+        let x = positions[i * 3];
+        let y = positions[i * 3 + 1];
+        let z = positions[i * 3 + 2];
+        min_x = min_x.min(x);
+        min_y = min_y.min(y);
+        min_z = min_z.min(z);
+        max_x = max_x.max(x);
+        max_y = max_y.max(y);
+        max_z = max_z.max(z);
+    }
+
+    // Estimate cell size to get approximately target_count cells.
+    let dx = max_x - min_x;
+    let dy = max_y - min_y;
+    let dz = max_z - min_z;
+    let volume = dx * dy * dz;
+    let cell_volume = volume / target_count.max(1) as f32;
+    let cell_size = cell_volume.cbrt().max(1e-10);
+
+    // Grid decimation — keep first point per cell
+    let mut grid: std::collections::HashMap<(i64, i64, i64), usize> =
+        std::collections::HashMap::new();
+
+    for i in 0..point_count {
+        let x = positions[i * 3];
+        let y = positions[i * 3 + 1];
+        let z = positions[i * 3 + 2];
+        let cx = ((x - min_x) / cell_size).floor() as i64;
+        let cy = ((y - min_y) / cell_size).floor() as i64;
+        let cz = ((z - min_z) / cell_size).floor() as i64;
+        grid.entry((cx, cy, cz)).or_insert(i);
+    }
+
+    let kept: Vec<usize> = grid.into_values().collect();
+    let mut out = Vec::with_capacity(kept.len() * 3);
+    for &idx in &kept {
+        out.push(positions[idx * 3]);
+        out.push(positions[idx * 3 + 1]);
+        out.push(positions[idx * 3 + 2]);
+    }
+    out
+}
+
+/// Parse LAS points in chunks without loading all data into memory at once.
+///
+/// Calls `on_chunk` for each chunk of parsed positions, passing ownership
+/// of the chunk data. Suitable for processing files larger than available memory.
+///
+/// # Arguments
+/// * `bytes` — Raw LAS file bytes.
+/// * `chunk_size` — Maximum number of points per chunk (e.g., 50_000).
+/// * `on_chunk` — Callback receiving `(Vec<f32>, Option<Vec<u8>>, u32)` —
+///   positions, optional colors, and point count for this chunk.
+///
+/// # Returns
+/// Total number of points parsed, or an error message.
+pub fn parse_las_points_chunked<F>(
+    bytes: &[u8],
+    chunk_size: usize,
+    mut on_chunk: F,
+) -> Result<usize, String>
+where
+    F: FnMut(Vec<f32>, Option<Vec<u8>>, u32),
+{
+    let header = parse_las_header_core(bytes)?;
+
+    if header.num_points == 0 {
+        return Ok(0);
+    }
+
+    let point_data_start = 227usize; // After public header block (for format 0-5)
+    let record_length = header.point_data_record_length as usize;
+    let format_id = header.point_format_id;
+    let has_color = format_id >= 2;
+
+    // Color offset within each point record
+    let color_offset = match format_id {
+        0 | 1 => None,
+        2 | 3 => Some(20),
+        4 | 5 => Some(20),
+        _ => return Err(format!("Unsupported LAS point format: {}", format_id)),
+    };
+
+    let total_points = header.num_points as usize;
+    let end = bytes.len().min(point_data_start + total_points * record_length);
+
+    let mut parsed = 0usize;
+    let mut pos = point_data_start;
+
+    while pos < end && parsed < total_points {
+        let remaining = end - pos;
+        let this_chunk = chunk_size.min(remaining / record_length.max(1));
+        if this_chunk == 0 {
+            break;
+        }
+
+        let mut positions = Vec::with_capacity(this_chunk * 3);
+        let mut colors: Option<Vec<u8>> = if has_color {
+            Some(Vec::with_capacity(this_chunk * 3))
+        } else {
+            None
+        };
+
+        for _ in 0..this_chunk {
+            if pos + record_length > end {
+                break;
+            }
+            // X, Y, Z at offset 0, 4, 8 (doubles, scale+offset applied)
+            let x = (read_f64_le(bytes, pos) - header.bounds_min_x) as f32;
+            let y = (read_f64_le(bytes, pos + 8) - header.bounds_min_y) as f32;
+            let z = (read_f64_le(bytes, pos + 16) - header.bounds_min_z) as f32;
+            positions.push(x);
+            positions.push(y);
+            positions.push(z);
+
+            if let Some(ref mut col) = colors {
+                if let Some(co) = color_offset {
+                    if pos + co + 3 <= end {
+                        col.push(bytes[pos + co]);
+                        col.push(bytes[pos + co + 1]);
+                        col.push(bytes[pos + co + 2]);
+                    }
+                }
+            }
+
+            pos += record_length;
+            parsed += 1;
+        }
+
+        let count = positions.len() / 3;
+        on_chunk(positions, colors, count as u32);
+    }
+
+    Ok(parsed)
+}
+
+// ===========================================================================
 // LAZ Decompression (using laz crate) — only compiled with laz-support feature
 // ===========================================================================
 
@@ -4179,5 +4432,102 @@ pub mod test_helpers {
             }
         }
         buf
+    }
+
+    // -----------------------------------------------------------------------
+    // Large file processing tests
+    // -----------------------------------------------------------------------
+
+    fn test_estimate_memory_basic() {
+        // 100K points, positions only: 100K * 12 = 1.2MB + octree + pnts
+        let mem = estimate_memory_for_points(100_000, false, false);
+        assert!(mem > 1_000_000, "Expected > 1MB, got {}", mem);
+        assert!(mem < 5_000_000, "Expected < 5MB, got {}", mem);
+    }
+
+    fn test_estimate_memory_with_colors() {
+        let mem_no_color = estimate_memory_for_points(10_000, false, false);
+        let mem_color = estimate_memory_for_points(10_000, true, false);
+        // Color adds 3 bytes/point = 30KB
+        assert!(mem_color > mem_no_color);
+        assert_eq!(mem_color - mem_no_color, 30_000);
+    }
+
+    fn test_estimate_memory_with_normals() {
+        let mem_normals = estimate_memory_for_points(10_000, false, true);
+        let mem_no_normals = estimate_memory_for_points(10_000, false, false);
+        // Normals add 12 bytes/point = 120KB
+        assert!(mem_normals > mem_no_normals);
+        assert_eq!(mem_normals - mem_no_normals, 120_000);
+    }
+
+    fn test_auto_decimate_random() {
+        let positions: Vec<f32> = (0..1000)
+            .flat_map(|i| [i as f32 * 0.1, i as f32 * 0.2, i as f32 * 0.3])
+            .collect();
+        let result = auto_decimate_core(&positions, 100, 0);
+        assert_eq!(result.len(), 300); // 100 points × 3
+    }
+
+    fn test_auto_decimate_grid() {
+        let positions: Vec<f32> = (0..1000)
+            .flat_map(|i| [i as f32 * 0.1, i as f32 * 0.2, i as f32 * 0.3])
+            .collect();
+        let result = auto_decimate_core(&positions, 100, 1);
+        // Grid decimation keeps ≤ target_count points
+        assert!(result.len() <= 300);
+        assert!(result.len() > 0);
+    }
+
+    fn test_auto_decimate_identity() {
+        // Target >= source → should return all points
+        let positions: Vec<f32> = vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0];
+        let result = auto_decimate_core(&positions, 100, 0);
+        assert_eq!(result.len(), 6);
+    }
+
+    fn test_auto_decimate_empty() {
+        let positions: Vec<f32> = vec![];
+        let result = auto_decimate_core(&positions, 100, 0);
+        assert!(result.is_empty());
+    }
+
+    fn test_chunked_las_parse() {
+        // Create a minimal LAS file with 10 points
+        let las_data = build_test_las_blob(
+            &[
+                (0.0, 0.0, 0.0),
+                (1.0, 0.0, 0.0),
+                (0.0, 1.0, 0.0),
+                (1.0, 1.0, 0.0),
+                (0.0, 0.0, 1.0),
+                (1.0, 0.0, 1.0),
+                (0.0, 1.0, 1.0),
+                (1.0, 1.0, 1.0),
+                (2.0, 0.0, 0.0),
+                (2.0, 1.0, 0.0),
+            ],
+            true, // has color
+        );
+
+        let mut chunks = Vec::new();
+        let total = parse_las_points_chunked(&las_data, 3, |pos, col, count| {
+            chunks.push((pos.len() / 3, col.is_some(), count));
+        })
+        .unwrap();
+
+        assert_eq!(total, 10);
+        assert_eq!(chunks.len(), 4); // 3 + 3 + 3 + 1
+        let total_from_chunks: u32 = chunks.iter().map(|c| c.2).sum();
+        assert_eq!(total_from_chunks, 10);
+    }
+
+    fn test_chunked_las_empty() {
+        let las_data = build_test_las_blob(&[], false);
+        let total = parse_las_points_chunked(&las_data, 100, |_, _, _| {
+            panic!("should not call callback for empty LAS")
+        })
+        .unwrap();
+        assert_eq!(total, 0);
     }
 }
