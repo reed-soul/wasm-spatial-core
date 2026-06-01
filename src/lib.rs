@@ -61,6 +61,7 @@ mod worker;
 
 mod obj;
 mod ply;
+mod quantization;
 
 // Re-export core functions for integration testing and advanced usage
 pub use coordinate::{
@@ -98,6 +99,10 @@ pub use geotiff::{
 
 pub use obj::parse_obj_vertices_core;
 pub use ply::{parse_ply_core, PlyResult};
+pub use quantization::{
+    dequantize_positions_core, dequantize_positions_js, quantize_positions_core, quantize_positions_js,
+    BoundingBox, WasmQuantBounds,
+};
 
 // Re-export internal helpers for integration/stress testing.
 // These are exposed via a public "test_exports" module that is only
