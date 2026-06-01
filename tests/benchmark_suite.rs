@@ -304,18 +304,20 @@ fn benchmark_b3dm_encode_mesh() {
         let bytes = glb_json.as_bytes();
         let padding = (4 - bytes.len() % 4) % 4;
         let mut v = bytes.to_vec();
-        v.extend(std::iter::repeat(b' ').take(padding));
+        v.extend(std::iter::repeat_n(b' ', padding));
         v
     };
     let bin_data: Vec<u8> = vec![
-        0.0f32, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0,
-        1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0,
-    ].iter().flat_map(|f| f.to_le_bytes()).collect();
+        0.0f32, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0,
+    ]
+    .iter()
+    .flat_map(|f| f.to_le_bytes())
+    .collect();
     let index_data: Vec<u8> = [0u32, 1, 2, 3, 4, 5]
         .iter()
         .flat_map(|i| i.to_le_bytes())
         .collect();
-    let bin_padded_len = (bin_data.len() + index_data.len() + 3) / 4 * 4;
+    let bin_padded_len = (bin_data.len() + index_data.len()).div_ceil(4) * 4;
     let bin_chunk: Vec<u8> = bin_data.iter().chain(index_data.iter()).copied().collect();
     let mut bin_padded = bin_chunk.clone();
     bin_padded.resize(bin_padded_len, 0);
@@ -392,5 +394,5 @@ fn benchmark_full_pipeline_100k() {
         eprintln!("  validate:   {:.2} ms", ms);
     }
 
-    assert_eq!(result.tile_count() > 0, true);
+    assert!(result.tile_count() > 0);
 }

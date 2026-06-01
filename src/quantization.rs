@@ -154,11 +154,7 @@ fn compute_bounds(positions: &[f32]) -> BoundingBox {
 ///
 /// # Returns
 /// Quantized positions as Uint16Array.
-pub fn quantize_positions_core(
-    positions: &[f32],
-    bounds: &BoundingBox,
-    bits: u32,
-) -> Vec<u16> {
+pub fn quantize_positions_core(positions: &[f32], bounds: &BoundingBox, bits: u32) -> Vec<u16> {
     let max_val = (1u32 << bits) - 1;
     let dx = bounds.max_x - bounds.min_x;
     let dy = bounds.max_y - bounds.min_y;
@@ -196,11 +192,7 @@ pub fn quantize_positions_core(
 ///
 /// # Returns
 /// Dequantized positions as Float32Array.
-pub fn dequantize_positions_core(
-    quantized: &[u16],
-    bounds: &BoundingBox,
-    bits: u32,
-) -> Vec<f32> {
+pub fn dequantize_positions_core(quantized: &[u16], bounds: &BoundingBox, bits: u32) -> Vec<f32> {
     let max_val = (1u32 << bits) - 1;
     let dx = bounds.max_x - bounds.min_x;
     let dy = bounds.max_y - bounds.min_y;
@@ -299,9 +291,7 @@ mod tests {
 
     #[test]
     fn test_quantize_roundtrip() {
-        let positions: Vec<f32> = vec![
-            0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 1.0,
-        ];
+        let positions: Vec<f32> = vec![0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 1.0];
         let bounds = compute_bounds(&positions);
         let quantized = quantize_positions_core(&positions, &bounds, 16);
         let dequantized = dequantize_positions_core(&quantized, &bounds, 16);
@@ -312,12 +302,7 @@ mod tests {
         // Roundtrip error should be very small
         for i in 0..positions.len() {
             let error = (positions[i] - dequantized[i]).abs();
-            assert!(
-                error < 0.001,
-                "Position {} error too large: {}",
-                i,
-                error
-            );
+            assert!(error < 0.001, "Position {} error too large: {}", i, error);
         }
     }
 
@@ -346,7 +331,7 @@ mod tests {
 
     #[test]
     fn test_quantize_single_point() {
-        let positions: Vec<f32> = vec![42.0, -17.5, 3.14];
+        let positions: Vec<f32> = vec![42.0, -17.5, std::f32::consts::PI];
         let bounds = compute_bounds(&positions);
         let quantized = quantize_positions_core(&positions, &bounds, 16);
         assert_eq!(quantized.len(), 3);
@@ -358,9 +343,7 @@ mod tests {
 
     #[test]
     fn test_quantize_negative_coords() {
-        let positions: Vec<f32> = vec![
-            -100.0, -200.0, -300.0, 100.0, 200.0, 300.0, 0.0, 0.0, 0.0,
-        ];
+        let positions: Vec<f32> = vec![-100.0, -200.0, -300.0, 100.0, 200.0, 300.0, 0.0, 0.0, 0.0];
         let bounds = compute_bounds(&positions);
         assert_eq!(bounds.min_x, -100.0);
         assert_eq!(bounds.max_x, 100.0);
@@ -378,7 +361,9 @@ mod tests {
     fn test_size_reduction() {
         // 1000 points: Float32 = 12KB, Uint16 = 6KB → 50% reduction
         let n = 1000;
-        let positions: Vec<f32> = (0..n).flat_map(|i| [i as f32, i as f32 * 0.5, i as f32 * 0.3]).collect();
+        let positions: Vec<f32> = (0..n)
+            .flat_map(|i| [i as f32, i as f32 * 0.5, i as f32 * 0.3])
+            .collect();
         let bounds = compute_bounds(&positions);
         let quantized = quantize_positions_core(&positions, &bounds, 16);
 

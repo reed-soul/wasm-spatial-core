@@ -36,12 +36,12 @@ mod utils;
 mod vector_tile;
 
 pub use octree::{Bounds, Octree, OctreeNode, DEFAULT_MAX_DEPTH, DEFAULT_MAX_POINTS_PER_NODE};
+#[cfg(feature = "multi-thread")]
+pub use pnts::generate_tileset_parallel;
 pub use pnts::{
     draco_status_js, encode_pnts_tile, estimate_point_spacing, generate_tileset, pad_len,
     parse_pnts_header, supports_draco_js, TilesetResult,
 };
-#[cfg(feature = "multi-thread")]
-pub use pnts::generate_tileset_parallel;
 mod wkb_wkt;
 
 use errors::input_too_large_js;
@@ -73,8 +73,8 @@ pub use coordinate::{
 #[cfg(feature = "point-cloud")]
 pub use point_cloud::{
     auto_decimate_core, estimate_memory_for_points, parse_las_header_core,
-    parse_las_points_chunked, parse_las_points_core, random_decimate_core, read_f64_le, read_u16_le,
-    read_u32_le, voxel_grid_decimate_core,
+    parse_las_points_chunked, parse_las_points_core, random_decimate_core, read_f64_le,
+    read_u16_le, read_u32_le, voxel_grid_decimate_core,
 };
 
 #[cfg(feature = "laz-support")]
@@ -100,8 +100,8 @@ pub use geotiff::{
 pub use obj::parse_obj_vertices_core;
 pub use ply::{parse_ply_core, PlyResult};
 pub use quantization::{
-    dequantize_positions_core, dequantize_positions_js, quantize_positions_core, quantize_positions_js,
-    BoundingBox, WasmQuantBounds,
+    dequantize_positions_core, dequantize_positions_js, quantize_positions_core,
+    quantize_positions_js, BoundingBox, WasmQuantBounds,
 };
 
 // Re-export internal helpers for integration/stress testing.
