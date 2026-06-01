@@ -157,6 +157,7 @@ fn perf_1m_points_pipeline() {
 
 #[test]
 #[cfg(feature = "point-cloud")]
+#[ignore = "requires ~1GB+ RAM; run locally: cargo test perf_10m_octree_build -- --ignored --nocapture"]
 fn perf_10m_octree_build() {
     let n = 10_000_000;
 
