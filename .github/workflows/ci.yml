@@ -283,3 +283,39 @@ jobs:
         run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # ------------------------------------------------------------------
+  # 6. Performance Benchmarks — only on master push
+  # ------------------------------------------------------------------
+  benchmark:
+    name: Performance Benchmarks
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    needs: rust
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache cargo registry & build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run benchmark suite
+        run: |
+          cargo test --all-features -- benchmark_suite --ignored --nocapture 2>&1 | tee benchmark-results.jsonl
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: benchmark-results.jsonl
+          retention-days: 90
