@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>wasm-spatial-core — WebGL Point Cloud Viewer</title>
+  <style>
+    :root {
+      --bg: #0d1117; --card: #161b22; --border: #30363d;
+      --text: #e6edf3; --muted: #8b949e; --accent: #58a6ff;
+      --green: #3fb950; --orange: #d29922; --red: #f85149;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg); color: var(--text);
+      height: 100vh; overflow: hidden; display: flex; flex-direction: column;
+    }
+    header {
+      padding: 10px 20px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 16px; flex-shrink: 0;
+    }
+    header h1 {
+      font-size: 1rem;
+      background: linear-gradient(135deg, var(--accent), var(--green));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .main { display: flex; flex: 1; overflow: hidden; }
+    .sidebar {
+      width: 260px; border-right: 1px solid var(--border);
+      overflow-y: auto; padding: 12px; display: flex;
+      flex-direction: column; gap: 10px; flex-shrink: 0;
+    }
+    .panel {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 8px; padding: 12px;
+    }
+    .panel-title {
+      font-weight: 600; font-size: 0.8rem;
+      margin-bottom: 8px; color: var(--accent);
+    }
+    .stat-row {
+      display: flex; justify-content: space-between;
+      font-size: 0.75rem; padding: 3px 0;
+    }
+    .stat-label { color: var(--muted); }
+    .stat-value { font-family: monospace; }
+    .drop-zone {
+      border: 2px dashed var(--border); border-radius: 8px;
+      padding: 20px; text-align: center; cursor: pointer;
+      transition: all 0.2s;
+    }
+    .drop-zone:hover, .drop-zone.dragover {
+      border-color: var(--accent); background: rgba(88,166,255,0.05);
+    }
+    .drop-zone p { font-size: 0.8rem; color: var(--muted); margin-top: 4px; }
+    .drop-zone .icon { font-size: 24px; }
+    .canvas-wrap { flex: 1; position: relative; background: #000; }
+    canvas { width: 100%; height: 100%; display: block; }
+    .fps-counter {
+      position: absolute; top: 8px; right: 8px;
+      background: rgba(0,0,0,0.7); padding: 4px 10px;
+      border-radius: 4px; font-family: monospace;
+      font-size: 0.75rem; color: var(--green);
+    }
+    .overlay {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; background: rgba(0,0,0,0.6); z-index: 10;
+    }
+    .overlay.hidden { display: none; }
+    .progress-bar {
+      width: 300px; height: 6px; background: var(--border);
+      border-radius: 3px; overflow: hidden; margin-top: 12px;
+    }
+    .progress-fill {
+      height: 100%; width: 0%; background: var(--accent);
+      border-radius: 3px; transition: width 0.3s;
+    }
+    .btn {
+      padding: 6px 12px; border: 1px solid var(--border);
+      background: var(--card); color: var(--text); border-radius: 6px;
+      cursor: pointer; font-size: 0.75rem; transition: all 0.2s;
+    }
+    .btn:hover { border-color: var(--accent); }
+    .btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
+    .btn-group { display: flex; gap: 4px; flex-wrap: wrap; }
+    .color-btn { width: 24px; height: 24px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; }
+    .color-btn.active { border-color: #fff; }
+    .help-text { font-size: 0.7rem; color: var(--muted); margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>⬡ WebGL Point Cloud Viewer</h1>
+    <span style="color:var(--muted);font-size:0.75rem">Native WebGL · Zero dependencies · WASM-accelerated</span>
+  </header>
+  <div class="main">
+    <div class="sidebar">
+      <div class="panel">
+        <div class="panel-title">📂 Load</div>
+        <div class="drop-zone" id="dropZone">
+          <div class="icon">☁️</div>
+          <p>Drop LAS/LAZ/PLY file here</p>
+          <p style="font-size:0.65rem">or click to browse</p>
+        </div>
+        <input type="file" id="fileInput" accept=".las,.laz,.ply,.xyz" style="display:none">
+        <div style="margin-top:8px">
+          <button class="btn" id="loadDemo" style="width:100%">Load Demo Point Cloud</button>
+        </div>
+      </div>
+
+      <div class="panel" id="infoPanel" style="display:none">
+        <div class="panel-title">ℹ️ Info</div>
+        <div class="stat-row"><span class="stat-label">Points</span><span class="stat-value" id="statPoints">-</span></div>
+        <div class="stat-row"><span class="stat-label">File size</span><span class="stat-value" id="statSize">-</span></div>
+        <div class="stat-row"><span class="stat-label">Bounds X</span><span class="stat-value" id="statBoundsX">-</span></div>
+        <div class="stat-row"><span class="stat-label">Bounds Y</span><span class="stat-value" id="statBoundsY">-</span></div>
+        <div class="stat-row"><span class="stat-label">Bounds Z</span><span class="stat-value" id="statBoundsZ">-</span></div>
+        <div class="stat-row"><span class="stat-label">Rendered</span><span class="stat-value" id="statRendered">-</span></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">🎨 Color Mode</div>
+        <div class="btn-group">
+          <button class="btn active" data-color="original">Original</button>
+          <button class="btn" data-color="height">Height</button>
+          <button class="btn" data-color="classification">Classification</button>
+          <button class="btn" data-color="heatmap">Density</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">⚙️ Point Size</div>
+        <input type="range" id="pointSize" min="0.5" max="8" step="0.5" value="2" style="width:100%">
+        <div style="display:flex;justify-content:space-between;font-size:0.7rem;color:var(--muted)">
+          <span>0.5</span><span id="pointSizeLabel">2.0</span><span>8</span>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">🖱️ Controls</div>
+        <div class="help-text">
+          <strong>Left drag:</strong> Rotate<br>
+          <strong>Right drag:</strong> Pan<br>
+          <strong>Scroll:</strong> Zoom<br>
+          <strong>Double-click:</strong> Reset view
+        </div>
+      </div>
+    </div>
+
+    <div class="canvas-wrap">
+      <canvas id="glCanvas"></canvas>
+      <div class="fps-counter" id="fpsCounter">-- FPS</div>
+      <div class="overlay" id="overlay">
+        <p id="overlayText" style="font-size:0.9rem">Drop a point cloud file to begin</p>
+        <div class="progress-bar" id="progressBar" style="display:none">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ===========================================================================
+    // WebGL Point Cloud Viewer — Pure JS + WASM
+    // ===========================================================================
+
+    const state = {
+      positions: null,      // Float32Array [x,y,z, ...]
+      colors: null,         // Uint8Array [r,g,b, ...] or null
+      classifications: null, // Uint8Array or null
+      numPoints: 0,
+      bounds: null,         // {minX, minY, minZ, maxX, maxY, maxZ}
+      colorMode: 'original',
+      basePointSize: 2.0,
+      // Camera
+      rotationX: -0.4,
+      rotationY: 0.6,
+      distance: 0,
+      panX: 0, panY: 0,
+      center: [0, 0, 0],
+      // Interaction
+      isDragging: false,
+      isPanning: false,
+      lastMouse: [0, 0],
+      // FPS
+      frameCount: 0,
+      lastFpsTime: 0,
+    };
+
+    const canvas = document.getElementById('glCanvas');
+    const gl = canvas.getContext('webgl2', { antialias: true, alpha: false })
+              || canvas.getContext('webgl', { antialias: true, alpha: false });
+
+    if (!gl) {
+      document.getElementById('overlayText').textContent = 'WebGL not supported in this browser.';
+      throw new Error('No WebGL');
+    }
+
+    // ===========================================================================
+    // Shader sources
+    // ===========================================================================
+
+    const VS_SOURCE = `#version 300 es
+    precision highp float;
+    layout(location=0) in vec3 a_position;
+    layout(location=1) in vec3 a_color;
+
+    uniform mat4 u_mvp;
+    uniform float u_pointSize;
+    uniform vec3 u_cameraPos;
+
+    out vec3 v_color;
+    out float v_depth;
+
+    void main() {
+      vec4 worldPos = vec4(a_position, 1.0);
+      gl_Position = u_mvp * worldPos;
+
+      // Distance-based adaptive point size
+      float dist = length(a_position - u_cameraPos);
+      float adaptive = u_pointSize * (300.0 / max(dist, 1.0));
+      gl_PointSize = clamp(adaptive, 1.0, 64.0);
+
+      v_color = a_color;
+      v_depth = dist;
+    }`;
+
+    const VS_SOURCE_100 = `precision highp float;
+    attribute vec3 a_position;
+    attribute vec3 a_color;
+
+    uniform mat4 u_mvp;
+    uniform float u_pointSize;
+    uniform vec3 u_cameraPos;
+
+    varying vec3 v_color;
+    varying float v_depth;
+
+    void main() {
+      vec4 worldPos = vec4(a_position, 1.0);
+      gl_Position = u_mvp * worldPos;
+
+      float dist = length(a_position - u_cameraPos);
+      float adaptive = u_pointSize * (300.0 / max(dist, 1.0));
+      gl_PointSize = clamp(adaptive, 1.0, 64.0);
+
+      v_color = a_color;
+      v_depth = dist;
+    }`;
+
+    const FS_SOURCE = `#version 300 es
+    precision highp float;
+    in vec3 v_color;
+    in float v_depth;
+    out vec4 fragColor;
+
+    void main() {
+      // Circular point shape
+      vec2 cxy = 2.0 * gl_PointCoord - 1.0;
+      float r = dot(cxy, cxy);
+      if (r > 1.0) discard;
+
+      // Anti-aliasing edge
+      float alpha = 1.0 - smoothstep(0.7, 1.0, r);
+
+      // Simple EDL-like effect (edge darkening)
+      float edl = 1.0 - 0.3 * r;
+      vec3 col = v_color * edl;
+
+      fragColor = vec4(col, alpha);
+    }`;
+
+    const FS_SOURCE_100 = `precision highp float;
+    varying vec3 v_color;
+    varying float v_depth;
+
+    void main() {
+      vec2 cxy = 2.0 * gl_PointCoord - 1.0;
+      float r = dot(cxy, cxy);
+      if (r > 1.0) discard;
+
+      float alpha = 1.0 - smoothstep(0.7, 1.0, r);
+      float edl = 1.0 - 0.3 * r;
+      vec3 col = v_color * edl;
+
+      gl_FragColor = vec4(col, alpha);
+    }`;
+
+    // ===========================================================================
+    // WebGL helpers
+    // ===========================================================================
+
+    function compileShader(src, type) {
+      const s = gl.createShader(type);
+      gl.shaderSource(s, src);
+      gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+        console.error('Shader error:', gl.getShaderInfoLog(s));
+        return null;
+      }
+      return s;
+    }
+
+    function createProgram(vsSrc, fsSrc) {
+      const vs = compileShader(vsSrc, gl.VERTEX_SHADER);
+      const fs = compileShader(fsSrc, gl.FRAGMENT_SHADER);
+      const prog = gl.createProgram();
+      gl.attachShader(prog, vs);
+      gl.attachShader(prog, fs);
+      gl.linkProgram(prog);
+      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+        console.error('Program link error:', gl.getProgramInfoLog(prog));
+        return null;
+      }
+      return prog;
+    }
+
+    const isWebGL2 = gl instanceof WebGL2RenderingContext;
+    const program = createProgram(
+      isWebGL2 ? VS_SOURCE : VS_SOURCE_100,
+      isWebGL2 ? FS_SOURCE : FS_SOURCE_100
+    );
+    const vao = isWebGL2 ? (() => { const v = gl.createVertexArray(); return v; })() : null;
+
+    const loc = {
+      position: gl.getAttribLocation(program, 'a_position'),
+      color: gl.getAttribLocation(program, 'a_color'),
+      mvp: gl.getUniformLocation(program, 'u_mvp'),
+      pointSize: gl.getUniformLocation(program, 'u_pointSize'),
+      cameraPos: gl.getUniformLocation(program, 'u_cameraPos'),
+    };
+
+    let posBuffer = gl.createBuffer();
+    let colorBuffer = gl.createBuffer();
+
+    // ===========================================================================
+    // Matrix math (column-major)
+    // ===========================================================================
+
+    function mat4Identity() {
+      return new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]);
+    }
+
+    function mat4Perspective(fov, aspect, near, far) {
+      const f = 1.0 / Math.tan(fov / 2);
+      const nf = 1 / (near - far);
+      return new Float32Array([
+        f/aspect, 0, 0, 0,
+        0, f, 0, 0,
+        0, 0, (far+near)*nf, -1,
+        0, 0, 2*far*near*nf, 0
+      ]);
+    }
+
+    function mat4LookAt(eye, center, up) {
+      const zx = eye[0]-center[0], zy = eye[1]-center[1], zz = eye[2]-center[2];
+      let len = Math.sqrt(zx*zx+zy*zy+zz*zz);
+      const z0=zx/len, z1=zy/len, z2=zz/len;
+      const xx = up[1]*z2-up[2]*z1, xy = up[2]*z0-up[0]*z2, xz = up[0]*z1-up[1]*z0;
+      len = Math.sqrt(xx*xx+xy*xy+xz*xz);
+      const x0=xx/len, x1=xy/len, x2=xz/len;
+      const y0=z1*x2-z2*x1, y1=z2*x0-z0*x2, y2=z0*x1-z1*x0;
+      return new Float32Array([
+        x0, y0, z0, 0,
+        x1, y1, z1, 0,
+        x2, y2, z2, 0,
+        -(x0*eye[0]+x1*eye[1]+x2*eye[2]),
+        -(y0*eye[0]+y1*eye[1]+y2*eye[2]),
+        -(z0*eye[0]+z1*eye[1]+z2*eye[2]),
+        1
+      ]);
+    }
+
+    function mat4Multiply(a, b) {
+      const out = new Float32Array(16);
+      for (let c = 0; c < 4; c++) {
+        for (let r = 0; r < 4; r++) {
+          out[c*4+r] = a[r]*b[c*4] + a[4+r]*b[c*4+1] + a[8+r]*b[c*4+2] + a[12+r]*b[c*4+3];
+        }
+      }
+      return out;
+    }
+
+    function mat4Translate(m, tx, ty, tz) {
+      const out = new Float32Array(m);
+      out[12] += m[0]*tx + m[4]*ty + m[8]*tz;
+      out[13] += m[1]*tx + m[5]*ty + m[9]*tz;
+      out[14] += m[2]*tx + m[6]*ty + m[10]*tz;
+      out[15] += m[3]*tx + m[7]*ty + m[11]*tz;
+      return out;
+    }
+
+    function mat4RotateX(m, angle) {
+      const c=Math.cos(angle), s=Math.sin(angle);
+      const rot = new Float32Array([1,0,0,0, 0,c,s,0, 0,-s,c,0, 0,0,0,1]);
+      return mat4Multiply(m, rot);
+    }
+
+    function mat4RotateY(m, angle) {
+      const c=Math.cos(angle), s=Math.sin(angle);
+      const rot = new Float32Array([c,0,-s,0, 0,1,0,0, s,0,c,0, 0,0,0,1]);
+      return mat4Multiply(m, rot);
+    }
+
+    // ===========================================================================
+    // Camera
+    // ===========================================================================
+
+    function getCameraPosition() {
+      const [cx, cy, cz] = state.center;
+      return [
+        cx + state.distance * Math.cos(state.rotationX) * Math.sin(state.rotationY),
+        cy + state.distance * Math.sin(state.rotationX),
+        cz + state.distance * Math.cos(state.rotationX) * Math.cos(state.rotationY),
+      ];
+    }
+
+    function getMVP() {
+      const aspect = canvas.width / canvas.height;
+      const proj = mat4Perspective(Math.PI / 4, aspect, 0.1, 10000);
+      const eye = getCameraPosition();
+      const view = mat4LookAt(eye, state.center, [0, 1, 0]);
+      let mv = mat4Translate(mat4Identity(), state.panX, state.panY, 0);
+      mv = mat4Multiply(view, mv);
+      return mat4Multiply(proj, mv);
+    }
+
+    // ===========================================================================
+    // Color computation
+    // ===========================================================================
+
+    function computeColors(mode) {
+      const n = state.numPoints;
+      if (!state.positions || n === 0) return new Float32Array(0);
+      const pos = state.positions;
+      const result = new Float32Array(n * 3);
+
+      if (mode === 'original' && state.colors) {
+        for (let i = 0; i < n * 3; i++) result[i] = state.colors[i] / 255;
+        return result;
+      }
+
+      const b = state.bounds;
+      const rangeX = b.maxX - b.minX || 1;
+      const rangeY = b.maxY - b.minY || 1;
+      const rangeZ = b.maxZ - b.minZ || 1;
+
+      for (let i = 0; i < n; i++) {
+        const x = pos[i*3], y = pos[i*3+1], z = pos[i*3+2];
+
+        if (mode === 'height') {
+          const t = (z - b.minZ) / rangeZ;
+          // Blue → Cyan → Green → Yellow → Red → White
+          const r = Math.min(1, Math.max(0, t < 0.5 ? 0 : t < 0.75 ? (t-0.5)*4 : 1));
+          const g = Math.min(1, Math.max(0, t < 0.25 ? t*4 : t < 0.75 ? 1 : 1-(t-0.75)*4));
+          const b_ = Math.min(1, Math.max(0, t < 0.25 ? 1 : t < 0.5 ? 1-(t-0.25)*4 : 0));
+          result[i*3] = r; result[i*3+1] = g; result[i*3+2] = b_;
+        } else if (mode === 'classification' && state.classifications) {
+          const cls = state.classifications[i];
+          // ASPRS standard colors
+          const clsColors = {
+            0:[1,1,1], 1:[0.55,0.35,0.17], 2:[0.13,0.55,0.13],
+            3:[0.75,0.75,0], 4:[1,0,0], 5:[1,0.65,0], 6:[0.55,0.27,0.08],
+            7:[0,0,0.5], 9:[0,0,1], 255:[0.5,0.5,0.5],
+          };
+          const c = clsColors[cls] || [0.5, 0.5, 0.5];
+          result[i*3]=c[0]; result[i*3+1]=c[1]; result[i*3+2]=c[2];
+        } else if (mode === 'heatmap') {
+          // Simple position-based density coloring
+          const nx = (x - b.minX) / rangeX;
+          const ny = (y - b.minY) / rangeY;
+          const t = (nx + ny) / 2;
+          const r = Math.min(1, Math.max(0, t * 2));
+          const b_ = Math.min(1, Math.max(0, 1 - t * 2));
+          result[i*3] = r; result[i*3+1] = 0.1; result[i*3+2] = b_;
+        } else {
+          // Fallback: white
+          result[i*3] = 0.8; result[i*3+1] = 0.8; result[i*3+2] = 0.8;
+        }
+      }
+      return result;
+    }
+
+    // ===========================================================================
+    // WebGL upload and render
+    // ===========================================================================
+
+    function uploadData() {
+      if (!state.positions) return;
+
+      const colors = computeColors(state.colorMode);
+
+      gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, state.positions, gl.STATIC_DRAW);
+
+      gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, colors, gl.STATIC_DRAW);
+    }
+
+    function render() {
+      if (!state.positions || state.numPoints === 0) {
+        requestAnimationFrame(render);
+        return;
+      }
+
+      // FPS counter
+      state.frameCount++;
+      const now = performance.now();
+      if (now - state.lastFpsTime > 1000) {
+        document.getElementById('fpsCounter').textContent = state.frameCount + ' FPS';
+        state.frameCount = 0;
+        state.lastFpsTime = now;
+      }
+
+      // Resize canvas
+      const rect = canvas.parentElement.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      if (canvas.width !== rect.width * dpr || canvas.height !== rect.height * dpr) {
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+      }
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      gl.clearColor(0.02, 0.04, 0.06, 1.0);
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+      gl.enable(gl.DEPTH_TEST);
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+      gl.useProgram(program);
+
+      // MVP
+      const mvp = getMVP();
+      gl.uniformMatrix4fv(loc.mvp, false, mvp);
+      gl.uniform1f(loc.pointSize, state.basePointSize);
+
+      const camPos = getCameraPosition();
+      gl.uniform3fv(loc.cameraPos, camPos);
+
+      // Bind position buffer
+      gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
+      gl.enableVertexAttribArray(loc.position);
+      gl.vertexAttribPointer(loc.position, 3, gl.FLOAT, false, 0, 0);
+
+      // Bind color buffer
+      gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+      gl.enableVertexAttribArray(loc.color);
+      gl.vertexAttribPointer(loc.color, 3, gl.FLOAT, false, 0, 0);
+
+      gl.drawArrays(gl.POINTS, 0, state.numPoints);
+
+      requestAnimationFrame(render);
+    }
+
+    // ===========================================================================
+    // Point cloud loading (WASM + fallback JS)
+    // ===========================================================================
+
+    async function loadPointCloud(file) {
+      showOverlay('Loading ' + file.name + '...');
+      showProgress(0);
+
+      try {
+        let positions, colors, classifications;
+
+        if (typeof wasmSpatialCore !== 'undefined') {
+          // Use WASM module
+          const bytes = new Uint8Array(await file.arrayBuffer());
+          showProgress(20);
+
+          const cloud = wasmSpatialCore.parsePointCloudAuto(bytes);
+          if (!cloud) throw new Error('Failed to parse: unsupported format');
+          showProgress(60);
+
+          positions = cloud.positions();
+          colors = cloud.colors();
+          const stats = JSON.parse(wasmSpatialCore.pointCloudStats(cloud.positions()));
+          showProgress(80);
+
+          classifications = null; // Would need to extract from LAS point records
+        } else {
+          // Fallback: JS-based parsing for demo/testing
+          console.warn('WASM module not loaded, using JS fallback');
+          const bytes = new Uint8Array(await file.arrayBuffer());
+          const parsed = parsePointCloudJS(bytes);
+          positions = parsed.positions;
+          colors = parsed.colors;
+          classifications = parsed.classifications;
+        }
+
+        // Center the point cloud
+        let minX=Infinity, minY=Infinity, minZ=Infinity;
+        let maxX=-Infinity, maxY=-Infinity, maxZ=-Infinity;
+        for (let i = 0; i < positions.length; i += 3) {
+          minX=Math.min(minX,positions[i]); minY=Math.min(minY,positions[i+1]); minZ=Math.min(minZ,positions[i+2]);
+          maxX=Math.max(maxX,positions[i]); maxY=Math.max(maxY,positions[i+1]); maxZ=Math.max(maxZ,positions[i+2]);
+        }
+
+        // Center to origin
+        const cx = (minX+maxX)/2, cy = (minY+maxY)/2, cz = (minZ+maxZ)/2;
+        for (let i = 0; i < positions.length; i += 3) {
+          positions[i] -= cx; positions[i+1] -= cy; positions[i+2] -= cz;
+        }
+
+        state.positions = positions;
+        state.colors = colors;
+        state.classifications = classifications;
+        state.numPoints = positions.length / 3;
+        state.bounds = { minX: minX-cx, minY: minY-cy, minZ: minZ-cz, maxX: maxX-cx, maxY: maxY-cy, maxZ: maxZ-cz };
+        state.center = [0, 0, 0];
+
+        // Set camera distance based on bounds
+        const size = Math.max(maxX-minX, maxY-minY, maxZ-minZ);
+        state.distance = size * 1.8;
+        state.rotationX = -0.4;
+        state.rotationY = 0.6;
+        state.panX = 0; state.panY = 0;
+
+        uploadData();
+        showProgress(100);
+
+        // Update UI
+        document.getElementById('infoPanel').style.display = '';
+        document.getElementById('statPoints').textContent = state.numPoints.toLocaleString();
+        document.getElementById('statSize').textContent = formatBytes(file.size);
+        document.getElementById('statBoundsX').textContent = `${state.bounds.minX.toFixed(1)} → ${state.bounds.maxX.toFixed(1)}`;
+        document.getElementById('statBoundsY').textContent = `${state.bounds.minY.toFixed(1)} → ${state.bounds.maxY.toFixed(1)}`;
+        document.getElementById('statBoundsZ').textContent = `${state.bounds.minZ.toFixed(1)} → ${state.bounds.maxZ.toFixed(1)}`;
+        document.getElementById('statRendered').textContent = state.numPoints.toLocaleString() + ' points';
+
+        hideOverlay();
+      } catch (err) {
+        document.getElementById('overlayText').textContent = 'Error: ' + err.message;
+        console.error(err);
+      }
+    }
+
+    // ===========================================================================
+    // JS fallback parser (minimal LAS support for demo without WASM)
+    // ===========================================================================
+
+    function parsePointCloudJS(bytes) {
+      // Check LAS magic
+      if (bytes.length >= 4 && String.fromCharCode(...bytes.subarray(0,4)) === 'LASF') {
+        return parseLASJS(bytes);
+      }
+      // PLY ASCII
+      const text = new TextDecoder().decode(bytes.subarray(0, Math.min(200, bytes.length)));
+      if (text.startsWith('ply')) return parsePLYJS(text, bytes);
+
+      // Fallback: try as XYZ text
+      return parseXYZJS(text);
+    }
+
+    function parseLASJS(bytes) {
+      const numPoints = new DataView(bytes.buffer, bytes.byteOffset).getUint32(107, true);
+      const pointOffset = new DataView(bytes.buffer, bytes.byteOffset).getUint32(96, true);
+      const pointFormat = bytes[104];
+      const recordLen = new DataView(bytes.buffer, bytes.byteOffset).getUint16(105, true);
+      const hasColor = pointFormat === 2 || pointFormat === 3;
+
+      const xScale = new DataView(bytes.buffer, bytes.byteOffset).getFloat64(131, true);
+      const yScale = new DataView(bytes.buffer, bytes.byteOffset).getFloat64(139, true);
+      const zScale = new DataView(bytes.buffer, bytes.byteOffset).getFloat64(147, true);
+      const xOffset = new DataView(bytes.buffer, bytes.byteOffset).getFloat64(155, true);
+      const yOffset = new DataView(bytes.buffer, bytes.byteOffset).getFloat64(163, true);
+      const zOffset = new DataView(bytes.buffer, bytes.byteOffset).getFloat64(171, true);
+
+      const positions = new Float32Array(numPoints * 3);
+      const colors = hasColor ? new Uint8Array(numPoints * 3) : null;
+
+      for (let i = 0; i < numPoints; i++) {
+        const base = pointOffset + i * recordLen;
+        if (base + 12 > bytes.length) break;
+        const dv = new DataView(bytes.buffer, bytes.byteOffset + base);
+        positions[i*3]   = dv.getInt32(0, true) * xScale + xOffset;
+        positions[i*3+1] = dv.getInt32(4, true) * yScale + yOffset;
+        positions[i*3+2] = dv.getInt32(8, true) * zScale + zOffset;
+        if (hasColor && base + 22 <= bytes.length) {
+          colors[i*3]   = dv.getUint8(20);
+          colors[i*3+1] = dv.getUint8(21);
+          colors[i*3+2] = dv.getUint8(22);
+        }
+      }
+      return { positions, colors, classifications: null };
+    }
+
+    function parsePLYJS(headerText, bytes) {
+      const lines = headerText.split('\n');
+      let numVerts = 0, hasColor = false, headerEnd = 0;
+      let isBinary = false;
+
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].startsWith('element vertex')) numVerts = parseInt(lines[i].split(' ')[2]);
+        if (lines[i].includes('red') || lines[i].includes('diffuse_red')) hasColor = true;
+        if (lines[i].startsWith('format binary')) isBinary = true;
+        if (lines[i] === 'end_header') { headerEnd = lines.slice(0, i+1).join('\n').length + 1; break; }
+      }
+
+      const positions = new Float32Array(numVerts * 3);
+      const colors = hasColor ? new Uint8Array(numVerts * 3) : null;
+
+      if (!isBinary) {
+        // ASCII PLY — find end of header and parse
+        const fullText = new TextDecoder().decode(bytes);
+        const dataLines = fullText.substring(headerEnd).trim().split('\n');
+        for (let i = 0; i < Math.min(numVerts, dataLines.length); i++) {
+          const parts = dataLines[i].trim().split(/\s+/).map(Number);
+          positions[i*3] = parts[0]; positions[i*3+1] = parts[1]; positions[i*3+2] = parts[2];
+          if (hasColor && parts.length >= 6) {
+            colors[i*3] = parts[3]; colors[i*3+1] = parts[4]; colors[i*3+2] = parts[5];
+          }
+        }
+      }
+      return { positions, colors, classifications: null };
+    }
+
+    function parseXYZJS(text) {
+      const lines = text.trim().split('\n');
+      const points = [];
+      for (const line of lines) {
+        const parts = line.trim().split(/[\s,]+/).map(Number);
+        if (parts.length >= 3 && isFinite(parts[0]) && isFinite(parts[1]) && isFinite(parts[2])) {
+          points.push(parts[0], parts[1], parts[2]);
+        }
+      }
+      return { positions: new Float32Array(points), colors: null, classifications: null };
+    }
+
+    // ===========================================================================
+    // Demo point cloud generator
+    // ===========================================================================
+
+    function generateDemoPointCloud() {
+      const n = 50000;
+      const positions = new Float32Array(n * 3);
+      const colors = new Uint8Array(n * 3);
+
+      // Create terrain-like surface with some structures
+      for (let i = 0; i < n; i++) {
+        const x = (Math.random() - 0.5) * 100;
+        const y = (Math.random() - 0.5) * 100;
+        const z = Math.sin(x * 0.1) * Math.cos(y * 0.1) * 10
+                + Math.random() * 2
+                + Math.exp(-(x*x + y*y) / 50) * 20; // central mound
+
+        positions[i*3] = x;
+        positions[i*3+1] = y;
+        positions[i*3+2] = z;
+
+        // Color by height
+        const t = Math.max(0, Math.min(1, (z + 10) / 30));
+        if (t < 0.3) { colors[i*3]=30; colors[i*3+1]=100+Math.floor(t/0.3*155); colors[i*3+2]=30; }
+        else if (t < 0.6) { colors[i*3]=100+Math.floor((t-0.3)/0.3*155); colors[i*3+1]=180; colors[i*3+2]=50; }
+        else { colors[i*3]=200; colors[i*3+1]=200; colors[i*3+2]=220; }
+      }
+
+      // Add some "building" points
+      for (let i = 0; i < 2000; i++) {
+        const idx = n + i;
+        const bx = 15 + Math.random() * 5;
+        const by = -15 + Math.random() * 5;
+        const bz = Math.random() * 25;
+        if (idx * 3 + 2 < positions.length) {
+          positions[idx*3] = bx; positions[idx*3+1] = by; positions[idx*3+2] = bz;
+          colors[idx*3] = 180; colors[idx*3+1] = 180; colors[idx*3+2] = 200;
+        }
+      }
+
+      return { positions, colors, classifications: null };
+    }
+
+    // ===========================================================================
+    // UI helpers
+    // ===========================================================================
+
+    function formatBytes(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1048576) return (bytes/1024).toFixed(1) + ' KB';
+      return (bytes/1048576).toFixed(1) + ' MB';
+    }
+
+    function showOverlay(text) {
+      document.getElementById('overlay').classList.remove('hidden');
+      document.getElementById('overlayText').textContent = text;
+    }
+
+    function hideOverlay() {
+      document.getElementById('overlay').classList.add('hidden');
+      document.getElementById('progressBar').style.display = 'none';
+    }
+
+    function showProgress(pct) {
+      document.getElementById('progressBar').style.display = '';
+      document.getElementById('progressFill').style.width = pct + '%';
+    }
+
+    // ===========================================================================
+    // Event handlers
+    // ===========================================================================
+
+    // File drag & drop
+    const dropZone = document.getElementById('dropZone');
+    dropZone.addEventListener('click', () => document.getElementById('fileInput').click());
+
+    dropZone.addEventListener('dragover', e => {
+      e.preventDefault(); dropZone.classList.add('dragover');
+    });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault(); dropZone.classList.remove('dragover');
+      if (e.dataTransfer.files.length > 0) loadPointCloud(e.dataTransfer.files[0]);
+    });
+
+    document.getElementById('fileInput').addEventListener('change', e => {
+      if (e.target.files.length > 0) loadPointCloud(e.target.files[0]);
+    });
+
+    // Demo button
+    document.getElementById('loadDemo').addEventListener('click', () => {
+      showOverlay('Generating demo point cloud...');
+      showProgress(10);
+
+      setTimeout(() => {
+        const demo = generateDemoPointCloud();
+        showProgress(50);
+
+        state.positions = demo.positions;
+        state.colors = demo.colors;
+        state.classifications = demo.classifications;
+        state.numPoints = demo.positions.length / 3;
+
+        let minX=Infinity, minY=Infinity, minZ=Infinity;
+        let maxX=-Infinity, maxY=-Infinity, maxZ=-Infinity;
+        for (let i = 0; i < demo.positions.length; i += 3) {
+          minX=Math.min(minX,demo.positions[i]); minY=Math.min(minY,demo.positions[i+1]); minZ=Math.min(minZ,demo.positions[i+2]);
+          maxX=Math.max(maxX,demo.positions[i]); maxY=Math.max(maxY,demo.positions[i+1]); maxZ=Math.max(maxZ,demo.positions[i+2]);
+        }
+
+        const cx=(minX+maxX)/2, cy=(minY+maxY)/2, cz=(minZ+maxZ)/2;
+        for (let i = 0; i < demo.positions.length; i += 3) {
+          demo.positions[i] -= cx; demo.positions[i+1] -= cy; demo.positions[i+2] -= cz;
+        }
+
+        state.bounds = { minX: minX-cx, minY: minY-cy, minZ: minZ-cz, maxX: maxX-cx, maxY: maxY-cy, maxZ: maxZ-cz };
+        state.center = [0, 0, 0];
+
+        const size = Math.max(maxX-minX, maxY-minY, maxZ-minZ);
+        state.distance = size * 1.8;
+        state.rotationX = -0.4;
+        state.rotationY = 0.6;
+        state.panX = 0; state.panY = 0;
+
+        uploadData();
+        showProgress(100);
+
+        document.getElementById('infoPanel').style.display = '';
+        document.getElementById('statPoints').textContent = state.numPoints.toLocaleString();
+        document.getElementById('statSize').textContent = '(demo)';
+        document.getElementById('statBoundsX').textContent = `${state.bounds.minX.toFixed(1)} → ${state.bounds.maxX.toFixed(1)}`;
+        document.getElementById('statBoundsY').textContent = `${state.bounds.minY.toFixed(1)} → ${state.bounds.maxY.toFixed(1)}`;
+        document.getElementById('statBoundsZ').textContent = `${state.bounds.minZ.toFixed(1)} → ${state.bounds.maxZ.toFixed(1)}`;
+        document.getElementById('statRendered').textContent = state.numPoints.toLocaleString() + ' points';
+
+        hideOverlay();
+      }, 50);
+    });
+
+    // Color mode buttons
+    document.querySelectorAll('[data-color]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-color]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        state.colorMode = btn.dataset.color;
+        uploadData();
+      });
+    });
+
+    // Point size slider
+    document.getElementById('pointSize').addEventListener('input', e => {
+      state.basePointSize = parseFloat(e.target.value);
+      document.getElementById('pointSizeLabel').textContent = state.basePointSize.toFixed(1);
+    });
+
+    // Mouse interaction
+    canvas.addEventListener('mousedown', e => {
+      if (e.button === 0) state.isDragging = true;
+      else if (e.button === 2) state.isPanning = true;
+      state.lastMouse = [e.clientX, e.clientY];
+      canvas.style.cursor = 'grabbing';
+    });
+
+    canvas.addEventListener('mousemove', e => {
+      if (!state.isDragging && !state.isPanning) return;
+      const dx = e.clientX - state.lastMouse[0];
+      const dy = e.clientY - state.lastMouse[1];
+
+      if (state.isDragging) {
+        state.rotationY -= dx * 0.005;
+        state.rotationX += dy * 0.005;
+        state.rotationX = Math.max(-Math.PI/2 + 0.01, Math.min(Math.PI/2 - 0.01, state.rotationX));
+      } else if (state.isPanning) {
+        state.panX -= dx * 0.5;
+        state.panY += dy * 0.5;
+      }
+      state.lastMouse = [e.clientX, e.clientY];
+    });
+
+    canvas.addEventListener('mouseup', () => {
+      state.isDragging = false; state.isPanning = false;
+      canvas.style.cursor = '';
+    });
+
+    canvas.addEventListener('mouseleave', () => {
+      state.isDragging = false; state.isPanning = false;
+      canvas.style.cursor = '';
+    });
+
+    canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+    canvas.addEventListener('wheel', e => {
+      e.preventDefault();
+      const factor = e.deltaY > 0 ? 1.1 : 0.9;
+      state.distance *= factor;
+      state.distance = Math.max(1, Math.min(10000, state.distance));
+    }, { passive: false });
+
+    canvas.addEventListener('dblclick', () => {
+      state.rotationX = -0.4;
+      state.rotationY = 0.6;
+      state.panX = 0; state.panY = 0;
+      if (state.bounds) {
+        const size = Math.max(
+          state.bounds.maxX - state.bounds.minX,
+          state.bounds.maxY - state.bounds.minY,
+          state.bounds.maxZ - state.bounds.minZ
+        );
+        state.distance = size * 1.8;
+      }
+    });
+
+    // Touch support
+    let lastTouchDist = 0;
+    canvas.addEventListener('touchstart', e => {
+      if (e.touches.length === 1) {
+        state.isDragging = true;
+        state.lastMouse = [e.touches[0].clientX, e.touches[0].clientY];
+      } else if (e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        lastTouchDist = Math.sqrt(dx*dx + dy*dy);
+      }
+    }, { passive: true });
+
+    canvas.addEventListener('touchmove', e => {
+      e.preventDefault();
+      if (e.touches.length === 1 && state.isDragging) {
+        const dx = e.touches[0].clientX - state.lastMouse[0];
+        const dy = e.touches[0].clientY - state.lastMouse[1];
+        state.rotationY -= dx * 0.005;
+        state.rotationX += dy * 0.005;
+        state.rotationX = Math.max(-Math.PI/2 + 0.01, Math.min(Math.PI/2 - 0.01, state.rotationX));
+        state.lastMouse = [e.touches[0].clientX, e.touches[0].clientY];
+      } else if (e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        if (lastTouchDist > 0) {
+          state.distance *= lastTouchDist / dist;
+          state.distance = Math.max(1, Math.min(10000, state.distance));
+        }
+        lastTouchDist = dist;
+      }
+    }, { passive: false });
+
+    canvas.addEventListener('touchend', () => { state.isDragging = false; lastTouchDist = 0; });
+
+    // ===========================================================================
+    // WASM loader (try to load wasm-spatial-core)
+    // ===========================================================================
+
+    (async function tryLoadWasm() {
+      try {
+        const module = await import('https://esm.run/wasm-spatial-core');
+        await module.init();
+        window.wasmSpatialCore = module;
+        console.log('wasm-spatial-core WASM loaded successfully');
+      } catch (e) {
+        console.warn('wasm-spatial-core not available, using JS fallback:', e.message);
+      }
+    })();
+
+    // Start render loop
+    requestAnimationFrame(render);
+  </script>
+</body>
+</html>
