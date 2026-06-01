@@ -29,8 +29,9 @@ jobs:
           targets: wasm32-unknown-unknown
           components: clippy, rustfmt
 
-      - name: Verify MSRV (1.87)
-        run: rustup toolchain install 1.87.0 --target wasm32-unknown-unknown && cargo +1.87.0 build --lib
+      # NOTE: MSRV verification removed — this is an experimental library that
+      # tracks latest stable Rust. Dependencies (e.g. mvt crate) may use newer
+      # language features. Pin MSRV if ever needed for downstream consumers.
 
       - name: Cache cargo registry & build
         uses: actions/cache@v4
@@ -66,7 +67,7 @@ jobs:
         run: wasm-pack build --target nodejs --release --out-dir pkg-node --features point-cloud,geotiff
 
       - name: Run WASM smoke tests (Node.js)
-        run: node tests/wasm_smoke_test.mjs
+        run: WASM_PKG_DIR=pkg-node node tests/wasm_smoke_test.mjs
 
       - name: Upload WASM artifacts
         uses: actions/upload-artifact@v4
@@ -84,6 +85,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    # ── GitHub Pages Setup ──
+    # This job deploys to the `gh-pages` branch via peaceiris/actions-gh-pages.
+    # Make sure your repo Settings → Pages is configured as:
+    #   Source: Deploy from a branch
+    #   Branch: gh-pages / (root)
     steps:
       - uses: actions/checkout@v4
 
