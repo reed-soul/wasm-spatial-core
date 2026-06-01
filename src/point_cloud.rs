@@ -204,12 +204,44 @@ pub fn parse_las_header_core(bytes: &[u8]) -> Result<LasHeader, String> {
     })
 }
 
+/// Upper bound on points we will reserve for in one `parse_las_points_core` call.
+/// Prevents bogus header counts from attempting multi‑GB `Vec` allocations.
+const MAX_LAS_POINTS_RESERVE: usize = 50_000_000;
+
+fn las_points_capacity(
+    bytes_len: usize,
+    point_offset: usize,
+    point_record_len: usize,
+    declared: u32,
+) -> Result<usize, String> {
+    if point_record_len == 0 {
+        return Err("LAS point record length cannot be zero".to_string());
+    }
+    let declared = declared as usize;
+    if declared > MAX_LAS_POINTS_RESERVE {
+        return Err(format!(
+            "LAS point count {} exceeds limit of {}",
+            declared, MAX_LAS_POINTS_RESERVE
+        ));
+    }
+    let available = bytes_len.saturating_sub(point_offset);
+    let max_in_file = available / point_record_len;
+    Ok(declared.min(max_in_file))
+}
+
 pub fn parse_las_points_core(bytes: &[u8]) -> Result<LasPointCloud, String> {
     if bytes.len() < 230 {
         return Err("LAS data too short for point parsing (need at least 230 bytes)".to_string());
     }
 
-    let num_points = read_u32_le(bytes, 107) as usize;
+    if &bytes[0..4] != b"LASF" {
+        return Err(format!(
+            "Invalid LAS magic: expected b\"LASF\", got {:?}",
+            &bytes[0..4]
+        ));
+    }
+
+    let declared_points = read_u32_le(bytes, 107);
     let point_offset = read_u32_le(bytes, 96) as usize;
     let point_format = bytes[104];
     let point_record_len = read_u16_le(bytes, 105) as usize;
@@ -232,6 +264,9 @@ pub fn parse_las_points_core(bytes: &[u8]) -> Result<LasPointCloud, String> {
             point_record_len, point_format, expected_record_len
         ));
     }
+
+    let num_points =
+        las_points_capacity(bytes.len(), point_offset, point_record_len, declared_points)?;
 
     let mut positions: Vec<f32> = Vec::with_capacity(num_points * 3);
     let mut colors: Option<Vec<u8>> = if has_color {
