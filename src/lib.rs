@@ -51,6 +51,9 @@ pub use errors::{SpatialError, SpatialErrorDetail};
 mod point_cloud;
 
 #[cfg(feature = "point-cloud")]
+mod point_cloud_analysis;
+
+#[cfg(feature = "point-cloud")]
 mod point_cloud_stream;
 
 #[cfg(feature = "e57-support")]
@@ -75,6 +78,13 @@ pub use point_cloud::{
     auto_decimate_core, estimate_memory_for_points, parse_las_header_core,
     parse_las_points_chunked, parse_las_points_core, random_decimate_core, read_f64_le,
     read_u16_le, read_u32_le, voxel_grid_decimate_core,
+};
+
+#[cfg(feature = "point-cloud")]
+pub use point_cloud_analysis::{
+    filter_by_bounds, filter_by_classification, merge_point_clouds, point_cloud_analysis,
+    rotate_point_cloud, scale_point_cloud, transform_point_cloud, translate_point_cloud,
+    FilteredResult, PointCloudStats,
 };
 
 #[cfg(feature = "laz-support")]
@@ -453,7 +463,12 @@ mod tests {
     #[test]
     fn test_check_memory_available_no_limit() {
         set_max_wasm_memory(0); // No limit
-        assert!(check_memory_available(usize::MAX)); // Always true with no limit
+                                // When max == 0, the function returns true immediately.
+                                // On native, wasm_memory_total() returns 0.
+        assert!(
+            check_memory_available(1_000_000),
+            "Should return true with no limit"
+        );
     }
 
     #[test]
