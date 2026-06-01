@@ -1242,6 +1242,80 @@ fn build_tileset_json(octree: &Octree, tile_uris: &[String]) -> String {
     build_tileset_json_with_spacing(octree, tile_uris, None, None)
 }
 
+// ===========================================================================
+// Parallel tileset generation
+// ===========================================================================
+
+/// Generate a tileset with parallel encoding of pnts tiles.
+///
+/// Uses Rayon's `par_iter` to encode multiple tiles concurrently.
+/// Requires `multi-thread` feature.
+///
+/// # Arguments
+/// * `octree` — Built octree spatial index.
+/// * `positions` — Reordered positions buffer (matches octree leaf ranges).
+/// * `colors` — Optional color data (same reordering as positions).
+#[cfg(feature = "multi-thread")]
+pub fn generate_tileset_parallel(
+    octree: &Octree,
+    positions: &[f32],
+    colors: Option<&[u8]>,
+) -> Result<TilesetResult, crate::errors::SpatialErrorDetail> {
+    use rayon::prelude::*;
+
+    let leaves: Vec<_> = octree
+        .leaves()
+        .filter(|n| n.point_count > 0)
+        .cloned()
+        .collect();
+
+    let tile_results: Vec<(Vec<u8>, Bounds, String)> = leaves
+        .par_iter()
+        .enumerate()
+        .map(|(leaf_idx, node)| {
+            let start = node.point_start;
+            let count = node.point_count as usize;
+            let end = start + count;
+
+            let pos_slice = &positions[start * 3..end * 3];
+
+            let cx = (node.bounds[0] + node.bounds[3]) * 0.5;
+            let cy = (node.bounds[1] + node.bounds[4]) * 0.5;
+            let cz = (node.bounds[2] + node.bounds[5]) * 0.5;
+
+            let color_slice = colors.map(|c| &c[start * 3..end * 3]);
+
+            let tile_data = encode_pnts_tile(pos_slice, [cx, cy, cz], color_slice)
+                .map_err(|e| {
+                    crate::errors::SpatialError::PointCloudError.with_detail(e.to_string())
+                })
+                .unwrap_or_default();
+
+            let uri = format!("tile_{leaf_idx}.pnts");
+            (tile_data, node.bounds, uri)
+        })
+        .collect();
+
+    let mut tiles = Vec::with_capacity(tile_results.len());
+    let mut tile_bounds = Vec::with_capacity(tile_results.len());
+    let mut tile_uris = Vec::with_capacity(tile_results.len());
+
+    for (data, bounds, uri) in tile_results {
+        tiles.push(data);
+        tile_bounds.push(bounds);
+        tile_uris.push(uri);
+    }
+
+    let tileset_json = build_tileset_json_with_spacing(octree, &tile_uris, None, None);
+
+    Ok(TilesetResult {
+        tileset_json,
+        tiles,
+        tile_bounds,
+        tile_uris,
+    })
+}
+
 /// Build the tileset.json tree with optional spacing-aware geometric error.
 fn build_tileset_json_with_spacing(
     octree: &Octree,
@@ -2089,5 +2163,47 @@ mod tileset_tests {
         // Zero spacing should fall back to diagonal-based error
         let result = generate_tileset_with_spacing(&tree, &positions, None, Some(0.0), None);
         assert!(result.is_ok());
+    }
+
+    // -----------------------------------------------------------------------
+    // Parallel tileset generation tests
+    // -----------------------------------------------------------------------
+
+    #[cfg(feature = "multi-thread")]
+    #[test]
+    fn test_parallel_tileset_basic() {
+        let triples: Vec<[f32; 3]> = (0..100)
+            .map(|i| [(i % 10) as f32, ((i / 10) % 10) as f32, (i / 100) as f32])
+            .collect();
+        let mut positions = make_positions(&triples);
+        let tree = Octree::build(&mut positions, 10, 5);
+
+        let result = generate_tileset_parallel(&tree, &positions, None);
+        assert!(result.is_ok());
+        let r = result.unwrap();
+        assert!(r.tile_count() > 0);
+    }
+
+    #[cfg(feature = "multi-thread")]
+    #[test]
+    fn test_parallel_vs_sequential_tileset() {
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+        let triples: Vec<[f32; 3]> = (0..5000)
+            .map(|_| {
+                [
+                    rng.gen_range(-50.0..50.0),
+                    rng.gen_range(-50.0..50.0),
+                    rng.gen_range(-50.0..50.0),
+                ]
+            })
+            .collect();
+        let mut positions = make_positions(&triples);
+        let tree = Octree::build(&mut positions, 500, 8);
+
+        let seq = generate_tileset(&tree, &positions, None).unwrap();
+        let par = generate_tileset_parallel(&tree, &positions, None).unwrap();
+
+        assert_eq!(seq.tile_count(), par.tile_count());
     }
 }

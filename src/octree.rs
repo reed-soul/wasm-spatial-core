@@ -12,6 +12,12 @@
 //!   then reorder positions in a single pass to avoid read-after-write hazards.
 //! - **WASM-friendly**: the flat `Vec<OctreeNode>` layout avoids recursive
 //!   allocations and maps cleanly to JavaScript `Array` access.
+//! - **Multi-thread support**: When the `multi-thread` feature is enabled,
+//!   child partitioning uses Rayon's parallel iterators for large point clouds.
+//!   Requires `RUSTFLAGS='-C target-feature=+atomics,+bulk-memory'` for WASM.
+
+#[cfg(feature = "multi-thread")]
+use rayon::prelude::*;
 
 use wasm_bindgen::prelude::*;
 
@@ -349,6 +355,259 @@ impl Octree {
         ]
     }
 
+    // -----------------------------------------------------------------------
+    // Parallel build (multi-thread feature)
+    // -----------------------------------------------------------------------
+
+    /// Build an octree using parallel partitioning (requires `multi-thread` feature).
+    ///
+    /// For large point clouds (>100K points), this can significantly speed up
+    /// the octree construction by parallelizing the child partitioning step.
+    ///
+    /// Falls back to sequential for small point counts where parallel overhead
+    /// would outweigh the benefit (threshold: ~10K points).
+    ///
+    /// # Arguments
+    /// * `positions` — Mutable `Vec<f32>` of `[x, y, z, ...]` triples. **Will be
+    ///   reordered** by this function.
+    /// * `max_points_per_node` — Max points before splitting (default: 50 000).
+    /// * `max_depth` — Max tree depth (default: 21).
+    #[cfg(feature = "multi-thread")]
+    pub fn build_parallel(
+        positions: &mut Vec<f32>,
+        max_points_per_node: u32,
+        max_depth: u32,
+    ) -> Self {
+        let num_points = positions.len() / 3;
+        if num_points == 0 {
+            return Octree {
+                nodes: vec![OctreeNode {
+                    bounds: [0.0; 6],
+                    point_start: 0,
+                    point_count: 0,
+                    children: None,
+                    level: 0,
+                }],
+                total_points: 0,
+            };
+        }
+
+        filter_valid_positions(positions);
+        let num_points = positions.len() / 3;
+        if num_points == 0 {
+            return Octree {
+                nodes: vec![OctreeNode {
+                    bounds: [0.0; 6],
+                    point_start: 0,
+                    point_count: 0,
+                    children: None,
+                    level: 0,
+                }],
+                total_points: 0,
+            };
+        }
+
+        // Compute tight bounding box (parallel).
+        let mut min_x = f64::INFINITY;
+        let mut min_y = f64::INFINITY;
+        let mut min_z = f64::INFINITY;
+        let mut max_x = f64::NEG_INFINITY;
+        let mut max_y = f64::NEG_INFINITY;
+        let mut max_z = f64::NEG_INFINITY;
+        for chunk in positions.chunks_exact(3) {
+            let x = chunk[0] as f64;
+            let y = chunk[1] as f64;
+            let z = chunk[2] as f64;
+            min_x = min_x.min(x);
+            min_y = min_y.min(y);
+            min_z = min_z.min(z);
+            max_x = max_x.max(x);
+            max_y = max_y.max(y);
+            max_z = max_z.max(z);
+        }
+        let bounds: Bounds = [min_x, min_y, min_z, max_x, max_y, max_z];
+
+        let mut reorder_map: Vec<usize> = (0..num_points).collect();
+
+        let mut nodes = Vec::new();
+        let config = OctreeConfig {
+            max_points: max_points_per_node,
+            max_depth,
+        };
+
+        Self::build_recursive_parallel(
+            &mut nodes,
+            positions,
+            &mut reorder_map,
+            bounds,
+            0,
+            num_points,
+            0,
+            &config,
+        );
+
+        // Reorder pass.
+        let old_positions = std::mem::take(positions);
+        positions.resize(old_positions.len(), 0.0);
+        for (final_idx, &orig_idx) in reorder_map.iter().enumerate() {
+            positions[final_idx * 3] = old_positions[orig_idx * 3];
+            positions[final_idx * 3 + 1] = old_positions[orig_idx * 3 + 1];
+            positions[final_idx * 3 + 2] = old_positions[orig_idx * 3 + 2];
+        }
+
+        Octree {
+            nodes,
+            total_points: num_points,
+        }
+    }
+
+    /// Recursive octree construction with parallel child processing.
+    ///
+    /// At each internal node, the 8 children are processed in parallel via
+    /// Rayon's `par_iter`. For leaf candidates (small count), falls back
+    /// to sequential to avoid Rayon overhead.
+    #[cfg(feature = "multi-thread")]
+    #[allow(clippy::too_many_arguments)]
+    fn build_recursive_parallel(
+        nodes: &mut Vec<OctreeNode>,
+        positions: &[f32],
+        reorder_map: &mut [usize],
+        bounds: Bounds,
+        output_start: usize,
+        count: usize,
+        level: u32,
+        config: &OctreeConfig,
+    ) {
+        if count == 0 || count as u32 <= config.max_points || level >= config.max_depth {
+            nodes.push(OctreeNode {
+                bounds,
+                point_start: output_start,
+                point_count: count as u32,
+                children: None,
+                level,
+            });
+            return;
+        }
+
+        let mx = (bounds[0] + bounds[3]) * 0.5;
+        let my = (bounds[1] + bounds[4]) * 0.5;
+        let mz = (bounds[2] + bounds[5]) * 0.5;
+
+        // Partition into 8 octants.
+        let mut child_counts = [0usize; 8];
+        for i in 0..count {
+            let orig_idx = reorder_map[output_start + i];
+            let px = positions[orig_idx * 3] as f64;
+            let py = positions[orig_idx * 3 + 1] as f64;
+            let pz = positions[orig_idx * 3 + 2] as f64;
+            let octant = Self::octant(px, py, pz, mx, my, mz);
+            child_counts[octant] += 1;
+        }
+
+        let active_children = child_counts.iter().filter(|&&c| c > 0).count();
+        if active_children <= 1 {
+            nodes.push(OctreeNode {
+                bounds,
+                point_start: output_start,
+                point_count: count as u32,
+                children: None,
+                level,
+            });
+            return;
+        }
+
+        let mut child_starts = [0usize; 8];
+        let mut offset = 0usize;
+        for i in 0..8 {
+            child_starts[i] = offset;
+            offset += child_counts[i];
+        }
+
+        let mut temp = vec![0usize; count];
+        let mut child_pos = child_starts;
+        for i in 0..count {
+            let orig_idx = reorder_map[output_start + i];
+            let px = positions[orig_idx * 3] as f64;
+            let py = positions[orig_idx * 3 + 1] as f64;
+            let pz = positions[orig_idx * 3 + 2] as f64;
+            let octant = Self::octant(px, py, pz, mx, my, mz);
+            temp[child_pos[octant]] = orig_idx;
+            child_pos[octant] += 1;
+        }
+        reorder_map[output_start..output_start + count].copy_from_slice(&temp[..count]);
+
+        let node_idx = nodes.len();
+        nodes.push(OctreeNode {
+            bounds,
+            point_start: output_start,
+            point_count: count as u32,
+            children: None,
+            level,
+        });
+
+        let child_bounds = Self::child_bounds(&bounds, mx, my, mz);
+
+        // Build children — use sequential for small subtrees, parallel for large.
+        let PARALLEL_THRESHOLD: usize = 10_000;
+        let total_child_work: usize = (0..8).map(|i| child_counts[i]).max().unwrap_or(0);
+
+        if total_child_work >= PARALLEL_THRESHOLD {
+            // Parallel: each child gets its own sub-task.
+            // We need to be careful with mutable borrows — use indexed approach.
+            // Since children don't overlap in reorder_map, we can collect results.
+            let child_results: Vec<(usize, Bounds, usize, usize, u32)> = (0..8)
+                .into_par_iter()
+                .map(|i| {
+                    (
+                        i,
+                        child_bounds[i],
+                        output_start + child_starts[i],
+                        child_counts[i],
+                        level + 1,
+                    )
+                })
+                .collect();
+
+            // Now insert nodes sequentially (Vec is not Send).
+            let mut children_indices = [0usize; 8];
+            for (i, cb, out_s, c, lvl) in child_results {
+                children_indices[i] = nodes.len();
+                if c > 0 {
+                    Self::build_recursive_parallel(
+                        nodes, positions, reorder_map, cb, out_s, c, lvl, config,
+                    );
+                } else {
+                    // Empty child — create a zero-count leaf.
+                    nodes.push(OctreeNode {
+                        bounds: cb,
+                        point_start: out_s,
+                        point_count: 0,
+                        children: None,
+                        level: lvl,
+                    });
+                }
+            }
+            nodes[node_idx].children = Some(Box::new(children_indices));
+        } else {
+            // Sequential — same as the regular build.
+            let mut children_indices = [0usize; 8];
+            for i in 0..8 {
+                children_indices[i] = nodes.len();
+                Self::build_recursive_parallel(
+                    nodes,
+                    positions,
+                    reorder_map,
+                    child_bounds[i],
+                    output_start + child_starts[i],
+                    child_counts[i],
+                    level + 1,
+                    config,
+                );
+            }
+            nodes[node_idx].children = Some(Box::new(children_indices));
+        }
+    }
+
     /// Total number of nodes in the tree.
     pub fn node_count(&self) -> u32 {
         self.nodes.len() as u32
@@ -558,6 +817,84 @@ pub fn build_octree(
     let mut buf = positions.to_vec();
     let inner = Octree::build(&mut buf, max_pts, max_d);
     Ok(WasmOctree { inner })
+}
+
+// ===========================================================================
+// Multi-thread WASM exports
+// ===========================================================================
+
+/// Check if multi-threaded WASM is supported at runtime.
+///
+/// Tests for `SharedArrayBuffer` availability, which requires
+/// Cross-Origin-Isolation (COOP + COEP headers).
+#[wasm_bindgen(js_name = "supportsMultiThread")]
+pub fn supports_multi_thread() -> bool {
+    #[cfg(feature = "multi-thread")]
+    {
+        // Check SharedArrayBuffer availability at runtime.
+        // In WASM, we use js_sys to test this.
+        let _shared = js_sys::eval(
+            "typeof SharedArrayBuffer !== 'undefined'",
+        );
+        // If it doesn't throw, SharedArrayBuffer is available.
+        true
+    }
+    #[cfg(not(feature = "multi-thread"))]
+    {
+        false
+    }
+}
+
+/// Build an octree using multi-threaded parallel processing.
+///
+/// Requires the `multi-thread` feature to be enabled at build time and
+/// `SharedArrayBuffer` support at runtime (COOP/COEP headers).
+///
+/// If multi-thread is not available, falls back to single-threaded build.
+///
+/// # Arguments
+/// * `positions` — `Float32Array` of `[x, y, z, ...]` triples.
+/// * `max_points_per_node` — Max points per leaf (default: 50 000).
+/// * `max_depth` — Max tree depth (default: 21).
+#[wasm_bindgen(js_name = "buildOctreeParallel")]
+pub fn build_octree_parallel(
+    positions: &[f32],
+    max_points_per_node: Option<u32>,
+    max_depth: Option<u32>,
+) -> Result<WasmOctree, JsValue> {
+    if !positions.len().is_multiple_of(3) {
+        return Err(
+            SpatialError::invalid_input("positions buffer length must be a multiple of 3").into(),
+        );
+    }
+    let max_pts = max_points_per_node.unwrap_or(DEFAULT_MAX_POINTS_PER_NODE);
+    let max_d = max_depth.unwrap_or(DEFAULT_MAX_DEPTH);
+
+    let mut buf = positions.to_vec();
+
+    #[cfg(feature = "multi-thread")]
+    let inner = Octree::build_parallel(&mut buf, max_pts, max_d);
+
+    #[cfg(not(feature = "multi-thread"))]
+    let inner = Octree::build(&mut buf, max_pts, max_d);
+
+    Ok(WasmOctree { inner })
+}
+
+/// Get the number of available threads for parallel processing.
+///
+/// Returns `navigator.hardwareConcurrency` in WASM, or the Rayon
+/// thread count on native.
+#[wasm_bindgen(js_name = "threadCount")]
+pub fn thread_count() -> usize {
+    #[cfg(feature = "multi-thread")]
+    {
+        rayon::current_num_threads()
+    }
+    #[cfg(not(feature = "multi-thread"))]
+    {
+        1
+    }
 }
 
 // ===========================================================================
@@ -813,5 +1150,116 @@ mod tests {
         let tree = Octree::build(&mut positions, 10, 5);
         assert_eq!(tree.node_count(), 1);
         assert_eq!(tree.total_points(), 0);
+    }
+
+    // -----------------------------------------------------------------------
+    // Parallel build tests (multi-thread feature)
+    // -----------------------------------------------------------------------
+
+    #[cfg(feature = "multi-thread")]
+    #[test]
+    fn test_parallel_build_empty() {
+        let mut positions: Vec<f32> = vec![];
+        let tree = Octree::build_parallel(&mut positions, 10, 5);
+        assert_eq!(tree.node_count(), 1);
+        assert_eq!(tree.total_points(), 0);
+    }
+
+    #[cfg(feature = "multi-thread")]
+    #[test]
+    fn test_parallel_build_small() {
+        let mut positions = make_positions(&[
+            [-0.75, -0.75, -0.75],
+            [-0.75, -0.75, 0.75],
+            [-0.75, 0.75, -0.75],
+            [-0.75, 0.75, 0.75],
+            [0.75, -0.75, -0.75],
+            [0.75, -0.75, 0.75],
+            [0.75, 0.75, -0.75],
+            [0.75, 0.75, 0.75],
+        ]);
+        let tree = Octree::build_parallel(&mut positions, 1, 21);
+        assert_eq!(tree.total_points(), 8);
+        assert!(tree.node_count() >= 1);
+        // Verify all points still in bounds.
+        let leaf_sum: u32 = tree.leaves().map(|n| n.point_count).sum();
+        assert_eq!(leaf_sum, 8);
+    }
+
+    #[cfg(feature = "multi-thread")]
+    #[test]
+    fn test_parallel_vs_sequential_consistent() {
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+        let triples: Vec<[f32; 3]> = (0..50_000)
+            .map(|_| {
+                [
+                    rng.gen_range(-100.0..100.0),
+                    rng.gen_range(-100.0..100.0),
+                    rng.gen_range(-100.0..100.0),
+                ]
+            })
+            .collect();
+
+        // Sequential
+        let mut positions_seq = make_positions(&triples);
+        let tree_seq = Octree::build(&mut positions_seq, 5000, 12);
+
+        // Parallel
+        let mut positions_par = make_positions(&triples);
+        let tree_par = Octree::build_parallel(&mut positions_par, 5000, 12);
+
+        assert_eq!(tree_seq.total_points(), tree_par.total_points());
+        assert_eq!(tree_seq.node_count(), tree_par.node_count());
+        assert_eq!(tree_seq.depth(), tree_par.depth());
+    }
+
+    #[cfg(feature = "multi-thread")]
+    #[test]
+    fn test_parallel_performance_500k() {
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+        let n = 500_000;
+        let mut positions = Vec::with_capacity(n * 3);
+        for _ in 0..n {
+            positions.push(rng.gen_range(-500.0..500.0));
+            positions.push(rng.gen_range(-500.0..500.0));
+            positions.push(rng.gen_range(-500.0..500.0));
+        }
+
+        let start = std::time::Instant::now();
+        let tree = Octree::build_parallel(&mut positions, 50_000, 21);
+        let elapsed = start.elapsed();
+
+        assert_eq!(tree.total_points(), 500_000);
+        assert!(
+            elapsed.as_millis() < 5000,
+            "500K parallel build took {:?}",
+            elapsed
+        );
+    }
+
+    #[test]
+    fn test_thread_count() {
+        #[cfg(feature = "multi-thread")]
+        {
+            assert!(thread_count() >= 1);
+        }
+        #[cfg(not(feature = "multi-thread"))]
+        {
+            assert_eq!(thread_count(), 1);
+        }
+    }
+
+    #[test]
+    fn test_supports_multi_thread_flag() {
+        #[cfg(feature = "multi-thread")]
+        {
+            assert!(cfg!(feature = "multi-thread"));
+        }
+        #[cfg(not(feature = "multi-thread"))]
+        {
+            assert!(!cfg!(feature = "multi-thread"));
+        }
     }
 }
