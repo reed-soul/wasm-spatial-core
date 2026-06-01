@@ -49,7 +49,9 @@ jobs:
         run: cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Run unit tests (all features)
-        run: cargo test --all-features --verbose
+        run: cargo test --all-features --verbose -- --test-threads=2
+        env:
+          RAYON_NUM_THREADS: 1
 
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
