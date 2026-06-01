@@ -548,10 +548,10 @@ impl Octree {
         let child_bounds = Self::child_bounds(&bounds, mx, my, mz);
 
         // Build children — use sequential for small subtrees, parallel for large.
-        let PARALLEL_THRESHOLD: usize = 10_000;
+        let parallel_threshold: usize = 10_000;
         let total_child_work: usize = (0..8).map(|i| child_counts[i]).max().unwrap_or(0);
 
-        if total_child_work >= PARALLEL_THRESHOLD {
+        if total_child_work >= parallel_threshold {
             // Parallel: each child gets its own sub-task.
             // We need to be careful with mutable borrows — use indexed approach.
             // Since children don't overlap in reorder_map, we can collect results.

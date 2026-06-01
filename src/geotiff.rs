@@ -1870,6 +1870,7 @@ pub fn apply_color_ramp_core(heights: &[f32], min_z: f64, max_z: f64, ramp: Colo
 /// Uses Rayon's `par_iter` to process height values in parallel.
 /// Requires `multi-thread` feature.
 #[cfg(feature = "multi-thread")]
+#[allow(dead_code)]
 pub fn apply_color_ramp_parallel(
     heights: &[f32],
     min_z: f64,
