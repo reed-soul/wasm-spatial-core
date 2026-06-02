@@ -58,13 +58,12 @@ fn build_laz(n: usize) -> Vec<u8> {
     buf[25] = 2;
     buf[94..96].copy_from_slice(&(hs as u16).to_le_bytes());
     buf[96..100].copy_from_slice(&po.to_le_bytes());
-    buf[100..104].copy_from_slice(&1u32.to_le_bytes());
+    buf[100..104].copy_from_slice(&(n as u32).to_le_bytes());
     buf[104] = 0x80;
     buf[105..107].copy_from_slice(&ps.to_le_bytes());
-    buf[107..111].copy_from_slice(&(n as u32).to_le_bytes());
-    buf[134..142].copy_from_slice(&1.0f64.to_le_bytes());
-    buf[142..150].copy_from_slice(&1.0f64.to_le_bytes());
-    buf[150..158].copy_from_slice(&1.0f64.to_le_bytes());
+    buf[131..139].copy_from_slice(&1.0f64.to_le_bytes());
+    buf[139..147].copy_from_slice(&1.0f64.to_le_bytes());
+    buf[147..155].copy_from_slice(&1.0f64.to_le_bytes());
     buf.resize(buf.len() + vt, 0);
     let vs = hs as usize;
     let mut uid = [0u8; 16];

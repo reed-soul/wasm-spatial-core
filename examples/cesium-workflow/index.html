@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>wasm-spatial-core — Complete Cesium Workflow</title>
+  <title>wasm-spatial-core — WASM-Powered Cesium Workflow</title>
   <script src="https://cesium.com/downloads/cesiumjs/releases/1.119/Build/Cesium/Cesium.js"></script>
   <link href="https://cesium.com/downloads/cesiumjs/releases/1.119/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -30,7 +30,7 @@
     }
     .main { display: flex; flex: 1; overflow: hidden; }
     .sidebar {
-      width: 320px; border-right: 1px solid var(--border);
+      width: 340px; border-right: 1px solid var(--border);
       overflow-y: auto; padding: 12px; display: flex;
       flex-direction: column; gap: 10px; flex-shrink: 0;
       z-index: 100;
@@ -71,9 +71,7 @@
     .btn-primary { background: var(--accent); color: #000; border-color: var(--accent); }
     .btn-primary:hover { background: #79c0ff; }
     .btn-row { display: flex; gap: 6px; flex-wrap: wrap; }
-    .pipeline-steps {
-      display: flex; flex-direction: column; gap: 6px;
-    }
+    .pipeline-steps { display: flex; flex-direction: column; gap: 6px; }
     .step {
       display: flex; align-items: center; gap: 8px;
       font-size: 0.75rem; padding: 6px 8px;
@@ -91,8 +89,16 @@
       border-radius: 4px; font-size: 0.7rem; font-weight: 600;
       background: var(--accent); color: #000;
     }
+    .progress-wrap {
+      width: 100%; height: 4px; background: rgba(255,255,255,0.1);
+      border-radius: 2px; margin-top: 8px; overflow: hidden;
+    }
+    .progress-bar {
+      height: 100%; background: var(--accent); border-radius: 2px;
+      transition: width 0.15s ease; width: 0%;
+    }
     .log-area {
-      max-height: 150px; overflow-y: auto;
+      max-height: 200px; overflow-y: auto;
       font-family: monospace; font-size: 0.65rem;
       background: rgba(0,0,0,0.3); border-radius: 4px;
       padding: 8px; margin-top: 8px;
@@ -103,15 +109,24 @@
     .log-area .err { color: var(--red); }
     .hidden { display: none !important; }
 
-    /* Cesium credit container fix */
+    /* Wasm status */
+    .wasm-status {
+      font-size: 0.65rem; padding: 2px 6px;
+      border-radius: 4px; display: inline-flex; align-items: center; gap: 4px;
+    }
+    .wasm-status.loading { background: rgba(210,153,34,0.2); color: var(--orange); }
+    .wasm-status.ready { background: rgba(63,185,80,0.2); color: var(--green); }
+    .wasm-status.error { background: rgba(248,81,73,0.2); color: var(--red); }
+
     .cesium-viewer-bottom { display: none !important; }
   </style>
 </head>
 <body>
   <header>
-    <h1>🌍 Cesium Workflow — Drag → 3D Tiles</h1>
+    <h1>🌍 WASM Cesium Workflow — Drag → 3D Tiles</h1>
+    <span id="wasmBadge" class="wasm-status loading">⚡ WASM loading…</span>
     <span style="color:var(--muted);font-size:0.75rem">
-      WASM → Octree → 3D Tiles → Cesium · Zero server · Zero token
+      wasm-spatial-core · Zero server · Zero token
     </span>
   </header>
   <div class="main">
@@ -121,10 +136,10 @@
         <div class="panel-title">📂 Upload</div>
         <div class="drop-zone" id="dropZone">
           <div class="icon">🗺️</div>
-          <p>Drop spatial file here</p>
-          <p style="font-size:0.65rem">LAS · LAZ · PLY · OBJ · GeoTIFF</p>
+          <p>Drop a LAS/LAZ file here</p>
+          <p style="font-size:0.65rem">WASM-accelerated parsing → Octree → 3D Tiles</p>
         </div>
-        <input type="file" id="fileInput" accept=".las,.laz,.ply,.obj,.tif,.tiff,.glb,.gltf" style="display:none">
+        <input type="file" id="fileInput" accept=".las,.laz" style="display:none">
       </div>
 
       <!-- Format Detection -->
@@ -138,25 +153,41 @@
           <span class="stat-label">File size</span>
           <span class="stat-value" id="fmtSize">-</span>
         </div>
+        <div class="stat-row">
+          <span class="stat-label">Points</span>
+          <span class="stat-value" id="fmtPoints">-</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Version</span>
+          <span class="stat-value" id="fmtVersion">-</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Bounds</span>
+          <span class="stat-value" id="fmtBounds" style="font-size:0.6rem">-</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Has color</span>
+          <span class="stat-value" id="fmtColor">-</span>
+        </div>
       </div>
 
       <!-- Pipeline Progress -->
       <div class="panel hidden" id="pipelinePanel">
-        <div class="panel-title">⚙️ Processing Pipeline</div>
+        <div class="panel-title">⚙️ WASM Processing Pipeline</div>
         <div class="pipeline-steps">
           <div class="step" id="stepParse">
             <span class="icon">📥</span>
-            <span class="label">Parse Input</span>
+            <span class="label">Parse (WASM)</span>
             <span class="status" id="stepParseStatus">-</span>
           </div>
           <div class="step" id="stepOctree">
             <span class="icon">🌳</span>
-            <span class="label">Build Octree</span>
+            <span class="label">Build Octree (WASM)</span>
             <span class="status" id="stepOctreeStatus">-</span>
           </div>
           <div class="step" id="stepEncode">
             <span class="icon">📦</span>
-            <span class="label">Encode 3D Tiles</span>
+            <span class="label">Generate 3D Tiles (WASM)</span>
             <span class="status" id="stepEncodeStatus">-</span>
           </div>
           <div class="step" id="stepLoad">
@@ -165,16 +196,21 @@
             <span class="status" id="stepLoadStatus">-</span>
           </div>
         </div>
+        <div class="progress-wrap hidden" id="progressWrap">
+          <div class="progress-bar" id="progressBar"></div>
+        </div>
       </div>
 
       <!-- Results -->
       <div class="panel hidden" id="resultPanel">
         <div class="panel-title">📊 Results</div>
         <div class="stat-row"><span class="stat-label">Points</span><span class="stat-value" id="resPoints">-</span></div>
-        <div class="stat-row"><span class="stat-label">Tiles</span><span class="stat-value" id="resTiles">-</span></div>
-        <div class="stat-row"><span class="stat-label">Total size</span><span class="stat-value" id="resSize">-</span></div>
+        <div class="stat-row"><span class="stat-label">Octree nodes</span><span class="stat-value" id="resNodes">-</span></div>
         <div class="stat-row"><span class="stat-label">Octree depth</span><span class="stat-value" id="resDepth">-</span></div>
-        <div class="stat-row"><span class="stat-label">Process time</span><span class="stat-value" id="resTime">-</span></div>
+        <div class="stat-row"><span class="stat-label">3D Tiles</span><span class="stat-value" id="resTiles">-</span></div>
+        <div class="stat-row"><span class="stat-label">Total size</span><span class="stat-value" id="resSize">-</span></div>
+        <div class="stat-row"><span class="stat-label">Parse time</span><span class="stat-value" id="resParseTime">-</span></div>
+        <div class="stat-row"><span class="stat-label">Total time</span><span class="stat-value" id="resTime">-</span></div>
       </div>
 
       <!-- Export -->
@@ -182,8 +218,7 @@
         <div class="panel-title">📤 Export</div>
         <div class="btn-row">
           <button class="btn" id="exportZip" disabled>📦 Export ZIP</button>
-          <button class="btn" id="exportGlb" disabled>🔷 Export GLB</button>
-          <button class="btn" id="copyLink" disabled>🔗 Copy Link</button>
+          <button class="btn" id="copyLink" disabled>🔗 Copy Summary</button>
         </div>
       </div>
 
@@ -199,21 +234,78 @@
     </div>
   </div>
 
-  <script>
-    // ===========================================================================
-    // Cesium Workflow — Complete browser-side 3D Tiles pipeline
-    // ===========================================================================
+  <script type="module">
+    // =========================================================================
+    // WASM-Powered Cesium Workflow
+    // All core processing: parse → octree → 3D tiles, driven by WASM
+    // =========================================================================
 
     let viewer = null;
-    let lastTileset = null;
-    let lastProcessedData = null; // For export
+    let wasm = null;
+    let wasmReady = false;
+    let lastTilesetPrimitives = null;
+    let lastProcessedData = null;
 
-    // ===========================================================================
+    // Blob URL tracking for cleanup
+    const blobUrls = [];
+
+    function createBlobUrl(data, type = 'application/octet-stream') {
+      const blob = new Blob([data], { type });
+      const url = URL.createObjectURL(blob);
+      blobUrls.push(url);
+      return url;
+    }
+
+    function cleanupBlobUrls() {
+      blobUrls.forEach(url => URL.revokeObjectURL(url));
+      blobUrls.length = 0;
+    }
+
+    // =========================================================================
+    // Load WASM Module
+    // =========================================================================
+
+    async function loadWasm() {
+      const badge = document.getElementById('wasmBadge');
+      try {
+        // Try local pkg first (for development)
+        log('Loading WASM module (local pkg)...');
+        wasm = await import('../../pkg/wasm_spatial_core.js');
+      } catch {
+        try {
+          log('Local pkg not found, trying CDN...', 'warn');
+          wasm = await import('https://esm.run/wasm-spatial-core');
+        } catch (e2) {
+          badge.className = 'wasm-status error';
+          badge.textContent = '❌ WASM failed';
+          log('Failed to load WASM: ' + e2.message, 'err');
+          throw e2;
+        }
+      }
+
+      // Initialize WASM
+      try {
+        wasm.init();
+        const ver = wasm.version();
+        log(`WASM initialized — wasm-spatial-core v${ver}`, 'ok');
+        log(`LAZ support: ${wasm.lazStatus()}`);
+
+        badge.className = 'wasm-status ready';
+        badge.textContent = `✅ WASM v${ver}`;
+        wasmReady = true;
+      } catch (e) {
+        badge.className = 'wasm-status error';
+        badge.textContent = '❌ WASM init failed';
+        log('WASM init error: ' + e.message, 'err');
+        throw e;
+      }
+    }
+
+    // =========================================================================
     // Init Cesium
-    // ===========================================================================
+    // =========================================================================
 
-    (async function initCesium() {
-      // Disable Cesium Ion (no token needed)
+    async function initCesium() {
       Cesium.Ion.defaultAccessToken = undefined;
 
       viewer = new Cesium.Viewer('cesiumContainer', {
@@ -232,7 +324,7 @@
         vrButton: false,
         infoBox: false,
         selectionIndicator: false,
-        creditContainer: document.createElement('div'), // hide credits
+        creditContainer: document.createElement('div'),
       });
 
       viewer.scene.globe.enableLighting = false;
@@ -240,69 +332,35 @@
       viewer.scene.backgroundColor = Cesium.Color.BLACK;
 
       log('Cesium viewer initialized (no Ion token)', 'ok');
-    })();
+    }
 
-    // ===========================================================================
+    // =========================================================================
     // Format Detection
-    // ===========================================================================
+    // =========================================================================
 
     function detectFormat(bytes) {
       if (bytes.length < 4) return { format: 'unknown', confidence: 0 };
 
-      // LAS/LAZ: magic "LASF"
       if (bytes[0] === 0x4C && bytes[1] === 0x41 && bytes[2] === 0x53 && bytes[3] === 0x46) {
         if (bytes.length > 104 && (bytes[104] & 0x80)) {
           return { format: 'LAZ', confidence: 1, description: 'LAS ZIP compressed' };
         }
-        return { format: 'LAS', confidence: 1, description: 'LAS ASCII/Binary point cloud' };
-      }
-
-      // PLY: starts with "ply"
-      const header = new TextDecoder().decode(bytes.subarray(0, Math.min(20, bytes.length)));
-      if (header.toLowerCase().startsWith('ply')) {
-        return { format: 'PLY', confidence: 1, description: 'Polygon File Format' };
-      }
-
-      // OBJ: "mesh" or lines starting with "v "
-      if (header.toLowerCase().startsWith('mesh') || /^v\s+/m.test(header)) {
-        return { format: 'OBJ', confidence: 0.8, description: 'Wavefront OBJ' };
-      }
-
-      // GeoTIFF: TIFF header (II or MM) + GeoKey presence
-      if ((bytes[0] === 0x49 && bytes[1] === 0x49) || (bytes[0] === 0x4D && bytes[1] === 0x4D)) {
-        const magic = bytes[2] * 256 + bytes[3];
-        if (magic === 42) {
-          return { format: 'GeoTIFF', confidence: 0.7, description: 'TIFF/GeoTIFF raster' };
-        }
-      }
-
-      // GLB: "glTF" at offset 4
-      if (bytes.length >= 12) {
-        const glbMagic = String.fromCharCode(...bytes.subarray(0, 4));
-        const glbVersion = new DataView(bytes.buffer, bytes.byteOffset).getUint32(4, true);
-        if (glbMagic === 'glTF' && (glbVersion === 2)) {
-          return { format: 'GLB', confidence: 1, description: 'GL Transmission Format Binary' };
-        }
-      }
-
-      // glTF JSON
-      if (header.trim().startsWith('{')) {
-        try {
-          const json = JSON.parse(new TextDecoder().decode(bytes.subarray(0, Math.min(500, bytes.length))));
-          if (json.asset && json.asset.version) {
-            return { format: 'glTF', confidence: 0.9, description: 'GL Transmission Format JSON' };
-          }
-        } catch {}
+        return { format: 'LAS', confidence: 1, description: 'LAS point cloud' };
       }
 
       return { format: 'unknown', confidence: 0 };
     }
 
-    // ===========================================================================
-    // Processing Pipeline
-    // ===========================================================================
+    // =========================================================================
+    // Main Pipeline
+    // =========================================================================
 
     async function processFile(file) {
+      if (!wasmReady) {
+        log('WASM not loaded yet, please wait...', 'err');
+        return;
+      }
+
       const startTime = performance.now();
       resetUI();
 
@@ -311,662 +369,490 @@
       showPanel('logPanel');
 
       try {
-        // Step 1: Parse
-        setStepActive('stepParse');
+        // ---- Read file ----
         log(`Reading ${file.name} (${formatBytes(file.size)})...`);
-
         const bytes = new Uint8Array(await file.arrayBuffer());
         const fmt = detectFormat(bytes);
 
-        document.getElementById('fmtType').innerHTML = `<span class="format-badge">${fmt.format}</span> ${fmt.description}`;
-        document.getElementById('fmtSize').textContent = formatBytes(file.size);
-
-        log(`Format: ${fmt.format} (confidence: ${Math.round(fmt.confidence * 100)}%)`, 'ok');
-
-        let cloud; // { positions, colors, bounds }
-
-        if (fmt.format === 'LAS' || fmt.format === 'LAZ') {
-          cloud = await parseLAS(bytes);
-        } else if (fmt.format === 'PLY') {
-          cloud = parsePLY(bytes);
-        } else if (fmt.format === 'OBJ') {
-          cloud = parseOBJ(bytes);
-        } else if (fmt.format === 'GLB' || fmt.format === 'glTF') {
-          cloud = parseGLTF(bytes);
-        } else if (fmt.format === 'GeoTIFF') {
-          log('GeoTIFF → terrain mesh', 'warn');
-          cloud = parseGeoTIFFDemo(bytes);
-        } else {
-          throw new Error('Unsupported format: ' + fmt.format);
+        if (fmt.format !== 'LAS' && fmt.format !== 'LAZ') {
+          throw new Error(`Unsupported format: ${fmt.format}. Only LAS/LAZ files are supported in this WASM demo.`);
         }
 
+        document.getElementById('fmtType').innerHTML = `<span class="format-badge">${fmt.format}</span> ${fmt.description}`;
+        document.getElementById('fmtSize').textContent = formatBytes(file.size);
+        log(`Detected: ${fmt.format}`, 'ok');
+
+        // ---- Step 1: Parse with WASM ----
+        setStepActive('stepParse');
+        showProgress();
+        updateProgress(0);
+
+        // Parse header first for quick info
+        const header = wasm.parseLasHeader(bytes);
+        const numPoints = header.numPoints;
+        document.getElementById('fmtPoints').textContent = numPoints.toLocaleString();
+        document.getElementById('fmtVersion').textContent = `${header.versionMajor}.${header.versionMinor}`;
+        log(`Header: ${numPoints.toLocaleString()} points, v${header.versionMajor}.${header.versionMinor}`, 'ok');
+
+        // Parse all points with progress callback
+        let parseResult;
+        const t0 = performance.now();
+
+        // Try parseLasPointsWithProgress, fallback to parseLasPoints
+        if (typeof wasm.parseLasPointsWithProgress === 'function') {
+          log('Parsing points with WASM (streaming)...');
+          parseResult = await parseWithProgress(bytes, numPoints);
+        } else {
+          log('Parsing points with WASM...');
+          await yieldToUI();
+          parseResult = wasm.parseLasPoints(bytes);
+        }
+
+        const parseTime = ((performance.now() - t0) / 1000).toFixed(2);
+        document.getElementById('resParseTime').textContent = parseTime + 's';
+
+        // Extract data from WASM objects
+        const positions = parseResult.positions; // Float32Array
+        const pointCount = parseResult.pointCount;
+        const rawColors = parseResult.colors;    // Uint8Array | undefined
+        const hasColor = rawColors != null;
+
+        updateProgress(100);
+        hideProgress();
+
+        // Show bounds info
+        const bounds = {
+          minX: header.boundsMinX,
+          minY: header.boundsMinY,
+          minZ: header.boundsMinZ,
+          maxX: header.boundsMaxX,
+          maxY: header.boundsMaxY,
+          maxZ: header.boundsMaxZ,
+        };
+        document.getElementById('fmtBounds').textContent =
+          `[${bounds.minX.toFixed(2)}, ${bounds.maxX.toFixed(2)] × [${bounds.minY.toFixed(2)}, ${bounds.maxY.toFixed(2)] × [${bounds.minZ.toFixed(2)}, ${bounds.maxZ.toFixed(2)}]`;
+        document.getElementById('fmtColor').textContent = hasColor ? '✅ Yes' : '❌ No (height color)';
+
         setStepDone('stepParse');
-        log(`Parsed: ${cloud.numPoints.toLocaleString()} points`, 'ok');
+        log(`Parsed ${pointCount.toLocaleString()} points in ${parseTime}s`, 'ok');
 
-        // Step 2: Build Octree (simplified — spatial partitioning)
+        // Generate height-based colors if no color data
+        let colors = rawColors;
+        if (!hasColor) {
+          log('No color data — generating height-based colors');
+          colors = generateHeightColors(positions, pointCount, bounds);
+        }
+
+        // ---- Step 2: Build Octree with WASM ----
         setStepActive('stepOctree');
-        await asyncSleep(50); // yield to UI
+        await yieldToUI();
 
-        const octree = buildSimpleOctree(cloud.positions, cloud.numPoints, 50000);
+        const t1 = performance.now();
+        const octree = wasm.buildOctree(positions, 50000, 21);
+        const octreeTime = ((performance.now() - t1) / 1000).toFixed(2);
+        const rootBounds = octree.rootBounds();
+
         setStepDone('stepOctree');
-        log(`Octree: ${octree.nodeCount} nodes, depth ${octree.maxDepth}`, 'ok');
+        log(`Octree: ${octree.nodeCount()} nodes (${octree.leafCount()} leaves), depth ${octree.depth} in ${octreeTime}s`, 'ok');
 
-        // Step 3: Encode 3D Tiles
+        // ---- Step 3: Generate 3D Tiles with WASM ----
         setStepActive('stepEncode');
-        await asyncSleep(50);
+        await yieldToUI();
 
-        const tileset = generateTilesetBlob(cloud, octree);
+        const t2 = performance.now();
+
+        // generateTileset takes (positions, maxPointsPerNode, maxDepth, colors)
+        // It internally builds an octree and creates tiles
+        const tileset = wasm.generateTileset(positions, 50000, 21, colors);
+        const tileCount = tileset.tileCount;
+        const totalBytes = tileset.totalBytes;
+        const tileTime = ((performance.now() - t2) / 1000).toFixed(2);
+
         setStepDone('stepEncode');
-        log(`Tiles: ${tileset.tileCount} tiles, ${formatBytes(tileset.totalSize)}`, 'ok');
+        log(`3D Tiles: ${tileCount} tiles, ${formatBytes(totalBytes)} in ${tileTime}s`, 'ok');
 
-        // Store for export
-        lastProcessedData = { cloud, octree, tileset, fmt: fmt.format };
-
-        // Step 4: Load in Cesium
+        // ---- Step 4: Load in Cesium ----
         setStepActive('stepLoad');
-        await loadTilesetInCesium(tileset, cloud.bounds);
+        await loadWasmTilesetInCesium(tileset, bounds);
         setStepDone('stepLoad');
 
-        // Results
+        // ---- Results ----
         const elapsed = ((performance.now() - startTime) / 1000).toFixed(1);
         showPanel('resultPanel');
         showPanel('exportPanel');
 
-        document.getElementById('resPoints').textContent = cloud.numPoints.toLocaleString();
-        document.getElementById('resTiles').textContent = tileset.tileCount;
-        document.getElementById('resSize').textContent = formatBytes(tileset.totalSize);
-        document.getElementById('resDepth').textContent = octree.maxDepth;
+        document.getElementById('resPoints').textContent = pointCount.toLocaleString();
+        document.getElementById('resNodes').textContent = octree.nodeCount().toLocaleString();
+        document.getElementById('resDepth').textContent = octree.depth;
+        document.getElementById('resTiles').textContent = tileCount;
+        document.getElementById('resSize').textContent = formatBytes(totalBytes);
         document.getElementById('resTime').textContent = elapsed + 's';
 
-        log(`✅ Complete in ${elapsed}s`, 'ok');
+        log(`✅ Complete in ${elapsed}s (${parseTime}s parse + ${octreeTime}s octree + ${tileTime}s tiles)`, 'ok');
 
-        // Enable export buttons
+        // Store for export
+        lastProcessedData = { tileset, bounds, pointCount, fmt: fmt.format };
         document.getElementById('exportZip').disabled = false;
-        document.getElementById('exportGlb').disabled = false;
         document.getElementById('copyLink').disabled = false;
+
+        // Free WASM objects we no longer need (keep tileset for export)
+        octree.free();
+        header.free();
+        if (!hasColor) parseResult.free();
+        // Don't free parseResult if we still need positions/colors
+        // Actually positions/colors are views into WASM memory — tileset already has them
+        // Safe to free parseResult after tileset is created
+        parseResult.free();
 
       } catch (err) {
         log('❌ Error: ' + err.message, 'err');
         console.error(err);
-
-        // Mark current step as error
         document.querySelectorAll('.step.active').forEach(el => {
           el.classList.remove('active');
           el.classList.add('error');
         });
+        hideProgress();
       }
     }
 
-    // ===========================================================================
-    // Parsers
-    // ===========================================================================
+    // =========================================================================
+    // Parse with progress (wraps WASM parseLasPointsWithProgress)
+    // =========================================================================
 
-    function parseLAS(bytes) {
-      const dv = new DataView(bytes.buffer, bytes.byteOffset);
-      const numPoints = dv.getUint32(107, true);
-      const pointOffset = dv.getUint32(96, true);
-      const pointFormat = bytes[104];
-      const recordLen = dv.getUint16(105, true);
-      const hasColor = pointFormat === 2 || pointFormat === 3;
+    function parseWithProgress(bytes, expectedPoints) {
+      return new Promise((resolve, reject) => {
+        let lastLogged = 0;
 
-      const xScale = dv.getFloat64(131, true);
-      const yScale = dv.getFloat64(139, true);
-      const zScale = dv.getFloat64(147, true);
-      const xOffset = dv.getFloat64(155, true);
-      const yOffset = dv.getFloat64(163, true);
-      const zOffset = dv.getFloat64(171, true);
+        try {
+          const result = wasm.parseLasPointsWithProgress(bytes, (done, total) => {
+            if (total > 0) {
+              const pct = Math.round((done / total) * 100);
+              updateProgress(pct);
 
-      // Skip LAZ compressed data (needs WASM)
-      if (bytes[104] & 0x80) {
-        throw new Error('LAZ compressed files require WASM module. Use the WebGL viewer or load WASM.');
-      }
-
-      const positions = new Float32Array(numPoints * 3);
-      const colors = hasColor ? new Uint8Array(numPoints * 3) : null;
-
-      let minX=Infinity, minY=Infinity, minZ=Infinity;
-      let maxX=-Infinity, maxY=-Infinity, maxZ=-Infinity;
-
-      for (let i = 0; i < numPoints; i++) {
-        const base = pointOffset + i * recordLen;
-        if (base + 12 > bytes.length) break;
-        const pdv = new DataView(bytes.buffer, bytes.byteOffset + base);
-        const x = pdv.getInt32(0, true) * xScale + xOffset;
-        const y = pdv.getInt32(4, true) * yScale + yOffset;
-        const z = pdv.getInt32(8, true) * zScale + zOffset;
-
-        positions[i*3] = x; positions[i*3+1] = y; positions[i*3+2] = z;
-        minX=Math.min(minX,x); minY=Math.min(minY,y); minZ=Math.min(minZ,z);
-        maxX=Math.max(maxX,x); maxY=Math.max(maxY,y); maxZ=Math.max(maxZ,z);
-
-        if (hasColor && base + 22 <= bytes.length) {
-          colors[i*3]   = pdv.getUint8(20);
-          colors[i*3+1] = pdv.getUint8(21);
-          colors[i*3+2] = pdv.getUint8(22);
-        }
-      }
-
-      return {
-        positions, colors, numPoints,
-        bounds: { minX, minY, minZ, maxX, maxY, maxZ }
-      };
-    }
-
-    function parsePLY(bytes) {
-      const text = new TextDecoder().decode(bytes.subarray(0, Math.min(5000, bytes.length)));
-      const lines = text.split('\n');
-      let numVerts = 0, hasColor = false, headerEnd = 0;
-      let isBinary = false, vertexStride = 12;
-
-      for (let i = 0; i < lines.length; i++) {
-        if (lines[i].startsWith('element vertex')) numVerts = parseInt(lines[i].split(' ')[2]);
-        if (lines[i].includes('property uchar red') || lines[i].includes('property uchar diffuse_red')) {
-          hasColor = true; vertexStride = 15;
-        }
-        if (lines[i].startsWith('format binary')) isBinary = true;
-        if (lines[i] === 'end_header') {
-          headerEnd = lines.slice(0, i+1).join('\n').length + 1;
-          break;
-        }
-      }
-
-      const positions = new Float32Array(numVerts * 3);
-      const colors = hasColor ? new Uint8Array(numVerts * 3) : null;
-
-      let minX=Infinity, minY=Infinity, minZ=Infinity;
-      let maxX=-Infinity, maxY=-Infinity, maxZ=-Infinity;
-
-      if (!isBinary) {
-        const fullText = new TextDecoder().decode(bytes);
-        const dataLines = fullText.substring(headerEnd).trim().split('\n');
-        for (let i = 0; i < Math.min(numVerts, dataLines.length); i++) {
-          const parts = dataLines[i].trim().split(/\s+/).map(Number);
-          if (parts.length < 3) continue;
-          const x=parts[0], y=parts[1], z=parts[2];
-          positions[i*3]=x; positions[i*3+1]=y; positions[i*3+2]=z;
-          minX=Math.min(minX,x); minY=Math.min(minY,y); minZ=Math.min(minZ,z);
-          maxX=Math.max(maxX,x); maxY=Math.max(maxY,y); maxZ=Math.max(maxZ,z);
-          if (hasColor && parts.length >= 6) {
-            colors[i*3]=parts[3]; colors[i*3+1]=parts[4]; colors[i*3+2]=parts[5];
-          }
-        }
-      }
-
-      return {
-        positions, colors, numPoints: numVerts,
-        bounds: { minX, minY, minZ, maxX, maxY, maxZ }
-      };
-    }
-
-    function parseOBJ(bytes) {
-      const text = new TextDecoder().decode(bytes);
-      const lines = text.split('\n');
-      const verts = [];
-      let minX=Infinity, minY=Infinity, minZ=Infinity;
-      let maxX=-Infinity, maxY=-Infinity, maxZ=-Infinity;
-
-      for (const line of lines) {
-        if (line.startsWith('v ')) {
-          const parts = line.trim().split(/\s+/).map(Number);
-          if (parts.length >= 4 && isFinite(parts[1]) && isFinite(parts[2]) && isFinite(parts[3])) {
-            const x=parts[1], y=parts[2], z=parts[3];
-            verts.push(x, y, z);
-            minX=Math.min(minX,x); minY=Math.min(minY,y); minZ=Math.min(minZ,z);
-            maxX=Math.max(maxX,x); maxY=Math.max(maxY,y); maxZ=Math.max(maxZ,z);
-          }
-        }
-      }
-
-      const positions = new Float32Array(verts);
-      return {
-        positions, colors: null,
-        numPoints: verts.length / 3,
-        bounds: { minX, minY, minZ, maxX, maxY, maxZ }
-      };
-    }
-
-    function parseGLTF(bytes) {
-      // For GLB, we'll use Cesium's Model directly
-      const blob = new Blob([bytes], { type: 'model/gltf-binary' });
-      const url = URL.createObjectURL(blob);
-
-      // Create a simple point cloud by sampling the model bounds
-      // This is a placeholder — in real use, you'd extract vertex positions
-      return {
-        positions: new Float32Array([0,0,0]),
-        colors: null, numPoints: 0,
-        bounds: { minX: 0, minY: 0, minZ: 0, maxX: 1, maxY: 1, maxZ: 1 },
-        glbUrl: url
-      };
-    }
-
-    function parseGeoTIFFDemo(bytes) {
-      // Demo: generate a terrain-like point cloud from GeoTIFF dimensions
-      const n = 10000;
-      const positions = new Float32Array(n * 3);
-      const colors = new Uint8Array(n * 3);
-
-      let minX=Infinity, minY=Infinity, minZ=Infinity;
-      let maxX=-Infinity, maxY=-Infinity, maxZ=-Infinity;
-
-      for (let i = 0; i < n; i++) {
-        const lon = 116.3 + Math.random() * 0.1;
-        const lat = 39.9 + Math.random() * 0.1;
-        const h = Math.sin(lon * 10) * Math.cos(lat * 10) * 50 + Math.random() * 10;
-        const x = lon, y = lat, z = h;
-        positions[i*3]=x; positions[i*3+1]=y; positions[i*3+2]=z;
-        minX=Math.min(minX,x); minY=Math.min(minY,y); minZ=Math.min(minZ,z);
-        maxX=Math.max(maxX,x); maxY=Math.max(maxY,y); maxZ=Math.max(maxZ,z);
-
-        const t = Math.max(0, Math.min(1, (h + 50) / 100));
-        colors[i*3] = Math.floor(t * 200 + 55);
-        colors[i*3+1] = Math.floor((1 - Math.abs(t - 0.5) * 2) * 200);
-        colors[i*3+2] = Math.floor((1 - t) * 200 + 55);
-      }
-
-      return {
-        positions, colors, numPoints: n,
-        bounds: { minX, minY, minZ, maxX, maxY, maxZ }
-      };
-    }
-
-    // ===========================================================================
-    // Simple Octree (spatial partitioning for tile generation)
-    // ===========================================================================
-
-    function buildSimpleOctree(positions, numPoints, maxPerNode) {
-      let minX=Infinity, minY=Infinity, minZ=Infinity;
-      let maxX=-Infinity, maxY=-Infinity, maxZ=-Infinity;
-
-      for (let i = 0; i < numPoints; i++) {
-        const x=positions[i*3], y=positions[i*3+1], z=positions[i*3+2];
-        minX=Math.min(minX,x); minY=Math.min(minY,y); minZ=Math.min(minZ,z);
-        maxX=Math.max(maxX,x); maxY=Math.max(maxY,y); maxZ=Math.max(maxZ,z);
-      }
-
-      const nodes = [];
-      let maxDepth = 0;
-
-      function partition(offset, count, bmin, bmax, depth) {
-        maxDepth = Math.max(maxDepth, depth);
-
-        if (count <= maxPerNode || depth > 10) {
-          nodes.push({ offset, count, bounds: { min: bmin, max: bmax }, depth, children: null });
-          return;
-        }
-
-        // Split along longest axis
-        const dx = bmax[0]-bmin[0], dy = bmax[1]-bmin[1], dz = bmax[2]-bmin[2];
-        const splitVal = (bmin[dx>=dy&&dx>=dz?0:dy>=dz?1:2] + bmax[dx>=dy&&dx>=dz?0:dy>=dz?1:2]) / 2;
-        const axis = dx>=dy&&dx>=dz ? 0 : dy>=dz ? 1 : 2;
-
-        // Partition positions in-place
-        let left = offset, right = offset + count - 1;
-        while (left <= right) {
-          const li = left * 3 + axis;
-          if (positions[li] <= splitVal) { left++; }
-          else {
-            // Swap with right
-            for (let c = 0; c < 3; c++) {
-              const tmp = positions[left*3+c];
-              positions[left*3+c] = positions[right*3+c];
-              positions[right*3+c] = tmp;
+              if (pct - lastLogged >= 10 || pct >= 100) {
+                lastLogged = pct;
+                log(`Parsing: ${pct}% (${done.toLocaleString()} / ${total.toLocaleString()})`);
+              }
             }
-            right--;
+          });
+          resolve(result);
+        } catch (e) {
+          reject(e);
+        }
+      });
+    }
+
+    // =========================================================================
+    // Height-based color generation
+    // =========================================================================
+
+    function generateHeightColors(positions, count, bounds) {
+      const minZ = bounds.minZ;
+      const maxZ = bounds.maxZ;
+      const rangeZ = maxZ - minZ || 1;
+      const colors = new Uint8Array(count * 3);
+
+      for (let i = 0; i < count; i++) {
+        const z = positions[i * 3 + 2];
+        const t = Math.max(0, Math.min(1, (z - minZ) / rangeZ));
+
+        // Cool-warm gradient: blue → cyan → green → yellow → red
+        let r, g, b;
+        if (t < 0.25) {
+          const s = t / 0.25;
+          r = 0; g = Math.floor(s * 255); b = 255;
+        } else if (t < 0.5) {
+          const s = (t - 0.25) / 0.25;
+          r = 0; g = 255; b = Math.floor((1 - s) * 255);
+        } else if (t < 0.75) {
+          const s = (t - 0.5) / 0.25;
+          r = Math.floor(s * 255); g = 255; b = 0;
+        } else {
+          const s = (t - 0.75) / 0.25;
+          r = 255; g = Math.floor((1 - s) * 255); b = 0;
+        }
+
+        colors[i * 3] = r;
+        colors[i * 3 + 1] = g;
+        colors[i * 3 + 2] = b;
+      }
+
+      return colors;
+    }
+
+    // =========================================================================
+    // Load WASM-generated tileset in Cesium
+    // =========================================================================
+
+    async function loadWasmTilesetInCesium(tileset, bounds) {
+      // Remove previous data
+      if (lastTilesetPrimitives) {
+        viewer.scene.primitives.remove(lastTilesetPrimitives);
+        lastTilesetPrimitives = null;
+      }
+      cleanupBlobUrls();
+
+      // ---- Extract tileset JSON and create blob URLs for all tiles ----
+      const tilesetJsonStr = tileset.tilesetJson();
+      const tilesetJson = JSON.parse(tilesetJsonStr);
+      const tileCount = tileset.tileCount;
+
+      log(`Extracting ${tileCount} tiles from WASM...`);
+      await yieldToUI();
+
+      // Map: original URI → blob URL
+      const uriMap = {};
+      for (let i = 0; i < tileCount; i++) {
+        const uri = tileset.tileUri(i);
+        const data = tileset.tile(i);
+        if (uri) {
+          uriMap[uri] = createBlobUrl(data);
+        }
+        if (i % 50 === 0) await yieldToUI();
+      }
+      log(`Created ${Object.keys(uriMap).length} blob URLs`, 'ok');
+
+      // Replace all content URIs in the JSON recursively
+      function replaceUris(obj) {
+        if (typeof obj === 'string') return uriMap[obj] || obj;
+        if (Array.isArray(obj)) return obj.map(replaceUris);
+        if (obj && typeof obj === 'object') {
+          const out = {};
+          for (const [k, v] of Object.entries(obj)) {
+            if (k === 'uri') {
+              out[k] = typeof v === 'string' ? (uriMap[v] || v) : v;
+            } else {
+              out[k] = replaceUris(v);
+            }
           }
+          return out;
         }
-
-        const midCount = left - offset;
-        const rightCount = count - midCount;
-
-        if (midCount === 0 || rightCount === 0) {
-          nodes.push({ offset, count, bounds: { min: bmin, max: bmax }, depth, children: null });
-          return;
-        }
-
-        const midMin = [...bmin]; midMin[axis] = splitVal;
-        const midMax = [...bmax]; midMax[axis] = splitVal;
-
-        partition(offset, midCount, bmin, midMax, depth + 1);
-        partition(offset + midCount, rightCount, midMin, bmax, depth + 1);
+        return obj;
       }
 
-      partition(0, numPoints, [minX, minY, minZ], [maxX, maxY, maxZ], 0);
+      const patchedJson = replaceUris(tilesetJson);
+      const patchedJsonStr = JSON.stringify(patchedJson);
+      const tilesetBlobUrl = createBlobUrl(patchedJsonStr, 'application/json');
 
-      return { nodes, nodeCount: nodes.length, maxDepth };
-    }
-
-    // ===========================================================================
-    // 3D Tiles Generation (pnts format)
-    // ===========================================================================
-
-    function encodePntsTile(positions, offset, count, center) {
-      const n = count;
-      // Feature table JSON
-      const ftJson = JSON.stringify({
-        POINTS_LENGTH: n,
-        POSITION: { byteOffset: 0 },
-        RGB: { byteOffset: n * 12 },
-      });
-      // Pad to 4-byte alignment
-      const ftJsonLen = ftJson.length;
-      const ftJsonPadded = padString(ftJson);
-
-      // Feature table binary: positions (Float32) + placeholder colors (Uint8)
-      const ftBinaryLen = n * 12 + n * 3;
-      const ftBinary = new ArrayBuffer(ftBinaryLen);
-      const ftView = new DataView(ftBinary);
-      for (let i = 0; i < n; i++) {
-        const src = (offset + i) * 3;
-        ftView.setFloat32(i * 12, positions[src] - center[0], true);
-        ftView.setFloat32(i * 12 + 4, positions[src+1] - center[1], true);
-        ftView.setFloat32(i * 12 + 8, positions[src+2] - center[2], true);
-        // Default white color
-        ftView.setUint8(n * 12 + i * 3, 255);
-        ftView.setUint8(n * 12 + i * 3 + 1, 255);
-        ftView.setUint8(n * 12 + i * 3 + 2, 255);
-      }
-
-      // Pnts header (28 bytes)
-      const headerLen = 28;
-      const totalLen = headerLen + ftJsonPadded.length + ftBinaryLen;
-      const header = new ArrayBuffer(headerLen);
-      const hv = new DataView(header);
-      // Magic
-      header[0] = 0x70; header[1] = 0x6E; header[2] = 0x74; header[3] = 0x73; // "pnts"
-      hv.setUint32(4, 1, true); // version
-      hv.setUint32(8, totalLen, true); // byteLength
-      hv.setUint32(12, ftJsonPadded.length, true); // featureTableJSONByteLength
-      hv.setUint32(16, ftBinaryLen, true); // featureTableBinaryByteLength
-      hv.setUint32(20, 0, true); // batchTableJSONByteLength
-      hv.setUint32(24, 0, true); // batchTableBinaryByteLength
-
-      const result = new Uint8Array(totalLen);
-      result.set(new Uint8Array(header), 0);
-      result.set(new TextEncoder().encode(ftJsonPadded), headerLen);
-      result.set(new Uint8Array(ftBinary), headerLen + ftJsonPadded.length);
-
-      return result;
-    }
-
-    function padString(s) {
-      const pad = (4 - (s.length % 4)) % 4;
-      return s + '\u0020'.repeat(pad);
-    }
-
-    function generateTilesetBlob(cloud, octree) {
-      const center = [
-        (cloud.bounds.minX + cloud.bounds.maxX) / 2,
-        (cloud.bounds.minY + cloud.bounds.maxY) / 2,
-        (cloud.bounds.minZ + cloud.bounds.maxZ) / 2,
-      ];
-
-      const tileUrls = [];
-      let totalSize = 0;
-
-      // Encode each octree node as a pnts tile
-      for (let i = 0; i < octree.nodes.length; i++) {
-        const node = octree.nodes[i];
-        const pntsData = encodePntsTile(cloud.positions, node.offset, node.count, center);
-        const blob = new Blob([pntsData], { type: 'application/octet-stream' });
-        const url = URL.createObjectURL(blob);
-        tileUrls.push(url);
-        totalSize += pntsData.length;
-      }
-
-      // Generate tileset.json
-      const tilesetSize = (totalSize / 1024).toFixed(1);
-      const tilesetJson = buildTilesetJSON(octree.nodes, center, cloud.bounds);
-
-      const tilesetBlob = new Blob([JSON.stringify(tilesetJson)], { type: 'application/json' });
-      const tilesetUrl = URL.createObjectURL(tilesetBlob);
-      totalSize += JSON.stringify(tilesetJson).length;
-
-      return {
-        tilesetUrl, tileUrls, tilesetJson,
-        tileCount: octree.nodes.length,
-        totalSize, center
-      };
-    }
-
-    function buildTilesetJSON(nodes, center, bounds) {
-      // Calculate half-sizes for box bounding volumes
-      const hx = (bounds.maxX - bounds.minX) / 2;
-      const hy = (bounds.maxY - bounds.minY) / 2;
-      const hz = (bounds.maxZ - bounds.minZ) / 2;
-
-      // Build children recursively
-      function buildChildren(nodeIdx) {
-        if (nodeIdx >= nodes.length) return [];
-        const node = nodes[nodeIdx];
-
-        return [{
-          boundingVolume: {
-            box: [
-              ...center, 0, 0, 0,
-              (node.bounds.max[0] - node.bounds.min[0]) / 2, 0, 0,
-              0, (node.bounds.max[1] - node.bounds.min[1]) / 2, 0,
-              0, 0, (node.bounds.max[2] - node.bounds.min[2]) / 2,
-            ]
-          },
-          geometricError: Math.max(
-            node.bounds.max[0] - node.bounds.min[0],
-            node.bounds.max[1] - node.bounds.min[1],
-            node.bounds.max[2] - node.bounds.min[2]
-          ) * 0.5 / Math.pow(2, node.depth),
-          refine: 'ADD',
-          content: { uri: nodeIdx + '.pnts' },
-          children: []
-        }];
-      }
-
-      // Flat tileset (each octree leaf = a tile at root level)
-      const rootChildren = nodes.map((node, i) => ({
-        boundingVolume: {
-          box: [
-            ...center, 0, 0, 0,
-            (node.bounds.max[0] - node.bounds.min[0]) / 2, 0, 0,
-            0, (node.bounds.max[1] - node.bounds.min[1]) / 2, 0,
-            0, 0, (node.bounds.max[2] - node.bounds.min[2]) / 2,
-          ]
-        },
-        geometricError: Math.max(
-          node.bounds.max[0] - node.bounds.min[0],
-          node.bounds.max[1] - node.bounds.min[1],
-          node.bounds.max[2] - node.bounds.min[2]
-        ),
-        refine: 'ADD',
-        content: { uri: i + '.pnts' },
-      }));
-
-      return {
-        asset: { version: '1.0', generator: 'wasm-spatial-core v0.7.0' },
-        geometricError: Math.max(hx, hy, hz) * 2,
-        root: {
-          boundingVolume: {
-            box: [center[0], center[1], center[2], 0, 0, 0, hx, 0, 0, 0, hy, 0, 0, 0, hz]
-          },
-          geometricError: Math.max(hx, hy, hz) * 2,
-          refine: 'ADD',
-          children: rootChildren,
-        }
-      };
-    }
-
-    // ===========================================================================
-    // Load tileset in Cesium
-    // ===========================================================================
-
-    async function loadTilesetInCesium(tileset, bounds) {
-      // Remove previous tileset
-      if (lastTileset) {
-        viewer.scene.primitives.remove(lastTileset);
-        lastTileset = null;
-      }
-
-      // Use custom Resource to serve blob URLs
-      const tilesetResource = new Cesium.Resource({
-        url: tileset.tilesetUrl,
-      });
-
-      // Override the tile content loading to use blob URLs
-      const originalResolveUrl = tilesetResource.resolveUrl.bind(tilesetResource);
+      // ---- Load into Cesium ----
+      log('Loading tileset in Cesium...');
 
       try {
-        lastTileset = await Cesium.C3DTileset.fromUrl(tileset.tilesetUrl, {
+        // Use Cesium3DTileset with our blob URLs
+        const cesiumTileset = await Cesium.C3DTileset.fromUrl(tilesetBlobUrl, {
           maximumScreenSpaceError: 16,
+          skipLevelOfDetail: false,
         });
+        viewer.scene.primitives.add(cesiumTileset);
+        lastTilesetPrimitives = cesiumTileset;
+        log('Cesium3DTileset loaded successfully', 'ok');
+      } catch (err) {
+        // If Cesium fails with blob: URLs (some versions have issues),
+        // fall back to direct point primitives
+        log(`Cesium 3DTiles load failed (${err.message}), falling back to primitives`, 'warn');
+        await loadAsFallbackPrimitives(tileset, bounds);
+      }
 
-        // Workaround: Cesium can't load blob: URLs for tiles natively.
-        // For the demo, we'll add the points as primitives directly.
-        viewer.scene.primitives.remove(lastTileset);
-        lastTileset = null;
+      // ---- Fly to the data ----
+      flyToBounds(bounds);
+    }
 
-        // Add as point primitives instead
-        addPointsAsPrimitives(tileset);
+    // =========================================================================
+    // Fallback: load individual tiles as point primitives
+    // =========================================================================
 
-        // Fly to the data
+    async function loadAsFallbackPrimitives(tileset, bounds) {
+      if (lastTilesetPrimitives) {
+        viewer.scene.primitives.remove(lastTilesetPrimitives);
+        lastTilesetPrimitives = null;
+      }
+
+      const collection = new Cesium.PointPrimitiveCollection();
+      const tileCount = tileset.tileCount;
+      const cx = (bounds.minX + bounds.maxX) / 2;
+      const cy = (bounds.minY + bounds.maxY) / 2;
+      const cz = (bounds.minZ + bounds.maxZ) / 2;
+
+      const isGeographic = Math.abs(bounds.minX) <= 180 && Math.abs(bounds.maxX) <= 180 &&
+                           Math.abs(bounds.minY) <= 90 && Math.abs(bounds.maxY) <= 90;
+
+      for (let i = 0; i < tileCount; i++) {
+        const data = tileset.tile(i);
+        const tileBounds = tileset.tileBounds(i);
+
+        // Parse the pnts binary to extract positions/colors
+        const points = parsePntsBinary(data);
+        if (!points) continue;
+
+        for (let j = 0; j < points.count; j++) {
+          const px = points.positions[j * 3] + (tileBounds[0] + tileBounds[3]) / 2;
+          const py = points.positions[j * 3 + 1] + (tileBounds[1] + tileBounds[4]) / 2;
+          const pz = points.positions[j * 3 + 2] + (tileBounds[2] + tileBounds[5]) / 2;
+
+          let position;
+          if (isGeographic) {
+            position = Cesium.Cartesian3.fromDegrees(px, py, Math.max(0, pz));
+          } else {
+            // Offset non-geographic coords to a visible location
+            position = Cesium.Cartesian3.fromDegrees(
+              116.39 + px * 0.00001,
+              39.91 + py * 0.00001,
+              Math.max(0, pz)
+            );
+          }
+
+          const r = points.colors ? points.colors[j * 3] / 255 : 1;
+          const g = points.colors ? points.colors[j * 3 + 1] / 255 : 1;
+          const b = points.colors ? points.colors[j * 3 + 2] / 255 : 1;
+
+          collection.add({
+            position,
+            color: new Cesium.Color(r, g, b, 0.8),
+            pixelSize: 2,
+          });
+
+          // Limit total primitives for performance
+          if (collection.length >= 500000) break;
+        }
+
+        if (collection.length >= 500000) {
+          log(`Primitive limit reached (${collection.length} points), stopping`, 'warn');
+          break;
+        }
+
+        if (i % 10 === 0) await yieldToUI();
+      }
+
+      viewer.scene.primitives.add(collection);
+      lastTilesetPrimitives = collection;
+      log(`Added ${collection.length.toLocaleString()} point primitives (fallback mode)`, 'ok');
+    }
+
+    // =========================================================================
+    // Minimal pnts binary parser
+    // =========================================================================
+
+    function parsePntsBinary(bytes) {
+      if (bytes.length < 28) return null;
+      const dv = new DataView(bytes.buffer, bytes.byteOffset);
+
+      // Header: magic(4) + version(4) + byteLength(4) + ftJsonLen(4) + ftBinLen(4) + btJsonLen(4) + btBinLen(4)
+      const magic = String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3]);
+      if (magic !== 'pnts') return null;
+
+      const ftJsonLen = dv.getUint32(12, true);
+      const ftBinLen = dv.getUint32(16, true);
+
+      // Parse feature table JSON
+      const ftJson = JSON.parse(new TextDecoder().decode(bytes.subarray(28, 28 + ftJsonLen)));
+      const pointsLength = ftJson.POINTS_LENGTH || 0;
+      if (pointsLength === 0) return null;
+
+      const posOffset = ftJson.POSITION?.byteOffset || 0;
+      const posData = new Float32Array(bytes.buffer, bytes.byteOffset + 28 + ftJsonLen + posOffset, pointsLength * 3);
+
+      let colorData = null;
+      if (ftJson.RGB) {
+        const colorOffset = ftJson.RGB.byteOffset;
+        colorData = new Uint8Array(bytes.buffer, bytes.byteOffset + 28 + ftJsonLen + colorOffset, pointsLength * 3);
+      }
+
+      return { positions: posData, colors: colorData, count: pointsLength };
+    }
+
+    // =========================================================================
+    // Fly to bounds
+    // =========================================================================
+
+    function flyToBounds(bounds) {
+      const isGeographic = Math.abs(bounds.minX) <= 180 && Math.abs(bounds.maxX) <= 180 &&
+                           Math.abs(bounds.minY) <= 90 && Math.abs(bounds.maxY) <= 90;
+
+      if (isGeographic) {
         const cx = (bounds.minX + bounds.maxX) / 2;
         const cy = (bounds.minY + bounds.maxY) / 2;
         const cz = (bounds.minZ + bounds.maxZ) / 2;
+        const range = Math.max(
+          bounds.maxX - bounds.minX,
+          bounds.maxY - bounds.minY,
+          Math.max(10, bounds.maxZ - bounds.minZ)
+        );
 
-        // Use cartesian from degrees for geographic coords
-        const position = Cesium.Cartesian3.fromDegrees(cx, cy, cz + 1000);
-
-        if (!isFinite(cx) || !isFinite(cy) || Math.abs(cx) > 180 || Math.abs(cy) > 90) {
-          // Non-geographic coords — fly to origin
-          viewer.camera.flyTo({
-            destination: Cesium.Cartesian3.fromDegrees(116.39, 39.91, 1000),
-            duration: 2,
-          });
-        } else {
-          viewer.camera.flyTo({
-            destination: Cesium.Cartesian3.fromDegrees(cx, cy, cz + 2000),
-            orientation: {
-              heading: 0,
-              pitch: Cesium.Math.toRadians(-45),
-              roll: 0,
-            },
-            duration: 2,
-          });
-        }
-
-        log('Points loaded in Cesium', 'ok');
-      } catch (err) {
-        log('3D Tiles loading failed, falling back to point primitives', 'warn');
-        addPointsAsPrimitives(tileset);
-      }
-    }
-
-    function addPointsAsPrimitives(tileset) {
-      if (!lastProcessedData || !lastProcessedData.cloud) return;
-      const cloud = lastProcessedData.cloud;
-
-      // Sample if too many points for Cesium primitives
-      let step = 1;
-      const maxPoints = 500000;
-      if (cloud.numPoints > maxPoints) {
-        step = Math.ceil(cloud.numPoints / maxPoints);
-      }
-
-      const positions = [];
-      const colors = [];
-
-      for (let i = 0; i < cloud.numPoints; i += step) {
-        const x = cloud.positions[i*3];
-        const y = cloud.positions[i*3+1];
-        const z = cloud.positions[i*3+2];
-
-        // Check if geographic coordinates
-        if (Math.abs(x) <= 180 && Math.abs(y) <= 90) {
-          positions.push(Cesium.Cartesian3.fromDegrees(x, y, z));
-        } else {
-          // Non-geographic: offset to a known location
-          positions.push(Cesium.Cartesian3.fromDegrees(
-            116.39 + x * 0.00001,
-            39.91 + y * 0.00001,
-            z
-          ));
-        }
-
-        if (cloud.colors) {
-          colors.push(new Cesium.Color(
-            cloud.colors[i*3] / 255,
-            cloud.colors[i*3+1] / 255,
-            cloud.colors[i*3+2] / 255,
-            0.8
-          ));
-        } else {
-          colors.push(Cesium.Color.WHITE.withAlpha(0.8));
-        }
-      }
-
-      const pointPrimitive = new Cesium.PointPrimitiveCollection();
-      for (let i = 0; i < positions.length; i++) {
-        pointPrimitive.add({
-          position: positions[i],
-          color: colors[i],
-          pixelSize: 2,
+        viewer.camera.flyTo({
+          destination: Cesium.Cartesian3.fromDegrees(cx, cy, cz + range * 2),
+          orientation: {
+            heading: 0,
+            pitch: Cesium.Math.toRadians(-45),
+            roll: 0,
+          },
+          duration: 2,
+        });
+      } else {
+        // Non-geographic — just go to a default location
+        viewer.camera.flyTo({
+          destination: Cesium.Cartesian3.fromDegrees(116.39, 39.91, 2000),
+          duration: 1,
         });
       }
-
-      viewer.scene.primitives.add(pointPrimitive);
-      log(`Added ${positions.length.toLocaleString()} point primitives`, 'ok');
     }
 
-    // ===========================================================================
-    // Export
-    // ===========================================================================
+    // =========================================================================
+    // Export ZIP
+    // =========================================================================
 
     document.getElementById('exportZip').addEventListener('click', async () => {
       if (!lastProcessedData) return;
 
-      const zip = new JSZip();
-      const { tilesetJson, tileUrls, cloud } = lastProcessedData;
-      const { tileset } = lastProcessedData;
+      const btn = document.getElementById('exportZip');
+      btn.disabled = true;
+      btn.textContent = '📦 Exporting...';
 
-      zip.file('tileset.json', JSON.stringify(tilesetJson, null, 2));
+      try {
+        const { tileset } = lastProcessedData;
+        const zip = new JSZip();
+        const tileCount = tileset.tileCount;
 
-      for (let i = 0; i < tileUrls.length; i++) {
-        const response = await fetch(tileUrls[i]);
-        const data = await response.arrayBuffer();
-        zip.file(i + '.pnts', data);
+        zip.file('tileset.json', tileset.tilesetJson());
+
+        for (let i = 0; i < tileCount; i++) {
+          const uri = tileset.tileUri(i) || `${i}.pnts`;
+          const data = tileset.tile(i);
+          zip.file(uri, data);
+          if (i % 20 === 0) await yieldToUI();
+        }
+
+        const blob = await zip.generateAsync({ type: 'blob' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'pointcloud-3dtiles.zip';
+        a.click(); URL.revokeObjectURL(url);
+
+        log(`Exported ZIP: tileset.json + ${tileCount} tiles`, 'ok');
+      } catch (err) {
+        log('Export failed: ' + err.message, 'err');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '📦 Export ZIP';
       }
-
-      const blob = await zip.generateAsync({ type: 'blob' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = 'pointcloud-3dtiles.zip';
-      a.click(); URL.revokeObjectURL(url);
-
-      log('Exported ZIP with tileset.json + pnts tiles', 'ok');
-    });
-
-    document.getElementById('exportGlb').addEventListener('click', () => {
-      if (!lastProcessedData) return;
-      log('GLB export — coming in next version', 'warn');
     });
 
     document.getElementById('copyLink').addEventListener('click', () => {
       if (!lastProcessedData) return;
-      log('Share link (data would be too large for URL encoding)', 'warn');
-      // In practice, this would encode small point clouds as data URLs
-      const msg = 'wasm-spatial-core generated this 3D Tiles tileset. ' +
-        `Points: ${lastProcessedData.cloud.numPoints}, ` +
-        `Tiles: ${lastProcessedData.tileset.tileCount}`;
-      navigator.clipboard.writeText(msg).then(() => {
-        log('Copied summary to clipboard', 'ok');
-      });
+      const { pointCount, fmt } = lastProcessedData;
+      const msg = `wasm-spatial-core 3D Tiles — ${pointCount.toLocaleString()} points (${fmt}), ` +
+        `${lastProcessedData.tileset.tileCount} tiles, ${formatBytes(lastProcessedData.tileset.totalBytes)}`;
+      navigator.clipboard.writeText(msg).then(() => log('Copied summary to clipboard', 'ok'));
     });
 
-    // ===========================================================================
+    // =========================================================================
     // UI Helpers
-    // ===========================================================================
+    // =========================================================================
 
     function formatBytes(bytes) {
       if (bytes < 1024) return bytes + ' B';
-      if (bytes < 1048576) return (bytes/1024).toFixed(1) + ' KB';
-      return (bytes/1048576).toFixed(1) + ' MB';
+      if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+      if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
+      return (bytes / 1073741824).toFixed(2) + ' GB';
     }
 
     function showPanel(id) {
@@ -982,8 +868,8 @@
       });
       document.querySelectorAll('.step .status').forEach(el => el.textContent = '-');
       document.getElementById('exportZip').disabled = true;
-      document.getElementById('exportGlb').disabled = true;
       document.getElementById('copyLink').disabled = true;
+      hideProgress();
     }
 
     function setStepActive(id) {
@@ -999,6 +885,18 @@
       document.getElementById(id + 'Status').textContent = '✓';
     }
 
+    function showProgress() {
+      document.getElementById('progressWrap').classList.remove('hidden');
+    }
+
+    function hideProgress() {
+      document.getElementById('progressWrap').classList.add('hidden');
+    }
+
+    function updateProgress(pct) {
+      document.getElementById('progressBar').style.width = pct + '%';
+    }
+
     function log(msg, type = '') {
       const area = document.getElementById('logArea');
       const time = new Date().toLocaleTimeString('en', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -1007,25 +905,39 @@
       showPanel('logPanel');
     }
 
-    function asyncSleep(ms) {
-      return new Promise(resolve => setTimeout(resolve, ms));
+    function yieldToUI() {
+      return new Promise(resolve => setTimeout(resolve, 0));
     }
 
-    // ===========================================================================
+    // =========================================================================
     // File Input Events
-    // ===========================================================================
+    // =========================================================================
 
     const dropZone = document.getElementById('dropZone');
     dropZone.addEventListener('click', () => document.getElementById('fileInput').click());
     dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
     dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
     dropZone.addEventListener('drop', e => {
-      e.preventDefault(); dropZone.classList.remove('dragover');
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
       if (e.dataTransfer.files.length > 0) processFile(e.dataTransfer.files[0]);
     });
     document.getElementById('fileInput').addEventListener('change', e => {
       if (e.target.files.length > 0) processFile(e.target.files[0]);
     });
+
+    // =========================================================================
+    // Boot
+    // =========================================================================
+
+    (async function boot() {
+      try {
+        await Promise.all([loadWasm(), initCesium()]);
+        log('Ready — drop a LAS/LAZ file to start');
+      } catch (err) {
+        log('Boot failed: ' + err.message, 'err');
+      }
+    })();
   </script>
 </body>
 </html>
