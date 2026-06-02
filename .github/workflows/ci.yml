@@ -150,6 +150,7 @@ jobs:
         uses: dtolnay/rust-toolchain@nightly
         with:
           targets: wasm32-unknown-unknown
+          components: rust-src
 
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
@@ -282,9 +283,9 @@ jobs:
         working-directory: pkg
         run: npm install
 
-      - name: Build TypeScript wrapper
+      - name: Build TypeScript declarations
         working-directory: pkg
-        run: npm run build --if-present
+        run: npx tsc --declaration --emitDeclarationOnly --outDir . index.ts --ignoreConfig --target esnext --moduleResolution bundler --module esnext --lib esnext --skipLibCheck
 
       - name: Publish to npm
         working-directory: pkg
