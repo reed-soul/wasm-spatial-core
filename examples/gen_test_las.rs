@@ -11,7 +11,10 @@ use std::io::{BufWriter, Write};
 fn main() {
     let args: Vec<String> = env::args().collect();
     let n: u32 = args.get(1).and_then(|s| s.parse().ok()).unwrap_or(500_000);
-    let out_path = args.get(2).cloned().unwrap_or_else(|| "test-data/large/synthetic_500k.las".into());
+    let out_path = args
+        .get(2)
+        .cloned()
+        .unwrap_or_else(|| "test-data/large/synthetic_500k.las".into());
 
     println!("Generating {n} points → {out_path}");
 
@@ -115,9 +118,9 @@ fn main() {
         f.write_all(&[0u8]).unwrap();
         // Classification (1B)
         let cls = match i % 10 {
-            0..=1 => 2u8,  // ground
-            2..=5 => 5u8,  // high vegetation
-            _ => 1u8,       // unclassified
+            0..=1 => 2u8, // ground
+            2..=5 => 5u8, // high vegetation
+            _ => 1u8,     // unclassified
         };
         f.write_all(&[cls]).unwrap();
         // User Data (1B) + Point Source ID (2B)
@@ -130,7 +133,10 @@ fn main() {
 
     f.flush().unwrap();
     let size = File::open(&out_path).unwrap().metadata().unwrap().len();
-    println!("Done: {size} bytes ({:.1} MB, {n} points)", size as f64 / 1_048_576.0);
+    println!(
+        "Done: {size} bytes ({:.1} MB, {n} points)",
+        size as f64 / 1_048_576.0
+    );
 }
 
 struct XorShift64(u64);
