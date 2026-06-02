@@ -102,7 +102,7 @@ impl PointCloudStreamer {
             ));
         }
 
-        self.num_points = read_u32_le(bytes, 107);
+        self.num_points = read_u32_le(bytes, 100);
         self.point_offset = read_u32_le(bytes, 96);
         self.point_format_id = bytes[104];
         self.point_record_length = read_u16_le(bytes, 105);
@@ -533,9 +533,10 @@ pub fn parse_copc_header_core(bytes: &[u8]) -> Result<CopcInfo, String> {
         .map_err(|e| e.to_string())?;
     let _header_size = read_u16_from_cursor(&mut cursor)?;
     let point_data_offset = read_u32_from_cursor(&mut cursor)? as u64;
-    let num_vlrs = read_u32_from_cursor(&mut cursor)?;
+    let num_points_legacy = read_u32_from_cursor(&mut cursor)?; // legacy num points at offset 100
     let point_format_id = read_u8_from_cursor(&mut cursor)?;
     let _point_record_length = read_u16_from_cursor(&mut cursor)?;
+    let num_vlrs = read_u16_from_cursor(&mut cursor)? as u64; // VLR count at offset 107
 
     // LAS 1.4 uses 64-bit point count at offset 247
     let point_count: u64 = if version_major == 1 && version_minor == 4 {
@@ -545,14 +546,14 @@ pub fn parse_copc_header_core(bytes: &[u8]) -> Result<CopcInfo, String> {
         read_u64_from_cursor(&mut cursor)?
     } else {
         cursor
-            .seek(SeekFrom::Start(107))
+            .seek(SeekFrom::Start(100))
             .map_err(|e| e.to_string())?;
         read_u32_from_cursor(&mut cursor)? as u64
     };
 
     // Scale/offset
     cursor
-        .seek(SeekFrom::Start(134))
+        .seek(SeekFrom::Start(131))
         .map_err(|e| e.to_string())?;
     let x_scale = read_f64_from_cursor(&mut cursor)?;
     let y_scale = read_f64_from_cursor(&mut cursor)?;
@@ -1322,15 +1323,15 @@ mod tests {
         buf[25] = 4; // version minor
         buf[94..96].copy_from_slice(&(header_size as u16).to_le_bytes());
         buf[96..100].copy_from_slice(&point_offset.to_le_bytes());
-        buf[100..104].copy_from_slice(&1u32.to_le_bytes()); // 1 VLR
+        buf[100..104].copy_from_slice(&num_points.to_le_bytes()); // legacy num points
         buf[104] = point_format;
         buf[105..107].copy_from_slice(&point_size.to_le_bytes());
-        buf[107..111].copy_from_slice(&num_points.to_le_bytes()); // 32-bit count too
-                                                                  // 64-bit point count at offset 247
+        buf[107..109].copy_from_slice(&1u16.to_le_bytes()); // num VLRs = 1
+                                                            // 64-bit point count at offset 247
         buf[247..255].copy_from_slice(&(num_points as u64).to_le_bytes());
-        buf[134..142].copy_from_slice(&1.0_f64.to_le_bytes());
-        buf[142..150].copy_from_slice(&1.0_f64.to_le_bytes());
-        buf[150..158].copy_from_slice(&1.0_f64.to_le_bytes());
+        buf[131..139].copy_from_slice(&1.0_f64.to_le_bytes()); // x scale
+        buf[139..147].copy_from_slice(&1.0_f64.to_le_bytes()); // y scale
+        buf[147..155].copy_from_slice(&1.0_f64.to_le_bytes()); // z scale
         buf[182..190].copy_from_slice(&max_x.to_le_bytes());
         buf[190..198].copy_from_slice(&max_y.to_le_bytes());
         buf[198..206].copy_from_slice(&max_z.to_le_bytes());
