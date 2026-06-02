@@ -1,0 +1,15 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPointStrategy": "resolve",
+  "out": "docs/api",
+  "readme": "README.md",
+  "name": "wasm-spatial-core",
+  "excludePrivate": true,
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "ESNext.Disposable"],
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "skipLibCheck": true
+  }
+}
