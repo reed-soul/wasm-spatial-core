@@ -3,7 +3,7 @@
 //! Run: cargo test --test large_file_e2e --features point-cloud,test-helpers -- --nocapture
 
 use std::time::Instant;
-use wasm_spatial_core::test_exports::test_helpers::{get_positions};
+use wasm_spatial_core::test_exports::test_helpers::get_positions;
 use wasm_spatial_core::{
     generate_tileset, parse_las_header_core, parse_las_points_core, parse_pnts_header, Octree,
 };
@@ -94,8 +94,7 @@ fn test_500k_tileset() {
     let octree = Octree::build(&mut positions, max_pts as u32, 10);
 
     let start = Instant::now();
-    let result = generate_tileset(&octree, &positions, None)
-        .expect("tileset generation failed");
+    let result = generate_tileset(&octree, &positions, None).expect("tileset generation failed");
     let elapsed = start.elapsed();
 
     eprintln!("✅ Tileset generated in {:?}", elapsed);
