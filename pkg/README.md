@@ -12,6 +12,11 @@
 ![Tests](https://img.shields.io/badge/tests-689-success)
 ![Formats](https://img.shields.io/badge/formats-15-green)
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/demo.png">
+  <img alt="wasm-spatial-core demo" src="docs/demo.png" width="600">
+</picture>
+
 **[🌐 Live Demo](https://reed-soul.github.io/wasm-spatial-core/)** ·
 [📦 npm](https://www.npmjs.com/package/wasm-spatial-core) ·
 [📖 API Reference](#-api-reference) ·
