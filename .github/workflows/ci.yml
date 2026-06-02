@@ -282,7 +282,7 @@ jobs:
 
       - name: Install npm dependencies
         working-directory: pkg
-        run: npm install
+        run: npm install --ignore-scripts
 
       - name: Build TypeScript declarations
         working-directory: pkg
