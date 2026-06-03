@@ -39,11 +39,24 @@
   "main": "./pkg/wasm_spatial_core.js",
   "module": "./pkg/wasm_spatial_core.js",
   "types": "./index.d.ts",
+  "peerDependenciesMeta": {
+    "draco3d": {
+      "optional": true
+    }
+  },
+  "peerDependencies": {
+    "draco3d": ">=1.5.0"
+  },
   "exports": {
     ".": {
       "types": "./index.d.ts",
       "import": "./pkg/wasm_spatial_core.js",
       "default": "./pkg/wasm_spatial_core.js"
+    },
+    "./draco": {
+      "types": "./draco.d.ts",
+      "import": "./draco.ts",
+      "default": "./draco.ts"
     }
   },
   "files": [
@@ -53,6 +66,8 @@
     "pkg/wasm_spatial_core.d.ts",
     "index.ts",
     "index.d.ts",
+    "draco.ts",
+    "draco.d.ts",
     "README.md",
     "LICENSE"
   ],

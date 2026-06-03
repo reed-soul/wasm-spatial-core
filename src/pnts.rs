@@ -1021,19 +1021,17 @@ pub fn estimate_point_spacing_js(positions: &[f32], sample_size: Option<usize>) 
 /// For native (non-WASM) builds, Draco support may be added in a future version.
 #[wasm_bindgen(js_name = "supportsDraco")]
 pub fn supports_draco_js() -> bool {
-    false
+    true
 }
 
 /// Returns a human-readable status string explaining Draco compression support.
 #[wasm_bindgen(js_name = "dracoStatus")]
 pub fn draco_status_js() -> String {
     String::from(
-        "Draco compression: NOT SUPPORTED in WASM builds.\n\
-         Root cause: draco-oxide (pure Rust) depends transitively on \
-         getrandom@0.3 which requires the wasm_js configuration flag \
-         (RUSTFLAGS) not expressible in Cargo.toml.\n\
-         Alternative: use Google's Draco WASM decoder (JavaScript) for \
-         client-side decompression; encode on server or build pipeline.",
+        "Draco compression: SUPPORTED via JS-side integration.\n\
+         Uses Google's draco3d npm package (Apache-2.0, encoder WASM ~362KB).\n\
+         Import from 'wasm-spatial-core/draco' and pass a draco3d encoder module.\n\
+         See: npm install draco3d",
     )
 }
 
@@ -2094,16 +2092,16 @@ mod tileset_tests {
     // ===========================================================================
 
     #[test]
-    fn test_supports_draco_returns_false() {
-        assert!(!supports_draco_js());
+    fn test_supports_draco_returns_true() {
+        assert!(supports_draco_js());
     }
 
     #[test]
-    fn test_draco_status_contains_not_supported() {
+    fn test_draco_status_contains_supported() {
         let status = draco_status_js();
         assert!(
-            status.contains("NOT SUPPORTED"),
-            "Status should mention NOT SUPPORTED: {}",
+            status.contains("SUPPORTED"),
+            "Status should mention SUPPORTED: {}",
             status
         );
     }
