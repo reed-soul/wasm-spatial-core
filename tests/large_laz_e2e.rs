@@ -61,6 +61,7 @@ fn build_laz(n: usize) -> Vec<u8> {
     buf[100..104].copy_from_slice(&(n as u32).to_le_bytes());
     buf[104] = 0x80;
     buf[105..107].copy_from_slice(&ps.to_le_bytes());
+    buf[107..109].copy_from_slice(&1u16.to_le_bytes()); // num VLRs = 1 (LASZIP)
     buf[131..139].copy_from_slice(&1.0f64.to_le_bytes());
     buf[139..147].copy_from_slice(&1.0f64.to_le_bytes());
     buf[147..155].copy_from_slice(&1.0f64.to_le_bytes());
@@ -92,6 +93,7 @@ fn test_50m_laz_header() {
 }
 
 #[test]
+#[ignore] // Too slow for CI (~200s debug). Run locally: cargo test --test large_laz_e2e --features "point-cloud test-helpers laz-support" --release -- --ignored --nocapture --test-threads=1
 fn test_50m_laz_full_pipeline() {
     let n = 50_000_000;
     let t = Instant::now();

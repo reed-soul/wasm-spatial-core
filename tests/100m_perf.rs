@@ -48,6 +48,7 @@ fn build_las(n: usize) -> Vec<u8> {
 }
 
 #[test]
+#[ignore] // Too slow for CI (~9s release, needs ~3.5GB RAM). Run: cargo test --test 100m_perf --features "point-cloud test-helpers" --release -- --ignored --nocapture --test-threads=1
 fn test_100m_las_full_pipeline() {
     let n: usize = 100_000_000;
     println!("\n=== 100M LAS Full Pipeline ===");
