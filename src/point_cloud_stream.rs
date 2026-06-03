@@ -533,7 +533,7 @@ pub fn parse_copc_header_core(bytes: &[u8]) -> Result<CopcInfo, String> {
         .map_err(|e| e.to_string())?;
     let _header_size = read_u16_from_cursor(&mut cursor)?;
     let point_data_offset = read_u32_from_cursor(&mut cursor)? as u64;
-    let num_points_legacy = read_u32_from_cursor(&mut cursor)?; // legacy num points at offset 100
+    let _num_points_legacy = read_u32_from_cursor(&mut cursor)?; // legacy num points at offset 100
     let point_format_id = read_u8_from_cursor(&mut cursor)?;
     let _point_record_length = read_u16_from_cursor(&mut cursor)?;
     let num_vlrs = read_u16_from_cursor(&mut cursor)? as u64; // VLR count at offset 107
