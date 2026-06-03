@@ -195,7 +195,7 @@ fn test_las_truncated_no_point_data() {
     // record length = 20 (format 0)
     blob[105..107].copy_from_slice(&20u16.to_le_bytes());
     // num_points = 100
-    blob[107..111].copy_from_slice(&100u32.to_le_bytes());
+    blob[100..104].copy_from_slice(&100u32.to_le_bytes()); // num_points
     blob[131..139].copy_from_slice(&1.0_f64.to_le_bytes()); // x_scale
     blob[139..147].copy_from_slice(&1.0_f64.to_le_bytes()); // y_scale
     blob[147..155].copy_from_slice(&1.0_f64.to_le_bytes()); // z_scale
@@ -212,9 +212,9 @@ fn test_las_header_partial_data() {
     blob[24] = 1;
     blob[25] = 2;
     blob[96..100].copy_from_slice(&230u32.to_le_bytes());
+    blob[100..104].copy_from_slice(&5u32.to_le_bytes()); // num points at offset 100
     blob[104] = 0; // format 0
     blob[105..107].copy_from_slice(&20u16.to_le_bytes());
-    blob[107..111].copy_from_slice(&5u32.to_le_bytes());
     blob[131..139].copy_from_slice(&1.0_f64.to_le_bytes());
     blob[139..147].copy_from_slice(&1.0_f64.to_le_bytes());
     blob[147..155].copy_from_slice(&1.0_f64.to_le_bytes());
