@@ -2,14 +2,14 @@
 
 # wasm-spatial-core
 
-**Drag a point cloud file into your browser, get interactive 3D. No server needed.**
+**Drag a LAS/LAZ file into your browser → Cesium 3D. No server needed.**
 
 [![CI](https://github.com/reed-soul/wasm-spatial-core/actions/workflows/ci.yml/badge.svg)](https://github.com/reed-soul/wasm-spatial-core/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/wasm-spatial-core)](https://www.npmjs.com/package/wasm-spatial-core)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-![Lines](https://img.shields.io/badge/code-35K-blue)
-![Tests](https://img.shields.io/badge/tests-689-success)
+![Lines](https://img.shields.io/badge/code-33K-blue)
+![Tests](https://img.shields.io/badge/tests-680-success)
 ![Formats](https://img.shields.io/badge/formats-15-green)
 
 <picture>
@@ -19,17 +19,17 @@
 
 **[🌐 Live Demo](https://reed-soul.github.io/wasm-spatial-core/)** ·
 [📦 npm](https://www.npmjs.com/package/wasm-spatial-core) ·
-[📖 API Reference](#-api-reference) ·
+[📖 API Docs](https://reed-soul.github.io/wasm-spatial-core/docs/) ·
 [🗺️ Roadmap](./ROADMAP_V1.md)
 
-**🧪 Try it now — no build needed:**
+**🧪 Try it now:**
 
 ```html
 <script type="module">
   import init, { parsePointCloudAuto, buildOctree, generateTileset }
     from 'https://esm.run/wasm-spatial-core';
   await init();
-  // Drop a LAS/LAZ file, parse → octree → 3D Tiles — all in-browser.
+  // LAS/LAZ file → parse → octree → 3D Tiles — all in-browser
 </script>
 ```
 
@@ -39,15 +39,21 @@
 
 ## ✨ What is this?
 
-🚀 **LAS/LAZ/COPC/E57/PLY/OBJ → 3D Tiles + GeoTIFF → Terrain** in the browser
-⚡ **10M points in seconds**, not minutes
-🔒 **Zero server, zero upload, zero dependencies** — your data never leaves the device
+🚀 **LAS/LAZ/COPC/E57/PLY/OBJ → 3D Tiles** in the browser
+🏔️ **GeoTIFF → Quantized-Mesh Terrain** in the browser
+🗜️ **Draco point cloud compression** (Google draco3d integration)
+⚡ **100M points in 8.5 seconds** (release build, native)
+🔒 **Zero server, zero upload, zero dependencies**
 
-`wasm-spatial-core` is a high-performance WebAssembly engine that moves heavy spatial computing from the server to the browser. Point cloud parsing, octree spatial partitioning, 3D Tiles generation, GeoTIFF terrain decoding, quantized-mesh encoding, coordinate projection, GeoJSON processing — all compiled from Rust for near-native performance.
+`wasm-spatial-core` is a high-performance WebAssembly engine that compiles spatial computing from Rust to run directly in the browser. Point cloud parsing, octree spatial partitioning, 3D Tiles generation, Draco compression, GeoTIFF terrain decoding, coordinate projection, GeoJSON processing — all at near-native speed.
 
 ---
 
 ## 🚀 Quick Start
+
+```bash
+npm install wasm-spatial-core
+```
 
 ```js
 import init, {
@@ -58,87 +64,162 @@ import init, {
 
 await init();
 
-// Parse any point cloud format (LAS, LAZ, COPC, PLY, OBJ...)
+// Parse any point cloud (LAS, LAZ, COPC, PLY, OBJ...)
 const cloud = parsePointCloudAuto(lasBytes);
 
-// Build octree for spatial partitioning
-const octree = buildOctree(cloud.positions());
-
-// Generate 3D Tiles tileset (pnts + tileset.json)
-const tiles = generateTileset(octree, cloud.positions(), cloud.colors());
+// Build octree → 3D Tiles
+const tiles = generateTileset(
+  cloud.positions(),
+  50000,  // max points per node
+  10      // max depth
+);
 ```
 
-**npm install:**
+### Draco Compression (optional)
 
 ```bash
-npm install wasm-spatial-core
+npm install draco3d
 ```
 
-**Build from source:**
+```js
+import { loadSpatialCore, compressTilesetWithDraco } from 'wasm-spatial-core';
+import { createEncoderModule } from 'draco3d';
 
-```bash
-git clone https://github.com/reed-soul/wasm-spatial-core.git
-cd wasm-spatial-core
-wasm-pack build --target web --release --out-dir pkg -- --features point-cloud
+const wasm = await loadSpatialCore();
+const encoderModule = await createEncoderModule({});
+const tileset = wasm.generateTileset(positions, 50000, 21);
+
+const results = compressTilesetWithDraco(tileset, encoderModule, {
+  quantizationBits: 11,
+  onProgress: (i, total, orig, comp) => {
+    console.log(`Tile ${i + 1}/${total}: ${(comp / orig * 100).toFixed(0)}%`);
+  },
+});
 ```
 
 ---
 
-## 🎯 Core Capability: Point Cloud → 3D Tiles
+## 🎯 Core Pipelines
 
-> Drag a LAS/LAZ file into the browser → get a Cesium-ready 3D Tiles tileset.
-> **Zero server, zero upload, zero dependencies.**
-
-## 🏔️ Core Capability: GeoTIFF → Terrain Tiles
-
-> Drag a GeoTIFF elevation file into the browser → get Cesium quantized-mesh terrain tiles.
-> **Hand-written parser, zero external TIFF dependencies, WASM-optimized.**
+### Point Cloud → 3D Tiles
 
 ```
-File Drop (GeoTIFF .tif)
+LAS / LAZ / COPC / E57 / PLY / OBJ
         │
         ▼
   ┌──────────────┐
-  │ GeoTIFF Parser │  ← Float32/16/8, strip/tile, DEFLATE
+  │ WASM Parser   │  Full format support, browser-side
   └──────┬───────┘
-         │
          ▼
   ┌──────────────┐
-  │ Quantized-Mesh │  ← Cesium terrain binary format
+  │ Octree Build  │  8-way spatial partitioning
   └──────┬───────┘
-         │
          ▼
   ┌──────────────┐
-  │ tileset.json   │  ← LOD pyramid (zoom 0..N)
+  │ pnts Encoder  │  3D Tiles Point Cloud binary
+  └──────┬───────┘
+         ▼
+  ┌──────────────┐     ┌──────────────┐
+  │ tileset.json  │     │ Draco Compress │  Optional (~20% ratio)
+  └──────┬───────┘     └──────┬───────┘
+         │                      │
+         ▼                      ▼
+  Cesium / Three.js — interactive 3D
+```
+
+### GeoTIFF → Terrain Tiles
+
+```
+GeoTIFF (.tif)
+        │
+        ▼
+  ┌──────────────┐
+  │ WASM Parser   │  Float32/16/8, strip/tile, DEFLATE
+  └──────┬───────┘
+         ▼
+  ┌──────────────┐
+  │ Quantized-Mesh │  Cesium terrain binary format
+  └──────┬───────┘
+         ▼
+  ┌──────────────┐
+  │ tileset.json   │  LOD pyramid (zoom 0..N)
   └───────────────┘
 ```
 
-```
-File Drop (LAS/LAZ/COPC/E57/PLY/OBJ)
-        │
-        ▼
-  ┌──────────────┐
-  │ WASM Parser   │  ← Full format support, browser-side
-  └──────┬───────┘
-         │
-         ▼
-  ┌──────────────┐
-  │ Octree Build  │  ← 8-way spatial partitioning
-  └──────┬───────┘
-         │
-         ▼
-  ┌──────────────┐
-  │ pnts Encoder  │  ← 3D Tiles Point Cloud binary format
-  └──────┬───────┘
-         │
-         ▼
-  ┌──────────────┐
-  │ tileset.json  │  ← Recursive hierarchy with LOD
-  └──────┬───────┘
-         │
-         ▼
-  Cesium / Three.js — interactive 3D rendering
-```
+---
+
+## ⚡ Performance
+
+Benchmarks on **Apple M2 / Mac mini 4**, see [PERFORMANCE.md](./PERFORMANCE.md) for details.
+
+### Point Cloud Pipeline (LAS → Octree → 3D Tiles)
+
+| Dataset | Points | Parse | Octree | Tileset | Total |
+|---------|--------|-------|--------|---------|-------|
+| sample.las | 1,065 | — | < 1 ms | < 1 ms | — |
+| Synthetic | 500K | 36 ms | 117 ms | 49 ms | 205 ms |
+| Synthetic | 10M | 1.1 s | 2.9 s | 740 ms | 4.8 s |
+| **Synthetic** | **100M** | **0.4 s** | **6.0 s** | **0.8 s** | **8.5 s** |
+
+> 100M-point benchmark: release build, single-thread native (Rust). WASM will be slower but still well under 30 seconds.
+
+### Draco Compression
+
+| Dataset | Points | Uncompressed | Draco (q=11) | Ratio |
+|---------|--------|-------------|-------------|-------|
+| Synthetic | 50K | 600 KB | 121 KB | **20.2%** |
+| Synthetic | 50K | 600 KB | 38 KB (q=8) | **6.3%** |
+
+> Encoder WASM: **362 KB** (Google draco3d, Apache-2.0). Point order may differ after encoding, but position-color pairing is preserved.
+
+### Coordinate Conversion (vs Pure JS)
+
+| Operation | Pure JS | WASM | Speedup |
+|-----------|---------|------|---------|
+| WGS84 → GCJ-02 | ~1,200 ms | ~45 ms | **~27×** |
+| WGS84 → Mercator | ~800 ms | ~12 ms | **~67×** |
+
+---
+
+## 📦 Format Support
+
+### Point Cloud
+
+| Format | Read | Feature Flag |
+|--------|------|-------------|
+| LAS (1.2–1.4, Format 0–6) | ✅ | `point-cloud` |
+| LAZ (compressed) | ✅ | `laz-support` |
+| COPC (Cloud Optimized) | ✅ | `laz-support` |
+| PLY (ASCII + binary) | ✅ | `point-cloud` |
+| OBJ | ✅ | `point-cloud` |
+| PCD (ASCII + binary) | ✅ | `point-cloud` |
+| E57 | ✅ | `e57-support` |
+
+### Vector & Geometry
+
+| Format | Read | Write |
+|--------|------|-------|
+| GeoJSON | ✅ | ✅ |
+| MVT (Vector Tiles) | ✅ | ✅ |
+| WKT / WKB | ✅ | ✅ |
+| GeoTIFF (Terrain) | ✅ | — |
+| glTF 2.0 / GLB | — | ✅ |
+| 3D Tiles (pnts) | — | ✅ |
+| 3D Tiles (b3dm) | — | ✅ |
+| 3D Tiles (quantized-mesh) | — | ✅ |
+
+### Coordinate Systems
+
+| System | Direction |
+|--------|-----------|
+| WGS-84 ↔ GCJ-02 / BD-09 | ✅ |
+| WGS-84 ↔ Web Mercator (EPSG:3857) | ✅ |
+| WGS-84 ↔ CGCS2000 | ✅ |
+| WGS-84 ↔ UTM | ✅ |
+
+### Spatial Analysis
+
+R-Tree / Octree indexing, bounding box / KNN queries, haversine / vincenty distance, polygon boolean ops, Douglas-Peucker simplification, convex / concave hull, DBSCAN / grid clustering, TIN interpolation, and more.
 
 ---
 
@@ -147,100 +228,11 @@ File Drop (LAS/LAZ/COPC/E57/PLY/OBJ)
 | Demo | URL |
 |------|-----|
 | **🏠 Landing Page** | https://reed-soul.github.io/wasm-spatial-core/ |
-| **Unified Demo** (GeoJSON + CRS + R-tree) | https://reed-soul.github.io/wasm-spatial-core/demo/ |
-| **Three.js Point Cloud** (LAS/LAZ/PLY/OBJ/E57) | https://reed-soul.github.io/wasm-spatial-core/point-cloud/ |
+| **Point Cloud** (LAS/LAZ/PLY/OBJ/E57) | https://reed-soul.github.io/wasm-spatial-core/point-cloud/ |
+| **Cesium 3D Tiles** | https://reed-soul.github.io/wasm-spatial-core/cesium-workflow/ |
 | **Terrain Viewer** (GeoTIFF) | https://reed-soul.github.io/wasm-spatial-core/terrain/ |
-| **Demos (legacy)** | https://reed-soul.github.io/wasm-spatial-core/examples/index.html |
 
-Run locally: `npm run demo` (builds `pkg/` and serves on port 8080).
-
----
-
-## 📦 Format Support
-
-### Point Cloud Formats
-
-| Format | Read | Write | Feature Flag |
-|--------|------|-------|--------------|
-| LAS (1.2–1.4, Format 0–6) | ✅ | — | `point-cloud` |
-| LAZ (compressed) | ✅ | — | `laz-support` |
-| COPC (Cloud Optimized) | ✅ | — | `laz-support` |
-| PLY (ASCII + binary) | ✅ | — | `point-cloud` |
-| OBJ | ✅ | — | `point-cloud` |
-| PCD (ASCII + binary) | ✅ | — | `point-cloud` |
-| E57 | ✅ | — | `e57-support` |
-
-### Vector & Geometry Formats
-
-| Format | Read | Write |
-|--------|------|-------|
-| GeoJSON | ✅ | ✅ |
-| MVT (Vector Tiles) | ✅ | ✅ |
-| WKT / WKB | ✅ | ✅ |
-| TopoJSON | ✅ | — |
-| GPX | ✅ | — |
-| GeoTIFF (Terrain) | ✅ | — |
-| glTF 2.0 / GLB | — | ✅ |
-| 3D Tiles (b3dm) | — | ✅ |
-| 3D Tiles (pnts) | — | ✅ |
-| 3D Tiles (quantized-mesh) | — | ✅ |
-
-### Coordinate Systems
-
-| System | Direction |
-|--------|-----------|
-| WGS-84 ↔ GCJ-02 | ✅ Both ways |
-| WGS-84 ↔ BD-09 | ✅ Both ways |
-| WGS-84 ↔ Web Mercator (EPSG:3857) | ✅ Both ways |
-| WGS-84 ↔ CGCS2000 | ✅ Both ways |
-| WGS-84 ↔ UTM | ✅ Both ways |
-
-### Spatial Analysis
-
-| Capability | Status |
-|------------|--------|
-| R-Tree spatial index (point + edge) | ✅ |
-| Octree spatial partitioning | ✅ |
-| Bounding box / KNN queries | ✅ |
-| Haversine / Vincenty distance | ✅ |
-| Point / line buffer | ✅ |
-| Polygon boolean ops (intersection/union) | ✅ |
-| Douglas-Peucker simplification | ✅ |
-| Convex / concave hull | ✅ |
-| DBSCAN / grid clustering | ✅ |
-| TIN interpolation | ✅ |
-
----
-
-## ⚡ Performance
-
-Benchmarks on **Apple M2 (macOS, debug)**, see [PERFORMANCE.md](./PERFORMANCE.md) for details.
-
-| Operation | Pure JS | wasm-spatial-core | Speedup |
-|-----------|---------|-------------------|---------|
-| WGS84 → GCJ-02 | ~1,200 ms | ~45 ms | **~27×** |
-| WGS84 → Mercator | ~800 ms | ~12 ms | **~67×** |
-| GeoJSON parse (50 MB) | ~3,500 ms | ~320 ms | **~11×** |
-
-### Point Cloud Pipeline (LAS → Octree → 3D Tiles)
-
-| Dataset | Points | Octree Build | Tileset Gen | Output |
-|---------|--------|-------------|-------------|--------|
-| sample.las | 1,065 | < 1 ms | < 1 ms | 4 tiles, 8 KB |
-| Synthetic | 100K | 24 ms | 4 ms | 97 tiles, 1.15 MB |
-| Synthetic | 1M | 270 ms | 41 ms | 401 tiles, 11.5 MB |
-| Synthetic | 10M | 2,944 ms | — | octree only |
-
-### Real File Test: `sample.las`
-
-Using `tests/fixtures/sample.las` (1,065 points, LAS 1.2, format 3 with color):
-
-```
-Header:  version 1.2, format 3, 1,065 points
-Octree:  17 nodes, depth 2, 15 leaves
-Tiles:   15 pnts tiles, 16.89 KB
-
-> Benchmarks are indicative. Run `cargo bench` for local results.
+Run locally: `npm run demo`
 
 ---
 
@@ -249,139 +241,75 @@ Tiles:   15 pnts tiles, 16.89 KB
 ### Point Cloud → 3D Tiles
 
 ```typescript
-const core = await loadSpatialCore();
+import { loadSpatialCore } from 'wasm-spatial-core';
+const wasm = await loadSpatialCore();
 
-// Auto-detect format (LAS/LAZ/COPC/PLY/OBJ)
-const cloud = core.parsePointCloudAuto(bytes);
-console.log(cloud.count());          // point count
-console.log(cloud.positions());      // Float32Array [x,y,z,...]
-console.log(cloud.colors());         // Uint8Array [r,g,b,...]
+// Auto-detect format
+const cloud = wasm.parsePointCloudAuto(bytes);
+console.log(cloud.count());        // point count
+console.log(cloud.positions());    // Float32Array [x,y,z,...]
+console.log(cloud.colors());       // Uint8Array [r,g,b,...] | null
 
-// Build octree
-const octree = core.buildOctree(cloud.positions());
-console.log(octree.nodeCount());     // node count
-console.log(octree.depth());         // tree depth
+// Octree
+const octree = wasm.buildOctree(cloud.positions(), 50000, 10);
+console.log(octree.nodeCount());   // node count
+console.log(octree.depth());       // tree depth
 
-// Generate 3D Tiles tileset
-const tileset = core.generateTileset(
-  cloud.positions(),
-  50000,  // max points per node
-  10,     // max depth
-  cloud.colors()
-);
-console.log(tileset.tileCount());    // tile count
-console.log(tileset.totalBytes());    // total size
-console.log(tileset.tilesetJson());  // tileset.json string
+// 3D Tiles tileset
+const tileset = wasm.generateTileset(cloud.positions(), 50000, 10);
+console.log(tileset.tileCount());  // tile count
+console.log(tileset.tilesetJson()); // tileset.json string
+```
 
-// Encode individual pnts tile
-const tileBytes = tileset.tile(0);
+### Draco Compression
 
-// View-dependent LOD
-const visible = core.getVisibleTiles(
-  cloud.positions(),
-  cameraX, cameraY, cameraZ,
-  60,     // FOV
-  1920,   // screen width
-  1080,   // screen height
-  50000,  // max points per node
-  10,     // max depth
-  1.0     // SSE threshold (pixels)
-);
+```typescript
+import { compressTilesetWithDraco, buildDracoTileset } from 'wasm-spatial-core';
+import { createEncoderModule } from 'draco3d';
+
+const encoderModule = await createEncoderModule({});
+
+// Compress all tiles
+const results = compressTilesetWithDraco(tileset, encoderModule, {
+  quantizationBits: 11,   // 8–18, default 11
+  encodeSpeed: 5,         // 0–10, default 5
+  decodeSpeed: 5,         // 0–10, default 5
+  compressColors: false,  // also compress RGB (default false)
+});
+
+// Or build a complete compressed tileset
+const { tiles, totalCompressedSize, compressionRatio } =
+  buildDracoTileset(tileset, encoderModule);
 ```
 
 ### Coordinate Conversion
 
 ```typescript
 const coords = new Float64Array([116.404, 39.915, 121.474, 31.230]);
-
-// Batch transform
-const gcj02 = core.batchWgs84ToGcj02(coords);
-
-// Zero-copy in-place
-const mutable = new Float64Array([116.404, 39.915]);
-core.batchWgs84ToGcj02InPlace(mutable);
-
-// Pipeline transforms
-const gcjMercator = core.batchWgs84ToGcj02Mercator(coords);
-
-// UTM
-const [zone, easting, northing, isN] = core.wgs84ToUtm(116.404, 39.915);
+const gcj02 = wasm.batchWgs84ToGcj02(coords);       // batch transform
+wasm.batchWgs84ToGcj02InPlace(mutable);             // zero-copy in-place
+const [zone, easting, northing] = wasm.wgs84ToUtm(116.404, 39.915);
 ```
 
-### GeoJSON Processing
+### GeoJSON
 
 ```typescript
-const coords = core.parseGeoJsonCoords(geojsonStr);
-const count = core.countGeoJsonFeatures(geojsonStr);
-
-// Streaming for large files
-core.parseGeoJsonStream(geojsonStr, 65536, (chunk, processed, total) => {
-  console.log(`${processed}/${total} features`);
-});
-
-// Lazy parser — O(single feature) memory
-const iter = core.parseGeoJsonLazy(hugeGeoJsonStr);
-let feature;
-while ((feature = iter.nextFeature()) !== null) {
-  // process feature...
-}
-iter.free();
+wasm.parseGeoJsonStream(hugeGeojson, 65536, (chunk, n, total) => { /* ... */ });
+const iter = wasm.parseGeoJsonLazy(hugeGeojson);      // O(single feature) memory
 ```
 
-### Spatial Index
-
-```typescript
-const index = new core.SpatialIndex(coords);
-
-// Bounding box query
-const ids = index.searchBBox(116.0, 39.5, 117.0, 40.5);
-
-// Nearest neighbor
-const nearest = index.nearestNeighbor(116.4, 39.9);
-
-// K nearest
-const k5 = index.kNearestNeighbors(116.4, 39.9, 5);
-```
-
-### Cesium Integration
-
-```typescript
-// WGS84 → Cartesian3
-const cartesian = core.batchWgs84ToCartesian3(coords);
-
-// Triangulate polygons
-const geometry = core.generateCesiumGeometry(geojson, "height");
-
-// Generate b3dm tile
-const tile = core.generate3DTile(geojson, "height");
-const tileBytes = tile.toBytes();
-```
-
-### Full API List
-
-See the detailed tables in the [`npm/` README](./npm/README.md) for the complete categorized API reference.
+**[📖 Full API Docs](https://reed-soul.github.io/wasm-spatial-core/docs/)**
 
 ---
 
 ## 🛠️ Build from Source
 
-### Prerequisites
-
-- [Rust](https://rustup.rs/) stable **≥ 1.90**
-- [wasm-pack](https://rustwasm.github.io/wasm-pack/)
-- [Node.js](https://nodejs.org/) ≥ 18
-
-### Build
-
 ```bash
-# Standard build (coordinate + GeoJSON)
-wasm-pack build --target web --release --out-dir pkg
+git clone https://github.com/reed-soul/wasm-spatial-core.git
+cd wasm-spatial-core
 
-# With point cloud support (LAS/LAZ/COPC/PLY/OBJ + octree + 3D Tiles)
-wasm-pack build --target web --release --out-dir pkg -- --features point-cloud
-
-# With LAZ decompression (adds ~400KB to WASM)
-wasm-pack build --target web --release --out-dir pkg -- --features laz-support
+# Point cloud + GeoTIFF
+wasm-pack build --target web --release --out-dir pkg -- --features point-cloud,geotiff
 
 # Run demos
 npm run demo
@@ -392,12 +320,12 @@ npm run demo
 | Feature | Default | Description |
 |---------|---------|-------------|
 | `single-thread` | ✅ | Zero-config, works everywhere |
-| `multi-thread` | ❌ | Web Workers + SharedArrayBuffer (requires atomics + bulk-memory) |
-| `point-cloud` | ❌ | LAS/PCD/PLY/OBJ parsing + octree + 3D Tiles |
-| `laz-support` | ❌ | LAZ/COPC decompression (implies `point-cloud`) |
-| `e57-support` | ❌ | E57 format support (architectural/industrial scans) |
-| `geotiff` | ❌ | GeoTIFF terrain parsing + quantized-mesh + hillshade |
-| `draco-support` | ❌ | Draco compression status API |
+| `multi-thread` | ❌ | Web Workers + SharedArrayBuffer |
+| `point-cloud` | ❌ | LAS/LAZ/COPC/PLY/OBJ + octree + 3D Tiles |
+| `laz-support` | ❌ | LAZ/COPC decompression |
+| `e57-support` | ❌ | E57 format |
+| `geotiff` | ❌ | GeoTIFF terrain + quantized-mesh |
+| `draco-support` | ❌ | Draco compression API (JS-side via draco3d) |
 
 ---
 
@@ -405,20 +333,17 @@ npm run demo
 
 See **[ROADMAP_V1.md](./ROADMAP_V1.md)** for the full development roadmap.
 
-- ✅ **Phase A**: Point cloud core pipeline (LAS/LAZ/COPC/PLY/OBJ, octree, pnts, tileset, demos)
-- ✅ **Phase B1-B2**: LOD optimization, screen-space error, view-dependent loading
-- ✅ **Phase B3**: WebWorker parallelism (WASM streaming, chunked processing)
-- ✅ **Phase C1**: E57 format support (read + Three.js rendering)
-- ✅ **Phase C2**: GeoTIFF terrain pipeline (parser, quantized-mesh, hillshade, contour)
-- ✅ **Phase C3**: COPC full support (header, chunk reader, region queries)
-- ✅ **Phase D**: npm publish preparation + GitHub Pages deployment
-- 🔜 **Phase E1**: WASM multi-thread (atomics + SharedArrayBuffer)
+- ✅ Phase A: Point cloud pipeline (LAS/LAZ/COPC/PLY/OBJ → octree → 3D Tiles)
+- ✅ Phase B: LOD optimization, screen-space error, view-dependent loading
+- ✅ Phase C: E57, GeoTIFF terrain, COPC full support
+- ✅ Phase D: npm publish, GitHub Pages, TypeDoc docs, Draco compression
+- 🔜 Phase E: WASM multi-thread (atomics + SharedArrayBuffer)
 
 ---
 
 ## 🤝 Contributing
 
-Contributions are welcome! See [**CONTRIBUTING.md**](./CONTRIBUTING.md) for details.
+See [**CONTRIBUTING.md**](./CONTRIBUTING.md).
 
 - 🐛 [Report a bug](.github/ISSUE_TEMPLATE/bug_report.md)
 - 💡 [Request a feature](.github/ISSUE_TEMPLATE/feature_request.md)
@@ -435,6 +360,6 @@ Contributions are welcome! See [**CONTRIBUTING.md**](./CONTRIBUTING.md) for deta
 
 **Built with 🦀 Rust + 🕸️ WebAssembly**
 
-*Bringing the power of native spatial computing to every browser.*
+*Native spatial computing in every browser.*
 
 </div>
