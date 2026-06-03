@@ -28,7 +28,10 @@ point-cloud = []
 laz-support = ["point-cloud", "dep:laz"]
 # E57 format support (optional — architectural/industrial scan format)
 e57-support = ["dep:e57"]
-# Draco compression support (optional — uses pure-Rust draco-oxide)
+# Draco compression support — implemented via JS-side integration using
+# Google's draco3d npm package. This feature flag enables the WASM API
+# stubs (supportsDraco, dracoStatus). Actual compression is performed
+# in JavaScript via `import { compressTilesetWithDraco } from "wasm-spatial-core/draco"`.
 draco-support = []
 # GeoTIFF terrain support (TIFF parsing + quantized-mesh encoding)
 geotiff = []

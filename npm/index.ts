@@ -283,3 +283,32 @@ export async function loadSpatialCore() {
   await init();
   return api;
 }
+
+// ---------------------------------------------------------------------------
+// Draco compression (re-export for convenience)
+// ---------------------------------------------------------------------------
+
+/**
+ * Draco compression utilities.
+ *
+ * @example
+ * ```ts
+ * import { loadSpatialCore, compressTilesetWithDraco } from "wasm-spatial-core";
+ * import { createEncoderModule } from "draco3d";
+ *
+ * const wasm = await loadSpatialCore();
+ * const encoderModule = await createEncoderModule({});
+ * const tileset = wasm.generateTileset(positions, 50000, 21);
+ * const results = compressTilesetWithDraco(tileset, encoderModule);
+ * ```
+ *
+ * @module draco
+ */
+export {
+  compressPntsTileWithDraco,
+  compressTilesetWithDraco,
+  buildDracoTileset,
+  type DracoCompressOptions,
+  type DracoTileResult,
+  type TilesetLike,
+} from "./draco.js";
