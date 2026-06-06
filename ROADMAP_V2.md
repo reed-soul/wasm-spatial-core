@@ -68,7 +68,7 @@
 | W2.5 | Chunk export | IR → glTF, pnts/b3dm subset, tile patch |
 | W2.6 | ENU / local frame | Site-scale precision; anchor + local offsets |
 
-**Deferred (backlog):** W2.7 SVD alignment — only if photogrammetry↔GIS registration blocks users.
+| W2.7 | SVD alignment | Rigid/similarity registration from control points (Kabsch/Umeyama) |
 
 ### Issue templates
 

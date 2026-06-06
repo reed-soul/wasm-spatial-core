@@ -98,8 +98,22 @@ Each variant: `metadata: ChunkMeta`, `data: ...`, `version: u64`.
 
 ---
 
-## W2.7 — SVD 3D alignment (backlog — not core path)
+## W2.7 — SVD 3D alignment
 
-**Status:** Deferred. File only if photogrammetry↔GIS registration blocks real users.
+**Title:** `feat(alignment): SVD rigid/similarity registration from control points`
 
-Use per-point CRS transforms + ENU (W2.6) for the common case.
+### Problem
+
+Photogrammetry meshes arrive in an arbitrary local frame; survey/GIS control points are in ENU or projected coordinates. Per-point CRS transforms alone cannot resolve an unknown 3D rotation.
+
+### Proposal
+
+- `computeRigidAlignment(source, target, allowScale)` — Kabsch/Umeyama from ≥3 correspondences
+- `applyRigidAlignment(positions, alignment)` — apply fitted transform to a point cloud or mesh
+- `RigidAlignment.toMat4()` — column-major 4×4 for rendering pipelines
+
+### Acceptance
+
+- [x] Recover known rigid transform (rotation + translation) within 1e-5
+- [x] Optional uniform scale when `allowScale=true`
+- [x] Integration test: photogrammetry control points → ENU survey frame

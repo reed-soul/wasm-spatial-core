@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - AABB region select on mesh and point cloud chunks
   - **W2.5 export** — `exportPointCloudToPnts()` → single `.pnts` + minimal `tileset.json`; mesh `exportToGlb`
   - **W2.6 ENU frame** — `createEnuFrame()`, `wgs84ToEnu` / `enuToWgs84`, f32 rendering offsets; sub-mm round-trip at 1 km
+  - **W2.7 SVD alignment** — `computeRigidAlignment` / `applyRigidAlignment` (Kabsch/Umeyama from ≥3 control points)
 - **Product vision** — [VISION.md](./VISION.md): next-gen Web3D spatial engine positioning (latest Chrome, WASM + WebGPU)
 - **Roadmap V2** — [ROADMAP_V2.md](./ROADMAP_V2.md): Waves 1–5 capability plan
 - **Issue templates** — [docs/issues/WAVE_1.md](./docs/issues/) … `WAVE_5.md` + GitHub form `.github/ISSUE_TEMPLATE/roadmap_v2_capability.yml`

@@ -32,6 +32,9 @@ mod gltf_reader;
 mod chunk_export;
 
 #[cfg(feature = "mesh-ingest")]
+mod alignment;
+
+#[cfg(feature = "mesh-ingest")]
 mod enu_frame;
 
 pub use b3dm::{
@@ -47,6 +50,12 @@ pub use gltf_reader::{parse_glb, parse_glb_core, supports_mesh_ingest};
 pub use chunk_export::{
     build_minimal_tileset_json, export_point_cloud_to_pnts, PointCloudTileExport,
     WasmPointCloudTileExport,
+};
+
+#[cfg(feature = "mesh-ingest")]
+pub use alignment::{
+    apply_rigid_alignment, apply_rigid_alignment_js, compute_rigid_alignment,
+    compute_rigid_alignment_js, supports_svd_alignment, RigidAlignment, WasmRigidAlignment,
 };
 
 #[cfg(feature = "mesh-ingest")]
