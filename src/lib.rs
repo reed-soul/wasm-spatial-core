@@ -34,6 +34,9 @@ mod chunk_export;
 #[cfg(feature = "mesh-ingest")]
 mod enu_frame;
 
+#[cfg(feature = "terrain-edit")]
+mod terrain_edit;
+
 pub use b3dm::{
     create_instanced_tileset, create_instanced_tileset_i3dm, create_mesh_tileset, encode_b3dm_tile,
     encode_i3dm_tile,
@@ -58,6 +61,14 @@ pub use enu_frame::{
 #[cfg(feature = "mesh-ingest")]
 pub use spatial_ir::{
     Aabb, ChunkMeta, HeightfieldChunk, MeshChunk, PointCloudChunk, SpatialChunk, WasmMeshChunk,
+};
+
+#[cfg(feature = "terrain-edit")]
+pub use terrain_edit::{
+    cell_center, encode_deformed_terrain_tileset, encode_deformed_terrain_tileset_js,
+    excavate_inside, excavate_terrain, feather_blend, fill_inside, fill_terrain, flatten_inside,
+    flatten_polygon, flatten_terrain, point_in_ring_core, rasterize_polygon_mask,
+    rasterize_terrain_mask, supports_terrain_edit, CutMode, TerrainGrid,
 };
 mod ifc_reader;
 mod octree;
