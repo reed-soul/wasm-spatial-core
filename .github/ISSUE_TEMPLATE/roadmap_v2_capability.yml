@@ -1,0 +1,61 @@
+name: Roadmap V2 Capability
+description: Propose or track a Wave 1–5 engine capability (see ROADMAP_V2.md)
+title: "[roadmap-v2] "
+labels:
+  - roadmap-v2
+  - engine
+body:
+  - type: dropdown
+    id: wave
+    attributes:
+      label: Wave
+      options:
+        - W1 — Live twin primitives
+        - W2 — Spatial IR + GLB ingest
+        - W3 — Terrain deformation
+        - W4 — WebGPU compute core
+        - W5 — Advanced mesh edit
+    validations:
+      required: true
+  - type: input
+    id: deliverable_id
+    attributes:
+      label: Deliverable ID (e.g. W1.4)
+      placeholder: W1.4
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What desktop-tool workflow does this replace?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: API sketch, modules, feature flags
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Tests, benchmarks, demo requirements
+      value: |
+        - [ ] Unit tests (Rust)
+        - [ ] WASM export (if user-facing)
+        - [ ] Benchmark or N/A justification
+        - [ ] No UI in engine crate
+    validations:
+      required: true
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Vision constraints
+      options:
+        - label: Latest Chrome only (no legacy browser requirement)
+        - label: Zero-copy hot path (typed arrays)
+        - label: Behind feature flag (keeps default WASM small)
+        - label: SpatialError at WASM boundary
