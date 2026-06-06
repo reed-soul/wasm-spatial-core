@@ -85,11 +85,6 @@ Labels: `roadmap-v2`, `wave-5`, `engine`, `mesh-edit`.
 
 ---
 
-## W5.7 — GPU-accelerated QEM (optional)
+## W5.7 — GPU QEM (backlog — not core)
 
-**Title:** `feat(webgpu): GPU assist for QEM on meshes > 1M triangles`
-
-### Acceptance
-
-- [ ] Behind `webgpu` + `mesh-edit`
-- [ ] Document when CPU path is still default
+**Status:** Deferred until W5.5 CPU QEM is shipped and benchmarked. See [ENGINE_BOUNDARY.md](../ENGINE_BOUNDARY.md).

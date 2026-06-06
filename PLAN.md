@@ -83,7 +83,11 @@ into Cesium-compatible 3D Tiles — the foundation for zero-upload, zero-server
 
 ## What's Next
 
-> **Active roadmap:** [VISION.md](./VISION.md) · [ROADMAP_V2.md](./ROADMAP_V2.md) · [Issue templates](./docs/issues/)
+> **Active roadmap:** [VISION.md](./VISION.md) · [ROADMAP_V2.md](./ROADMAP_V2.md) · [ENGINE_BOUNDARY.md](./docs/ENGINE_BOUNDARY.md) · [Issue templates](./docs/issues/)
+
+**Engine backlog only** (not core waves — file issue only when unblocked):
+
+- SVD photogrammetry alignment · NTv2 grids · GPU BVH · GPU QEM · 3DGS native · WASM Component Model
 
 Legacy backlog (may merge into V2 waves):
 
