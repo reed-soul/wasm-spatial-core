@@ -35,6 +35,8 @@ struct GltfMesh {
 #[derive(Serialize)]
 struct GltfPrimitive {
     attributes: serde_json::Map<String, serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    indices: Option<u32>,
     mode: Option<u32>, // 0 = POINTS, 4 = TRIANGLES, 5 = TRIANGLE_STRIP
     material: Option<u32>,
 }
@@ -489,6 +491,7 @@ fn build_glb_parts(meshes: &[MeshData], materials: &[GltfMaterial]) -> (Vec<u8>,
         }
 
         // ── Index accessor + buffer view ──────────────────────
+        let mut indices_accessor: Option<u32> = None;
         if !mesh.indices.is_empty() {
             let idx_bytes = mesh.indices.len() as u32 * 4;
             let idx_bv_idx = buffer_views.len() as u32;
@@ -499,6 +502,7 @@ fn build_glb_parts(meshes: &[MeshData], materials: &[GltfMaterial]) -> (Vec<u8>,
                 target: Some(34963), // ELEMENT_ARRAY_BUFFER
             });
 
+            indices_accessor = Some(accessors.len() as u32);
             accessors.push(GltfAccessor {
                 buffer_view: idx_bv_idx,
                 byte_offset: 0,
@@ -529,6 +533,7 @@ fn build_glb_parts(meshes: &[MeshData], materials: &[GltfMaterial]) -> (Vec<u8>,
 
         primitives.push(GltfPrimitive {
             attributes: attrs,
+            indices: indices_accessor,
             mode: Some(mesh.mode),
             material: mesh.material_index.map(|m| m as u32),
         });
