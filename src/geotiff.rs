@@ -6,7 +6,7 @@
 //! and avoiding native-only dependencies.
 //!
 //! Supports:
-//! - Uncompressed and DEFLATE (ZLib) compressed TIFF data
+//! - Uncompressed, LZW, and DEFLATE (ZLib) compressed TIFF data
 //! - Float32 elevation grids (SingleBand, SampleFormat=IEEEFP)
 //! - Strip-organized and Tile-organized layouts
 //! - GeoKey metadata (CRS, ModelType, etc.)
@@ -1157,6 +1157,26 @@ fn decode_tiled_data(info: &GeotiffInternal, bytes: &[u8]) -> Result<Vec<f32>, S
     Ok(elevations)
 }
 
+/// Decompress TIFF LZW strip/tile data.
+///
+/// The first byte is the LZW minimum code size (typically 8 for byte-oriented data).
+fn decompress_lzw(data: &[u8]) -> Result<Vec<u8>, String> {
+    if data.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let min_code_size = data[0];
+    if !(2..=12).contains(&min_code_size) {
+        return Err(format!(
+            "GeoTIFF: invalid LZW minimum code size: {min_code_size} (expected 2..=12)"
+        ));
+    }
+
+    weezl::decode::Decoder::with_tiff_size_switch(weezl::BitOrder::Msb, min_code_size)
+        .decode(&data[1..])
+        .map_err(|e| format!("GeoTIFF: LZW decompression failed: {e}"))
+}
+
 /// Decompress data based on compression method.
 fn decompress_data(data: &[u8], compression: u16) -> Result<Vec<u8>, String> {
     match compression {
@@ -1169,7 +1189,7 @@ fn decompress_data(data: &[u8], compression: u16) -> Result<Vec<u8>, String> {
                 .map_err(|e| format!("GeoTIFF: DEFLATE decompression failed: {e}"))?;
             Ok(output)
         }
-        compression::LZW => Err("GeoTIFF: LZW compression is not yet supported (TODO)".into()),
+        compression::LZW => decompress_lzw(data),
         _ => Err(format!(
             "GeoTIFF: unsupported compression method: {compression}"
         )),
@@ -2686,10 +2706,28 @@ mod tests {
     }
 
     #[test]
-    fn test_decompress_lzw_unsupported() {
+    fn test_decompress_lzw_round_trip() {
+        let original = b"GeoTIFF LZW round-trip payload for elevation strip data.";
+        let min_code_size = 8u8;
+        let compressed = weezl::encode::Encoder::with_tiff_size_switch(weezl::BitOrder::Msb, 8)
+            .encode(original)
+            .expect("encode LZW test vector");
+
+        let mut payload = Vec::with_capacity(1 + compressed.len());
+        payload.push(min_code_size);
+        payload.extend_from_slice(&compressed);
+
+        let result = decompress_data(&payload, compression::LZW).unwrap();
+        assert_eq!(result, original);
+    }
+
+    #[test]
+    fn test_decompress_lzw_invalid_min_code_size() {
         let result = decompress_data(&[1, 2, 3], compression::LZW);
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("LZW"));
+        assert!(result
+            .unwrap_err()
+            .contains("invalid LZW minimum code size"));
     }
 
     // -------------------------------------------------------------------------

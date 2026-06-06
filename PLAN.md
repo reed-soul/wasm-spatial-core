@@ -77,7 +77,7 @@ into Cesium-compatible 3D Tiles — the foundation for zero-upload, zero-server
 | **A2 pnts tile encoder** | Full 3D Tiles Point Cloud binary format: 28-byte header, feature table (JSON + binary with POSITION + optional RGB), batch table. WASM: `encodePntsTile()`. | ✅ Done |
 | **A3 tileset.json generator** | Recursive tileset tree from octree hierarchy. Box boundingVolume, level-scaled geometricError, per-leaf tile content. WASM: `generateTileset()`. | ✅ Done |
 | **A4 End-to-end pipeline tests** | 1000-point synthetic cloud → octree → tiles → tileset.json validation. 3 integration tests. | ✅ Done |
-| **A5 LAZ decompression** | LazPerf algorithm port for compressed point cloud support. (Future work) | 🔜 Planned |
+| **A5 LAZ decompression** | LazPerf algorithm port for compressed point cloud support. | ✅ Done |
 
 ---
 
