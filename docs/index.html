@@ -14,7 +14,7 @@
 <p><strong><a href="https://reed-soul.github.io/wasm-spatial-core/">🌐 Live Demo</a></strong> ·
 <a href="https://www.npmjs.com/package/wasm-spatial-core">📦 npm</a> ·
 <a href="https://reed-soul.github.io/wasm-spatial-core/docs/">📖 API Docs</a> ·
-<a href="media/ROADMAP_V1.md">🗺️ Roadmap</a></p>
+<a href="media/ROADMAP_V1.md">🗺️ Roadmap</a> · <a href="media/VISION.md">🔭 Vision</a></p>
 <p><strong>🧪 Try it now:</strong></p>
 <pre><code class="html"><span class="hl-0">&lt;</span><span class="hl-1">script</span><span class="hl-2"> </span><span class="hl-3">type</span><span class="hl-2">=</span><span class="hl-4">&quot;module&quot;</span><span class="hl-0">&gt;</span><br/><span class="hl-2">  </span><span class="hl-5">import</span><span class="hl-2"> </span><span class="hl-6">init</span><span class="hl-2">, { </span><span class="hl-6">parsePointCloudAuto</span><span class="hl-2">, </span><span class="hl-6">buildOctree</span><span class="hl-2">, </span><span class="hl-6">generateTileset</span><span class="hl-2"> }</span><br/><span class="hl-2">    </span><span class="hl-5">from</span><span class="hl-2"> </span><span class="hl-7">&#39;https://esm.run/wasm-spatial-core&#39;</span><span class="hl-2">;</span><br/><span class="hl-2">  </span><span class="hl-5">await</span><span class="hl-2"> </span><span class="hl-8">init</span><span class="hl-2">();</span><br/><span class="hl-2">  </span><span class="hl-9">// LAS/LAZ file → parse → octree → 3D Tiles — all in-browser</span><br/><span class="hl-0">&lt;/</span><span class="hl-1">script</span><span class="hl-0">&gt;</span>
 </code><button type="button">Copy</button></pre>
@@ -394,15 +394,30 @@
 </table>
 <hr>
 <h2 id="📋-roadmap" class="tsd-anchor-link">📋 Roadmap<a href="#📋-roadmap" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
-<p>See <strong><a href="media/ROADMAP_V1.md">ROADMAP_V1.md</a></strong> for the full development roadmap.</p>
-<ul>
-<li>✅ Phase A: Point cloud pipeline (LAS/LAZ/COPC/PLY/OBJ → octree → 3D Tiles)</li>
-<li>✅ Phase B: LOD optimization, screen-space error, view-dependent loading</li>
-<li>✅ Phase C: E57, GeoTIFF terrain, COPC full support</li>
-<li>✅ Phase D: npm publish, GitHub Pages, TypeDoc docs, Draco compression</li>
-<li>✅ Phase E: WASM multi-thread (atomics + SharedArrayBuffer)</li>
-<li>✅ Phase F4: Node.js batch processing (<code>import from 'wasm-spatial-core/node'</code>)</li>
-</ul>
+<table>
+<thead>
+<tr>
+<th>Doc</th>
+<th>Scope</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong><a href="media/VISION.md">VISION.md</a></strong></td>
+<td>Product vision — next-gen Web3D spatial engine (latest Chrome, WASM + WebGPU)</td>
+</tr>
+<tr>
+<td><strong><a href="media/ROADMAP_V2.md">ROADMAP_V2.md</a></strong></td>
+<td>Active plan — Waves 1–5 (live twin, IR, terrain edit, GPU, mesh edit)</td>
+</tr>
+<tr>
+<td><strong><a href="media/ROADMAP_V1.md">ROADMAP_V1.md</a></strong></td>
+<td>✅ Completed — point cloud → 3D Tiles browser pipeline</td>
+</tr>
+</tbody>
+</table>
+<p><strong>V1 highlights (done):</strong> LAS/LAZ → octree → 3D Tiles · GeoTIFF terrain · Draco · multi-thread WASM · Node.js batch API</p>
+<p><strong>V2 next:</strong> instance/trajectory twins · spatial IR · terrain deform · WebGPU compute · mesh clip/QEM — see <a href="media/issues">issue templates</a></p>
 <hr>
 <h2 id="🤝-contributing" class="tsd-anchor-link">🤝 Contributing<a href="#🤝-contributing" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
 <p>See <a href="media/CONTRIBUTING.md"><strong>CONTRIBUTING.md</strong></a>.</p>
