@@ -2084,7 +2084,10 @@ export function generateInterleavedVertexBuffer(positions: Float32Array, colors:
 export function generateTileset(positions: Float32Array, max_points_per_node?: number | null, max_depth?: number | null, colors?: Uint8Array | null): TilesetResult;
 
 /**
- * WASM export: generate a tileset with spacing-aware geometric error.
+ * WASM export: generate a tileset with explicit spacing calibration overrides.
+ *
+ * `generateTileset` already auto-estimates spacing; use this API when you
+ * need to supply a known average spacing or a custom spacing factor.
  */
 export function generateTilesetWithSpacing(positions: Float32Array, max_points_per_node?: number | null, max_depth?: number | null, colors?: Uint8Array | null, avg_spacing?: number | null, spacing_factor?: number | null): TilesetResult;
 
@@ -3524,7 +3527,7 @@ export interface InitOutput {
     readonly spatialindex_new: (a: number) => number;
     readonly spatialindex_searchBBox: (a: number, b: number, c: number, d: number, e: number) => number;
     readonly spatialindex_size: (a: number) => number;
-    readonly supportsDraco: () => number;
+    readonly supportsE57: () => number;
     readonly supportsWorker: () => number;
     readonly terrainToGlb: (a: number, b: number, c: number, d: number) => number;
     readonly terraintilesetresult_tile: (a: number, b: number) => number;
@@ -3623,7 +3626,7 @@ export interface InitOutput {
     readonly wasmquantbounds_maxZ: (a: number) => number;
     readonly wasmquantbounds_minY: (a: number) => number;
     readonly wasmquantbounds_minZ: (a: number) => number;
-    readonly supportsE57: () => number;
+    readonly supportsDraco: () => number;
     readonly supportsGeotiff: () => number;
     readonly supportsLaz: () => number;
     readonly supportsMultiThread: () => number;
@@ -3633,17 +3636,17 @@ export interface InitOutput {
     readonly laspointcloud_colors: (a: number) => number;
     readonly pcdpointcloud_positions: (a: number) => number;
     readonly laspointcloud_positions: (a: number) => number;
-    readonly __wbg_ifcmesh_free: (a: number, b: number) => void;
     readonly __wbg_tinresult_free: (a: number, b: number) => void;
+    readonly __wbg_ifcmesh_free: (a: number, b: number) => void;
     readonly tinresult_vertexCount: (a: number) => number;
     readonly tinresult_triangleCount: (a: number) => number;
-    readonly tinresult_indices: (a: number) => number;
-    readonly ifcmesh_positions: (a: number) => number;
-    readonly tinresult_positions: (a: number) => number;
     readonly ifcmesh_indices: (a: number) => number;
-    readonly __wasm_bindgen_func_elem_3375: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_3379: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_1029: (a: number, b: number, c: number) => void;
+    readonly tinresult_positions: (a: number) => number;
+    readonly ifcmesh_positions: (a: number) => number;
+    readonly tinresult_indices: (a: number) => number;
+    readonly __wasm_bindgen_func_elem_3424: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_3428: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_1030: (a: number, b: number, c: number) => void;
     readonly __wbindgen_export: (a: number, b: number) => number;
     readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_export3: (a: number) => void;
