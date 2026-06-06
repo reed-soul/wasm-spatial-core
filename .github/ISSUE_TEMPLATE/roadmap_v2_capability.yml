@@ -10,7 +10,7 @@ body:
     attributes:
       label: Wave
       options:
-        - W1 — Scene instance layer
+        - W1 — Core runtime (tile patch, cancel)
         - W2 — Spatial IR + GLB ingest
         - W3 — Terrain deformation
         - W4 — WebGPU compute core
@@ -20,8 +20,8 @@ body:
   - type: input
     id: deliverable_id
     attributes:
-      label: Deliverable ID (e.g. W1.1)
-      placeholder: W1.1
+      label: Deliverable ID (e.g. W2.1)
+      placeholder: W2.1
     validations:
       required: true
   - type: textarea
@@ -51,11 +51,20 @@ body:
     validations:
       required: true
   - type: checkboxes
+    id: boundary
+    attributes:
+      label: Engine boundary check (required)
+      options:
+        - label: I read ENGINE_BOUNDARY.md — this is core, not an app/plugin feature
+        - label: Not solvable by Cesium/Three + &lt;50 lines of app JS alone
+    validations:
+      required: true
+  - type: checkboxes
     id: constraints
     attributes:
-      label: Vision constraints
+      label: Technical constraints
       options:
-        - label: Latest Chrome only (no legacy browser requirement)
+        - label: Latest Chrome only
         - label: Zero-copy hot path (typed arrays)
-        - label: Behind feature flag (keeps default WASM small)
+        - label: Behind feature flag
         - label: SpatialError at WASM boundary

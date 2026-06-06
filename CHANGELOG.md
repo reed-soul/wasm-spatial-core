@@ -13,7 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Issue templates** — [docs/issues/WAVE_1.md](./docs/issues/) … `WAVE_5.md` + GitHub form `.github/ISSUE_TEMPLATE/roadmap_v2_capability.yml`
 
 ### Changed
-- **Wave 1 scope** — Dropped trajectory/geofence from engine roadmap (application-layer concern); W1 is instance slots + tile patches only
+- **Wave 1 scope** — Dropped trajectory/geofence from engine roadmap (application-layer concern)
+- **Core-only pass** — Removed instance/parking twin APIs from roadmap; W1 = runtime (patch/cancel) only; added [ENGINE_BOUNDARY.md](./docs/ENGINE_BOUNDARY.md); deferred frustum cull, GPU QEM, SVD from core path; **W2 Spatial IR** is default start
 
 ## [0.7.1] - 2026-06-06
 
