@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>wasm-spatial-core — WebGPU Smoke</title>
+  <style>
+    :root { --bg: #0d1117; --text: #e6edf3; --muted: #8b949e; --ok: #3fb950; --err: #f85149; --accent: #58a6ff; }
+    body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 24px; }
+    h1 { font-size: 1.25rem; margin: 0 0 8px; color: var(--accent); }
+    p { color: var(--muted); margin: 0 0 16px; }
+    pre { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 16px; white-space: pre-wrap; }
+    .ok { color: var(--ok); }
+    .err { color: var(--err); }
+  </style>
+</head>
+<body>
+  <h1>WebGPU Compute Smoke (Wave 4)</h1>
+  <p>Compares GPU Mat4×vec3 transform vs WASM <code>transformPointCloud</code> on 1k points.</p>
+  <pre id="log">Running…</pre>
+  <script type="module">
+    import init, { transformPointCloud, supportsWebGpu, webGpuStatus } from "../../pkg/wasm_spatial_core.js";
+    import { createGpuContext, gpuTransformPoints, maxAbsDiff } from "./app.mjs";
+
+    const log = document.getElementById("log");
+    const lines = [];
+
+    function println(msg, cls = "") {
+      lines.push(msg);
+      log.textContent = lines.join("\n");
+      if (cls) log.className = cls;
+    }
+
+    try {
+      await init();
+      println(`WASM supportsWebGpu: ${supportsWebGpu()}`);
+      println(webGpuStatus());
+      println("");
+
+      const n = 1000;
+      const positions = new Float32Array(n * 3);
+      for (let i = 0; i < n; i++) {
+        positions[i * 3] = i * 0.01;
+        positions[i * 3 + 1] = Math.sin(i * 0.1);
+        positions[i * 3 + 2] = Math.cos(i * 0.07);
+      }
+
+      const matrix = new Float32Array(16);
+      matrix[0] = 0.866; matrix[1] = 0.5; matrix[2] = 0;
+      matrix[4] = -0.5; matrix[5] = 0.866; matrix[6] = 0;
+      matrix[8] = 0; matrix[9] = 0; matrix[10] = 1;
+      matrix[12] = 10; matrix[13] = -5; matrix[14] = 2;
+
+      const cpu = transformPointCloud(positions, matrix);
+      println(`CPU (WASM): ${n} points transformed`);
+
+      const ctx = await createGpuContext();
+      if (!ctx) {
+        println("WebGPU unavailable — CPU-only path OK", "ok");
+      } else {
+        println(`GPU adapter: ${ctx.adapter.info?.description ?? "WebGPU"}`);
+        println(`Subgroups: ${ctx.hasSubgroups}`);
+        const t0 = performance.now();
+        const gpu = await gpuTransformPoints(ctx, positions, matrix);
+        const ms = (performance.now() - t0).toFixed(2);
+        const err = maxAbsDiff(cpu, gpu);
+        println(`GPU: ${n} points in ${ms} ms`);
+        println(`Max abs error vs CPU: ${err.toExponential(3)}`);
+        if (err < 1e-4) {
+          println("PASS — GPU matches CPU reference", "ok");
+        } else {
+          println("FAIL — GPU/CPU mismatch", "err");
+        }
+      }
+    } catch (e) {
+      println(`Error: ${e.message}`, "err");
+      console.error(e);
+    }
+  </script>
+</body>
+</html>
