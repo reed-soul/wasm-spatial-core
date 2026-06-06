@@ -337,7 +337,8 @@ See **[ROADMAP_V1.md](./ROADMAP_V1.md)** for the full development roadmap.
 - ✅ Phase B: LOD optimization, screen-space error, view-dependent loading
 - ✅ Phase C: E57, GeoTIFF terrain, COPC full support
 - ✅ Phase D: npm publish, GitHub Pages, TypeDoc docs, Draco compression
-- 🔜 Phase E: WASM multi-thread (atomics + SharedArrayBuffer)
+- ✅ Phase E: WASM multi-thread (atomics + SharedArrayBuffer)
+- ✅ Phase F4: Node.js batch processing (`import from 'wasm-spatial-core/node'`)
 
 ---
 

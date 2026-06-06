@@ -71,6 +71,9 @@ jobs:
       - name: Run WASM smoke tests (Node.js)
         run: WASM_PKG_DIR=pkg-node node tests/wasm_smoke_test.mjs
 
+      - name: Run Node.js batch API smoke test
+        run: node tests/node_batch_test.mjs
+
       - name: Upload WASM artifacts
         uses: actions/upload-artifact@v4
         with:

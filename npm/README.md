@@ -180,6 +180,28 @@ const visible = core.getVisibleTiles(
 | `getAllocatedBytes()` | Peak allocation |
 | `setInputSizeLimit(bytes)` | Set max input size |
 
+## 🖥️ Node.js Batch Processing
+
+Server-side pipelines via the `nodejs` WASM target — no browser or COOP/COEP headers required.
+
+```typescript
+import { loadSpatialCoreNode, batchPointCloudToTileset } from "wasm-spatial-core/node";
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
+
+const core = await loadSpatialCoreNode();
+const las = readFileSync("scan.las");
+const result = await batchPointCloudToTileset(core, las);
+
+mkdirSync("output/tiles", { recursive: true });
+writeFileSync("output/tileset.json", result.tilesetJson);
+result.tiles.forEach((data, i) => {
+  writeFileSync(join("output/tiles", result.tileUris[i]), data);
+});
+```
+
+Build the Node.js WASM package: `npm run build:wasm:node` (outputs to `npm/pkg-node/`).
+
 ## 🌐 Live Demo
 
 [https://reed-soul.github.io/wasm-spatial-core/examples/index.html](https://reed-soul.github.io/wasm-spatial-core/examples/index.html)
