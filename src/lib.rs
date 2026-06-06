@@ -40,6 +40,9 @@ mod terrain_edit;
 #[cfg(feature = "webgpu")]
 mod webgpu;
 
+#[cfg(feature = "mesh-edit")]
+mod mesh_edit;
+
 pub use b3dm::{
     create_instanced_tileset, create_instanced_tileset_i3dm, create_mesh_tileset, encode_b3dm_tile,
     encode_i3dm_tile,
@@ -61,6 +64,13 @@ pub use enu_frame::{
     create_enu_frame, EnuFrame, WasmEnuFrame,
 };
 
+#[cfg(feature = "mesh-edit")]
+pub use mesh_edit::{
+    classify_triangles_obb, clip_mesh_plane, clip_mesh_plane_js, simplify_mesh_qem,
+    simplify_mesh_qem_js, split_mesh_obb, split_mesh_obb_js, supports_mesh_edit,
+    WasmMeshSplitResult,
+};
+
 #[cfg(feature = "mesh-ingest")]
 pub use spatial_ir::{
     Aabb, ChunkMeta, HeightfieldChunk, MeshChunk, PointCloudChunk, SpatialChunk, WasmMeshChunk,
@@ -68,7 +78,7 @@ pub use spatial_ir::{
 
 #[cfg(feature = "webgpu")]
 pub use webgpu::{
-    transform_points_cpu_reference, supports_webgpu, webgpu_shader_version, webgpu_status,
+    supports_webgpu, transform_points_cpu_reference, webgpu_shader_version, webgpu_status,
     HEIGHT_STRIDE_BYTES, INDEX_STRIDE_BYTES, MASK_STRIDE_BYTES, MATRIX_FLOAT_COUNT,
     POSITION_STRIDE_BYTES, SHADER_BUNDLE_VERSION,
 };
@@ -179,12 +189,12 @@ pub mod test_exports {
     };
     #[cfg(any(test, feature = "test-helpers"))]
     pub use crate::point_cloud::test_helpers;
-    #[cfg(feature = "webgpu")]
-    pub use crate::webgpu::transform_points_cpu_reference as transform_points_reference;
     pub use crate::topology::{polygon_intersection_native, polygon_union_native};
     pub use crate::utils::{
         clean_coords_native, deduplicate_coords_native, validate_coords_native,
     };
+    #[cfg(feature = "webgpu")]
+    pub use crate::webgpu::transform_points_cpu_reference as transform_points_reference;
 }
 
 use wasm_bindgen::prelude::*;

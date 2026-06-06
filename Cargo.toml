@@ -41,6 +41,8 @@ mesh-ingest = []
 terrain-edit = ["geotiff"]
 # WebGPU compute kernels — JS-side integration (Wave 4, like draco-support)
 webgpu = ["point-cloud"]
+# Mesh geometry edit — split, clip, QEM (Wave 5)
+mesh-edit = ["mesh-ingest"]
 # Test helpers (exposes internal fields for integration tests — never ship to WASM)
 test-helpers = []
 
