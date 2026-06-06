@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Wave 1 — Core runtime** (incremental tiles, cancellable jobs, memory budget):
+  - `TilesetPatch` / `applyTilesetPatch` — replace individual tile blobs by URI without full rebuild
+  - `parseLasPointsWithProgressAndAbort`, `generateTilesetWithAbort` — honour abort callbacks between chunks
+  - `SpatialError::Cancelled` (`CANCELLED` code) for programmatic cancel handling
+  - `ProcessingContext` — reusable position/color buffer arena across pipeline steps
+  - `estimateJobBytes` — heuristic job memory estimate for UI warnings
+  - `wasm-spatial-core/abort` — `createAbortChecker`, `linkAbortSignalToWorker`, `runWithAbortSignal`
 - **Wave 2 — Spatial IR + GLB ingest** (`mesh-ingest` feature):
   - `SpatialChunk` IR: `PointCloudChunk`, `MeshChunk`, `HeightfieldChunk` with `ChunkMeta` (CRS, AABB, version)
   - `parseGlb()` / `parseGlbCore()` — GLB → `MeshChunk`; round-trip with `meshToGlb`
