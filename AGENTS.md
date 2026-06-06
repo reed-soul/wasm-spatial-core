@@ -8,7 +8,7 @@ Guidance for AI coding agents working in this repository.
 
 **wasm-spatial-core** is a Rust → WebAssembly spatial engine. No backend: **Cargo + wasm-pack** for CI; static HTTP for browser demos.
 
-**Vision & V2 roadmap:** [VISION.md](./VISION.md) · [ROADMAP_V2.md](./ROADMAP_V2.md) · issue templates in [docs/issues/](./docs/issues/). V1 (point cloud → 3D Tiles) is complete per [ROADMAP_V1.md](./ROADMAP_V1.md). New engine work should align with V2 waves and stay UI-free.
+**Vision & V2 roadmap:** [VISION.md](./VISION.md) · [ROADMAP_V2.md](./ROADMAP_V2.md) · [docs/ENGINE_BOUNDARY.md](./docs/ENGINE_BOUNDARY.md). V1 is complete ([ROADMAP_V1.md](./ROADMAP_V1.md)). New work must be **engine core** (formats, IR, geometry, tiles, GPU) — no product plugins (parking, trajectories, geofence, timelines). Default start: **W2 Spatial IR**.
 
 ### Toolchain
 
