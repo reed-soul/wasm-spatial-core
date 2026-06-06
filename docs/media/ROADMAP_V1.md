@@ -250,9 +250,9 @@ Byte Length | Description
 - Camera distance drives tile refinement: close → more tiles, far → fewer tiles
 - Configurable SSE threshold (default: 1 pixel)
 
-### B2: 几何误差自动校准 ✅ DONE (v0.3.0) (partial)
+### B2: 几何误差自动校准 ✅ DONE (v0.7.1)
 - Level-scaled geometricError: `diagonal × 0.5 / 2^level`
-- TODO: point-spacing-based refinement for seamless visual transitions
+- Point-spacing-based refinement: `generateTileset` auto-estimates average nearest-neighbor spacing and uses it for geometricError calibration
 
 ### B3: WebWorker 并行处理 ✅ DONE (v0.5.0)
 - `WorkerHandle` class — spawn WASM workers for parallel processing
@@ -315,7 +315,7 @@ Potential next-phase items to reach v1.0 stability:
 - **F1**: ✅ Multi-thread WASM (Rayon parallel octree/tileset/color-ramp, `#[cfg(feature = "multi-thread")]`)
 - **F2**: ✅ Quantization compression (Float32→Uint16, 50% reduction, Draco alternative; meshopt deferred)
 - **F3**: ✅ WebGL Point Cloud Viewer (native WebGL, zero deps, trackball camera, EDL shading, WASM integration)
-- **F4**: Node.js native addon (for server-side batch processing)
+- **F4**: ✅ Node.js server addon (`wasm-spatial-core/node`, wasm-pack nodejs target + batch APIs)
 - **F5**: ✅ Cesium Ion alternative workflow (drag→parse→octree→3D Tiles→Cesium, zero token, zero server)
 - **F6**: ✅ Performance regression testing (16 CI benchmark tests, JSON output, master-only job)
 
