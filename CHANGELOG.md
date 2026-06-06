@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - AABB region select on mesh and point cloud chunks
   - **W2.5 export** — `exportPointCloudToPnts()` → single `.pnts` + minimal `tileset.json`; mesh `exportToGlb`
   - **W2.6 ENU frame** — `createEnuFrame()`, `wgs84ToEnu` / `enuToWgs84`, f32 rendering offsets; sub-mm round-trip at 1 km
+- **Wave 4 — WebGPU compute** (`webgpu` feature):
+  - `wasm-spatial-core/webgpu` — `GpuContext`, `transformPoints`, `flattenHeightfield` with WASM fallback
+  - WGSL kernels in `shaders/` (`transform_points_v1`, `heightfield_flatten_v1`)
+  - Buffer layout contract (Rust + TS + `shaders/README.md`)
+  - Demo `examples/webgpu-smoke/` — GPU vs CPU parity on 1k points
 - **Wave 3 — Terrain deformation** (`terrain-edit` feature, requires `geotiff`):
   - `rasterizeTerrainMask`, `excavateTerrain`, `flattenTerrain`, `fillTerrain`
   - Polygon-masked cut / flatten / fill with boundary feathering

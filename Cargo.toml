@@ -39,6 +39,8 @@ geotiff = []
 mesh-ingest = []
 # Terrain deformation on heightfields (Wave 3)
 terrain-edit = ["geotiff"]
+# WebGPU compute kernels — JS-side integration (Wave 4, like draco-support)
+webgpu = ["point-cloud"]
 # Test helpers (exposes internal fields for integration tests — never ship to WASM)
 test-helpers = []
 
