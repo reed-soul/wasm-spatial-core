@@ -67,6 +67,11 @@
       "types": "./webgpu.d.ts",
       "import": "./webgpu.ts",
       "default": "./webgpu.ts"
+    },
+    "./abort": {
+      "types": "./abort.d.ts",
+      "import": "./abort.ts",
+      "default": "./abort.ts"
     }
   },
   "files": [
@@ -87,6 +92,8 @@
     "draco.d.ts",
     "webgpu.ts",
     "webgpu.d.ts",
+    "abort.ts",
+    "abort.d.ts",
     "README.md",
     "LICENSE"
   ],
