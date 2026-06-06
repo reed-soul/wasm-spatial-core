@@ -1658,13 +1658,16 @@ pub fn generate_indexed_geometry(positions: &js_sys::Float32Array) -> js_sys::Ob
 /// Core LAS parser with progress callback (pure Rust for testing).
 ///
 /// Calls `progress(processed, total)` approximately every `interval` points.
-fn parse_las_points_with_progress_core<F>(
+/// When `should_abort` returns true, returns early with a cancellation error.
+fn parse_las_points_with_progress_abort_core<F, A>(
     bytes: &[u8],
     mut on_progress: F,
     interval: u32,
+    mut should_abort: A,
 ) -> Result<LasPointCloud, String>
 where
     F: FnMut(u32, u32),
+    A: FnMut() -> bool,
 {
     let num_points = read_u32_le(bytes, 100);
     let point_offset = read_u32_le(bytes, 96) as usize;
@@ -1723,6 +1726,9 @@ where
         if interval > 0 && (i as u32).saturating_sub(last_reported) >= interval {
             on_progress(i as u32, num_points);
             last_reported = i as u32;
+            if should_abort() {
+                return Err("Operation cancelled".to_string());
+            }
         }
     }
 
@@ -1734,6 +1740,39 @@ where
         positions,
         colors,
     })
+}
+
+fn parse_las_points_with_progress_core<F>(
+    bytes: &[u8],
+    on_progress: F,
+    interval: u32,
+) -> Result<LasPointCloud, String>
+where
+    F: FnMut(u32, u32),
+{
+    parse_las_points_with_progress_abort_core(bytes, on_progress, interval, || false)
+}
+
+/// Parse LAS with progress and optional abort. Reports every 10,000 points.
+pub fn parse_las_points_with_progress_abort<F, A>(
+    bytes: &[u8],
+    on_progress: F,
+    interval: u32,
+    should_abort: A,
+) -> Result<LasPointCloud, SpatialErrorDetail>
+where
+    F: FnMut(u32, u32),
+    A: FnMut() -> bool,
+{
+    parse_las_points_with_progress_abort_core(bytes, on_progress, interval, should_abort).map_err(
+        |e| {
+            if e == "Operation cancelled" {
+                SpatialError::Cancelled.with_detail(e)
+            } else {
+                SpatialError::point_cloud_error(e)
+            }
+        },
+    )
 }
 
 /// Parse LAS points with a JS progress callback. Reports every 10,000 points.
@@ -1753,6 +1792,29 @@ pub fn parse_las_points_with_progress(
         10_000,
     )
     .map_err(SpatialError::point_cloud_error)
+}
+
+/// Parse LAS with progress and abort callback. `shouldAbort` returns true to cancel.
+#[wasm_bindgen(js_name = "parseLasPointsWithProgressAndAbort")]
+pub fn parse_las_points_with_progress_and_abort(
+    bytes: &[u8],
+    on_progress: &js_sys::Function,
+    should_abort: &js_sys::Function,
+) -> Result<LasPointCloud, SpatialErrorDetail> {
+    let this = JsValue::NULL;
+    parse_las_points_with_progress_abort(
+        bytes,
+        |processed, total| {
+            let _ = on_progress.call2(&this, &JsValue::from(processed), &JsValue::from(total));
+        },
+        10_000,
+        || {
+            should_abort
+                .call0(&this)
+                .map(|v| v.is_truthy())
+                .unwrap_or(false)
+        },
+    )
 }
 
 /// Core voxel grid decimation with progress callback.

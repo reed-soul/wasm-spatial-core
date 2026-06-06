@@ -1092,6 +1092,14 @@ pub struct WasmTilesetResult {
 
 #[wasm_bindgen(js_class = "TilesetResult")]
 impl WasmTilesetResult {
+    pub(crate) fn inner(&self) -> &TilesetResult {
+        &self.inner
+    }
+
+    pub(crate) fn from_inner(inner: TilesetResult) -> Self {
+        Self { inner }
+    }
+
     /// The tileset.json content.
     #[wasm_bindgen(js_name = "tilesetJson")]
     pub fn tileset_json(&self) -> String {
@@ -1205,6 +1213,28 @@ pub fn generate_tileset_with_spacing(
     avg_spacing: Option<f64>,
     spacing_factor: Option<f64>,
 ) -> Result<TilesetResult, crate::errors::SpatialErrorDetail> {
+    generate_tileset_with_spacing_abort(
+        octree,
+        positions,
+        colors,
+        avg_spacing,
+        spacing_factor,
+        || false,
+    )
+}
+
+/// Generate tileset with optional abort check between leaf tiles.
+pub fn generate_tileset_with_spacing_abort<A>(
+    octree: &Octree,
+    positions: &[f32],
+    colors: Option<&[u8]>,
+    avg_spacing: Option<f64>,
+    spacing_factor: Option<f64>,
+    mut should_abort: A,
+) -> Result<TilesetResult, crate::errors::SpatialErrorDetail>
+where
+    A: FnMut() -> bool,
+{
     let spacing = resolve_point_spacing(positions, avg_spacing);
     let root_bounds = octree.root_bounds();
     let _root_geometric_error =
@@ -1216,6 +1246,12 @@ pub fn generate_tileset_with_spacing(
     let mut tile_uris = Vec::new();
 
     for (leaf_idx, node) in octree.leaves().enumerate() {
+        if should_abort() {
+            return Err(
+                crate::errors::SpatialError::Cancelled.with_detail("tileset generation cancelled")
+            );
+        }
+
         if node.point_count == 0 {
             continue;
         }
@@ -1513,6 +1549,34 @@ pub fn generate_tileset_with_spacing_js(
         spacing_factor,
     )
     .map_err(JsValue::from)?;
+
+    Ok(WasmTilesetResult { inner: result })
+}
+
+/// Generate tileset with abort callback checked between leaf encodes.
+#[wasm_bindgen(js_name = "generateTilesetWithAbort")]
+#[allow(clippy::too_many_arguments)]
+pub fn generate_tileset_with_abort_js(
+    positions: &[f32],
+    max_points_per_node: Option<u32>,
+    max_depth: Option<u32>,
+    colors: Option<Vec<u8>>,
+    should_abort: &js_sys::Function,
+) -> Result<WasmTilesetResult, JsValue> {
+    let max_pts = max_points_per_node.unwrap_or(DEFAULT_MAX_POINTS_PER_NODE);
+    let max_d = max_depth.unwrap_or(crate::octree::DEFAULT_MAX_DEPTH);
+    let mut buf = positions.to_vec();
+    let octree = Octree::build(&mut buf, max_pts, max_d);
+    let this = wasm_bindgen::JsValue::NULL;
+
+    let result =
+        generate_tileset_with_spacing_abort(&octree, &buf, colors.as_deref(), None, None, || {
+            should_abort
+                .call0(&this)
+                .map(|v| v.is_truthy())
+                .unwrap_or(false)
+        })
+        .map_err(JsValue::from)?;
 
     Ok(WasmTilesetResult { inner: result })
 }

@@ -68,7 +68,7 @@ pub use spatial_ir::{
 
 #[cfg(feature = "webgpu")]
 pub use webgpu::{
-    transform_points_cpu_reference, supports_webgpu, webgpu_shader_version, webgpu_status,
+    supports_webgpu, transform_points_cpu_reference, webgpu_shader_version, webgpu_status,
     HEIGHT_STRIDE_BYTES, INDEX_STRIDE_BYTES, MASK_STRIDE_BYTES, MATRIX_FLOAT_COUNT,
     POSITION_STRIDE_BYTES, SHADER_BUNDLE_VERSION,
 };
@@ -83,8 +83,10 @@ pub use terrain_edit::{
 mod ifc_reader;
 mod octree;
 mod pnts;
+mod runtime;
 mod spatial_analysis;
 mod spatial_index;
+mod tile_patch;
 mod topology;
 mod utils;
 mod vector_tile;
@@ -93,9 +95,12 @@ pub use octree::{Bounds, Octree, OctreeNode, DEFAULT_MAX_DEPTH, DEFAULT_MAX_POIN
 #[cfg(feature = "multi-thread")]
 pub use pnts::generate_tileset_parallel;
 pub use pnts::{
-    draco_status_js, encode_pnts_tile, estimate_point_spacing, generate_tileset, pad_len,
-    parse_pnts_header, supports_draco_js, TilesetResult,
+    draco_status_js, encode_pnts_tile, estimate_point_spacing, generate_tileset,
+    generate_tileset_with_spacing_abort, pad_len, parse_pnts_header, supports_draco_js,
+    TilesetResult,
 };
+pub use runtime::{estimate_job_bytes, JobOp, ProcessingContext, WasmProcessingContext};
+pub use tile_patch::{apply_patch, apply_tileset_patch_js, TilesetPatch, WasmTilesetPatch};
 mod wkb_wkt;
 
 use errors::input_too_large_js;
@@ -130,8 +135,8 @@ pub use coordinate::{
 #[cfg(feature = "point-cloud")]
 pub use point_cloud::{
     auto_decimate_core, estimate_memory_for_points, parse_las_header_core,
-    parse_las_points_chunked, parse_las_points_core, random_decimate_core, read_f64_le,
-    read_u16_le, read_u32_le, voxel_grid_decimate_core,
+    parse_las_points_chunked, parse_las_points_core, parse_las_points_with_progress_abort,
+    random_decimate_core, read_f64_le, read_u16_le, read_u32_le, voxel_grid_decimate_core,
 };
 
 #[cfg(feature = "point-cloud")]
@@ -179,12 +184,12 @@ pub mod test_exports {
     };
     #[cfg(any(test, feature = "test-helpers"))]
     pub use crate::point_cloud::test_helpers;
-    #[cfg(feature = "webgpu")]
-    pub use crate::webgpu::transform_points_cpu_reference as transform_points_reference;
     pub use crate::topology::{polygon_intersection_native, polygon_union_native};
     pub use crate::utils::{
         clean_coords_native, deduplicate_coords_native, validate_coords_native,
     };
+    #[cfg(feature = "webgpu")]
+    pub use crate::webgpu::transform_points_cpu_reference as transform_points_reference;
 }
 
 use wasm_bindgen::prelude::*;
