@@ -1,6 +1,8 @@
 # wasm-spatial-core — Product Vision
 
-> **One-liner:** A next-generation **Web3D spatial compute engine** for the latest Chrome — WASM for correctness and orchestration, WebGPU for throughput, 3D Tiles for distribution. Upper applications should replace most of the A/B/C/D desktop toolchain **before** rendering.
+> **One-liner:** A **Web3D spatial compute engine** for the latest Chrome — ingest, edit geometry, emit 3D Tiles / glTF in the browser. **Core only**; product UIs and IoT live in your application repo.
+
+**Boundary doc:** [docs/ENGINE_BOUNDARY.md](./docs/ENGINE_BOUNDARY.md)
 
 ---
 
@@ -8,182 +10,130 @@
 
 ### 1.1 The Problem
 
-Building a Web3D scene today (park twin, campus ops, home visualization, inspection replay) typically requires:
-
-- Tool A — capture / reconstruction
-- Tool B — mesh cleanup
-- Tool C — terrain / point cloud processing
-- Tool D — coordinate / GIS
-- Tool E — compression & tiling
-- Tool F — upload to a cloud tile service
-
-Each tool owns a slice of the pipeline. Data is exported, re-imported, and re-tiled repeatedly. Privacy, latency, and iteration speed all suffer.
+A Web3D scene today often needs many desktop tools — each owns one step (mesh cleanup, terrain, CRS, tiling, upload). Data is exported and re-imported repeatedly.
 
 ### 1.2 The Goal
-
-**wasm-spatial-core** is the **browser-native spatial engine** that absorbs the heavy pre-processing:
 
 ```
 External capture (optional)  →  Engine (this repo)  →  3D Tiles / glTF  →  Cesium / Three
                                       ↑
-                         Upper app: UI, IoT, business rules
+                         Your app: UI, real-time data, business rules
 ```
 
-The **upper application** (your future project) should be ~80% engine APIs + viewer + real-time bindings — not a chain of desktop apps.
+**wasm-spatial-core** absorbs **spatial pre-processing** so your next project is mostly engine calls + a viewer — not Blender × QGIS × PDAL × ion.
 
-### 1.3 Non-Goals (Stay Out of the Engine)
+### 1.3 Non-Goals
 
-| Belongs in the **application layer** | Belongs in **wasm-spatial-core** |
-|--------------------------------------|----------------------------------|
-| Park/campus business UI | Format parsing & spatial algorithms |
-| MQTT / parking / charging integrations | Instance slots, pose updates, tile patches |
-| Inspection paths, geofencing, trajectory replay | — (use viewer + app code) |
-| Auth, multi-tenant, dashboards | Mesh/terrain edit kernels |
-| “Demolish toilet → build playground” **workflow** | Clip / flatten / export **primitives** |
+See [ENGINE_BOUNDARY.md](./docs/ENGINE_BOUNDARY.md). In short:
 
----
-
-## 2. Target Platform Assumptions
-
-We optimize for **the latest Chrome** only. No legacy browser matrix.
-
-| Assumption | Rationale |
-|------------|-----------|
-| Chrome ≥ 140 (moving target: always **current stable**) | WebGPU compute, subgroups, fast buffer uploads |
-| `crossOriginIsolated` when multi-thread WASM is needed | SharedArrayBuffer + Rayon |
-| WebGPU for parallel geometry | QEM, heightfield ops, massive point ops |
-| WASM SIMD + multi-thread features | Coordinate batches, octree, tile encode |
-| 3D Tiles as primary **distribution** format | Cesium ecosystem, LOD, streaming |
-
-Safari/Firefox compatibility is **not** a release blocker.
+- No parking / charging / inspection **product** APIs  
+- No MQTT, geofence, trajectory replay, scene timelines  
+- No viewer concerns (frustum cull, polyline animation)  
+- No “workflow wizards” (demolish toilet → playground is **your app**; clip/flatten **primitives** are engine)
 
 ---
 
-## 3. Architecture (Target State)
+## 2. Platform
+
+Latest **Chrome stable** only. WebGPU compute, WASM threads + SIMD, SharedArrayBuffer when needed. 3D Tiles as primary distribution format.
+
+---
+
+## 3. Architecture
 
 ```mermaid
 graph TB
-    subgraph App["Upper Application (separate repo)"]
-        UI[Web UI]
-        RT[Real-time: WebSocket / WebTransport]
-        View[Cesium or Three — WebGPU backend]
+    subgraph App["Your application repo"]
+        UI[UI]
+        IO[WebSocket / business logic]
+        View[Cesium or Three]
     end
 
     subgraph Engine["wasm-spatial-core"]
-        IR[Spatial IR — unified chunks]
-        Ingest[Ingest: LAS/LAZ/GeoTIFF/GLB/…]
-        CPU[Rust WASM: parse · index · tiles · topology]
-        GPU[WebGPU Compute: decimate · heightfield · cull]
-        Out[Output: pnts · b3dm · i3dm · terrain · glTF]
-        Live[Live layer: instances · patches]
+        IR[Spatial IR]
+        Ingest[LAS / GeoTIFF / GLB …]
+        CPU[WASM: parse · index · edit · tiles]
+        GPU[WebGPU: deform · transform · decimate]
+        Out[3D Tiles · glTF]
     end
 
-    Capture[External capture] --> Ingest
+    Capture[External assets] --> Ingest
     Ingest --> IR
     IR --> CPU
     IR --> GPU
     CPU --> Out
     GPU --> Out
     Out --> View
-    Live --> View
-    RT --> Live
-    UI --> Live
-    UI --> IR
+    IO --> View
+    UI --> View
 ```
-
-### Compute split
 
 | Layer | Responsibility |
 |-------|----------------|
-| **Rust / WASM** | Formats, spatial index, tile trees, topology, orchestration, deterministic correctness |
-| **WebGPU compute** | Throughput-bound work: mesh decimation, heightfield deform, large point transforms, frustum cull |
-| **JavaScript** | Viewer glue, I/O, scheduling, `AbortSignal`, progress UI |
-
-Do **not** run million-triangle QEM purely on a single WASM thread.
+| **WASM** | Formats, IR, geometry edit, tile trees, correctness |
+| **WebGPU** | Throughput-bound geometry (not viewer culling) |
+| **JS** | Init, Workers, `AbortSignal`, progress |
 
 ---
 
-## 4. Capability Stack & Gap Summary
+## 4. Capability Gaps (v0.7 → core complete)
 
-See **[ROADMAP_V2.md](./ROADMAP_V2.md)** for wave-by-wave execution and GitHub issue templates.
+| Layer | Gap |
+|-------|-----|
+| **L0 Runtime** | Tile patch, job cancel, buffer arena |
+| **L1 CRS** | ENU local frame (site-scale precision) |
+| **L2 Ingest** | **Spatial IR**, **GLB read**, region select |
+| **L4 Geometry** | **Terrain deform**, **mesh clip**, **QEM** |
+| **L5 GPU** | **WebGPU compute module** |
+| **L6 Output** | Incremental patch protocol |
 
-| Layer | Role | Status (v0.7.x) | Gap |
-|-------|------|-----------------|-----|
-| **L0** Runtime | Zero-copy, threads, memory budget, cancellable jobs | Partial | Arena model, job cancellation, large-scene budgeting |
-| **L1** CRS | Projections, local ENU, registration | Strong | ENU / tangent plane, SVD 3-point alignment, NTv2 grids |
-| **L2** Ingest | Unified import | Strong for point cloud + terrain | **GLB read/edit**, 3DGS strategy, production IFC |
-| **L3** Index | Query, LOD, incremental updates | Strong | Dynamic index updates, GPU BVH |
-| **L4** Geometry CPU | Clip, flatten, boolean, decimate | Weak | **Mesh clip, terrain deform, QEM** |
-| **L5** GPU | WebGPU compute kernels | **Missing** | **Strategic gap** |
-| **L6** Output | 3D Tiles, glTF, streaming | Strong | Incremental tile patches, hot reload protocol |
-| **L7** Live | Instance slots, visibility, tile patches | Partial | In-place instance updates, incremental tile patch protocol |
-| **L8** DX | Pipeline API, benchmarks, errors | Partial | Composable pipeline, perf gates per module |
+**Not core gaps:** live twins, trajectories, GPU BVH, NTv2 grids, 3DGS pipeline, SVD registration (backlog).
 
-### The five critical gaps (executive summary)
+### Five priorities
 
-1. **Spatial IR** — one internal representation for point clouds, meshes, heightfields, instance groups  
-2. **Geometry edit kernel** — terrain flatten / cut / fill + mesh clip & simplify  
-3. **WebGPU compute layer** — otherwise “top-tier performance” is not credible  
-4. **Scene instance layer** — slot-based instances, occupancy/visibility, tile patches (not one-shot tilesets)  
-5. **Pipeline engineering** — cancellable jobs, memory estimates, benchmark gates  
+1. **Spatial IR** (W2)  
+2. **Geometry edit** — terrain + mesh (W3, W5)  
+3. **WebGPU throughput** (W4)  
+4. **Incremental tiles + cancellable jobs** (W1)  
+5. **Benchmarks + `SpatialError` on every new API**  
 
 ---
 
-## 5. Relationship to ROADMAP_V1
+## 5. Roadmaps
 
-| Document | Scope |
-|----------|-------|
-| **[ROADMAP_V1.md](./ROADMAP_V1.md)** | ✅ Completed campaign: point cloud → 3D Tiles in the browser |
-| **[ROADMAP_V2.md](./ROADMAP_V2.md)** | 🔜 Next: unified Web3D spatial engine (this vision) |
-| **[PLAN.md](./PLAN.md)** | Historical module checklist |
+| Doc | Scope |
+|-----|-------|
+| [ROADMAP_V1.md](./ROADMAP_V1.md) | ✅ Point cloud → 3D Tiles |
+| [ROADMAP_V2.md](./ROADMAP_V2.md) | 🔜 Core engine waves W1–W5 |
+| [PLAN.md](./PLAN.md) | Historical checklist + backlog |
 
-V1 proved the wedge (**zero-upload point clouds**). V2 generalizes the engine for **edit + live sync + GPU**.
+**Default implementation order:** W2 → W3/W5 (geometry) → W4 (GPU) → W1 (runtime hardening in parallel when needed).
 
 ---
 
-## 6. 3D Gaussian Splatting (3DGS)
+## 6. 3D Gaussian Splatting
 
-3DGS is an **input strategy**, not a Day-1 engine core.
-
-| Phase | Approach |
-|-------|----------|
-| Near-term | External reconstruction → engine ingests mesh or point cloud |
-| Mid-term | Web viewer integration or splat → mesh/point conversion |
-| Long-term | WebGPU splat clip/merge (research; optional module) |
-
-Scene **modification** (flatten, cut, replace) should prefer **heightfield + mesh** layers over direct splat editing.
+Input strategy only — **not core**. Ingest mesh or point cloud from external 3DGS tools; edit via heightfield + mesh layers.
 
 ---
 
 ## 7. Quality Bar
 
-Every new capability must meet:
-
-- **Performance** — benchmark vs pure JS or naive WASM; regression CI gate  
-- **Stability** — no panics across WASM boundary; `SpatialError` at API edge  
-- **Efficiency** — reuse buffers; avoid allocations in hot loops  
-- **Zero-copy** — `Float32Array` / `Float64Array` in the hot path  
-- **Feature-gated** — optional modules (`mesh-edit`, `webgpu`, …) keep default WASM small  
+Performance benchmarks · zero-copy typed arrays · no WASM panics · feature flags keep default binary small.
 
 ---
 
-## 8. Success Criteria (Engine-Level)
+## 8. Success Criteria
 
-The vision is achieved when a developer can:
+A developer on latest Chrome can:
 
-1. Import park/home assets **in the browser** (point cloud, terrain, GLB)  
-2. **Edit** the scene (select region, flatten terrain, clip mesh, hide/export) without Blender  
-3. **Emit** 3D Tiles or glTF and load in Cesium/Three  
-4. **Bind** live data (slot occupancy, instance poses) with in-place updates  
-5. Do all of the above in **one npm package**, on **latest Chrome**, with measured perf  
+1. Import assets in-browser (point cloud, terrain, GLB)  
+2. Edit geometry (select, flatten terrain, clip/simplify mesh) without desktop GIS/DCC tools  
+3. Export 3D Tiles or glTF and load in Cesium/Three  
+4. Apply **incremental tile patches** after edits without full rebuild  
+5. Measure perf via included benchmarks  
 
----
-
-## 9. Contributing to the Vision
-
-- Read **[ROADMAP_V2.md](./ROADMAP_V2.md)** for wave priorities  
-- File issues using templates in **[docs/issues/](./docs/issues/)**  
-- Keep engine APIs **UI-free** and **scenario-free**  
+Real-time business data (parking, chargers, drones) is **composed in the application** using the viewer + existing exports (`i3dm`, etc.) — not via engine “twin plugins.”
 
 ---
 

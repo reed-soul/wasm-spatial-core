@@ -15,9 +15,10 @@ enum SpatialChunk {
     PointCloud(PointCloudChunk),
     Mesh(MeshChunk),
     Heightfield(HeightfieldChunk),
-    Instances(InstanceGroupChunk),
 }
 ```
+
+Instance transforms for **export** use existing i3dm encoders — not a separate IR variant.
 
 Each variant: `metadata: ChunkMeta`, `data: ...`, `version: u64`.
 
@@ -97,17 +98,8 @@ Each variant: `metadata: ChunkMeta`, `data: ...`, `version: u64`.
 
 ---
 
-## W2.7 — SVD 3D alignment
+## W2.7 — SVD 3D alignment (backlog — not core path)
 
-**Title:** `feat(crs): solveAffine3D from matched geo/local point pairs`
+**Status:** Deferred. File only if photogrammetry↔GIS registration blocks real users.
 
-### Proposal
-
-- Input: `geo: [lng,lat,alt,...]`, `local: [x,y,z,...]`, min 3 pairs
-- Output: column-major `Mat4` (scale + rotation + translation via SVD/Kabsch)
-- `applyAffine3D(coords, matrix)` in-place on f64 or f32
-
-### Acceptance
-
-- [ ] Synthetic known transform recovered within epsilon
-- [ ] Document difference vs per-point CRS transforms
+Use per-point CRS transforms + ENU (W2.6) for the common case.
