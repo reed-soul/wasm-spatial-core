@@ -28,6 +28,7 @@ npm run build:pkg
 | Three.js Point Cloud | http://127.0.0.1:8080/examples/point-cloud-demo/index.html |
 | Cesium 3D Tiles Point Cloud | http://127.0.0.1:8080/examples/point-cloud-cesium/index.html |
 | Worker (COOP/COEP) | http://127.0.0.1:8080/examples/worker-demo/index.html |
+| **WebGPU smoke** (Wave 4) | http://127.0.0.1:8080/examples/webgpu-smoke/index.html |
 
 ```bash
 npm run demo      # builds pkg + assembles _site, then serves on :8080
