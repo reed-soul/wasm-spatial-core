@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-06-06
+
+### Added
+- **Node.js batch API** (`wasm-spatial-core/node`) — Server-side point cloud and GeoTIFF pipelines via wasm-pack `nodejs` target:
+  - `loadSpatialCoreNode()` — initialise WASM in Node.js without browser headers
+  - `batchPointCloudToTileset()` — parse → octree → 3D Tiles in one call
+  - `batchGeotiffToTerrain()` — GeoTIFF → quantized-mesh terrain tileset
+  - `npm run build:wasm:node` builds the Node.js WASM package into `npm/pkg-node/`
+- **GeoTIFF LZW decompression** — TIFF LZW strips/tiles now decode via `weezl` (TIFF size-switch compatible)
+
+### Changed
+- **`generateTileset` default LOD** — Automatically estimates point spacing and applies spacing-aware `geometricError` for smoother LOD transitions (previously required `generateTilesetWithSpacing`)
+- `generateTilesetWithSpacing` remains available for explicit spacing/factor overrides
+
 ## [0.7.0] - 2026-06-01
 
 ### Added
