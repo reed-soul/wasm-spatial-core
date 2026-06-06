@@ -1144,12 +1144,33 @@ const GEOMETRIC_ERROR_FACTOR: f64 = 0.5;
 /// visual size, which is a good default for uniform distributions.
 const SPACING_ERROR_FACTOR: f64 = 1.0;
 
+/// Resolve average point spacing for LOD calibration.
+///
+/// Returns `None` when spacing cannot be estimated (fewer than 2 points or
+/// degenerate distribution), causing a fallback to bounding-box-diagonal error.
+fn resolve_point_spacing(positions: &[f32], avg_spacing: Option<f64>) -> Option<f64> {
+    if let Some(spacing) = avg_spacing {
+        if spacing > 0.0 {
+            return Some(spacing);
+        }
+        return None;
+    }
+
+    let est = estimate_point_spacing(positions, Some(1000));
+    if est > 0.0 {
+        Some(est)
+    } else {
+        None
+    }
+}
+
 /// Generate a complete 3D Tiles tileset from an octree and point data.
 ///
 /// Each leaf node becomes a `.pnts` tile. Internal nodes form the tileset
 /// hierarchy with appropriate `geometricError` and `boundingVolume`.
 ///
-/// Uses bounding-box-diagonal-based geometric error.
+/// Automatically estimates point spacing for spacing-aware geometric error,
+/// producing smoother LOD transitions than bounding-box-diagonal error alone.
 ///
 /// # Arguments
 /// * `octree` — Built octree spatial index.
@@ -1160,7 +1181,8 @@ pub fn generate_tileset(
     positions: &[f32],
     colors: Option<&[u8]>,
 ) -> Result<TilesetResult, crate::errors::SpatialErrorDetail> {
-    generate_tileset_with_spacing(octree, positions, colors, None, None)
+    let spacing = resolve_point_spacing(positions, None);
+    generate_tileset_with_spacing(octree, positions, colors, spacing, None)
 }
 
 /// Generate a tileset with spacing-aware geometric error calibration.
@@ -1183,9 +1205,10 @@ pub fn generate_tileset_with_spacing(
     avg_spacing: Option<f64>,
     spacing_factor: Option<f64>,
 ) -> Result<TilesetResult, crate::errors::SpatialErrorDetail> {
+    let spacing = resolve_point_spacing(positions, avg_spacing);
     let root_bounds = octree.root_bounds();
     let _root_geometric_error =
-        compute_geometric_error_with_spacing(&root_bounds, 0, avg_spacing, spacing_factor);
+        compute_geometric_error_with_spacing(&root_bounds, 0, spacing, spacing_factor);
 
     // Build tile content for each leaf.
     let mut tiles = Vec::new();
@@ -1223,8 +1246,7 @@ pub fn generate_tileset_with_spacing(
     }
 
     // Build tileset.json tree structure with spacing-aware errors.
-    let tileset_json =
-        build_tileset_json_with_spacing(octree, &tile_uris, avg_spacing, spacing_factor);
+    let tileset_json = build_tileset_json_with_spacing(octree, &tile_uris, spacing, spacing_factor);
 
     Ok(TilesetResult {
         tileset_json,
@@ -1304,7 +1326,8 @@ pub fn generate_tileset_parallel(
         tile_uris.push(uri);
     }
 
-    let tileset_json = build_tileset_json_with_spacing(octree, &tile_uris, None, None);
+    let spacing = resolve_point_spacing(positions, None);
+    let tileset_json = build_tileset_json_with_spacing(octree, &tile_uris, spacing, None);
 
     Ok(TilesetResult {
         tileset_json,
@@ -1463,7 +1486,10 @@ pub fn generate_tileset_js(
     Ok(WasmTilesetResult { inner: result })
 }
 
-/// WASM export: generate a tileset with spacing-aware geometric error.
+/// WASM export: generate a tileset with explicit spacing calibration overrides.
+///
+/// `generateTileset` already auto-estimates spacing; use this API when you
+/// need to supply a known average spacing or a custom spacing factor.
 #[wasm_bindgen(js_name = "generateTilesetWithSpacing")]
 #[allow(clippy::too_many_arguments)]
 pub fn generate_tileset_with_spacing_js(
@@ -1479,19 +1505,14 @@ pub fn generate_tileset_with_spacing_js(
     let mut buf = positions.to_vec();
     let octree = Octree::build(&mut buf, max_pts, max_d);
 
-    // Auto-estimate spacing if not provided
-    let spacing = avg_spacing.or_else(|| {
-        let est = estimate_point_spacing(&buf, Some(1000));
-        if est > 0.0 {
-            Some(est)
-        } else {
-            None
-        }
-    });
-
-    let result =
-        generate_tileset_with_spacing(&octree, &buf, colors.as_deref(), spacing, spacing_factor)
-            .map_err(JsValue::from)?;
+    let result = generate_tileset_with_spacing(
+        &octree,
+        &buf,
+        colors.as_deref(),
+        avg_spacing,
+        spacing_factor,
+    )
+    .map_err(JsValue::from)?;
 
     Ok(WasmTilesetResult { inner: result })
 }
@@ -2129,24 +2150,23 @@ mod tileset_tests {
     }
 
     #[test]
-    fn test_tileset_with_spacing_different_from_default() {
+    fn test_tileset_auto_spacing_differs_from_diagonal_fallback() {
         let triples: Vec<[f32; 3]> = (0..100)
             .map(|i| [(i % 10) as f32, ((i / 10) % 10) as f32, 0.0])
             .collect();
         let mut positions = make_positions(&triples);
         let tree = Octree::build(&mut positions, 25, 5);
 
-        // Default (no spacing)
-        let result_default = generate_tileset(&tree, &positions, None).unwrap();
-        // With spacing = 1.0
-        let result_spacing =
-            generate_tileset_with_spacing(&tree, &positions, None, Some(1.0), Some(1.0)).unwrap();
+        // Default path auto-estimates spacing from point distribution.
+        let result_auto = generate_tileset(&tree, &positions, None).unwrap();
+        // Forcing zero spacing disables calibration and uses box diagonal.
+        let result_diagonal =
+            generate_tileset_with_spacing(&tree, &positions, None, Some(0.0), None).unwrap();
 
-        // The geometricError values should differ
         assert_ne!(
-            result_default.tileset_json(),
-            result_spacing.tileset_json(),
-            "tileset JSON should differ with spacing calibration"
+            result_auto.tileset_json(),
+            result_diagonal.tileset_json(),
+            "auto spacing should differ from diagonal-only fallback"
         );
     }
 

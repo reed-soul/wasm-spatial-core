@@ -137,6 +137,8 @@ export {
   // ── 3D Tiles Point Cloud (pnts) ──────────────────────────
   encodePntsTile,
   generateTileset,
+  generateTilesetWithSpacing,
+  estimatePointSpacing,
   TilesetResult,
   // ── LOD ───────────────────────────────────────────────────
   computeScreenSpaceError,

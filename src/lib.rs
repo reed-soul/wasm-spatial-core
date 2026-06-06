@@ -312,7 +312,7 @@ fn wasm_memory_total() -> usize {
 }
 
 /// Default maximum allowed input size: 100 MB.
-pub(crate) const DEFAULT_MAX_INPUT_SIZE: usize = 4 * 1024 * 1024 * 1024;
+pub(crate) const DEFAULT_MAX_INPUT_SIZE: usize = 100 * 1024 * 1024;
 
 // ---------------------------------------------------------------------------
 // WASM Memory Control (Task 4)
