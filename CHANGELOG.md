@@ -8,9 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Wave 2 — Spatial IR + GLB ingest** (`mesh-ingest` feature):
+  - `SpatialChunk` IR: `PointCloudChunk`, `MeshChunk`, `HeightfieldChunk` with `ChunkMeta` (CRS, AABB, version)
+  - `parseGlb()` / `parseGlbCore()` — GLB → `MeshChunk`; round-trip with `meshToGlb`
+  - `WasmMeshChunk` — `selectAabb()`, `toGlb()`, geometry getters
+  - AABB region select on mesh and point cloud chunks
 - **Product vision** — [VISION.md](./VISION.md): next-gen Web3D spatial engine positioning (latest Chrome, WASM + WebGPU)
 - **Roadmap V2** — [ROADMAP_V2.md](./ROADMAP_V2.md): Waves 1–5 capability plan
 - **Issue templates** — [docs/issues/WAVE_1.md](./docs/issues/) … `WAVE_5.md` + GitHub form `.github/ISSUE_TEMPLATE/roadmap_v2_capability.yml`
+
+### Fixed
+- **GLB writer** — `indices` accessor now serialized on triangle primitives (required for GLB read round-trip)
 
 ### Changed
 - **Wave 1 scope** — Dropped trajectory/geofence from engine roadmap (application-layer concern)

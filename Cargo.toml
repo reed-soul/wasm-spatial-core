@@ -35,6 +35,8 @@ e57-support = ["dep:e57"]
 draco-support = []
 # GeoTIFF terrain support (TIFF parsing + quantized-mesh encoding)
 geotiff = []
+# Spatial IR + GLB/glTF mesh ingest (Wave 2)
+mesh-ingest = []
 # Test helpers (exposes internal fields for integration tests — never ship to WASM)
 test-helpers = []
 
