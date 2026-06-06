@@ -10,7 +10,7 @@ body:
     attributes:
       label: Wave
       options:
-        - W1 — Live twin primitives
+        - W1 — Scene instance layer
         - W2 — Spatial IR + GLB ingest
         - W3 — Terrain deformation
         - W4 — WebGPU compute core
@@ -20,8 +20,8 @@ body:
   - type: input
     id: deliverable_id
     attributes:
-      label: Deliverable ID (e.g. W1.4)
-      placeholder: W1.4
+      label: Deliverable ID (e.g. W1.1)
+      placeholder: W1.1
     validations:
       required: true
   - type: textarea
