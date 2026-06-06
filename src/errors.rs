@@ -37,6 +37,8 @@ pub enum SpatialError {
     PointCloudError,
     /// GeoTIFF terrain processing failed
     TerrainError,
+    /// Long-running operation was cancelled via abort token
+    Cancelled,
 }
 
 impl SpatialError {
@@ -51,6 +53,7 @@ impl SpatialError {
             SpatialError::TileError => "TILE_ERROR",
             SpatialError::PointCloudError => "POINT_CLOUD_ERROR",
             SpatialError::TerrainError => "TERRAIN_ERROR",
+            SpatialError::Cancelled => "CANCELLED",
         }
     }
 
@@ -65,6 +68,7 @@ impl SpatialError {
             SpatialError::TileError => "Vector tile generation failed",
             SpatialError::PointCloudError => "Point cloud (LAS/PCD) parsing failed",
             SpatialError::TerrainError => "GeoTIFF terrain processing failed",
+            SpatialError::Cancelled => "Operation was cancelled",
         }
     }
 
@@ -103,6 +107,10 @@ impl SpatialError {
     /// Convenience: TerrainError with detail
     pub fn terrain_error(detail: impl std::fmt::Display) -> SpatialErrorDetail {
         SpatialError::TerrainError.with_detail(detail)
+    }
+    /// Convenience: Cancelled with detail
+    pub fn cancelled(detail: impl std::fmt::Display) -> SpatialErrorDetail {
+        SpatialError::Cancelled.with_detail(detail)
     }
 }
 

@@ -53,6 +53,23 @@ wasm-pack build --target nodejs --release --out-dir pkg-node
 node -e "const w=require('./pkg-node/wasm_spatial_core.js'); console.log(w.version());"
 ```
 
+### Cancellable pipelines (W1)
+
+Long-running WASM jobs accept an optional `shouldAbort: () => boolean` callback (or JS `Function` returning truthy). When aborted, APIs return `SpatialError::Cancelled` (`code === 'CANCELLED'`).
+
+```js
+import { createAbortChecker, linkAbortSignalToWorker } from 'wasm-spatial-core/abort';
+
+const controller = new AbortController();
+const shouldAbort = createAbortChecker(controller.signal);
+linkAbortSignalToWorker(worker, controller.signal);
+
+// WASM: parseLasPointsWithProgressAndAbort(bytes, onProgress, shouldAbort)
+// Worker: worker.cancel() or controller.abort()
+```
+
+Incremental tile edits: build `TilesetPatch`, call `setTile(uri, bytes)`, then `applyTilesetPatch(base, patch)` — unrelated tile URIs are preserved.
+
 ### Gotchas
 
 - Default git branch is **`master`** (CI watches `master`, not `main`).
