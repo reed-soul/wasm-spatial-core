@@ -3,7 +3,8 @@
 //! Run with: `cargo test --features mesh-ingest spatial_ir`
 
 use wasm_spatial_core::{
-    parse_glb_core, Aabb, ChunkMeta, MeshChunk, PointCloudChunk, SpatialChunk,
+    batch_enu_to_wgs84_core, batch_wgs84_to_enu_core, parse_glb_core, Aabb, ChunkMeta, EnuFrame,
+    MeshChunk, PointCloudChunk, SpatialChunk,
 };
 
 fn sample_triangle_mesh() -> MeshChunk {
@@ -62,4 +63,34 @@ fn test_point_cloud_spatial_chunk() {
     let chunk = SpatialChunk::PointCloud(pc);
     assert!(chunk.estimate_bytes() > 0);
     assert_eq!(chunk.metadata().source_format, Some("las".to_string()));
+}
+
+#[test]
+fn test_point_cloud_export_to_pnts() {
+    let mut pc = PointCloudChunk {
+        metadata: ChunkMeta::new("las"),
+        positions: vec![0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 3.0, 0.0],
+        colors: None,
+        normals: None,
+    };
+    pc.refresh_metadata();
+
+    let export = pc.export_to_pnts("subset.pnts").unwrap();
+    assert_eq!(&export.pnts[0..4], b"pnts");
+    assert!(export.tileset_json.contains("subset.pnts"));
+}
+
+#[test]
+fn test_enu_roundtrip_1km() {
+    let frame = EnuFrame::from_anchor(116.391, 39.907, 50.0);
+    let enu = [1000.0, 0.0, 0.0, 0.0, 1000.0, 0.0];
+    let wgs = batch_enu_to_wgs84_core(&enu, &frame);
+    let back = batch_wgs84_to_enu_core(&wgs, &frame);
+    for i in 0..2 {
+        let dx = (enu[i * 3] - back[i * 3]).abs();
+        let dy = (enu[i * 3 + 1] - back[i * 3 + 1]).abs();
+        let dz = (enu[i * 3 + 2] - back[i * 3 + 2]).abs();
+        let err = (dx * dx + dy * dy + dz * dz).sqrt();
+        assert!(err < 1e-3, "ENU round-trip error {err} m");
+    }
 }

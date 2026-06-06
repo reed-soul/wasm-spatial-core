@@ -28,6 +28,12 @@ mod spatial_ir;
 #[cfg(feature = "mesh-ingest")]
 mod gltf_reader;
 
+#[cfg(feature = "mesh-ingest")]
+mod chunk_export;
+
+#[cfg(feature = "mesh-ingest")]
+mod enu_frame;
+
 pub use b3dm::{
     create_instanced_tileset, create_instanced_tileset_i3dm, create_mesh_tileset, encode_b3dm_tile,
     encode_i3dm_tile,
@@ -36,6 +42,18 @@ pub use gltf_writer::{mesh_to_glb, point_cloud_to_glb, terrain_to_glb, GltfBuild
 
 #[cfg(feature = "mesh-ingest")]
 pub use gltf_reader::{parse_glb, parse_glb_core, supports_mesh_ingest};
+
+#[cfg(feature = "mesh-ingest")]
+pub use chunk_export::{
+    build_minimal_tileset_json, export_point_cloud_to_pnts, PointCloudTileExport,
+    WasmPointCloudTileExport,
+};
+
+#[cfg(feature = "mesh-ingest")]
+pub use enu_frame::{
+    batch_enu_to_wgs84_core, batch_wgs84_to_enu_core, batch_wgs84_to_enu_f32_core,
+    create_enu_frame, EnuFrame, WasmEnuFrame,
+};
 
 #[cfg(feature = "mesh-ingest")]
 pub use spatial_ir::{
