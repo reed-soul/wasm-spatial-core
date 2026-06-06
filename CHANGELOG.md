@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - AABB region select on mesh and point cloud chunks
   - **W2.5 export** — `exportPointCloudToPnts()` → single `.pnts` + minimal `tileset.json`; mesh `exportToGlb`
   - **W2.6 ENU frame** — `createEnuFrame()`, `wgs84ToEnu` / `enuToWgs84`, f32 rendering offsets; sub-mm round-trip at 1 km
+  - **W2.7 SVD alignment** — `computeSvdAlignment()` Umeyama/Kabsch solve; 4×4 matrix for `transformPointCloud`; pairs with ENU survey control points
 - **Wave 4 — WebGPU compute** (`webgpu` feature):
   - `wasm-spatial-core/webgpu` — `GpuContext`, `transformPoints`, `flattenHeightfield` with WASM fallback
   - WGSL kernels in `shaders/` (`transform_points_v1`, `heightfield_flatten_v1`)
