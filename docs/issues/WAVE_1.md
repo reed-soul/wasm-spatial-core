@@ -1,6 +1,9 @@
-# Wave 1 — Issue Templates (Live Twin Primitives)
+# Wave 1 — Issue Templates (Scene Instance Layer)
 
 Copy a section below into a new GitHub issue. Labels: `roadmap-v2`, `wave-1`, `engine`.
+
+**Scope:** Fixed or slot-based twins (parking, chargers, equipment) + incremental scene updates.  
+**Out of scope for the engine:** inspection path replay, trajectory buffers, geofencing — handle in the upper application (Cesium/Three polylines + your MQTT layer).
 
 ---
 
@@ -72,75 +75,7 @@ Parking-style twins need “slot occupied → show car model” without duplicat
 
 ---
 
-## W1.4 — 3D trajectory ring buffer
-
-**Title:** `feat(live-twin): TrajectoryBuffer 3D stream API`
-
-### Problem
-
-Inspection twins (drone, robot) need high-frequency pose streams; only 2D geo RDP exists.
-
-### Proposal
-
-```rust
-TrajectoryBuffer::with_capacity(max_points)
-push(timestamp_ms, x, y, z)
-as_interleaved_f64() -> &[f64]  // or Float64Array export
-clear()
-```
-
-### Acceptance
-
-- [ ] Ring buffer overwrites oldest when full
-- [ ] WASM + native tests
-- [ ] Memory O(capacity), not O(total pushed)
-
----
-
-## W1.5 — 3D Ramer–Douglas–Peucker
-
-**Title:** `feat(live-twin): simplifyTrajectory3D for f32/f64 XYZ polylines`
-
-### Problem
-
-`simplifyDouglasPeucker` operates on lng/lat; 3D local trajectories need the same algorithm.
-
-### Proposal
-
-- `simplifyTrajectory3D(positions: Float32Array|Float64Array, tolerance: f64) -> same type`
-- Perpendicular distance to chord in 3D Euclidean space
-- Reuse iterative segment logic from `topology.rs`
-
-### Acceptance
-
-- [ ] Straight line collapses to endpoints
-- [ ] Zigzag with small deviation preserves key vertices
-- [ ] 100k points < 100 ms native release (benchmark)
-
----
-
-## W1.6 — Geofence event detection
-
-**Title:** `feat(live-twin): checkGeofence on trajectory vs polygon`
-
-### Problem
-
-Geofencing is a common twin requirement; polygon predicates exist but no trajectory-oriented API.
-
-### Proposal
-
-- `checkGeofence(trajectory: Float64Array, polygon: Float64Array) -> GeofenceResult`
-- Events: `enter`, `exit`, optional `dwell` if timestamp array provided
-- Use `is_point_in_ring` / existing topology
-
-### Acceptance
-
-- [ ] Synthetic trajectory crossing square polygon → one enter, one exit
-- [ ] WASM export
-
----
-
-## W1.7 — Tile patch protocol
+## W1.4 — Tile patch protocol
 
 **Title:** `feat(tiles): incremental tileset patch instead of full rebuild`
 
@@ -161,7 +96,7 @@ Small scene edits invalidate entire tileset.json + all pnts blobs.
 
 ---
 
-## W1.8 — AbortSignal through WASM jobs
+## W1.5 — AbortSignal through WASM jobs
 
 **Title:** `feat(runtime): cancellable long-running WASM/Worker pipelines`
 

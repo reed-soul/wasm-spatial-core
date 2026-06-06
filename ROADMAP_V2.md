@@ -10,7 +10,7 @@
 
 | Wave | Theme | Outcome | Depends on |
 |------|-------|---------|------------|
-| **W1** | Live twin primitives | Instances, 3D trajectories, geofence, tile patches | V1 tileset output |
+| **W1** | Scene instance layer | Instance slots, in-place updates, tile patches | V1 tileset output |
 | **W2** | Spatial IR + GLB ingest | Unified chunks, read/edit glTF, region select | — |
 | **W3** | Terrain deformation | Cut, flatten, fill on heightfields | W2 IR (heightfield chunk) |
 | **W4** | WebGPU compute core | GPU kernels + WASM orchestration | W2 IR |
@@ -20,9 +20,11 @@ Waves are **sequential in priority**, not strict blockers — W1 can ship while 
 
 ---
 
-## Wave 1 — Live Twin Primitives
+## Wave 1 — Scene Instance Layer
 
-**Goal:** Support real-time digital twin scenarios (trajectories, facility instances, occupancy) without regenerating full tilesets every frame.
+**Goal:** Support slot-based scene twins (parking, chargers, equipment placement) and small scene edits **without regenerating full tilesets every frame**.
+
+**Not in Wave 1 (application layer):** inspection path replay, 3D trajectory buffers, geofencing. Those are thin viewer + MQTT concerns; use Cesium/Three polylines in your app. The engine already exposes 2D `simplifyDouglasPeucker` and polygon predicates if you need them.
 
 ### Deliverables
 
@@ -31,11 +33,8 @@ Waves are **sequential in priority**, not strict blockers — W1 can ship while 
 | W1.1 | `InstanceLayer` API | Wrap i3dm semantics: template GLB + slot table `{ id, transform, visible, metadata }` |
 | W1.2 | In-place pose update | `updateInstance(id, matrix)` mutates GPU-ready buffers or patch blob |
 | W1.3 | Occupancy / visibility | `setVisible(id, bool)`, `setOccupied(slotId, bool)` for parking-style twins |
-| W1.4 | 3D trajectory stream | `TrajectoryBuffer.push(t, x,y,z)`, ring buffer, max length |
-| W1.5 | 3D RDP simplify | Ramer–Douglas–Peucker on `f64`/`f32` XYZ polylines (extend existing 2D geo RDP) |
-| W1.6 | Geofence events | `checkGeofence(trajectory, polygon) → enter/exit/dwell events` using existing topology |
-| W1.7 | Tile patch protocol | Incremental `tileset.json` / content URI diff instead of full rebuild |
-| W1.8 | `AbortSignal` jobs | Long pipelines honour cancellation across Worker + WASM |
+| W1.4 | Tile patch protocol | Incremental `tileset.json` / content URI diff instead of full rebuild |
+| W1.5 | `AbortSignal` jobs | Long pipelines honour cancellation across Worker + WASM |
 
 ### Issue templates
 
@@ -44,8 +43,8 @@ Copy from [docs/issues/WAVE_1.md](./docs/issues/WAVE_1.md)
 ### Exit criteria
 
 - [ ] 10k instance slots update at 60 Hz path without full tileset regen (benchmark)  
-- [ ] Drone path 100k points → RDP → renderable polyline < 100 ms (M2 class, WASM)  
-- [ ] Geofence unit tests for enter/exit on synthetic polygon  
+- [ ] 20 parking slots: toggle 10 occupied → visible instance count matches (integration test)  
+- [ ] Single-tile edit produces patch ≪ full tileset size  
 
 ---
 
@@ -168,13 +167,13 @@ Copy from [docs/issues/WAVE_1.md](./docs/issues/WAVE_1.md)
 | `terrain-edit` | W3 deformation | off |
 | `webgpu` | W4 compute | off |
 | `mesh-edit` | W5 clip/QEM | off |
-| `live-twin` | W1 instances/trajectory | off |
+| `live-twin` | W1 instance layer | off |
 
 ---
 
 ## How to File Work
 
-1. Pick a wave deliverable (e.g. W1.4)  
+1. Pick a wave deliverable (e.g. W1.1)  
 2. Open [docs/issues/WAVE_N.md](./docs/issues/) and copy the matching issue block  
 3. Label: `roadmap-v2`, `wave-N`, `engine`  
 4. PR must include tests + benchmark or explicit N/A  
@@ -186,3 +185,4 @@ Copy from [docs/issues/WAVE_1.md](./docs/issues/WAVE_1.md)
 | Date | Change |
 |------|--------|
 | 2026-06-06 | Initial V2 roadmap from product vision |
+| 2026-06-06 | Wave 1 trimmed: removed trajectory/geofence (application layer) |

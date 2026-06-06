@@ -339,7 +339,7 @@ npm run demo
 
 **V1 highlights (done):** LAS/LAZ → octree → 3D Tiles · GeoTIFF terrain · Draco · multi-thread WASM · Node.js batch API
 
-**V2 next:** instance/trajectory twins · spatial IR · terrain deform · WebGPU compute · mesh clip/QEM — see [issue templates](./docs/issues/)
+**V2 next:** instance layer · spatial IR · terrain deform · WebGPU compute · mesh clip/QEM — see [issue templates](./docs/issues/)
 
 ---
 

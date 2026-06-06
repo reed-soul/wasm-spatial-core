@@ -36,7 +36,8 @@ The **upper application** (your future project) should be ~80% engine APIs + vie
 | Belongs in the **application layer** | Belongs in **wasm-spatial-core** |
 |--------------------------------------|----------------------------------|
 | Park/campus business UI | Format parsing & spatial algorithms |
-| MQTT / parking / charging integrations | Instance poses, geofences, trajectory primitives |
+| MQTT / parking / charging integrations | Instance slots, pose updates, tile patches |
+| Inspection paths, geofencing, trajectory replay | — (use viewer + app code) |
 | Auth, multi-tenant, dashboards | Mesh/terrain edit kernels |
 | “Demolish toilet → build playground” **workflow** | Clip / flatten / export **primitives** |
 
@@ -74,7 +75,7 @@ graph TB
         CPU[Rust WASM: parse · index · tiles · topology]
         GPU[WebGPU Compute: decimate · heightfield · cull]
         Out[Output: pnts · b3dm · i3dm · terrain · glTF]
-        Live[Live layer: instances · trajectories · patches]
+        Live[Live layer: instances · patches]
     end
 
     Capture[External capture] --> Ingest
@@ -115,7 +116,7 @@ See **[ROADMAP_V2.md](./ROADMAP_V2.md)** for wave-by-wave execution and GitHub i
 | **L4** Geometry CPU | Clip, flatten, boolean, decimate | Weak | **Mesh clip, terrain deform, QEM** |
 | **L5** GPU | WebGPU compute kernels | **Missing** | **Strategic gap** |
 | **L6** Output | 3D Tiles, glTF, streaming | Strong | Incremental tile patches, hot reload protocol |
-| **L7** Live | Instances, trajectories, geofence | Partial | 3D trajectory stream, in-place instance updates |
+| **L7** Live | Instance slots, visibility, tile patches | Partial | In-place instance updates, incremental tile patch protocol |
 | **L8** DX | Pipeline API, benchmarks, errors | Partial | Composable pipeline, perf gates per module |
 
 ### The five critical gaps (executive summary)
@@ -123,7 +124,7 @@ See **[ROADMAP_V2.md](./ROADMAP_V2.md)** for wave-by-wave execution and GitHub i
 1. **Spatial IR** — one internal representation for point clouds, meshes, heightfields, instance groups  
 2. **Geometry edit kernel** — terrain flatten / cut / fill + mesh clip & simplify  
 3. **WebGPU compute layer** — otherwise “top-tier performance” is not credible  
-4. **Live twin primitives** — instances, trajectories, geofence, state patches (not one-shot tilesets)  
+4. **Scene instance layer** — slot-based instances, occupancy/visibility, tile patches (not one-shot tilesets)  
 5. **Pipeline engineering** — cancellable jobs, memory estimates, benchmark gates  
 
 ---
@@ -173,7 +174,7 @@ The vision is achieved when a developer can:
 1. Import park/home assets **in the browser** (point cloud, terrain, GLB)  
 2. **Edit** the scene (select region, flatten terrain, clip mesh, hide/export) without Blender  
 3. **Emit** 3D Tiles or glTF and load in Cesium/Three  
-4. **Bind** live data (poses, occupancy, trajectories) with in-place updates  
+4. **Bind** live data (slot occupancy, instance poses) with in-place updates  
 5. Do all of the above in **one npm package**, on **latest Chrome**, with measured perf  
 
 ---
