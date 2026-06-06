@@ -20,7 +20,7 @@
 **[🌐 Live Demo](https://reed-soul.github.io/wasm-spatial-core/)** ·
 [📦 npm](https://www.npmjs.com/package/wasm-spatial-core) ·
 [📖 API Docs](https://reed-soul.github.io/wasm-spatial-core/docs/) ·
-[🗺️ Roadmap](./ROADMAP_V1.md)
+[🗺️ Roadmap](./ROADMAP_V1.md) · [🔭 Vision](./VISION.md)
 
 **🧪 Try it now:**
 
@@ -331,14 +331,15 @@ npm run demo
 
 ## 📋 Roadmap
 
-See **[ROADMAP_V1.md](./ROADMAP_V1.md)** for the full development roadmap.
+| Doc | Scope |
+|-----|-------|
+| **[VISION.md](./VISION.md)** | Product vision — next-gen Web3D spatial engine (latest Chrome, WASM + WebGPU) |
+| **[ROADMAP_V2.md](./ROADMAP_V2.md)** | Active plan — Waves 1–5 (live twin, IR, terrain edit, GPU, mesh edit) |
+| **[ROADMAP_V1.md](./ROADMAP_V1.md)** | ✅ Completed — point cloud → 3D Tiles browser pipeline |
 
-- ✅ Phase A: Point cloud pipeline (LAS/LAZ/COPC/PLY/OBJ → octree → 3D Tiles)
-- ✅ Phase B: LOD optimization, screen-space error, view-dependent loading
-- ✅ Phase C: E57, GeoTIFF terrain, COPC full support
-- ✅ Phase D: npm publish, GitHub Pages, TypeDoc docs, Draco compression
-- ✅ Phase E: WASM multi-thread (atomics + SharedArrayBuffer)
-- ✅ Phase F4: Node.js batch processing (`import from 'wasm-spatial-core/node'`)
+**V1 highlights (done):** LAS/LAZ → octree → 3D Tiles · GeoTIFF terrain · Draco · multi-thread WASM · Node.js batch API
+
+**V2 next:** instance/trajectory twins · spatial IR · terrain deform · WebGPU compute · mesh clip/QEM — see [issue templates](./docs/issues/)
 
 ---
 
