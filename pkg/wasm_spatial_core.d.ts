@@ -646,6 +646,15 @@ export class PointData {
     readonly z: number;
 }
 
+export class ProcessingContext {
+    free(): void;
+    [Symbol.dispose](): void;
+    clear(): void;
+    constructor();
+    reserve(point_count: number, has_color: boolean): void;
+    readonly reservedBytes: number;
+}
+
 /**
  * WASM-exposed bounding box.
  */
@@ -816,6 +825,24 @@ export class TerrainTilesetResult {
      * Total bytes across all tiles.
      */
     readonly totalBytes: number;
+}
+
+export class TilesetPatch {
+    free(): void;
+    [Symbol.dispose](): void;
+    constructor();
+    /**
+     * Replace tile content for a URI (e.g. `tile_3.pnts`).
+     */
+    setTile(uri: string, data: Uint8Array): void;
+    /**
+     * Replace tileset.json content.
+     */
+    setTilesetJson(json: string): void;
+    /**
+     * Approximate patch payload size in bytes.
+     */
+    readonly patchBytes: number;
 }
 
 /**
@@ -1126,6 +1153,11 @@ export function applyColorRamp(positions: Float32Array, colors: Float32Array): F
  * `Uint8Array` of RGBA values (length = heights.length × 4).
  */
 export function applyTerrainColorRamp(heights: Float32Array, min_z: number, max_z: number, ramp: number): Uint8Array;
+
+/**
+ * Apply an incremental patch to a tileset result.
+ */
+export function applyTilesetPatch(base: TilesetResult, patch: TilesetPatch): TilesetResult;
 
 /**
  * Calculate the area of a polygon with holes in square meters.
@@ -1912,6 +1944,11 @@ export function encodeQuantizedMesh(heights: Float32Array, width: number, height
 export function encodeTerrainTileset(heights: Float32Array, width: number, height: number, bounds: Float64Array, center: Float64Array, max_zoom: number): TerrainTilesetResult;
 
 /**
+ * Estimate job memory in bytes. Pass `op` as `"lasParse"`, `"octreeBuild"`, or `"tilesetGenerate"`.
+ */
+export function estimateJobBytes(op: string, point_count: number, leaf_count: number, has_color: boolean): number;
+
+/**
  * Estimate memory usage for a point cloud with the given parameters.
  *
  * # Arguments
@@ -2082,6 +2119,11 @@ export function generateInterleavedVertexBuffer(positions: Float32Array, colors:
  * WASM export: generate a tileset from octree and point data.
  */
 export function generateTileset(positions: Float32Array, max_points_per_node?: number | null, max_depth?: number | null, colors?: Uint8Array | null): TilesetResult;
+
+/**
+ * Generate tileset with abort callback checked between leaf encodes.
+ */
+export function generateTilesetWithAbort(positions: Float32Array, max_points_per_node: number | null | undefined, max_depth: number | null | undefined, colors: Uint8Array | null | undefined, should_abort: Function): TilesetResult;
 
 /**
  * WASM export: generate a tileset with explicit spacing calibration overrides.
@@ -2617,6 +2659,11 @@ export function parseLasPoints(bytes: Uint8Array): LasPointCloud;
  * Parse LAS points with a JS progress callback. Reports every 10,000 points.
  */
 export function parseLasPointsWithProgress(bytes: Uint8Array, on_progress: Function): LasPointCloud;
+
+/**
+ * Parse LAS with progress and abort callback. `shouldAbort` returns true to cancel.
+ */
+export function parseLasPointsWithProgressAndAbort(bytes: Uint8Array, on_progress: Function, should_abort: Function): LasPointCloud;
 
 /**
  * Extract vertex positions from an OBJ file.
@@ -3239,6 +3286,7 @@ export interface InitOutput {
     readonly __wbg_plyresult_free: (a: number, b: number) => void;
     readonly __wbg_pointcloudstats_free: (a: number, b: number) => void;
     readonly __wbg_pointdata_free: (a: number, b: number) => void;
+    readonly __wbg_processingcontext_free: (a: number, b: number) => void;
     readonly __wbg_quantbounds_free: (a: number, b: number) => void;
     readonly __wbg_quantizedmeshresult_free: (a: number, b: number) => void;
     readonly __wbg_quantizeresult_free: (a: number, b: number) => void;
@@ -3253,6 +3301,7 @@ export interface InitOutput {
     readonly __wbg_spatialedgeindex_free: (a: number, b: number) => void;
     readonly __wbg_spatialindex_free: (a: number, b: number) => void;
     readonly __wbg_terraintilesetresult_free: (a: number, b: number) => void;
+    readonly __wbg_tilesetpatch_free: (a: number, b: number) => void;
     readonly __wbg_tilesetresult_free: (a: number, b: number) => void;
     readonly __wbg_validationresult_free: (a: number, b: number) => void;
     readonly __wbg_vectortileengine_free: (a: number, b: number) => void;
@@ -3262,6 +3311,7 @@ export interface InitOutput {
     readonly addProperty: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
     readonly applyColorRamp: (a: number, b: number) => number;
     readonly applyTerrainColorRamp: (a: number, b: number, c: number, d: number, e: number) => number;
+    readonly applyTilesetPatch: (a: number, b: number, c: number) => void;
     readonly areaWithHoles: (a: number, b: number, c: number) => void;
     readonly autoDecimate: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly batchBd09ToGcj02: (a: number) => number;
@@ -3347,6 +3397,7 @@ export interface InitOutput {
     readonly encodePntsTileWithNormals: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => void;
     readonly encodeQuantizedMesh: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => void;
     readonly encodeTerrainTileset: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => void;
+    readonly estimateJobBytes: (a: number, b: number, c: number, d: number, e: number) => number;
     readonly estimateMemoryForPoints: (a: number, b: number, c: number) => number;
     readonly estimateNormals: (a: number, b: number) => number;
     readonly estimateOctreeMemory: (a: number) => number;
@@ -3364,6 +3415,7 @@ export interface InitOutput {
     readonly generateIndexedGeometry: (a: number) => number;
     readonly generateInterleavedVertexBuffer: (a: number, b: number, c: number) => number;
     readonly generateTileset: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
+    readonly generateTilesetWithAbort: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
     readonly generateTilesetWithSpacing: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => void;
     readonly geoJsonFeatureCollection: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly geoJsonFromCoords: (a: number, b: number, c: number, d: number) => void;
@@ -3464,6 +3516,7 @@ export interface InitOutput {
     readonly parseLasPointAt: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly parseLasPoints: (a: number, b: number, c: number) => void;
     readonly parseLasPointsWithProgress: (a: number, b: number, c: number, d: number) => void;
+    readonly parseLasPointsWithProgressAndAbort: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly parseObjVertices: (a: number, b: number) => number;
     readonly parseObjWithNormals: (a: number, b: number, c: number) => void;
     readonly parsePcdAscii: (a: number, b: number, c: number) => void;
@@ -3502,6 +3555,10 @@ export interface InitOutput {
     readonly polygonUnion: (a: number, b: number) => number;
     readonly polylineLength: (a: number, b: number) => void;
     readonly processChunked: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
+    readonly processingcontext_clear: (a: number) => void;
+    readonly processingcontext_new: () => number;
+    readonly processingcontext_reserve: (a: number, b: number, c: number) => void;
+    readonly processingcontext_reservedBytes: (a: number) => number;
     readonly quantizePositions: (a: number, b: number, c: number) => number;
     readonly quantizedmeshresult_byte_length: (a: number) => number;
     readonly quantizedmeshresult_data: (a: number) => number;
@@ -3535,6 +3592,10 @@ export interface InitOutput {
     readonly terraintilesetresult_tile_count: (a: number) => number;
     readonly terraintilesetresult_tilesetJson: (a: number, b: number) => void;
     readonly terraintilesetresult_totalBytes: (a: number) => number;
+    readonly tilesetpatch_new: () => number;
+    readonly tilesetpatch_patchBytes: (a: number) => number;
+    readonly tilesetpatch_setTile: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly tilesetpatch_setTilesetJson: (a: number, b: number, c: number) => void;
     readonly tilesetresult_tile: (a: number, b: number) => number;
     readonly tilesetresult_tileBounds: (a: number, b: number) => number;
     readonly tilesetresult_tileUri: (a: number, b: number, c: number) => void;
@@ -3644,9 +3705,9 @@ export interface InitOutput {
     readonly tinresult_positions: (a: number) => number;
     readonly ifcmesh_positions: (a: number) => number;
     readonly tinresult_indices: (a: number) => number;
-    readonly __wasm_bindgen_func_elem_3424: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_3428: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_1030: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_3489: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_3493: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_1055: (a: number, b: number, c: number) => void;
     readonly __wbindgen_export: (a: number, b: number) => number;
     readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_export3: (a: number) => void;
