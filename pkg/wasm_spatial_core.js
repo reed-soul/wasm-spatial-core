@@ -1760,6 +1760,43 @@ export class PointData {
 }
 if (Symbol.dispose) PointData.prototype[Symbol.dispose] = PointData.prototype.free;
 
+export class ProcessingContext {
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        ProcessingContextFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_processingcontext_free(ptr, 0);
+    }
+    clear() {
+        wasm.processingcontext_clear(this.__wbg_ptr);
+    }
+    constructor() {
+        const ret = wasm.processingcontext_new();
+        this.__wbg_ptr = ret;
+        ProcessingContextFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * @param {number} point_count
+     * @param {boolean} has_color
+     */
+    reserve(point_count, has_color) {
+        wasm.processingcontext_reserve(this.__wbg_ptr, point_count, has_color);
+    }
+    /**
+     * @returns {number}
+     */
+    get reservedBytes() {
+        const ret = wasm.processingcontext_reservedBytes(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+}
+if (Symbol.dispose) ProcessingContext.prototype[Symbol.dispose] = ProcessingContext.prototype.free;
+
 /**
  * WASM-exposed bounding box.
  */
@@ -2154,6 +2191,55 @@ export class TerrainTilesetResult {
     }
 }
 if (Symbol.dispose) TerrainTilesetResult.prototype[Symbol.dispose] = TerrainTilesetResult.prototype.free;
+
+export class TilesetPatch {
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        TilesetPatchFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_tilesetpatch_free(ptr, 0);
+    }
+    constructor() {
+        const ret = wasm.tilesetpatch_new();
+        this.__wbg_ptr = ret;
+        TilesetPatchFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * Approximate patch payload size in bytes.
+     * @returns {number}
+     */
+    get patchBytes() {
+        const ret = wasm.tilesetpatch_patchBytes(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * Replace tile content for a URI (e.g. `tile_3.pnts`).
+     * @param {string} uri
+     * @param {Uint8Array} data
+     */
+    setTile(uri, data) {
+        const ptr0 = passStringToWasm0(uri, wasm.__wbindgen_export, wasm.__wbindgen_export2);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passArray8ToWasm0(data, wasm.__wbindgen_export);
+        const len1 = WASM_VECTOR_LEN;
+        wasm.tilesetpatch_setTile(this.__wbg_ptr, ptr0, len0, ptr1, len1);
+    }
+    /**
+     * Replace tileset.json content.
+     * @param {string} json
+     */
+    setTilesetJson(json) {
+        const ptr0 = passStringToWasm0(json, wasm.__wbindgen_export, wasm.__wbindgen_export2);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.tilesetpatch_setTilesetJson(this.__wbg_ptr, ptr0, len0);
+    }
+}
+if (Symbol.dispose) TilesetPatch.prototype[Symbol.dispose] = TilesetPatch.prototype.free;
 
 /**
  * WASM-accessible tileset result handle.
@@ -3008,6 +3094,30 @@ export function applyTerrainColorRamp(heights, min_z, max_z, ramp) {
     const len0 = WASM_VECTOR_LEN;
     const ret = wasm.applyTerrainColorRamp(ptr0, len0, min_z, max_z, ramp);
     return takeObject(ret);
+}
+
+/**
+ * Apply an incremental patch to a tileset result.
+ * @param {TilesetResult} base
+ * @param {TilesetPatch} patch
+ * @returns {TilesetResult}
+ */
+export function applyTilesetPatch(base, patch) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        _assertClass(base, TilesetResult);
+        _assertClass(patch, TilesetPatch);
+        wasm.applyTilesetPatch(retptr, base.__wbg_ptr, patch.__wbg_ptr);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return TilesetResult.__wrap(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
 }
 
 /**
@@ -4727,6 +4837,21 @@ export function encodeTerrainTileset(heights, width, height, bounds, center, max
 }
 
 /**
+ * Estimate job memory in bytes. Pass `op` as `"lasParse"`, `"octreeBuild"`, or `"tilesetGenerate"`.
+ * @param {string} op
+ * @param {number} point_count
+ * @param {number} leaf_count
+ * @param {boolean} has_color
+ * @returns {number}
+ */
+export function estimateJobBytes(op, point_count, leaf_count, has_color) {
+    const ptr0 = passStringToWasm0(op, wasm.__wbindgen_export, wasm.__wbindgen_export2);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.estimateJobBytes(ptr0, len0, point_count, leaf_count, has_color);
+    return ret >>> 0;
+}
+
+/**
  * Estimate memory usage for a point cloud with the given parameters.
  *
  * # Arguments
@@ -5117,6 +5242,36 @@ export function generateTileset(positions, max_points_per_node, max_depth, color
         return TilesetResult.__wrap(r0);
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
+    }
+}
+
+/**
+ * Generate tileset with abort callback checked between leaf encodes.
+ * @param {Float32Array} positions
+ * @param {number | null | undefined} max_points_per_node
+ * @param {number | null | undefined} max_depth
+ * @param {Uint8Array | null | undefined} colors
+ * @param {Function} should_abort
+ * @returns {TilesetResult}
+ */
+export function generateTilesetWithAbort(positions, max_points_per_node, max_depth, colors, should_abort) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArrayF32ToWasm0(positions, wasm.__wbindgen_export);
+        const len0 = WASM_VECTOR_LEN;
+        var ptr1 = isLikeNone(colors) ? 0 : passArray8ToWasm0(colors, wasm.__wbindgen_export);
+        var len1 = WASM_VECTOR_LEN;
+        wasm.generateTilesetWithAbort(retptr, ptr0, len0, isLikeNone(max_points_per_node) ? Number.MAX_SAFE_INTEGER : (max_points_per_node) >>> 0, isLikeNone(max_depth) ? Number.MAX_SAFE_INTEGER : (max_depth) >>> 0, ptr1, len1, addBorrowedObject(should_abort));
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return TilesetResult.__wrap(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        heap[stack_pointer++] = undefined;
     }
 }
 
@@ -6261,6 +6416,33 @@ export function parseLasPointsWithProgress(bytes, on_progress) {
         return LasPointCloud.__wrap(r0);
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
+        heap[stack_pointer++] = undefined;
+    }
+}
+
+/**
+ * Parse LAS with progress and abort callback. `shouldAbort` returns true to cancel.
+ * @param {Uint8Array} bytes
+ * @param {Function} on_progress
+ * @param {Function} should_abort
+ * @returns {LasPointCloud}
+ */
+export function parseLasPointsWithProgressAndAbort(bytes, on_progress, should_abort) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArray8ToWasm0(bytes, wasm.__wbindgen_export);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.parseLasPointsWithProgressAndAbort(retptr, ptr0, len0, addBorrowedObject(on_progress), addBorrowedObject(should_abort));
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return LasPointCloud.__wrap(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        heap[stack_pointer++] = undefined;
         heap[stack_pointer++] = undefined;
     }
 }
@@ -7654,7 +7836,7 @@ function __wbg_get_imports() {
                     const a = state0.a;
                     state0.a = 0;
                     try {
-                        return __wasm_bindgen_func_elem_3428(a, state0.b, arg0, arg1);
+                        return __wasm_bindgen_func_elem_3493(a, state0.b, arg0, arg1);
                     } finally {
                         state0.a = a;
                     }
@@ -7792,12 +7974,12 @@ function __wbg_get_imports() {
         },
         __wbindgen_cast_0000000000000001: function(arg0, arg1) {
             // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 11, ret: Unit, inner_ret: Some(Unit) }, mutable: false }) -> Externref`.
-            const ret = makeClosure(arg0, arg1, __wasm_bindgen_func_elem_1030);
+            const ret = makeClosure(arg0, arg1, __wasm_bindgen_func_elem_1055);
             return addHeapObject(ret);
         },
         __wbindgen_cast_0000000000000002: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 203, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
-            const ret = makeMutClosure(arg0, arg1, __wasm_bindgen_func_elem_3424);
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 205, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
+            const ret = makeMutClosure(arg0, arg1, __wasm_bindgen_func_elem_3489);
             return addHeapObject(ret);
         },
         __wbindgen_cast_0000000000000003: function(arg0) {
@@ -7824,14 +8006,14 @@ function __wbg_get_imports() {
     };
 }
 
-function __wasm_bindgen_func_elem_1030(arg0, arg1, arg2) {
-    wasm.__wasm_bindgen_func_elem_1030(arg0, arg1, addHeapObject(arg2));
+function __wasm_bindgen_func_elem_1055(arg0, arg1, arg2) {
+    wasm.__wasm_bindgen_func_elem_1055(arg0, arg1, addHeapObject(arg2));
 }
 
-function __wasm_bindgen_func_elem_3424(arg0, arg1, arg2) {
+function __wasm_bindgen_func_elem_3489(arg0, arg1, arg2) {
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-        wasm.__wasm_bindgen_func_elem_3424(retptr, arg0, arg1, addHeapObject(arg2));
+        wasm.__wasm_bindgen_func_elem_3489(retptr, arg0, arg1, addHeapObject(arg2));
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
         var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
         if (r1) {
@@ -7842,8 +8024,8 @@ function __wasm_bindgen_func_elem_3424(arg0, arg1, arg2) {
     }
 }
 
-function __wasm_bindgen_func_elem_3428(arg0, arg1, arg2, arg3) {
-    wasm.__wasm_bindgen_func_elem_3428(arg0, arg1, addHeapObject(arg2), addHeapObject(arg3));
+function __wasm_bindgen_func_elem_3493(arg0, arg1, arg2, arg3) {
+    wasm.__wasm_bindgen_func_elem_3493(arg0, arg1, addHeapObject(arg2), addHeapObject(arg3));
 }
 
 const Cesium3DTileFinalization = (typeof FinalizationRegistry === 'undefined')
@@ -7936,9 +8118,15 @@ const VectorTileOptionsFinalization = (typeof FinalizationRegistry === 'undefine
 const OctreeFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_octree_free(ptr, 1));
+const ProcessingContextFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_processingcontext_free(ptr, 1));
 const QuantBoundsFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_quantbounds_free(ptr, 1));
+const TilesetPatchFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_tilesetpatch_free(ptr, 1));
 const TilesetResultFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_tilesetresult_free(ptr, 1));
