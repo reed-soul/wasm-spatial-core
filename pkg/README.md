@@ -333,13 +333,14 @@ npm run demo
 
 | Doc | Scope |
 |-----|-------|
-| **[VISION.md](./VISION.md)** | Product vision — next-gen Web3D spatial engine (latest Chrome, WASM + WebGPU) |
-| **[ROADMAP_V2.md](./ROADMAP_V2.md)** | Active plan — Waves 1–5 (live twin, IR, terrain edit, GPU, mesh edit) |
+| **[VISION.md](./VISION.md)** | Product vision — Web3D spatial **compute engine** (core only) |
+| **[ROADMAP_V2.md](./ROADMAP_V2.md)** | Active plan — Waves 1–5 (runtime, IR, terrain, GPU, mesh edit) |
+| **[docs/ENGINE_BOUNDARY.md](./docs/ENGINE_BOUNDARY.md)** | What is **in** the engine vs your application |
 | **[ROADMAP_V1.md](./ROADMAP_V1.md)** | ✅ Completed — point cloud → 3D Tiles browser pipeline |
 
 **V1 highlights (done):** LAS/LAZ → octree → 3D Tiles · GeoTIFF terrain · Draco · multi-thread WASM · Node.js batch API
 
-**V2 next:** instance/trajectory twins · spatial IR · terrain deform · WebGPU compute · mesh clip/QEM — see [issue templates](./docs/issues/)
+**V2 next:** spatial IR · terrain/mesh edit · WebGPU · incremental tiles — see [issue templates](./docs/issues/) (start at **W2**)
 
 ---
 
