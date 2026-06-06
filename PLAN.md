@@ -83,6 +83,10 @@ into Cesium-compatible 3D Tiles — the foundation for zero-upload, zero-server
 
 ## What's Next
 
+> **Active roadmap:** [VISION.md](./VISION.md) · [ROADMAP_V2.md](./ROADMAP_V2.md) · [Issue templates](./docs/issues/)
+
+Legacy backlog (may merge into V2 waves):
+
 Potential future directions (not committed):
 
 - 🔒 **WASM Component Model** — modular architecture for composable spatial processing
