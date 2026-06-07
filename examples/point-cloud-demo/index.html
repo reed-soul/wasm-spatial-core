@@ -424,6 +424,14 @@
 <script src="https://unpkg.com/three@0.170.0/examples/js/controls/OrbitControls.js"></script>
 
 <script type="module">
+import {
+  copyPointCloud,
+  copyPlyResult,
+  readLasHeader,
+  readTilesetResult,
+  memoryUsedBytes,
+} from '../shared/pc-bindings.mjs';
+
 // =========================================================================
 // WASM Loading
 // =========================================================================
@@ -753,24 +761,12 @@ async function processLasFile(file) {
     return;
   }
 
-  currentHeader = {
-    numPoints: header.numPoints(),
-    versionMajor: header.versionMajor(),
-    versionMinor: header.versionMinor(),
-    pointFormatId: header.pointFormatId(),
-    pointDataRecordLength: header.pointDataRecordLength(),
-    boundsMinX: header.boundsMinX(),
-    boundsMinY: header.boundsMinY(),
-    boundsMinZ: header.boundsMinZ(),
-    boundsMaxX: header.boundsMaxX(),
-    boundsMaxY: header.boundsMaxY(),
-    boundsMaxZ: header.boundsMaxZ(),
-  };
+  currentHeader = readLasHeader(header);
 
   showLoading(`Parsing ${currentHeader.numPoints.toLocaleString()} points...`);
   setProgress(20, 'Parsing points...');
 
-  const isLaz = currentHeader.pointFormatId() >= 128;
+  const isLaz = currentHeader.pointFormatId >= 128;
   let cloud;
   if (isLaz && wasm.supportsLaz()) {
     cloud = wasm.parseLazPointsStream(bytes, (processed, total) => {
@@ -798,9 +794,7 @@ async function processLasFile(file) {
     return;
   }
 
-  const positions = Array.from(cloud.positions());
-  const colorsObj = cloud.colors();
-  const rgbBytes = colorsObj ? Array.from(colorsObj) : null;
+  const { positionsArray: positions, colorsArray: rgbBytes } = copyPointCloud(cloud);
 
   currentPositions = positions;
   currentRgbBytes = rgbBytes;
@@ -832,18 +826,15 @@ async function processPlyFile(file) {
     return;
   }
 
-  const vertexCount = plyResult.vertexCount();
-  if (vertexCount === 0) {
+  const ply = copyPlyResult(plyResult);
+  if (ply.vertexCount === 0) {
     showError('PLY file contains no vertices.');
     hideLoading();
     return;
   }
 
-  const positions = Array.from(plyResult.positions());
-  let rgbBytes = null;
-  if (plyResult.hasColors()) {
-    rgbBytes = Array.from(plyResult.colors());
-  }
+  const { positionsArray: positions, colorsArray: rgbBytes } = ply;
+  const vertexCount = ply.vertexCount;
 
   currentPositions = positions;
   currentRgbBytes = rgbBytes;
@@ -927,12 +918,7 @@ async function processE57File(file) {
     return;
   }
 
-  const positions = Array.from(e57Result.positions());
-  let rgbBytes = null;
-  const colorsObj = e57Result.colors();
-  if (colorsObj) {
-    rgbBytes = Array.from(colorsObj);
-  }
+  const { positionsArray: positions, colorsArray: rgbBytes } = copyPointCloud(e57Result);
 
   currentPositions = positions;
   currentRgbBytes = rgbBytes;
@@ -968,8 +954,7 @@ function showFileInfoAndRender(fileName, fileSize, positions, rgbBytes, meta) {
     rgbBytes ? new Uint8Array(rgbBytes) : null,
   );
 
-  const tileCount = tileset.tileCount;
-  const totalBytes = tileset.totalBytes;
+  const { tileCount, totalBytes } = readTilesetResult(tileset);
 
   setProgress(90, `Generated ${tileCount} tiles (${(totalBytes / 1024).toFixed(1)} KB)`);
 
@@ -996,7 +981,7 @@ function showFileInfoAndRender(fileName, fileSize, positions, rgbBytes, meta) {
   // Memory info
   try {
     const mem = wasm.memoryInfo();
-    document.getElementById('memoryValue').textContent = formatBytes(mem.used());
+    document.getElementById('memoryValue').textContent = formatBytes(memoryUsedBytes(mem));
   } catch (e) { /* memoryInfo not available */ }
 
   // Show processing mode and Draco status
@@ -1224,8 +1209,9 @@ function setupEvents() {
       currentRgbBytes ? new Uint8Array(currentRgbBytes) : null,
     );
 
-    document.getElementById('tileCountValue').textContent = tileset.tileCount;
-    setProgress(100, `Generated ${tileset.tileCount} tiles`);
+    const { tileCount } = readTilesetResult(tileset);
+    document.getElementById('tileCountValue').textContent = tileCount;
+    setProgress(100, `Generated ${tileCount} tiles`);
     hideLoading();
   });
 

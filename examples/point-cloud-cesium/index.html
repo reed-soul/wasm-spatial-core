@@ -360,6 +360,8 @@
 <link href="https://cesium.com/downloads/cesiumjs/releases/1.119/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
 
 <script type="module">
+import { copyPointCloud, readTilesetResult } from '../shared/pc-bindings.mjs';
+
 let wasm = null;
 let viewer = null;
 let tileset = null;
@@ -542,7 +544,7 @@ async function processLasFile(file, bytes) {
     return;
   }
 
-  setStatus(`Parsing ${header.numPoints().toLocaleString()} points...`);
+  setStatus(`Parsing ${header.numPoints.toLocaleString()} points...`);
   setProgress(15, 'Parsing points...');
 
   const cloud = wasm.parseLasPointsWithProgress(bytes, (p, t) => {
@@ -554,9 +556,7 @@ async function processLasFile(file, bytes) {
     return;
   }
 
-  const positions = Array.from(cloud.positions());
-  const colorsObj = cloud.colors();
-  const rgbBytes = colorsObj ? Array.from(colorsObj) : null;
+  const { positionsArray: positions, colorsArray: rgbBytes } = copyPointCloud(cloud);
 
   setStatus('Building octree & generating tiles...');
   setProgress(65, 'Building octree...');
@@ -572,17 +572,16 @@ async function processLasFile(file, bytes) {
 
   setProgress(85, 'Creating blob URLs...');
 
-  const tileCount = tilesetResult.tileCount();
-  const blobUrls = createTileBlobUrls(tilesetResult, 'tile_');
+  const { tileCount, tilesetJson, totalBytes } = readTilesetResult(tilesetResult);
+  const blobUrls = createTileBlobUrls(tilesetResult, tileCount, 'tile_');
 
-  const modifiedJson = replaceTileUris(tilesetResult.tilesetJson(), blobUrls, 'tile_');
+  const modifiedJson = replaceTileUris(tilesetJson, blobUrls, 'tile_');
 
   setProgress(95, 'Loading into Cesium...');
   await loadTilesetFromJson(modifiedJson);
 
   setProgress(100, 'Done!');
 
-  const totalBytes = tilesetResult.totalBytes();
   updateFileInfo(file, 'pnts', {
     points: positions.length / 3,
     tiles: tileCount,
@@ -809,8 +808,7 @@ function parsePntsHeader(bytes) {
 // Tileset loading helpers
 // =========================================================================
 
-function createTileBlobUrls(tilesetResult, prefix) {
-  const tileCount = tilesetResult.tileCount();
+function createTileBlobUrls(tilesetResult, tileCount, prefix) {
   const blobUrls = [];
   for (let i = 0; i < tileCount; i++) {
     const tileData = tilesetResult.tile(i);
