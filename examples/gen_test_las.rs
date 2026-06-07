@@ -1,7 +1,7 @@
 //! Generate a synthetic LAS 1.2 file with N random points for testing.
 //!
-//! Usage: cargo run --example gen_test_las -- [num_points] [output.las]
-//! Defaults: 500000 points, test-data/large/synthetic_500k.las
+//! Usage: cargo run --example gen_test_las -- [num_points] [output.las] [extent_m]
+//! Defaults: 500000 points, test-data/large/synthetic_500k.las, extent 1000 m
 
 use std::env;
 use std::fs::File;
@@ -15,8 +15,9 @@ fn main() {
         .get(2)
         .cloned()
         .unwrap_or_else(|| "test-data/large/synthetic_500k.las".into());
+    let extent: f64 = args.get(3).and_then(|s| s.parse().ok()).unwrap_or(1000.0);
 
-    println!("Generating {n} points → {out_path}");
+    println!("Generating {n} points → {out_path} (extent {extent} m)");
 
     let mut rng = XorShift64::new(42);
 
@@ -24,10 +25,11 @@ fn main() {
     let mut xs = Vec::with_capacity(n as usize);
     let mut ys = Vec::with_capacity(n as usize);
     let mut zs = Vec::with_capacity(n as usize);
+    let z_span = extent * 0.25;
     for _ in 0..n {
-        let x = (rng.next() as f64 / u32::MAX as f64) * 1000.0;
-        let y = (rng.next() as f64 / u32::MAX as f64) * 1000.0;
-        let z = (rng.next() as f64 / u32::MAX as f64) * 200.0 - 50.0;
+        let x = (rng.next() as f64 / u32::MAX as f64) * extent;
+        let y = (rng.next() as f64 / u32::MAX as f64) * extent;
+        let z = (rng.next() as f64 / u32::MAX as f64) * z_span - z_span * 0.25;
         xs.push(x);
         ys.push(y);
         zs.push(z);
