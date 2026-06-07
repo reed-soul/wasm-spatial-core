@@ -298,6 +298,8 @@ pub struct MeshChunk {
     pub positions: Vec<f32>,
     pub indices: Vec<u32>,
     pub normals: Option<Vec<f32>>,
+    /// Optional per-vertex UVs `[u0, v0, u1, v1, …]`.
+    pub texcoords: Option<Vec<f32>>,
     /// glTF primitive mode: 0 = POINTS, 4 = TRIANGLES.
     pub mode: u32,
 }
@@ -315,6 +317,9 @@ impl MeshChunk {
         size += self.indices.len() * std::mem::size_of::<u32>();
         if let Some(normals) = &self.normals {
             size += normals.len() * std::mem::size_of::<f32>();
+        }
+        if let Some(texcoords) = &self.texcoords {
+            size += texcoords.len() * std::mem::size_of::<f32>();
         }
         size
     }
@@ -349,6 +354,7 @@ impl MeshChunk {
         let mut vertex_map: std::collections::HashMap<u32, u32> = std::collections::HashMap::new();
         let mut new_positions = Vec::new();
         let mut new_normals = self.normals.as_ref().map(|_| Vec::new());
+        let mut new_texcoords = self.texcoords.as_ref().map(|_| Vec::new());
         let mut new_indices = Vec::with_capacity(triangles.len() * 3);
 
         for [i0, i1, i2] in triangles {
@@ -362,6 +368,14 @@ impl MeshChunk {
                             dst.extend_from_slice(&src[base..base + 3]);
                         }
                     }
+                    if let (Some(src), Some(dst)) =
+                        (self.texcoords.as_ref(), new_texcoords.as_mut())
+                    {
+                        let tb = old_idx as usize * 2;
+                        if src.len() >= tb + 2 {
+                            dst.extend_from_slice(&src[tb..tb + 2]);
+                        }
+                    }
                     ni
                 });
                 new_indices.push(new_idx);
@@ -373,6 +387,7 @@ impl MeshChunk {
             positions: new_positions,
             indices: new_indices,
             normals: new_normals,
+            texcoords: new_texcoords,
             mode: self.mode,
         };
         chunk.metadata.bump_version();
@@ -473,6 +488,7 @@ impl MeshChunk {
             positions: new_positions,
             indices: Vec::new(),
             normals: new_normals,
+            texcoords: None,
             mode: Self::MODE_POINTS,
         };
         chunk.metadata.bump_version();
@@ -716,6 +732,7 @@ mod tests {
             ],
             indices: vec![0, 1, 2, 3, 4, 5],
             normals: Some((0..6).flat_map(|_| [0.0, 1.0, 0.0]).collect()),
+            texcoords: None,
             mode: MeshChunk::MODE_TRIANGLES,
         };
         chunk.refresh_metadata();

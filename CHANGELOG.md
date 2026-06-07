@@ -28,6 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Wave 5 — Mesh geometry edit** (`mesh-edit` feature, requires `mesh-ingest`):
   - `classifyTrianglesByObb` — inside/outside triangle classification relative to OBB
   - `splitMeshByObb` — phase-1 mesh split into inside/outside submeshes + GLB export (`WasmMeshSplit`)
+  - **W5.3 plane clip** — `clipMeshByPlane` with linear position/normal/UV interpolation
+  - **W5.4 cap holes** — `clipAndCapMesh` ear-clips planar boundary loops (Euler χ=2 on box fixture)
+  - **W5.5 QEM decimation** — `simplifyMeshQem` Garland–Heckbert CPU path + `benchmark_mesh_qem_100k_to_10k`
 - **Wave 4 — WebGPU compute** (`webgpu` feature):
   - `wasm-spatial-core/webgpu` — `GpuContext`, `transformPoints`, `flattenHeightfield` with WASM fallback
   - WGSL kernels in `shaders/` (`transform_points_v1`, `heightfield_flatten_v1`)

@@ -396,3 +396,30 @@ fn benchmark_full_pipeline_100k() {
 
     assert!(result.tile_count() > 0);
 }
+
+#[test]
+#[ignore]
+fn benchmark_mesh_qem_100k_to_10k() {
+    use wasm_spatial_core::{grid_mesh, simplify_mesh_qem};
+
+    let mesh = grid_mesh(224);
+    let before = mesh.indices.len() / 3;
+    assert!(before >= 90_000, "expected ~100k triangles, got {before}");
+
+    let simplified = bench(
+        "mesh_qem_100k_to_10k",
+        before as u64,
+        mesh.positions.len() * 12,
+        || {
+            let _ = simplify_mesh_qem(&mesh, 10_000).unwrap();
+        },
+    );
+
+    let result = simplify_mesh_qem(&mesh, 10_000).unwrap();
+    eprintln!(
+        "  qem: {} -> {} triangles, max_error={:.6}",
+        result.triangles_before, result.triangles_after, result.max_error
+    );
+    assert!(result.triangles_after <= 10_000 + 5);
+    assert!(simplified.time_us > 0);
+}

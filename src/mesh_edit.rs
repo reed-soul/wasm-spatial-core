@@ -1,4 +1,4 @@
-//! Mesh geometry edit — OBB classification and split (Wave 5.1–5.2).
+//! Mesh geometry edit — OBB split, plane clip, cap, QEM (Wave 5).
 
 use wasm_bindgen::prelude::*;
 
@@ -250,6 +250,108 @@ pub fn split_mesh_by_obb_js(
     Ok(WasmMeshSplit { inside, outside })
 }
 
+/// Clip a mesh to the positive half-space of a plane.
+#[wasm_bindgen(js_name = "clipMeshByPlane")]
+pub fn clip_mesh_by_plane_js(
+    mesh: &WasmMeshChunk,
+    normal: &js_sys::Float32Array,
+    distance: f32,
+) -> Result<WasmMeshChunk, JsValue> {
+    if normal.length() < 3 {
+        return Err(SpatialError::InvalidInput
+            .with_detail("plane normal must have 3 components")
+            .into());
+    }
+    let plane = crate::mesh_clip::ClipPlane::new(
+        [
+            normal.get_index(0),
+            normal.get_index(1),
+            normal.get_index(2),
+        ],
+        distance,
+    )
+    .map_err(JsValue::from)?;
+
+    crate::mesh_clip::clip_mesh_by_plane(mesh.inner(), &plane)
+        .map(WasmMeshChunk::from_chunk)
+        .map_err(Into::into)
+}
+
+/// Clip a mesh by plane and cap the open boundary.
+#[wasm_bindgen(js_name = "clipAndCapMesh")]
+pub fn clip_and_cap_mesh_js(
+    mesh: &WasmMeshChunk,
+    normal: &js_sys::Float32Array,
+    distance: f32,
+) -> Result<WasmMeshChunk, JsValue> {
+    if normal.length() < 3 {
+        return Err(SpatialError::InvalidInput
+            .with_detail("plane normal must have 3 components")
+            .into());
+    }
+    let plane = crate::mesh_clip::ClipPlane::new(
+        [
+            normal.get_index(0),
+            normal.get_index(1),
+            normal.get_index(2),
+        ],
+        distance,
+    )
+    .map_err(JsValue::from)?;
+
+    crate::mesh_cap::clip_and_cap_mesh(mesh.inner(), &plane)
+        .map(WasmMeshChunk::from_chunk)
+        .map_err(Into::into)
+}
+
+/// WASM-visible QEM simplification result.
+#[wasm_bindgen]
+pub struct WasmQemResult {
+    mesh: MeshChunk,
+    max_error: f64,
+    triangles_before: usize,
+    triangles_after: usize,
+}
+
+#[wasm_bindgen]
+impl WasmQemResult {
+    #[wasm_bindgen(getter)]
+    pub fn mesh(&self) -> WasmMeshChunk {
+        WasmMeshChunk::from_chunk(self.mesh.clone())
+    }
+
+    #[wasm_bindgen(getter, js_name = "maxError")]
+    pub fn max_error(&self) -> f64 {
+        self.max_error
+    }
+
+    #[wasm_bindgen(getter, js_name = "trianglesBefore")]
+    pub fn triangles_before(&self) -> u32 {
+        self.triangles_before as u32
+    }
+
+    #[wasm_bindgen(getter, js_name = "trianglesAfter")]
+    pub fn triangles_after(&self) -> u32 {
+        self.triangles_after as u32
+    }
+}
+
+/// Decimate a mesh toward a target triangle count using QEM.
+#[wasm_bindgen(js_name = "simplifyMeshQem")]
+pub fn simplify_mesh_qem_js(
+    mesh: &WasmMeshChunk,
+    target_triangles: u32,
+) -> Result<WasmQemResult, JsValue> {
+    let result = crate::mesh_qem::simplify_mesh_qem(mesh.inner(), target_triangles as usize)
+        .map_err(JsValue::from)?;
+    Ok(WasmQemResult {
+        mesh: result.mesh,
+        max_error: result.max_error,
+        triangles_before: result.triangles_before,
+        triangles_after: result.triangles_after,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -288,6 +390,7 @@ mod tests {
             positions,
             indices,
             normals: None,
+            texcoords: None,
             mode: MeshChunk::MODE_TRIANGLES,
         };
         mesh.refresh_metadata();
@@ -316,6 +419,7 @@ mod tests {
             positions,
             indices,
             normals: None,
+            texcoords: None,
             mode: MeshChunk::MODE_TRIANGLES,
         };
         mesh.refresh_metadata();

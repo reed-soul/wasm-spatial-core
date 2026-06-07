@@ -40,6 +40,15 @@ mod svd_align;
 #[cfg(feature = "mesh-edit")]
 mod mesh_edit;
 
+#[cfg(feature = "mesh-edit")]
+mod mesh_clip;
+
+#[cfg(feature = "mesh-edit")]
+mod mesh_cap;
+
+#[cfg(feature = "mesh-edit")]
+mod mesh_qem;
+
 #[cfg(feature = "terrain-edit")]
 mod terrain_edit;
 
@@ -82,10 +91,17 @@ pub use spatial_ir::{
 };
 
 #[cfg(feature = "mesh-edit")]
+pub use mesh_cap::{cap_mesh_holes, clip_and_cap_mesh, euler_characteristic};
+#[cfg(feature = "mesh-edit")]
+pub use mesh_clip::{clip_mesh_by_plane, ClipPlane};
+#[cfg(feature = "mesh-edit")]
 pub use mesh_edit::{
-    classify_triangles_by_obb, split_mesh_by_obb, split_mesh_by_obb_js, supports_mesh_edit,
-    ObbTriangleClassification, WasmMeshSplit,
+    classify_triangles_by_obb, clip_and_cap_mesh_js, clip_mesh_by_plane_js, simplify_mesh_qem_js,
+    split_mesh_by_obb, split_mesh_by_obb_js, supports_mesh_edit, ObbTriangleClassification,
+    WasmMeshSplit, WasmQemResult,
 };
+#[cfg(feature = "mesh-edit")]
+pub use mesh_qem::{grid_mesh, simplify_mesh_qem, QemResult};
 
 #[cfg(feature = "webgpu")]
 pub use webgpu::{
