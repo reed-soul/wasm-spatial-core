@@ -51,5 +51,4 @@ Apps compose these. No `InstanceLayer`, `setOccupied`, or `TrajectoryBuffer` in 
 - 3D Gaussian splatting native pipeline  
 - GPU BVH for custom renderers  
 - GPU QEM (CPU QEM is core first)  
-- SVD site registration (unless photogrammetry alignment becomes blocking)  
 - WASM Component Model plugins  

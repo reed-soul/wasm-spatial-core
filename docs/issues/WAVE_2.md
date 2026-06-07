@@ -98,8 +98,19 @@ Each variant: `metadata: ChunkMeta`, `data: ...`, `version: u64`.
 
 ---
 
-## W2.7 — SVD 3D alignment (backlog — not core path)
+## W2.7 — SVD 3D alignment
 
-**Status:** Deferred. File only if photogrammetry↔GIS registration blocks real users.
+**Title:** `feat(mesh-ingest): SVD similarity alignment for control-point registration`
 
-Use per-point CRS transforms + ENU (W2.6) for the common case.
+### Proposal
+
+- `computeSvdAlignment(source, target, allowScale)` — Umeyama / Kabsch via 3×3 SVD
+- Returns column-major 4×4 matrix compatible with `transformPointCloud`
+- Pair with `createEnuFrame` when targets are surveyed WGS84 control points
+
+### Acceptance
+
+- [x] ≥ 3 corresponding point pairs; rigid (`allowScale=false`) and similarity modes
+- [x] Recovers known rotation + translation + scale on synthetic fixtures (RMS < 1e-8)
+- [x] Degenerate source (zero variance) returns `GEOMETRY_ERROR`
+- [x] WASM export `computeSvdAlignment`

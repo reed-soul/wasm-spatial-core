@@ -3,8 +3,8 @@
 //! Run with: `cargo test --features mesh-ingest spatial_ir`
 
 use wasm_spatial_core::{
-    batch_enu_to_wgs84_core, batch_wgs84_to_enu_core, parse_glb_core, Aabb, ChunkMeta, EnuFrame,
-    MeshChunk, PointCloudChunk, SpatialChunk,
+    batch_enu_to_wgs84_core, batch_wgs84_to_enu_core, compute_svd_alignment_core, parse_glb_core,
+    Aabb, ChunkMeta, EnuFrame, MeshChunk, PointCloudChunk, SpatialChunk,
 };
 
 fn sample_triangle_mesh() -> MeshChunk {
@@ -93,4 +93,41 @@ fn test_enu_roundtrip_1km() {
         let err = (dx * dx + dy * dy + dz * dz).sqrt();
         assert!(err < 1e-3, "ENU round-trip error {err} m");
     }
+}
+
+#[test]
+fn test_svd_alignment_photogrammetry_to_enu() {
+    // Simulated workflow: photo-local control points → surveyed WGS84 → ENU targets.
+    let frame = EnuFrame::from_anchor(116.391, 39.907, 50.0);
+
+    let photo_local = [
+        0.0, 0.0, 0.0, //
+        100.0, 0.0, 0.0, //
+        0.0, 100.0, 0.0, //
+        0.0, 0.0, 50.0, //
+    ];
+
+    // Ground-truth similarity: 1.02 scale, small Z rotation, translation in ENU.
+    let theta = 0.05_f64;
+    let (c, s) = (theta.cos(), theta.sin());
+    let scale = 1.02;
+    let t = [12.0, -8.0, 3.0];
+
+    let mut survey_wgs = Vec::with_capacity(12);
+    for chunk in photo_local.chunks_exact(3) {
+        let lx = chunk[0];
+        let ly = chunk[1];
+        let lz = chunk[2];
+        let ex = scale * (c * lx - s * ly) + t[0];
+        let ey = scale * (s * lx + c * ly) + t[1];
+        let ez = scale * lz + t[2];
+        let wgs = frame.enu_to_wgs84(ex, ey, ez);
+        survey_wgs.extend_from_slice(&wgs);
+    }
+
+    let target_enu = batch_wgs84_to_enu_core(&survey_wgs, &frame);
+    let result = compute_svd_alignment_core(&photo_local, &target_enu, true).unwrap();
+
+    assert!((result.transform.scale - scale).abs() < 1e-6);
+    assert!(result.rms_error < 1e-6);
 }
