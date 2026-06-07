@@ -26,6 +26,7 @@ npm run build:pkg
 | Hub | http://127.0.0.1:8080/examples/index.html |
 | Interactive | http://127.0.0.1:8080/examples/demo/index.html |
 | Three.js Point Cloud | http://127.0.0.1:8080/examples/point-cloud-demo/index.html |
+| **WebGL Point Cloud** | http://127.0.0.1:8080/examples/webgl-pointcloud/index.html |
 | Cesium 3D Tiles Point Cloud | http://127.0.0.1:8080/examples/point-cloud-cesium/index.html |
 | Worker (COOP/COEP) | http://127.0.0.1:8080/examples/worker-demo/index.html |
 | **WebGPU smoke** (Wave 4) | http://127.0.0.1:8080/examples/webgpu-smoke/index.html |
@@ -36,6 +37,14 @@ npm run demo:dev  # serve repo root directly
 ```
 
 ## Point Cloud Demos
+
+### Hub Point Cloud Tab (`index.html` → Point Cloud)
+
+Interactive **3D WebGL preview** embedded in the demo hub:
+
+- Orbit / pan / zoom (mouse + touch)
+- WASM `decimateVoxelGrid` on synthetic terrain
+- Links to full viewers below
 
 ### Three.js Point Cloud Viewer (`point-cloud-demo/`)
 
