@@ -237,6 +237,7 @@ mod tests {
             positions: vec![0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.5, 1.0, 0.0],
             indices: vec![0, 1, 2],
             normals: None,
+            texcoords: None,
             mode: MeshChunk::MODE_TRIANGLES,
         };
         mesh.refresh_metadata();

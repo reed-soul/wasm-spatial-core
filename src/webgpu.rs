@@ -25,8 +25,11 @@ pub const MASK_STRIDE_BYTES: usize = 1;
 /// Bytes per triangle index (u32).
 pub const INDEX_STRIDE_BYTES: usize = 4;
 
+/// Floats per symmetric quadric (upper-triangular 4×4).
+pub const QUADRIC_FLOAT_COUNT: usize = 10;
+
 /// Current WGSL shader bundle version string.
-pub const SHADER_BUNDLE_VERSION: &str = "1.0.0";
+pub const SHADER_BUNDLE_VERSION: &str = "1.1.0";
 
 // ===========================================================================
 // WASM status API (W4.1)
@@ -46,8 +49,8 @@ pub fn webgpu_status() -> String {
         String::from(
             "WebGPU compute: AVAILABLE via JS module 'wasm-spatial-core/webgpu'.\n\
              Requires latest Chrome with navigator.gpu.\n\
-             Kernels: transform_points_v1, heightfield_flatten_v1.\n\
-             CPU fallback uses existing WASM transformPointCloud / flattenTerrain.",
+             Kernels: transform_points_v1, heightfield_flatten_v1, mesh_quadrics_v1, mesh_edge_costs_v1.\n\
+             CPU fallback uses WASM transformPointCloud / flattenTerrain / simplifyMeshQem.",
         )
     }
     #[cfg(not(feature = "webgpu"))]
@@ -77,6 +80,7 @@ mod tests {
         assert_eq!(POSITION_STRIDE_BYTES, 3 * std::mem::size_of::<f32>());
         assert_eq!(MATRIX_FLOAT_COUNT, 16);
         assert_eq!(HEIGHT_STRIDE_BYTES, std::mem::size_of::<f32>());
+        assert_eq!(QUADRIC_FLOAT_COUNT, 10);
     }
 
     #[test]
