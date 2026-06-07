@@ -49,6 +49,12 @@ mod mesh_cap;
 #[cfg(feature = "mesh-edit")]
 mod mesh_qem;
 
+#[cfg(feature = "mesh-edit")]
+mod mesh_qem_math;
+
+#[cfg(all(feature = "mesh-edit", feature = "webgpu"))]
+mod mesh_qem_gpu;
+
 #[cfg(feature = "terrain-edit")]
 mod terrain_edit;
 
@@ -109,7 +115,7 @@ pub use mesh_qem::{
 pub use webgpu::{
     supports_webgpu, transform_points_cpu_reference, webgpu_shader_version, webgpu_status,
     HEIGHT_STRIDE_BYTES, INDEX_STRIDE_BYTES, MASK_STRIDE_BYTES, MATRIX_FLOAT_COUNT,
-    POSITION_STRIDE_BYTES, SHADER_BUNDLE_VERSION,
+    POSITION_STRIDE_BYTES, QUADRIC_FLOAT_COUNT, SHADER_BUNDLE_VERSION,
 };
 
 #[cfg(feature = "terrain-edit")]
@@ -220,6 +226,12 @@ pub mod test_exports {
     pub use crate::geojson_parser::{
         count_geojson_features, geojson_feature_collection_native, geojson_from_coords_native,
         parse_geojson_coords,
+    };
+    #[cfg(all(feature = "mesh-edit", feature = "webgpu"))]
+    pub use crate::mesh_qem_gpu::{
+        accumulate_quadrics_cpu_reference as qem_accumulate_quadrics_reference,
+        evaluate_edge_costs_cpu_reference as qem_evaluate_edge_costs_reference,
+        unique_edges_from_indices as qem_unique_edges_from_indices,
     };
     #[cfg(all(any(test, feature = "test-helpers"), feature = "point-cloud"))]
     pub use crate::point_cloud::test_helpers;
