@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **W2.6 ENU frame** — `createEnuFrame()`, `wgs84ToEnu` / `enuToWgs84`, f32 rendering offsets; sub-mm round-trip at 1 km
   - **W2.7 SVD alignment** — `computeSvdAlignment()` Umeyama/Kabsch solve; 4×4 matrix for `transformPointCloud`; pairs with ENU survey control points
   - **W2.7 robust alignment** — weighted solve, per-point residuals/inlier report, RANSAC (`computeSvdAlignmentRansac`)
+  - **W2.4 polygon select** — `PolygonExtrusion`, `selectByPolygon` on mesh/point-cloud chunks; WASM `WasmMeshChunk.selectPolygon()`
+- **Wave 5 — Mesh geometry edit** (`mesh-edit` feature, requires `mesh-ingest`):
+  - `classifyTrianglesByObb` — inside/outside triangle classification relative to OBB
+  - `splitMeshByObb` — phase-1 mesh split into inside/outside submeshes + GLB export (`WasmMeshSplit`)
 - **Wave 4 — WebGPU compute** (`webgpu` feature):
   - `wasm-spatial-core/webgpu` — `GpuContext`, `transformPoints`, `flattenHeightfield` with WASM fallback
   - WGSL kernels in `shaders/` (`transform_points_v1`, `heightfield_flatten_v1`)

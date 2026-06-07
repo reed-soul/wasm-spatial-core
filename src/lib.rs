@@ -37,6 +37,9 @@ mod enu_frame;
 #[cfg(feature = "mesh-ingest")]
 mod svd_align;
 
+#[cfg(feature = "mesh-edit")]
+mod mesh_edit;
+
 #[cfg(feature = "terrain-edit")]
 mod terrain_edit;
 
@@ -74,7 +77,14 @@ pub use svd_align::{
 
 #[cfg(feature = "mesh-ingest")]
 pub use spatial_ir::{
-    Aabb, ChunkMeta, HeightfieldChunk, MeshChunk, PointCloudChunk, SpatialChunk, WasmMeshChunk,
+    Aabb, ChunkMeta, HeightfieldChunk, MeshChunk, PointCloudChunk, PolygonExtrusion, SpatialChunk,
+    WasmMeshChunk,
+};
+
+#[cfg(feature = "mesh-edit")]
+pub use mesh_edit::{
+    classify_triangles_by_obb, split_mesh_by_obb, split_mesh_by_obb_js, supports_mesh_edit,
+    ObbTriangleClassification, WasmMeshSplit,
 };
 
 #[cfg(feature = "webgpu")]

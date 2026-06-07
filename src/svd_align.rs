@@ -376,7 +376,10 @@ pub fn compute_svd_alignment_ransac_core(
     ))
 }
 
-fn parse_point_pairs(source: &[f64], target: &[f64]) -> Result<(PointSet, PointSet), SpatialErrorDetail> {
+fn parse_point_pairs(
+    source: &[f64],
+    target: &[f64],
+) -> Result<(PointSet, PointSet), SpatialErrorDetail> {
     let src_pts = parse_points(source)?;
     let tgt_pts = parse_points(target)?;
     if src_pts.len() != tgt_pts.len() {
