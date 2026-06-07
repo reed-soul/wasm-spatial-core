@@ -66,8 +66,10 @@ pub use enu_frame::{
 
 #[cfg(feature = "mesh-ingest")]
 pub use svd_align::{
-    compute_similarity_transform, compute_svd_alignment, compute_svd_alignment_core,
-    AlignmentResult, SimilarityTransform, WasmAlignmentResult,
+    compute_similarity_transform, compute_similarity_transform_weighted, compute_svd_alignment,
+    compute_svd_alignment_core, compute_svd_alignment_ransac_core,
+    compute_svd_alignment_weighted_core, AlignmentResult, RansacConfig, ResidualReport,
+    SimilarityTransform, WasmAlignmentResult,
 };
 
 #[cfg(feature = "mesh-ingest")]
