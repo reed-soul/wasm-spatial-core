@@ -37,6 +37,8 @@ draco-support = []
 geotiff = []
 # Spatial IR + GLB/glTF mesh ingest (Wave 2)
 mesh-ingest = []
+# Mesh geometry edit — OBB split, clip, QEM (Wave 5)
+mesh-edit = ["mesh-ingest"]
 # Terrain deformation on heightfields (Wave 3)
 terrain-edit = ["geotiff"]
 # WebGPU compute kernels — JS-side integration (Wave 4, like draco-support)

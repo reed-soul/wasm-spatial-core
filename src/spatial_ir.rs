@@ -74,6 +74,70 @@ impl Aabb {
 }
 
 // ===========================================================================
+// Polygon extrusion (2D ring in XY + Z range)
+// ===========================================================================
+
+/// Vertical extrusion of a 2D polygon ring in the XY plane.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PolygonExtrusion {
+    /// Closed ring `[x0, y0, x1, y1, …]` (first vertex need not repeat).
+    pub ring: Vec<f64>,
+    pub z_min: f64,
+    pub z_max: f64,
+}
+
+impl PolygonExtrusion {
+    pub fn new(ring: Vec<f64>, z_min: f64, z_max: f64) -> Self {
+        Self { ring, z_min, z_max }
+    }
+
+    pub fn validate(&self) -> Result<(), SpatialErrorDetail> {
+        if self.ring.len() < 6 || !self.ring.len().is_multiple_of(2) {
+            return Err(SpatialError::InvalidInput
+                .with_detail("polygon ring must have at least 3 vertices as [x, y, …]"));
+        }
+        if self.z_min > self.z_max {
+            return Err(
+                SpatialError::InvalidInput.with_detail("z_min must be <= z_max for extrusion")
+            );
+        }
+        Ok(())
+    }
+
+    pub fn contains_point(&self, x: f64, y: f64, z: f64) -> bool {
+        if z < self.z_min || z > self.z_max {
+            return false;
+        }
+        point_in_ring_xy(x, y, &self.ring)
+    }
+}
+
+/// Ray-casting point-in-polygon test for a single ring in the XY plane.
+fn point_in_ring_xy(px: f64, py: f64, ring: &[f64]) -> bool {
+    let n = ring.len() / 2;
+    if n < 3 {
+        return false;
+    }
+
+    let mut inside = false;
+    let mut j = n - 1;
+
+    for i in 0..n {
+        let xi = ring[i * 2];
+        let yi = ring[i * 2 + 1];
+        let xj = ring[j * 2];
+        let yj = ring[j * 2 + 1];
+
+        if ((yi > py) != (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi) + xi) {
+            inside = !inside;
+        }
+        j = i;
+    }
+
+    inside
+}
+
+// ===========================================================================
 // Chunk metadata
 // ===========================================================================
 
@@ -160,7 +224,32 @@ impl PointCloudChunk {
         if region.is_empty() {
             return Err(SpatialError::InvalidInput.with_detail("selection AABB is empty"));
         }
+        self.select_points(
+            |x, y, z| region.contains_point(x, y, z),
+            "AABB selection is empty",
+        )
+    }
 
+    /// Select points inside a vertically extruded polygon (XY ring + Z range).
+    pub fn select_by_polygon(
+        &self,
+        region: &PolygonExtrusion,
+    ) -> Result<PointCloudChunk, SpatialErrorDetail> {
+        region.validate()?;
+        self.select_points(
+            |x, y, z| region.contains_point(x, y, z),
+            "polygon selection is empty",
+        )
+    }
+
+    fn select_points<F>(
+        &self,
+        inside: F,
+        empty_detail: &str,
+    ) -> Result<PointCloudChunk, SpatialErrorDetail>
+    where
+        F: Fn(f64, f64, f64) -> bool,
+    {
         let mut positions = Vec::new();
         let mut colors = self.colors.as_ref().map(|_| Vec::new());
         let mut normals = self.normals.as_ref().map(|_| Vec::new());
@@ -169,7 +258,7 @@ impl PointCloudChunk {
             let x = chunk[0] as f64;
             let y = chunk[1] as f64;
             let z = chunk[2] as f64;
-            if region.contains_point(x, y, z) {
+            if inside(x, y, z) {
                 positions.extend_from_slice(chunk);
                 if let (Some(src), Some(dst)) = (self.colors.as_ref(), colors.as_mut()) {
                     let base = i * 4;
@@ -187,7 +276,7 @@ impl PointCloudChunk {
         }
 
         if positions.is_empty() {
-            return Err(SpatialError::GeometryError.with_detail("AABB selection is empty"));
+            return Err(SpatialError::GeometryError.with_detail(empty_detail));
         }
 
         let mut chunk = PointCloudChunk {
@@ -235,55 +324,35 @@ impl MeshChunk {
         self.metadata.byte_budget = Some(self.estimate_bytes());
     }
 
-    fn vertex_in_region(&self, idx: u32, region: &Aabb) -> bool {
+    fn vertex_position(&self, idx: u32) -> Option<(f64, f64, f64)> {
         let base = idx as usize * 3;
         if base + 2 >= self.positions.len() {
-            return false;
+            return None;
         }
-        region.contains_point(
+        Some((
             self.positions[base] as f64,
             self.positions[base + 1] as f64,
             self.positions[base + 2] as f64,
-        )
+        ))
     }
 
-    /// Select triangles (or points) that intersect `region`.
-    ///
-    /// Triangles are kept when any vertex lies inside the AABB.
-    pub fn select_by_aabb(&self, region: &Aabb) -> Result<MeshChunk, SpatialErrorDetail> {
-        if region.is_empty() {
-            return Err(SpatialError::InvalidInput.with_detail("selection AABB is empty"));
-        }
+    fn vertex_matches<F>(&self, idx: u32, inside: &F) -> bool
+    where
+        F: Fn(f64, f64, f64) -> bool,
+    {
+        self.vertex_position(idx)
+            .is_some_and(|(x, y, z)| inside(x, y, z))
+    }
 
-        if self.mode == Self::MODE_POINTS || self.indices.is_empty() {
-            return self.select_points_by_aabb(region);
-        }
-
-        let stride = 3;
-        let mut kept_triangles: Vec<[u32; 3]> = Vec::new();
-        for tri in self.indices.chunks_exact(stride) {
-            let i0 = tri[0];
-            let i1 = tri[1];
-            let i2 = tri[2];
-            if self.vertex_in_region(i0, region)
-                || self.vertex_in_region(i1, region)
-                || self.vertex_in_region(i2, region)
-            {
-                kept_triangles.push([i0, i1, i2]);
-            }
-        }
-
-        if kept_triangles.is_empty() {
-            return Err(SpatialError::GeometryError.with_detail("AABB selection is empty"));
-        }
-
+    /// Build a mesh containing only the given triangles (vertex indices refer to `self`).
+    pub(crate) fn build_subset(&self, triangles: &[[u32; 3]]) -> MeshChunk {
         let mut vertex_map: std::collections::HashMap<u32, u32> = std::collections::HashMap::new();
         let mut new_positions = Vec::new();
         let mut new_normals = self.normals.as_ref().map(|_| Vec::new());
-        let mut new_indices = Vec::with_capacity(kept_triangles.len() * 3);
+        let mut new_indices = Vec::with_capacity(triangles.len() * 3);
 
-        for [i0, i1, i2] in kept_triangles {
-            for old_idx in [i0, i1, i2] {
+        for [i0, i1, i2] in triangles {
+            for old_idx in [*i0, *i1, *i2] {
                 let new_idx = *vertex_map.entry(old_idx).or_insert_with(|| {
                     let ni = (new_positions.len() / 3) as u32;
                     let base = old_idx as usize * 3;
@@ -308,21 +377,86 @@ impl MeshChunk {
         };
         chunk.metadata.bump_version();
         chunk.refresh_metadata();
-        Ok(chunk)
+        chunk
     }
 
-    fn select_points_by_aabb(&self, region: &Aabb) -> Result<MeshChunk, SpatialErrorDetail> {
+    /// Select triangles (or points) that intersect `region`.
+    ///
+    /// Triangles are kept when any vertex lies inside the AABB.
+    pub fn select_by_aabb(&self, region: &Aabb) -> Result<MeshChunk, SpatialErrorDetail> {
+        if region.is_empty() {
+            return Err(SpatialError::InvalidInput.with_detail("selection AABB is empty"));
+        }
+        self.select_region(
+            |x, y, z| region.contains_point(x, y, z),
+            "AABB selection is empty",
+        )
+    }
+
+    /// Select triangles (or points) inside a vertically extruded polygon.
+    ///
+    /// Triangles are kept when any vertex lies inside the extrusion.
+    pub fn select_by_polygon(
+        &self,
+        region: &PolygonExtrusion,
+    ) -> Result<MeshChunk, SpatialErrorDetail> {
+        region.validate()?;
+        self.select_region(
+            |x, y, z| region.contains_point(x, y, z),
+            "polygon selection is empty",
+        )
+    }
+
+    fn select_region<F>(
+        &self,
+        inside: F,
+        empty_detail: &str,
+    ) -> Result<MeshChunk, SpatialErrorDetail>
+    where
+        F: Fn(f64, f64, f64) -> bool,
+    {
+        if self.mode == Self::MODE_POINTS || self.indices.is_empty() {
+            return self.select_mesh_points(&inside, empty_detail);
+        }
+
+        let mut kept_triangles: Vec<[u32; 3]> = Vec::new();
+        for tri in self.indices.chunks_exact(3) {
+            let i0 = tri[0];
+            let i1 = tri[1];
+            let i2 = tri[2];
+            if self.vertex_matches(i0, &inside)
+                || self.vertex_matches(i1, &inside)
+                || self.vertex_matches(i2, &inside)
+            {
+                kept_triangles.push([i0, i1, i2]);
+            }
+        }
+
+        if kept_triangles.is_empty() {
+            return Err(SpatialError::GeometryError.with_detail(empty_detail));
+        }
+
+        Ok(self.build_subset(&kept_triangles))
+    }
+
+    fn select_mesh_points<F>(
+        &self,
+        inside: &F,
+        empty_detail: &str,
+    ) -> Result<MeshChunk, SpatialErrorDetail>
+    where
+        F: Fn(f64, f64, f64) -> bool,
+    {
         let vertex_count = self.vertex_count();
         let mut new_positions = Vec::new();
         let mut new_normals = self.normals.as_ref().map(|_| Vec::new());
 
         for i in 0..vertex_count {
             let base = i * 3;
-            if region.contains_point(
-                self.positions[base] as f64,
-                self.positions[base + 1] as f64,
-                self.positions[base + 2] as f64,
-            ) {
+            let x = self.positions[base] as f64;
+            let y = self.positions[base + 1] as f64;
+            let z = self.positions[base + 2] as f64;
+            if inside(x, y, z) {
                 new_positions.extend_from_slice(&self.positions[base..base + 3]);
                 if let (Some(src), Some(dst)) = (self.normals.as_ref(), new_normals.as_mut()) {
                     dst.extend_from_slice(&src[base..base + 3]);
@@ -331,7 +465,7 @@ impl MeshChunk {
         }
 
         if new_positions.is_empty() {
-            return Err(SpatialError::GeometryError.with_detail("AABB selection is empty"));
+            return Err(SpatialError::GeometryError.with_detail(empty_detail));
         }
 
         let mut chunk = MeshChunk {
@@ -536,6 +670,33 @@ impl WasmMeshChunk {
             .map(WasmMeshChunk::from_chunk)
             .map_err(Into::into)
     }
+
+    /// Select geometry inside a vertically extruded polygon (XY ring + Z range).
+    ///
+    /// `ring` is a flat `[x0, y0, x1, y1, …]` array with at least three vertices.
+    #[wasm_bindgen(js_name = "selectPolygon")]
+    pub fn select_polygon(
+        &self,
+        ring: &js_sys::Float64Array,
+        z_min: f64,
+        z_max: f64,
+    ) -> Result<WasmMeshChunk, JsValue> {
+        let len = ring.length() as usize;
+        if len < 6 || !len.is_multiple_of(2) {
+            return Err(SpatialError::InvalidInput
+                .with_detail("ring must have at least 3 vertices as [x, y, …]")
+                .into());
+        }
+
+        let mut ring_vec = vec![0.0f64; len];
+        ring.copy_to(&mut ring_vec);
+
+        let region = PolygonExtrusion::new(ring_vec, z_min, z_max);
+        self.inner
+            .select_by_polygon(&region)
+            .map(WasmMeshChunk::from_chunk)
+            .map_err(Into::into)
+    }
 }
 
 #[cfg(test)]
@@ -648,6 +809,44 @@ mod tests {
         };
         let selected = pc.select_by_aabb(&region).unwrap();
         assert_eq!(selected.vertex_count(), 1);
+    }
+
+    #[test]
+    fn test_mesh_select_by_polygon() {
+        let mesh = sample_mesh();
+        let region = PolygonExtrusion::new(vec![-0.1, -0.1, 2.0, -0.1, 2.0, 2.0], -1.0, 1.0);
+        let selected = mesh.select_by_polygon(&region).unwrap();
+        assert_eq!(selected.vertex_count(), 3);
+        assert_eq!(selected.indices.len(), 3);
+    }
+
+    #[test]
+    fn test_mesh_select_polygon_empty_returns_error() {
+        let mesh = sample_mesh();
+        let region =
+            PolygonExtrusion::new(vec![100.0, 100.0, 101.0, 100.0, 101.0, 101.0], 0.0, 1.0);
+        let err = mesh.select_by_polygon(&region).unwrap_err();
+        assert_eq!(err.code(), SpatialError::GeometryError.code());
+    }
+
+    #[test]
+    fn test_point_cloud_select_by_polygon() {
+        let pc = PointCloudChunk {
+            metadata: ChunkMeta::new("las"),
+            positions: vec![0.5, 0.5, 0.0, 10.0, 10.0, 0.0],
+            colors: None,
+            normals: None,
+        };
+        let region = PolygonExtrusion::new(vec![0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0], -1.0, 1.0);
+        let selected = pc.select_by_polygon(&region).unwrap();
+        assert_eq!(selected.vertex_count(), 1);
+    }
+
+    #[test]
+    fn test_point_in_ring_xy_square() {
+        let ring = vec![0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0];
+        assert!(point_in_ring_xy(0.5, 0.5, &ring));
+        assert!(!point_in_ring_xy(1.5, 0.5, &ring));
     }
 
     #[test]
