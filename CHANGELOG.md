@@ -32,9 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **W5.4 cap holes** — `clipAndCapMesh` ear-clips planar boundary loops (Euler χ=2 on box fixture)
   - **W5.5 QEM decimation** — `simplifyMeshQem` Garland–Heckbert CPU path + `benchmark_mesh_qem_100k_to_10k`
   - **W5.6 UV seam preservation** — `QemOptions.preserve_uv_seams` blocks collapses across seam/coincident-UV edges; UVs retained in output
+  - **W5.7 GPU QEM** — WGSL `mesh_quadrics_v1` + `mesh_edge_costs_v1`; `GpuContext.accumulateQuadrics` / `evaluateEdgeCosts`; `simplifyMeshQem` hybrid GPU path with WASM fallback
 - **Wave 4 — WebGPU compute** (`webgpu` feature):
-  - `wasm-spatial-core/webgpu` — `GpuContext`, `transformPoints`, `flattenHeightfield` with WASM fallback
-  - WGSL kernels in `shaders/` (`transform_points_v1`, `heightfield_flatten_v1`)
+  - `wasm-spatial-core/webgpu` — `GpuContext`, `transformPoints`, `flattenHeightfield`, `simplifyMeshQem` with WASM fallback
+  - WGSL kernels in `shaders/` (`transform_points_v1`, `heightfield_flatten_v1`, `mesh_quadrics_v1`, `mesh_edge_costs_v1`)
   - Buffer layout contract (Rust + TS + `shaders/README.md`)
   - Demo `examples/webgpu-smoke/` — GPU vs CPU parity on 1k points
 - **Wave 3 — Terrain deformation** (`terrain-edit` feature, requires `geotiff`):

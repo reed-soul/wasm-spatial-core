@@ -5,7 +5,7 @@
 fn test_gpu_layout_matches_npm_constants() {
     use wasm_spatial_core::{
         HEIGHT_STRIDE_BYTES, INDEX_STRIDE_BYTES, MASK_STRIDE_BYTES, MATRIX_FLOAT_COUNT,
-        POSITION_STRIDE_BYTES, SHADER_BUNDLE_VERSION,
+        POSITION_STRIDE_BYTES, QUADRIC_FLOAT_COUNT, SHADER_BUNDLE_VERSION,
     };
 
     assert_eq!(POSITION_STRIDE_BYTES, 12);
@@ -13,7 +13,8 @@ fn test_gpu_layout_matches_npm_constants() {
     assert_eq!(HEIGHT_STRIDE_BYTES, 4);
     assert_eq!(MASK_STRIDE_BYTES, 1);
     assert_eq!(INDEX_STRIDE_BYTES, 4);
-    assert_eq!(SHADER_BUNDLE_VERSION, "1.0.0");
+    assert_eq!(QUADRIC_FLOAT_COUNT, 10);
+    assert_eq!(SHADER_BUNDLE_VERSION, "1.1.0");
 }
 
 #[cfg(feature = "webgpu")]

@@ -615,9 +615,22 @@ impl WasmMeshChunk {
         }
     }
 
+    #[wasm_bindgen(getter)]
+    pub fn texcoords(&self) -> js_sys::Float32Array {
+        match &self.inner.texcoords {
+            Some(t) => js_sys::Float32Array::from(&t[..]),
+            None => js_sys::Float32Array::new_with_length(0),
+        }
+    }
+
     #[wasm_bindgen(js_name = "hasNormals")]
     pub fn has_normals(&self) -> bool {
         self.inner.normals.is_some()
+    }
+
+    #[wasm_bindgen(js_name = "hasTexcoords")]
+    pub fn has_texcoords(&self) -> bool {
+        self.inner.texcoords.is_some()
     }
 
     #[wasm_bindgen(getter, js_name = "vertexCount")]
