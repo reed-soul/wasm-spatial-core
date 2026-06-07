@@ -114,3 +114,6 @@ Each variant: `metadata: ChunkMeta`, `data: ...`, `version: u64`.
 - [x] Recovers known rotation + translation + scale on synthetic fixtures (RMS < 1e-8)
 - [x] Degenerate source (zero variance) returns `GEOMETRY_ERROR`
 - [x] WASM export `computeSvdAlignment`
+- [x] Weighted least squares (`computeSvdAlignmentWeighted`)
+- [x] Per-point residuals + inlier/outlier report on `WasmAlignmentResult`
+- [x] RANSAC outlier rejection (`computeSvdAlignmentRansac`) with inlier refit
