@@ -24,9 +24,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **W2.6 ENU frame** — `createEnuFrame()`, `wgs84ToEnu` / `enuToWgs84`, f32 rendering offsets; sub-mm round-trip at 1 km
   - **W2.7 SVD alignment** — `computeSvdAlignment()` Umeyama/Kabsch solve; 4×4 matrix for `transformPointCloud`; pairs with ENU survey control points
   - **W2.7 robust alignment** — weighted solve, per-point residuals/inlier report, RANSAC (`computeSvdAlignmentRansac`)
+  - **W2.4 polygon select** — `PolygonExtrusion`, `selectByPolygon` on mesh/point-cloud chunks; WASM `WasmMeshChunk.selectPolygon()`
+- **Wave 5 — Mesh geometry edit** (`mesh-edit` feature, requires `mesh-ingest`):
+  - `classifyTrianglesByObb` — inside/outside triangle classification relative to OBB
+  - `splitMeshByObb` — phase-1 mesh split into inside/outside submeshes + GLB export (`WasmMeshSplit`)
+  - **W5.3 plane clip** — `clipMeshByPlane` with linear position/normal/UV interpolation
+  - **W5.4 cap holes** — `clipAndCapMesh` ear-clips planar boundary loops (Euler χ=2 on box fixture)
+  - **W5.5 QEM decimation** — `simplifyMeshQem` Garland–Heckbert CPU path + `benchmark_mesh_qem_100k_to_10k`
+  - **W5.6 UV seam preservation** — `QemOptions.preserve_uv_seams` blocks collapses across seam/coincident-UV edges; UVs retained in output
+  - **W5.7 GPU QEM** — WGSL `mesh_quadrics_v1` + `mesh_edge_costs_v1`; `GpuContext.accumulateQuadrics` / `evaluateEdgeCosts`; `simplifyMeshQem` hybrid GPU path with WASM fallback
 - **Wave 4 — WebGPU compute** (`webgpu` feature):
-  - `wasm-spatial-core/webgpu` — `GpuContext`, `transformPoints`, `flattenHeightfield` with WASM fallback
-  - WGSL kernels in `shaders/` (`transform_points_v1`, `heightfield_flatten_v1`)
+  - `wasm-spatial-core/webgpu` — `GpuContext`, `transformPoints`, `flattenHeightfield`, `simplifyMeshQem` with WASM fallback
+  - WGSL kernels in `shaders/` (`transform_points_v1`, `heightfield_flatten_v1`, `mesh_quadrics_v1`, `mesh_edge_costs_v1`)
   - Buffer layout contract (Rust + TS + `shaders/README.md`)
   - Demo `examples/webgpu-smoke/` — GPU vs CPU parity on 1k points
 - **Wave 3 — Terrain deformation** (`terrain-edit` feature, requires `geotiff`):

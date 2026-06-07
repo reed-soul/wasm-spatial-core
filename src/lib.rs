@@ -37,6 +37,24 @@ mod enu_frame;
 #[cfg(feature = "mesh-ingest")]
 mod svd_align;
 
+#[cfg(feature = "mesh-edit")]
+mod mesh_edit;
+
+#[cfg(feature = "mesh-edit")]
+mod mesh_clip;
+
+#[cfg(feature = "mesh-edit")]
+mod mesh_cap;
+
+#[cfg(feature = "mesh-edit")]
+mod mesh_qem;
+
+#[cfg(feature = "mesh-edit")]
+mod mesh_qem_math;
+
+#[cfg(all(feature = "mesh-edit", feature = "webgpu"))]
+mod mesh_qem_gpu;
+
 #[cfg(feature = "terrain-edit")]
 mod terrain_edit;
 
@@ -74,14 +92,30 @@ pub use svd_align::{
 
 #[cfg(feature = "mesh-ingest")]
 pub use spatial_ir::{
-    Aabb, ChunkMeta, HeightfieldChunk, MeshChunk, PointCloudChunk, SpatialChunk, WasmMeshChunk,
+    Aabb, ChunkMeta, HeightfieldChunk, MeshChunk, PointCloudChunk, PolygonExtrusion, SpatialChunk,
+    WasmMeshChunk,
+};
+
+#[cfg(feature = "mesh-edit")]
+pub use mesh_cap::{cap_mesh_holes, clip_and_cap_mesh, euler_characteristic};
+#[cfg(feature = "mesh-edit")]
+pub use mesh_clip::{clip_mesh_by_plane, ClipPlane};
+#[cfg(feature = "mesh-edit")]
+pub use mesh_edit::{
+    classify_triangles_by_obb, clip_and_cap_mesh_js, clip_mesh_by_plane_js, simplify_mesh_qem_js,
+    split_mesh_by_obb, split_mesh_by_obb_js, supports_mesh_edit, ObbTriangleClassification,
+    WasmMeshSplit, WasmQemResult,
+};
+#[cfg(feature = "mesh-edit")]
+pub use mesh_qem::{
+    grid_mesh, simplify_mesh_qem, simplify_mesh_qem_with_options, QemOptions, QemResult,
 };
 
 #[cfg(feature = "webgpu")]
 pub use webgpu::{
     supports_webgpu, transform_points_cpu_reference, webgpu_shader_version, webgpu_status,
     HEIGHT_STRIDE_BYTES, INDEX_STRIDE_BYTES, MASK_STRIDE_BYTES, MATRIX_FLOAT_COUNT,
-    POSITION_STRIDE_BYTES, SHADER_BUNDLE_VERSION,
+    POSITION_STRIDE_BYTES, QUADRIC_FLOAT_COUNT, SHADER_BUNDLE_VERSION,
 };
 
 #[cfg(feature = "terrain-edit")]
@@ -192,6 +226,12 @@ pub mod test_exports {
     pub use crate::geojson_parser::{
         count_geojson_features, geojson_feature_collection_native, geojson_from_coords_native,
         parse_geojson_coords,
+    };
+    #[cfg(all(feature = "mesh-edit", feature = "webgpu"))]
+    pub use crate::mesh_qem_gpu::{
+        accumulate_quadrics_cpu_reference as qem_accumulate_quadrics_reference,
+        evaluate_edge_costs_cpu_reference as qem_evaluate_edge_costs_reference,
+        unique_edges_from_indices as qem_unique_edges_from_indices,
     };
     #[cfg(all(any(test, feature = "test-helpers"), feature = "point-cloud"))]
     pub use crate::point_cloud::test_helpers;

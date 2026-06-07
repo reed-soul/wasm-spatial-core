@@ -85,6 +85,13 @@ Labels: `roadmap-v2`, `wave-5`, `engine`, `mesh-edit`.
 
 ---
 
-## W5.7 — GPU QEM (backlog — not core)
+## W5.7 — GPU QEM
 
-**Status:** Deferred until W5.5 CPU QEM is shipped and benchmarked. See [ENGINE_BOUNDARY.md](../ENGINE_BOUNDARY.md).
+**Title:** `feat(webgpu): GPU quadric accumulation + edge cost kernels for QEM`
+
+### Acceptance
+
+- [x] WGSL `mesh_quadrics_v1` + `mesh_edge_costs_v1` (shader bundle `1.1.0`)
+- [x] `GpuContext.accumulateQuadrics`, `evaluateEdgeCosts`, `simplifyMeshQem` with WASM fallback
+- [x] CPU reference parity tests (`tests/qem_gpu_parity_test.rs`)
+- [x] Hybrid GPU quadric/cost eval + CPU collapse loop (UV seam preservation on GPU path)
