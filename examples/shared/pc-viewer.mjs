@@ -173,6 +173,16 @@ function originalColors(rgbBytes) {
   return colors;
 }
 
+export function extentFromPositions(positions) {
+  const b = computeBounds(positions);
+  return Math.max(b.maxX - b.minX, b.maxY - b.minY, b.maxZ - b.minZ, 1);
+}
+
+export function suggestPointSize(positions, base = 2.5) {
+  const size = extentFromPositions(positions);
+  return Math.min(8, Math.max(1.5, base * (80 / size)));
+}
+
 export function generateTerrainCloud(count = 100_000) {
   const positions = new Float32Array(count * 3);
   const colors = new Uint8Array(count * 3);

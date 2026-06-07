@@ -257,6 +257,29 @@
       background: rgba(88,166,255,0.06);
     }
     .demo-links a:hover { border-color: var(--accent); background: rgba(88,166,255,0.12); }
+    .pc-upload {
+      border: 2px dashed var(--border);
+      border-radius: 8px;
+      padding: 0.75rem;
+      text-align: center;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 0.78rem;
+      transition: border-color 0.2s, background 0.2s;
+      margin-top: 0.5rem;
+    }
+    .pc-upload:hover, .pc-upload.drag-over {
+      border-color: var(--accent);
+      background: rgba(88,166,255,0.05);
+      color: var(--accent);
+    }
+    .pc-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+    }
+    .pc-actions button { width: 100%; font-size: 0.78rem; padding: 0.45rem 0.5rem; }
 
     .status { text-align: center; padding: 2rem; color: var(--muted); font-size: 0.9rem; }
     .spinner {
@@ -560,7 +583,14 @@ console.<span class="fn">log</span>(<span class="fn">version</span>()); <span cl
       </select>
       <label>Point size:</label>
       <input type="range" id="pcPointSize" min="1" max="6" step="0.5" value="2.5" style="width:100%;margin-bottom:0.6rem">
-      <button class="primary" onclick="runPointCloudDemo()" style="margin-top:0.25rem;width:100%">▶ Generate & Decimate</button>
+      <div class="pc-actions">
+        <button class="primary" onclick="runPointCloudDemo()">▶ Synthetic</button>
+        <button onclick="loadSampleLas()">📦 Sample LAS</button>
+      </div>
+      <div id="pcDropZone" class="pc-upload">
+        Drop <code>.las</code> / <code>.laz</code> here or click to browse
+      </div>
+      <input type="file" id="pcFileInput" accept=".las,.laz" style="display:none">
       <div class="demo-links">
         <a href="point-cloud-demo/index.html">Three.js viewer →</a>
         <a href="webgl-pointcloud/index.html">WebGL viewer →</a>
@@ -686,8 +716,11 @@ import init, {
   memoryInfo,
   decimateVoxelGrid,
   pointCloudStats,
+  parseLasPoints,
+  parseLasPointsWithProgress,
+  parsePointCloudAuto,
 } from '../pkg/wasm_spatial_core.js';
-import { PointCloudViewer, generateTerrainCloud } from './shared/pc-viewer.mjs';
+import { PointCloudViewer, generateTerrainCloud, suggestPointSize } from './shared/pc-viewer.mjs';
 
 // ── WASM Init ────────────────────────────────────────────────
 const WASM_SIZE_HINT = '~1 MB';
@@ -737,6 +770,7 @@ try {
 // ── Tab Navigation ────────────────────────────────────────────
 let pcViewer = null;
 let pcDemoLoaded = false;
+let pcLoadToken = 0;
 
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -1138,43 +1172,72 @@ function ensurePointCloudViewer() {
     pcViewer?.setColorMode(e.target.value);
   });
 
+  setupPointCloudUpload();
   return pcViewer;
 }
 
-window.runPointCloudDemo = async function() {
-  if (!wasmReady) return;
+function setupPointCloudUpload() {
+  const dropZone = document.getElementById('pcDropZone');
+  const fileInput = document.getElementById('pcFileInput');
+  if (!dropZone || dropZone.dataset.bound) return;
+  dropZone.dataset.bound = '1';
+
+  dropZone.addEventListener('click', () => fileInput.click());
+  dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('drag-over');
+  });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    if (e.dataTransfer.files.length > 0) loadLasFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files.length > 0) loadLasFile(e.target.files[0]);
+  });
+}
+
+function colorsForDecimate(positions, rgbBytes) {
+  if (rgbBytes?.length) return rgbBytes;
+  return new Uint8Array(positions.length);
+}
+
+async function applyPointCloudPipeline(rawPos, rawCol, meta, { skipDecimate = false } = {}) {
+  const loadId = ++pcLoadToken;
   ensurePointCloudViewer();
   if (!pcViewer) return;
 
-  const count = parseInt(document.getElementById('pcCount').value, 10);
   const cellSize = parseFloat(document.getElementById('pcCellSize').value);
-  const colorMode = document.getElementById('pcColorMode').value;
+  let colorMode = document.getElementById('pcColorMode').value;
   const pointSize = parseFloat(document.getElementById('pcPointSize').value);
+  if (!rawCol?.length && colorMode === 'original') {
+    colorMode = 'height';
+    document.getElementById('pcColorMode').value = 'height';
+  }
   const res = document.getElementById('pcResult');
-  res.innerHTML = '<span class="spinner"></span> Generating terrain cloud…';
-
-  const genStart = performance.now();
-  const { positions: rawPos, colors: rawCol } = generateTerrainCloud(count);
-  const genMs = performance.now() - genStart;
+  const inputCount = rawPos.length / 3;
 
   let outPos = rawPos;
   let outCol = rawCol;
   let decimateMs = 0;
   let usedWasm = false;
 
-  try {
-    const decStart = performance.now();
-    const result = decimateVoxelGrid(rawPos, rawCol, cellSize);
-    decimateMs = performance.now() - decStart;
-    outPos = result.positions;
-    outCol = result.colors;
-    usedWasm = true;
-  } catch (e) {
-    console.warn('WASM decimation unavailable:', e);
+  if (!skipDecimate) {
+    try {
+      const decStart = performance.now();
+      const result = decimateVoxelGrid(rawPos, colorsForDecimate(rawPos, rawCol), cellSize);
+      decimateMs = performance.now() - decStart;
+      outPos = new Float32Array(result.positions);
+      outCol = new Uint8Array(result.colors);
+      usedWasm = true;
+    } catch (e) {
+      console.warn('WASM decimation unavailable:', e);
+    }
   }
 
   const outCount = outPos.length / 3;
-  const reduction = ((1 - outCount / count) * 100).toFixed(1);
+  const reduction = inputCount > 0 ? ((1 - outCount / inputCount) * 100).toFixed(1) : '0.0';
 
   let statsLine = '';
   try {
@@ -1184,23 +1247,147 @@ window.runPointCloudDemo = async function() {
 <span style="color:var(--cyan)">Bounds (X/Y/Z):</span>
   [${fmt(b.minX, 2)}, ${fmt(b.maxX, 2)}] / [${fmt(b.minY, 2)}, ${fmt(b.maxY, 2)}] / [${fmt(b.minZ, 2)}, ${fmt(b.maxZ, 2)}]
 <span style="color:var(--purple)">Density:</span> ${stats.density?.toFixed?.(4) ?? '—'} pts/m³`;
-  } catch (e) { /* stats optional */ }
+  } catch (e) { /* optional */ }
+
+  const timing = [
+    meta.genMs != null ? `generate ${fmt(meta.genMs, 2)} ms` : null,
+    meta.parseMs != null ? `parse ${fmt(meta.parseMs, 2)} ms` : null,
+    meta.fileSize != null ? formatBytes(meta.fileSize) : null,
+  ].filter(Boolean).join(' · ');
 
   res.innerHTML = `
-<span style="color:var(--green)">✓ Interactive preview ready</span>
+<span style="color:var(--green)">✓ ${meta.source}</span>
 
-<span style="color:var(--accent)">Input:</span> ${count.toLocaleString()} points (${fmt(genMs, 2)} ms)
-<span style="color:var(--orange)">Decimation:</span> ${usedWasm ? 'WASM voxel grid' : 'skipped'} · cell ${cellSize} m · ${fmt(decimateMs, 2)} ms
+<span style="color:var(--accent)">Input:</span> ${inputCount.toLocaleString()} points${timing ? ` (${timing})` : ''}
+<span style="color:var(--orange)">Decimation:</span> ${skipDecimate ? 'skipped (preview)' : usedWasm ? 'WASM voxel grid' : 'skipped'} · cell ${cellSize} m · ${fmt(decimateMs, 2)} ms
 <span style="color:var(--green)">Output:</span> ${outCount.toLocaleString()} points (−${reduction}%)
 ${statsLine}
 
-<span style="color:var(--muted)">Tip: open the full Three.js viewer to drag-drop real LAS/LAZ files.</span>`;
+<span style="color:var(--muted)">Drag to orbit · scroll to zoom · try the full Three.js viewer for octree tiling.</span>`;
 
-  pcViewer.setPointSize(pointSize);
+  if (loadId !== pcLoadToken) return;
+
+  const adaptiveSize = suggestPointSize(outPos, pointSize);
+  document.getElementById('pcPointSize').value = String(adaptiveSize);
   pcViewer.setColorMode(colorMode);
+  pcViewer.setPointSize(adaptiveSize);
   pcViewer.setData(outPos, outCol);
+  pcViewer.resetView();
   pcDemoLoaded = true;
+}
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+window.runPointCloudDemo = async function() {
+  if (!wasmReady) return;
+  const count = parseInt(document.getElementById('pcCount').value, 10);
+  const res = document.getElementById('pcResult');
+  res.innerHTML = '<span class="spinner"></span> Generating terrain cloud…';
+
+  const genStart = performance.now();
+  const { positions, colors } = generateTerrainCloud(count);
+  const genMs = performance.now() - genStart;
+
+  await applyPointCloudPipeline(positions, colors, {
+    source: 'Synthetic terrain cloud',
+    genMs,
+  });
 };
+
+window.loadSampleLas = async function() {
+  if (!wasmReady) return;
+  const res = document.getElementById('pcResult');
+  res.innerHTML = '<span class="spinner"></span> Loading sample LAS…';
+
+  try {
+    const resp = await fetch('sample-data/demo_terrain.las');
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const bytes = new Uint8Array(await resp.arrayBuffer());
+    await loadLasBytes(bytes, 'sample-data/demo_terrain.las', bytes.length);
+  } catch (e) {
+    res.innerHTML = `<span style="color:var(--red)">✗ Failed to load sample LAS: ${e.message}</span>`;
+  }
+};
+
+async function loadLasFile(file) {
+  if (!wasmReady) return;
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  await loadLasBytes(bytes, file.name, file.size);
+}
+
+async function loadLasBytes(bytes, name, fileSize) {
+  const loadId = ++pcLoadToken;
+  const res = document.getElementById('pcResult');
+  res.innerHTML = `<span class="spinner"></span> Parsing <strong>${name}</strong>…`;
+
+  const parseStart = performance.now();
+  let cloud;
+  try {
+    cloud = parseLasPoints(bytes);
+  } catch (e) {
+    try {
+      cloud = parseLasPointsWithProgress(bytes, (done, total) => {
+        res.innerHTML = `<span class="spinner"></span> Parsing ${done.toLocaleString()} / ${total.toLocaleString()} points…`;
+      });
+    } catch (e2) {
+      try {
+        cloud = parsePointCloudAuto(bytes);
+      } catch (e3) {
+        res.innerHTML = `<span style="color:var(--red)">✗ Parse failed: ${e.message || e2.message || e3.message}</span>`;
+        return;
+      }
+    }
+  }
+  const parseMs = performance.now() - parseStart;
+  if (loadId !== pcLoadToken) return;
+
+  const rawPos = new Float32Array(cloud.positions);
+  const rawCol = cloud.colors ? new Uint8Array(cloud.colors) : null;
+  const inputCount = rawPos.length / 3;
+
+  ensurePointCloudViewer();
+  if (!pcViewer) return;
+
+  let colorMode = document.getElementById('pcColorMode').value;
+  if (!rawCol?.length && colorMode === 'original') {
+    colorMode = 'height';
+    document.getElementById('pcColorMode').value = 'height';
+  }
+
+  const pointSize = suggestPointSize(rawPos, parseFloat(document.getElementById('pcPointSize').value));
+  document.getElementById('pcPointSize').value = String(pointSize);
+  pcViewer.setColorMode(colorMode);
+  pcViewer.setPointSize(pointSize);
+  pcViewer.setData(rawPos, rawCol);
+  pcViewer.resetView();
+
+  if (loadId !== pcLoadToken) return;
+
+  let statsLine = '';
+  try {
+    const stats = JSON.parse(pointCloudStats(rawPos));
+    const b = stats.bounds || {};
+    statsLine = `
+<span style="color:var(--cyan)">Bounds (X/Y/Z):</span>
+  [${fmt(b.minX, 2)}, ${fmt(b.maxX, 2)}] / [${fmt(b.minY, 2)}, ${fmt(b.maxY, 2)}] / [${fmt(b.minZ, 2)}, ${fmt(b.maxZ, 2)}]
+<span style="color:var(--purple)">Density:</span> ${stats.density?.toFixed?.(4) ?? '—'} pts/m³`;
+  } catch (e) { /* optional */ }
+
+  res.innerHTML = `
+<span style="color:var(--green)">✓ LAS: ${name}</span>
+
+<span style="color:var(--accent)">Input:</span> ${inputCount.toLocaleString()} points (parse ${fmt(parseMs, 2)} ms · ${formatBytes(fileSize)})
+<span style="color:var(--orange)">Preview:</span> full resolution (no decimation for files ≤ 100k)
+${statsLine}
+
+<span style="color:var(--muted)">Use Synthetic + decimation to benchmark WASM voxel grid.</span>`;
+
+  pcDemoLoaded = true;
+}
 
 // ═══════════════════════════════════════════════════════════════
 //  TAB 5: BENCHMARK
