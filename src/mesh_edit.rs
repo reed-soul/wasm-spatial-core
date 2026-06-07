@@ -337,13 +337,23 @@ impl WasmQemResult {
 }
 
 /// Decimate a mesh toward a target triangle count using QEM.
+///
+/// `preserve_uv_seams` defaults to `true` when omitted.
 #[wasm_bindgen(js_name = "simplifyMeshQem")]
 pub fn simplify_mesh_qem_js(
     mesh: &WasmMeshChunk,
     target_triangles: u32,
+    preserve_uv_seams: Option<bool>,
 ) -> Result<WasmQemResult, JsValue> {
-    let result = crate::mesh_qem::simplify_mesh_qem(mesh.inner(), target_triangles as usize)
-        .map_err(JsValue::from)?;
+    let options = crate::mesh_qem::QemOptions {
+        preserve_uv_seams: preserve_uv_seams.unwrap_or(true),
+    };
+    let result = crate::mesh_qem::simplify_mesh_qem_with_options(
+        mesh.inner(),
+        target_triangles as usize,
+        &options,
+    )
+    .map_err(JsValue::from)?;
     Ok(WasmQemResult {
         mesh: result.mesh,
         max_error: result.max_error,
