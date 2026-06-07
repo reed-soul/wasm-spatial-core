@@ -20,6 +20,7 @@ fn sample_triangle_mesh() -> MeshChunk {
         ],
         indices: vec![0, 1, 2, 3, 4, 5],
         normals: None,
+        texcoords: None,
         mode: MeshChunk::MODE_TRIANGLES,
     };
     mesh.refresh_metadata();

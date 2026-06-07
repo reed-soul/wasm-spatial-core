@@ -174,6 +174,7 @@ pub fn parse_glb_core(bytes: &[u8]) -> Result<MeshChunk, SpatialErrorDetail> {
         positions: merged_positions,
         indices: merged_indices,
         normals: merged_normals,
+        texcoords: None,
         mode,
     })
 }
