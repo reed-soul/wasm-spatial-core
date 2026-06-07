@@ -38,6 +38,10 @@ npm run demo:dev  # serve repo root directly
 
 ## Point Cloud Demos
 
+### WASM bindings helper (`shared/pc-bindings.mjs`)
+
+Shared helpers for wasm-bindgen **getter-based** point-cloud APIs (`positions`, `colors`, `tileCount`, etc.). Used by Three.js / Cesium demos.
+
 ### Hub Point Cloud Tab (`index.html` → Point Cloud)
 
 Interactive **3D WebGL preview** embedded in the demo hub:

@@ -715,6 +715,7 @@ import init, {
   version,
   memoryInfo,
   decimateVoxelGrid,
+  generateTileset,
   pointCloudStats,
   parseLasPoints,
   parseLasPointsWithProgress,
@@ -1249,6 +1250,24 @@ async function applyPointCloudPipeline(rawPos, rawCol, meta, { skipDecimate = fa
 <span style="color:var(--purple)">Density:</span> ${stats.density?.toFixed?.(4) ?? '—'} pts/m³`;
   } catch (e) { /* optional */ }
 
+  let tileLine = '';
+  if (usedWasm && outCount > 0) {
+    try {
+      const tileStart = performance.now();
+      const tileset = generateTileset(
+        outPos,
+        50_000,
+        21,
+        colorsForDecimate(outPos, outCol),
+      );
+      const tileMs = performance.now() - tileStart;
+      tileLine = `
+<span style="color:var(--cyan)">Octree / pnts tiles:</span> ${tileset.tileCount} tiles · ${formatBytes(tileset.totalBytes)} · ${fmt(tileMs, 2)} ms`;
+    } catch (e) {
+      console.warn('Tileset generation skipped:', e);
+    }
+  }
+
   const timing = [
     meta.genMs != null ? `generate ${fmt(meta.genMs, 2)} ms` : null,
     meta.parseMs != null ? `parse ${fmt(meta.parseMs, 2)} ms` : null,
@@ -1261,9 +1280,9 @@ async function applyPointCloudPipeline(rawPos, rawCol, meta, { skipDecimate = fa
 <span style="color:var(--accent)">Input:</span> ${inputCount.toLocaleString()} points${timing ? ` (${timing})` : ''}
 <span style="color:var(--orange)">Decimation:</span> ${skipDecimate ? 'skipped (preview)' : usedWasm ? 'WASM voxel grid' : 'skipped'} · cell ${cellSize} m · ${fmt(decimateMs, 2)} ms
 <span style="color:var(--green)">Output:</span> ${outCount.toLocaleString()} points (−${reduction}%)
-${statsLine}
+${statsLine}${tileLine}
 
-<span style="color:var(--muted)">Drag to orbit · scroll to zoom · try the full Three.js viewer for octree tiling.</span>`;
+<span style="color:var(--muted)">Drag to orbit · scroll to zoom · open Three.js viewer for full LAS upload + tiling.</span>`;
 
   if (loadId !== pcLoadToken) return;
 
