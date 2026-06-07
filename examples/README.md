@@ -44,6 +44,7 @@ Interactive **3D WebGL preview** embedded in the demo hub:
 
 - Orbit / pan / zoom (mouse + touch)
 - WASM `decimateVoxelGrid` on synthetic terrain
+- **Drag-drop LAS/LAZ** or one-click **Sample LAS** (`sample-data/demo_terrain.las`)
 - Links to full viewers below
 
 ### Three.js Point Cloud Viewer (`point-cloud-demo/`)
