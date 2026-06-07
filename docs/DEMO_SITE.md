@@ -16,10 +16,13 @@
 
 | 页面 | 能力 |
 |------|------|
-| **演示中心** `examples/index.html` | 多 Tab：快速上手、坐标转换、GeoJSON 管线、点云说明、WASM vs JS 基准、中国城市群地图 |
+| **演示中心** `examples/index.html` | 多 Tab：快速上手、坐标转换、GeoJSON 管线、**可交互 3D 点云预览**（WASM 体素抽稀）、WASM vs JS 基准、中国城市群地图 |
 | **完整交互** `examples/demo/index.html` | GeoJSON 解析 + GCJ-02 转换 + R-tree 空间索引 + 画布 |
 | **性能对比** `bench/browser/index.html` | 百万级坐标 WASM vs 纯 JS |
 | **Worker 多线程** `examples/worker-demo/` | 需 COOP/COEP（见下方说明） |
+| **Three.js 点云** `examples/point-cloud-demo/` | 拖拽 LAS/LAZ/PLY，Orbit 控制，八叉树切片 |
+| **WebGL 点云** `examples/webgl-pointcloud/` | 共享 WebGL 查看器模块，WASM LAS 解析，演示地形点云 |
+| **Cesium 3D Tiles 点云** `examples/point-cloud-cesium/` | 全球 3D Tiles 管线 |
 | **Cesium 风格画布** `examples/cesium-demo/` | 纯 JS 可视化（不加载 WASM） |
 
 ## GitHub Pages（推荐）

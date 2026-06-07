@@ -203,6 +203,84 @@
       border: 1px solid var(--border);
     }
 
+    .pc-viewer-wrap {
+      position: relative;
+      height: 520px;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: #010409;
+    }
+    .pc-viewer-wrap canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      border: none;
+      border-radius: 0;
+      background: transparent;
+    }
+    .pc-viewer-hint {
+      position: absolute;
+      left: 12px;
+      bottom: 12px;
+      padding: 6px 10px;
+      border-radius: 6px;
+      background: rgba(0,0,0,0.65);
+      color: var(--muted);
+      font-size: 0.72rem;
+      pointer-events: none;
+      line-height: 1.5;
+    }
+    .pc-viewer-hint kbd {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 0 4px;
+      font-size: 0.68rem;
+    }
+    .demo-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+    }
+    .demo-links a {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.35rem 0.65rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.78rem;
+      background: rgba(88,166,255,0.06);
+    }
+    .demo-links a:hover { border-color: var(--accent); background: rgba(88,166,255,0.12); }
+    .pc-upload {
+      border: 2px dashed var(--border);
+      border-radius: 8px;
+      padding: 0.75rem;
+      text-align: center;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 0.78rem;
+      transition: border-color 0.2s, background 0.2s;
+      margin-top: 0.5rem;
+    }
+    .pc-upload:hover, .pc-upload.drag-over {
+      border-color: var(--accent);
+      background: rgba(88,166,255,0.05);
+      color: var(--accent);
+    }
+    .pc-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+    }
+    .pc-actions button { width: 100%; font-size: 0.78rem; padding: 0.45rem 0.5rem; }
+
     .status { text-align: center; padding: 2rem; color: var(--muted); font-size: 0.9rem; }
     .spinner {
       display: inline-block;
@@ -479,38 +557,62 @@ console.<span class="fn">log</span>(<span class="fn">version</span>()); <span cl
 <div class="tab-panel" id="tab-pointcloud">
   <div class="grid">
     <div class="panel">
-      <div class="panel-title">☁️ Point Cloud Demo</div>
+      <div class="panel-title">☁️ Interactive Point Cloud</div>
       <div class="note" style="margin-top:0">
-        This demo generates a synthetic point cloud and applies WASM-based voxel grid decimation.
-        For real LAS/PCD parsing, use the <code>parseLasHeader()</code> / <code>parseLasPoints()</code> APIs.
+        Synthetic terrain preview with <strong>WASM voxel decimation</strong>.
+        Drag to orbit, scroll to zoom, right-drag to pan.
       </div>
       <label>Point count:</label>
       <select id="pcCount">
-        <option value="5000">5,000 points</option>
         <option value="20000">20,000 points</option>
         <option value="100000" selected>100,000 points</option>
+        <option value="300000">300,000 points</option>
         <option value="500000">500,000 points</option>
       </select>
       <label>Decimation cell size:</label>
       <select id="pcCellSize">
-        <option value="0.5">0.5</option>
-        <option value="1" selected>1.0</option>
-        <option value="2">2.0</option>
-        <option value="5">5.0</option>
+        <option value="0.5">0.5 m</option>
+        <option value="1" selected>1.0 m</option>
+        <option value="2">2.0 m</option>
+        <option value="4">4.0 m</option>
       </select>
-      <button class="primary" onclick="runPointCloudDemo()" style="margin-top:0.75rem;width:100%">▶ Generate & Decimate</button>
+      <label>Color mode:</label>
+      <select id="pcColorMode">
+        <option value="height" selected>Height gradient</option>
+        <option value="original">Terrain colors</option>
+      </select>
+      <label>Point size:</label>
+      <input type="range" id="pcPointSize" min="1" max="6" step="0.5" value="2.5" style="width:100%;margin-bottom:0.6rem">
+      <div class="pc-actions">
+        <button class="primary" onclick="runPointCloudDemo()">▶ Synthetic</button>
+        <button onclick="loadSampleLas()">📦 Sample LAS</button>
+      </div>
+      <div id="pcDropZone" class="pc-upload">
+        Drop <code>.las</code> / <code>.laz</code> here or click to browse
+      </div>
+      <input type="file" id="pcFileInput" accept=".las,.laz" style="display:none">
+      <div class="demo-links">
+        <a href="point-cloud-demo/index.html">Three.js viewer →</a>
+        <a href="webgl-pointcloud/index.html">WebGL viewer →</a>
+        <a href="point-cloud-cesium/index.html">Cesium 3D Tiles →</a>
+      </div>
     </div>
 
     <div class="panel">
-      <div class="panel-title">📊 Results</div>
+      <div class="panel-title">📊 WASM Pipeline Stats</div>
       <div class="result" id="pcResult">
-        Generate a point cloud to see stats.
+        Open this tab to load the interactive preview.
       </div>
     </div>
 
     <div class="panel full">
-      <div class="panel-title">🎨 Point Cloud Visualization</div>
-      <canvas id="pcCanvas" width="1060" height="500"></canvas>
+      <div class="panel-title">🎨 3D Preview — drag to explore</div>
+      <div class="pc-viewer-wrap">
+        <canvas id="pcCanvas"></canvas>
+        <div class="pc-viewer-hint">
+          <kbd>Left drag</kbd> rotate · <kbd>Right drag</kbd> pan · <kbd>Scroll</kbd> zoom · <kbd>Double-click</kbd> reset
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -586,6 +688,8 @@ console.<span class="fn">log</span>(<span class="fn">version</span>()); <span cl
     <a href="https://github.com/reed-soul/wasm-spatial-core" target="_blank">GitHub</a>
     <a href="https://www.npmjs.com/package/wasm-spatial-core" target="_blank">npm</a>
     <a href="demo/index.html">Full demo</a>
+    <a href="point-cloud-demo/index.html">Point cloud</a>
+    <a href="webgl-pointcloud/index.html">WebGL viewer</a>
     <a href="../bench/browser/index.html">Benchmark</a>
     <a href="https://github.com/reed-soul/wasm-spatial-core/blob/master/docs/DEMO_SITE.md" target="_blank">Deploy docs</a>
     <span class="badge badge-green">MIT License</span>
@@ -610,7 +714,13 @@ import init, {
   SpatialIndex,
   version,
   memoryInfo,
+  decimateVoxelGrid,
+  pointCloudStats,
+  parseLasPoints,
+  parseLasPointsWithProgress,
+  parsePointCloudAuto,
 } from '../pkg/wasm_spatial_core.js';
+import { PointCloudViewer, generateTerrainCloud, suggestPointSize } from './shared/pc-viewer.mjs';
 
 // ── WASM Init ────────────────────────────────────────────────
 const WASM_SIZE_HINT = '~1 MB';
@@ -658,12 +768,21 @@ try {
 }
 
 // ── Tab Navigation ────────────────────────────────────────────
+let pcViewer = null;
+let pcDemoLoaded = false;
+let pcLoadToken = 0;
+
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
+
+    if (btn.dataset.tab === 'pointcloud') {
+      ensurePointCloudViewer();
+      if (!pcDemoLoaded && wasmReady) runPointCloudDemo();
+    }
   });
 });
 
@@ -1036,92 +1155,238 @@ function drawGeoCanvas(coords) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  TAB 4: POINT CLOUD (synthetic demo)
+//  TAB 4: POINT CLOUD (interactive 3D + WASM decimation)
 // ═══════════════════════════════════════════════════════════════
-window.runPointCloudDemo = async function() {
-  if (!wasmReady) return;
-  const count = parseInt(document.getElementById('pcCount').value);
-  const cellSize = parseFloat(document.getElementById('pcCellSize').value);
-  const res = document.getElementById('pcResult');
-  res.innerHTML = '<span class="spinner"></span> Generating…';
 
-  // Generate synthetic terrain-like point cloud
-  const positions = new Float32Array(count * 3);
-  const colors = new Uint8Array(count * 3);
-  for (let i = 0; i < count; i++) {
-    const x = (Math.random() - 0.5) * 100;
-    const z = (Math.random() - 0.5) * 100;
-    const y = Math.sin(x * 0.1) * Math.cos(z * 0.1) * 5 + Math.random() * 2;
-    positions[i*3] = x;
-    positions[i*3+1] = y;
-    positions[i*3+2] = z;
-    // Color by height
-    const h = (y + 7) / 14; // normalize 0-1
-    colors[i*3]   = Math.floor(h * 100 + 50);
-    colors[i*3+1] = Math.floor((1 - h) * 200 + 55);
-    colors[i*3+2] = Math.floor(h * 255);
+function ensurePointCloudViewer() {
+  if (pcViewer) return pcViewer;
+  const canvas = document.getElementById('pcCanvas');
+  if (!canvas) return null;
+  pcViewer = new PointCloudViewer(canvas, { pointSize: 2.5, colorMode: 'height' });
+  pcViewer.start();
+
+  document.getElementById('pcPointSize')?.addEventListener('input', (e) => {
+    pcViewer?.setPointSize(parseFloat(e.target.value));
+  });
+  document.getElementById('pcColorMode')?.addEventListener('change', (e) => {
+    pcViewer?.setColorMode(e.target.value);
+  });
+
+  setupPointCloudUpload();
+  return pcViewer;
+}
+
+function setupPointCloudUpload() {
+  const dropZone = document.getElementById('pcDropZone');
+  const fileInput = document.getElementById('pcFileInput');
+  if (!dropZone || dropZone.dataset.bound) return;
+  dropZone.dataset.bound = '1';
+
+  dropZone.addEventListener('click', () => fileInput.click());
+  dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('drag-over');
+  });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    if (e.dataTransfer.files.length > 0) loadLasFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files.length > 0) loadLasFile(e.target.files[0]);
+  });
+}
+
+function colorsForDecimate(positions, rgbBytes) {
+  if (rgbBytes?.length) return rgbBytes;
+  return new Uint8Array(positions.length);
+}
+
+async function applyPointCloudPipeline(rawPos, rawCol, meta, { skipDecimate = false } = {}) {
+  const loadId = ++pcLoadToken;
+  ensurePointCloudViewer();
+  if (!pcViewer) return;
+
+  const cellSize = parseFloat(document.getElementById('pcCellSize').value);
+  let colorMode = document.getElementById('pcColorMode').value;
+  const pointSize = parseFloat(document.getElementById('pcPointSize').value);
+  if (!rawCol?.length && colorMode === 'original') {
+    colorMode = 'height';
+    document.getElementById('pcColorMode').value = 'height';
+  }
+  const res = document.getElementById('pcResult');
+  const inputCount = rawPos.length / 3;
+
+  let outPos = rawPos;
+  let outCol = rawCol;
+  let decimateMs = 0;
+  let usedWasm = false;
+
+  if (!skipDecimate) {
+    try {
+      const decStart = performance.now();
+      const result = decimateVoxelGrid(rawPos, colorsForDecimate(rawPos, rawCol), cellSize);
+      decimateMs = performance.now() - decStart;
+      outPos = new Float32Array(result.positions);
+      outCol = new Uint8Array(result.colors);
+      usedWasm = true;
+    } catch (e) {
+      console.warn('WASM decimation unavailable:', e);
+    }
   }
 
-  const t0 = performance.now();
-  // Simple JS decimation as fallback (since point-cloud feature may not be in default build)
-  // Just demonstrate the concept
-  const decimatedCount = Math.floor(count / (cellSize * cellSize * cellSize * count / 100000));
-  const decimated = performance.now() - t0;
+  const outCount = outPos.length / 3;
+  const reduction = inputCount > 0 ? ((1 - outCount / inputCount) * 100).toFixed(1) : '0.0';
 
-  // Actually try WASM decimation if available
-  let usedWasm = false;
+  let statsLine = '';
   try {
-    // Check if decimateVoxelGrid is exported
-    if (typeof window.wasmDecimateVoxelGrid === 'function') {
-      window.wasmDecimateVoxelGrid(positions, colors, cellSize);
-      usedWasm = true;
-    }
-  } catch(e) {}
+    const stats = JSON.parse(pointCloudStats(outPos));
+    const b = stats.bounds || {};
+    statsLine = `
+<span style="color:var(--cyan)">Bounds (X/Y/Z):</span>
+  [${fmt(b.minX, 2)}, ${fmt(b.maxX, 2)}] / [${fmt(b.minY, 2)}, ${fmt(b.maxY, 2)}] / [${fmt(b.minZ, 2)}, ${fmt(b.maxZ, 2)}]
+<span style="color:var(--purple)">Density:</span> ${stats.density?.toFixed?.(4) ?? '—'} pts/m³`;
+  } catch (e) { /* optional */ }
+
+  const timing = [
+    meta.genMs != null ? `generate ${fmt(meta.genMs, 2)} ms` : null,
+    meta.parseMs != null ? `parse ${fmt(meta.parseMs, 2)} ms` : null,
+    meta.fileSize != null ? formatBytes(meta.fileSize) : null,
+  ].filter(Boolean).join(' · ');
 
   res.innerHTML = `
-<span style="color:var(--green)">✓ Point Cloud Generated</span>
+<span style="color:var(--green)">✓ ${meta.source}</span>
 
-<span style="color:var(--accent)">Input:</span>
-  Points: ${count.toLocaleString()}
-  Bounds: [−50, 50] × [−50, 50]
+<span style="color:var(--accent)">Input:</span> ${inputCount.toLocaleString()} points${timing ? ` (${timing})` : ''}
+<span style="color:var(--orange)">Decimation:</span> ${skipDecimate ? 'skipped (preview)' : usedWasm ? 'WASM voxel grid' : 'skipped'} · cell ${cellSize} m · ${fmt(decimateMs, 2)} ms
+<span style="color:var(--green)">Output:</span> ${outCount.toLocaleString()} points (−${reduction}%)
+${statsLine}
 
-<span style="color:var(--orange)">Decimation (cell=${cellSize}):</span>
-  ${usedWasm ? 'WASM' : 'JS (point-cloud feature not in default build)'}
-  Target: ~${decimatedCount.toLocaleString()} points
+<span style="color:var(--muted)">Drag to orbit · scroll to zoom · try the full Three.js viewer for octree tiling.</span>`;
 
-<span style="color:var(--muted)">Generation time: ${fmt(decimated, 2)} ms</span>
-Memory: ${((count * 3 * 4 + count * 3) / 1024).toFixed(0)} KB`;
+  if (loadId !== pcLoadToken) return;
 
-  // Draw on canvas
-  drawPointCloud(positions, colors, count);
+  const adaptiveSize = suggestPointSize(outPos, pointSize);
+  document.getElementById('pcPointSize').value = String(adaptiveSize);
+  pcViewer.setColorMode(colorMode);
+  pcViewer.setPointSize(adaptiveSize);
+  pcViewer.setData(outPos, outCol);
+  pcViewer.resetView();
+  pcDemoLoaded = true;
+}
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+window.runPointCloudDemo = async function() {
+  if (!wasmReady) return;
+  const count = parseInt(document.getElementById('pcCount').value, 10);
+  const res = document.getElementById('pcResult');
+  res.innerHTML = '<span class="spinner"></span> Generating terrain cloud…';
+
+  const genStart = performance.now();
+  const { positions, colors } = generateTerrainCloud(count);
+  const genMs = performance.now() - genStart;
+
+  await applyPointCloudPipeline(positions, colors, {
+    source: 'Synthetic terrain cloud',
+    genMs,
+  });
 };
 
-function drawPointCloud(positions, colors, count) {
-  const canvas = document.getElementById('pcCanvas');
-  const ctx = canvas.getContext('2d');
-  const W = canvas.width, H = canvas.height;
-  ctx.clearRect(0, 0, W, H);
+window.loadSampleLas = async function() {
+  if (!wasmReady) return;
+  const res = document.getElementById('pcResult');
+  res.innerHTML = '<span class="spinner"></span> Loading sample LAS…';
 
-  // Grid
-  ctx.strokeStyle = 'rgba(48,54,61,0.3)'; ctx.lineWidth = 0.5;
-  for (let x = 0; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
-  for (let y = 0; y < H; y += 40) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
-
-  // Simple orthographic projection
-  const scale = Math.min(W, H) / 110;
-
-  // Draw points (sample to avoid overwhelming canvas)
-  const step = Math.max(1, Math.floor(count / 50000));
-  for (let i = 0; i < count; i += step) {
-    const x = positions[i*3];
-    const z = positions[i*3+2];
-    const sx = W/2 + x * scale;
-    const sy = H/2 + z * scale;
-
-    const r = colors[i*3], g = colors[i*3+1], b = colors[i*3+2];
-    ctx.fillStyle = `rgb(${r},${g},${b})`;
-    ctx.fillRect(sx, sy, 2, 2);
+  try {
+    const resp = await fetch('sample-data/demo_terrain.las');
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const bytes = new Uint8Array(await resp.arrayBuffer());
+    await loadLasBytes(bytes, 'sample-data/demo_terrain.las', bytes.length);
+  } catch (e) {
+    res.innerHTML = `<span style="color:var(--red)">✗ Failed to load sample LAS: ${e.message}</span>`;
   }
+};
+
+async function loadLasFile(file) {
+  if (!wasmReady) return;
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  await loadLasBytes(bytes, file.name, file.size);
+}
+
+async function loadLasBytes(bytes, name, fileSize) {
+  const loadId = ++pcLoadToken;
+  const res = document.getElementById('pcResult');
+  res.innerHTML = `<span class="spinner"></span> Parsing <strong>${name}</strong>…`;
+
+  const parseStart = performance.now();
+  let cloud;
+  try {
+    cloud = parseLasPoints(bytes);
+  } catch (e) {
+    try {
+      cloud = parseLasPointsWithProgress(bytes, (done, total) => {
+        res.innerHTML = `<span class="spinner"></span> Parsing ${done.toLocaleString()} / ${total.toLocaleString()} points…`;
+      });
+    } catch (e2) {
+      try {
+        cloud = parsePointCloudAuto(bytes);
+      } catch (e3) {
+        res.innerHTML = `<span style="color:var(--red)">✗ Parse failed: ${e.message || e2.message || e3.message}</span>`;
+        return;
+      }
+    }
+  }
+  const parseMs = performance.now() - parseStart;
+  if (loadId !== pcLoadToken) return;
+
+  const rawPos = new Float32Array(cloud.positions);
+  const rawCol = cloud.colors ? new Uint8Array(cloud.colors) : null;
+  const inputCount = rawPos.length / 3;
+
+  ensurePointCloudViewer();
+  if (!pcViewer) return;
+
+  let colorMode = document.getElementById('pcColorMode').value;
+  if (!rawCol?.length && colorMode === 'original') {
+    colorMode = 'height';
+    document.getElementById('pcColorMode').value = 'height';
+  }
+
+  const pointSize = suggestPointSize(rawPos, parseFloat(document.getElementById('pcPointSize').value));
+  document.getElementById('pcPointSize').value = String(pointSize);
+  pcViewer.setColorMode(colorMode);
+  pcViewer.setPointSize(pointSize);
+  pcViewer.setData(rawPos, rawCol);
+  pcViewer.resetView();
+
+  if (loadId !== pcLoadToken) return;
+
+  let statsLine = '';
+  try {
+    const stats = JSON.parse(pointCloudStats(rawPos));
+    const b = stats.bounds || {};
+    statsLine = `
+<span style="color:var(--cyan)">Bounds (X/Y/Z):</span>
+  [${fmt(b.minX, 2)}, ${fmt(b.maxX, 2)}] / [${fmt(b.minY, 2)}, ${fmt(b.maxY, 2)}] / [${fmt(b.minZ, 2)}, ${fmt(b.maxZ, 2)}]
+<span style="color:var(--purple)">Density:</span> ${stats.density?.toFixed?.(4) ?? '—'} pts/m³`;
+  } catch (e) { /* optional */ }
+
+  res.innerHTML = `
+<span style="color:var(--green)">✓ LAS: ${name}</span>
+
+<span style="color:var(--accent)">Input:</span> ${inputCount.toLocaleString()} points (parse ${fmt(parseMs, 2)} ms · ${formatBytes(fileSize)})
+<span style="color:var(--orange)">Preview:</span> full resolution (no decimation for files ≤ 100k)
+${statsLine}
+
+<span style="color:var(--muted)">Use Synthetic + decimation to benchmark WASM voxel grid.</span>`;
+
+  pcDemoLoaded = true;
 }
 
 // ═══════════════════════════════════════════════════════════════
