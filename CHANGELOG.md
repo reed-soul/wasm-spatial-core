@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **W5.3 plane clip** — `clipMeshByPlane` with linear position/normal/UV interpolation
   - **W5.4 cap holes** — `clipAndCapMesh` ear-clips planar boundary loops (Euler χ=2 on box fixture)
   - **W5.5 QEM decimation** — `simplifyMeshQem` Garland–Heckbert CPU path + `benchmark_mesh_qem_100k_to_10k`
+  - **W5.6 UV seam preservation** — `QemOptions.preserve_uv_seams` blocks collapses across seam/coincident-UV edges; UVs retained in output
 - **Wave 4 — WebGPU compute** (`webgpu` feature):
   - `wasm-spatial-core/webgpu` — `GpuContext`, `transformPoints`, `flattenHeightfield` with WASM fallback
   - WGSL kernels in `shaders/` (`transform_points_v1`, `heightfield_flatten_v1`)

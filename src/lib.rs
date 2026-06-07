@@ -101,7 +101,9 @@ pub use mesh_edit::{
     WasmMeshSplit, WasmQemResult,
 };
 #[cfg(feature = "mesh-edit")]
-pub use mesh_qem::{grid_mesh, simplify_mesh_qem, QemResult};
+pub use mesh_qem::{
+    grid_mesh, simplify_mesh_qem, simplify_mesh_qem_with_options, QemOptions, QemResult,
+};
 
 #[cfg(feature = "webgpu")]
 pub use webgpu::{
