@@ -34,6 +34,9 @@ mod chunk_export;
 #[cfg(feature = "mesh-ingest")]
 mod enu_frame;
 
+#[cfg(feature = "mesh-ingest")]
+mod svd_align;
+
 #[cfg(feature = "terrain-edit")]
 mod terrain_edit;
 
@@ -59,6 +62,12 @@ pub use chunk_export::{
 pub use enu_frame::{
     batch_enu_to_wgs84_core, batch_wgs84_to_enu_core, batch_wgs84_to_enu_f32_core,
     create_enu_frame, EnuFrame, WasmEnuFrame,
+};
+
+#[cfg(feature = "mesh-ingest")]
+pub use svd_align::{
+    compute_similarity_transform, compute_svd_alignment, compute_svd_alignment_core,
+    AlignmentResult, SimilarityTransform, WasmAlignmentResult,
 };
 
 #[cfg(feature = "mesh-ingest")]
@@ -182,7 +191,7 @@ pub mod test_exports {
         count_geojson_features, geojson_feature_collection_native, geojson_from_coords_native,
         parse_geojson_coords,
     };
-    #[cfg(any(test, feature = "test-helpers"))]
+    #[cfg(all(any(test, feature = "test-helpers"), feature = "point-cloud"))]
     pub use crate::point_cloud::test_helpers;
     pub use crate::topology::{polygon_intersection_native, polygon_union_native};
     pub use crate::utils::{
