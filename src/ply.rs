@@ -5,7 +5,7 @@
 use wasm_bindgen::prelude::*;
 
 use crate::errors::{SpatialError, SpatialErrorDetail};
-use crate::DEFAULT_MAX_INPUT_SIZE;
+use crate::{DEFAULT_MAX_INPUT_SIZE, MAX_MESH_VERTICES};
 
 // ===========================================================================
 // PLY Result — WASM class
@@ -301,14 +301,23 @@ fn parse_ply_ascii(data: &str, header: &PlyHeader) -> Result<PlyResult, String> 
     let has_colors = r_idx.is_some() && g_idx.is_some() && b_idx.is_some();
     let has_normals = nx_idx.is_some() && ny_idx.is_some() && nz_idx.is_some();
 
-    let mut positions: Vec<f32> = Vec::with_capacity(header.vertex_count as usize * 3);
+    let vertex_count = validate_vertex_count(header.vertex_count)?;
+    let mut positions: Vec<f32> = Vec::with_capacity(
+        vertex_count
+            .checked_mul(3)
+            .ok_or_else(|| "PLY: vertex position capacity overflow".to_string())?,
+    );
     let mut colors: Option<Vec<u8>> = if has_colors {
-        Some(Vec::with_capacity(header.vertex_count as usize * 3))
+        Some(Vec::with_capacity(vertex_count.checked_mul(3).ok_or_else(
+            || "PLY: vertex color capacity overflow".to_string(),
+        )?))
     } else {
         None
     };
     let mut normals: Option<Vec<f32>> = if has_normals {
-        Some(Vec::with_capacity(header.vertex_count as usize * 3))
+        Some(Vec::with_capacity(vertex_count.checked_mul(3).ok_or_else(
+            || "PLY: vertex normal capacity overflow".to_string(),
+        )?))
     } else {
         None
     };
@@ -411,14 +420,23 @@ fn parse_ply_binary_le(bytes: &[u8], header: &PlyHeader) -> Result<PlyResult, St
     let has_colors = r_idx.is_some() && g_idx.is_some() && b_idx.is_some();
     let has_normals = nx_idx.is_some() && ny_idx.is_some() && nz_idx.is_some();
 
-    let mut positions: Vec<f32> = Vec::with_capacity(header.vertex_count as usize * 3);
+    let vertex_count = validate_vertex_count(header.vertex_count)?;
+    let mut positions: Vec<f32> = Vec::with_capacity(
+        vertex_count
+            .checked_mul(3)
+            .ok_or_else(|| "PLY: vertex position capacity overflow".to_string())?,
+    );
     let mut colors: Option<Vec<u8>> = if has_colors {
-        Some(Vec::with_capacity(header.vertex_count as usize * 3))
+        Some(Vec::with_capacity(vertex_count.checked_mul(3).ok_or_else(
+            || "PLY: vertex color capacity overflow".to_string(),
+        )?))
     } else {
         None
     };
     let mut normals: Option<Vec<f32>> = if has_normals {
-        Some(Vec::with_capacity(header.vertex_count as usize * 3))
+        Some(Vec::with_capacity(vertex_count.checked_mul(3).ok_or_else(
+            || "PLY: vertex normal capacity overflow".to_string(),
+        )?))
     } else {
         None
     };
@@ -429,7 +447,9 @@ fn parse_ply_binary_le(bytes: &[u8], header: &PlyHeader) -> Result<PlyResult, St
         .iter()
         .map(|p| type_size(&p.type_))
         .sum();
-    let vertex_data_end = header.vertex_count as usize * vertex_size;
+    let vertex_data_end = vertex_size
+        .checked_mul(vertex_count)
+        .ok_or_else(|| "PLY: vertex byte size overflow".to_string())?;
 
     if data.len() < vertex_data_end {
         return Err(format!(
@@ -611,6 +631,16 @@ fn read_u8_at(data: &[u8], offset: usize) -> u8 {
 // Core Parser (no WASM dependency, testable everywhere)
 // ===========================================================================
 
+fn validate_vertex_count(count: u32) -> Result<usize, String> {
+    let vertices = count as usize;
+    if vertices > MAX_MESH_VERTICES {
+        return Err(format!(
+            "PLY vertex count {vertices} exceeds limit of {MAX_MESH_VERTICES}"
+        ));
+    }
+    Ok(vertices)
+}
+
 /// Core PLY parser — works on native and WASM.
 pub fn parse_ply_core(bytes: &[u8]) -> Result<PlyResult, String> {
     if bytes.len() < 4 {
@@ -621,6 +651,7 @@ pub fn parse_ply_core(bytes: &[u8]) -> Result<PlyResult, String> {
     }
 
     let header = parse_ply_header(bytes)?;
+    validate_vertex_count(header.vertex_count)?;
 
     match header.format {
         PlyFormat::Ascii => {
@@ -891,5 +922,18 @@ mod tests {
         let result = parse_ply_core(&data).unwrap();
         assert_eq!(result.vertex_count(), 1000);
         assert_eq!(result.positions.len(), 3000);
+    }
+
+    #[test]
+    fn test_rejects_excessive_vertex_count() {
+        let mut data = String::from("ply\nformat ascii 1.0\n");
+        data.push_str(&format!(
+            "element vertex {}\n",
+            (MAX_MESH_VERTICES + 1) as u64
+        ));
+        data.push_str("property float x\nproperty float y\nproperty float z\n");
+        data.push_str("end_header\n");
+        let err = parse_ply_core(data.as_bytes()).err().expect("should fail");
+        assert!(err.contains("exceeds limit"));
     }
 }
