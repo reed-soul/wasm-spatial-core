@@ -115,9 +115,9 @@ self.onmessage = async function(e) {
     
     if (type === 'init') {
         try {
-            const { default: init, buildOctree, generateTileset, parseGeotiff, applyTerrainColorRamp, hillshade, terrainToGlb } = await import(payload.wasmUrl);
+            const { default: init, buildOctree, generateTilesetWithAbort, parseGeotiff, applyTerrainColorRamp, hillshade, terrainToGlb } = await import(payload.wasmUrl);
             await init();
-            wasm = { init, buildOctree, generateTileset, parseGeotiff, applyTerrainColorRamp, hillshade, terrainToGlb };
+            wasm = { init, buildOctree, generateTilesetWithAbort, parseGeotiff, applyTerrainColorRamp, hillshade, terrainToGlb };
             self.postMessage({ type: 'ready' });
         } catch (err) {
             self.postMessage({ type: 'error', payload: { message: err.message, stage: 'init' } });
@@ -147,12 +147,13 @@ self.onmessage = async function(e) {
             // Report progress: 50% — starting tileset generation
             self.postMessage({ type: 'progress', payload: { stage: 'tileset', progress: 0.5 } });
             
-            // Generate tileset
-            const tiles = wasm.generateTileset(
+            // Generate tileset (cancellable between leaf encodes)
+            const tiles = wasm.generateTilesetWithAbort(
                 positions,
                 options.maxPointsPerNode,
                 options.maxDepth,
-                colors
+                colors,
+                () => cancelled
             );
             
             if (cancelled) {
@@ -184,7 +185,11 @@ self.onmessage = async function(e) {
                 tileBuffers // Transferable
             );
         } catch (err) {
-            self.postMessage({ type: 'error', payload: { message: err.message, stage: 'process' } });
+            if (cancelled || (err && err.code === 'CANCELLED')) {
+                self.postMessage({ type: 'cancelled' });
+                return;
+            }
+            self.postMessage({ type: 'error', payload: { message: err.message || String(err), stage: 'process' } });
         }
     }
     
@@ -609,8 +614,8 @@ impl WorkerHandle {
 
     /// Cancel the current processing job.
     ///
-    /// The Worker will stop as soon as possible (between octree build
-    /// and tileset generation phases).
+    /// The Worker will stop as soon as possible during tileset generation
+    /// (between leaf encodes). Octree build still runs to completion once started.
     #[wasm_bindgen(js_name = "cancel")]
     pub fn cancel(&self) -> Result<(), JsValue> {
         let msg = js_sys::Object::new();
@@ -765,8 +770,8 @@ mod tests {
             "Script should call buildOctree"
         );
         assert!(
-            script.contains("generateTileset"),
-            "Script should call generateTileset"
+            script.contains("generateTilesetWithAbort"),
+            "Script should call generateTilesetWithAbort"
         );
         assert!(
             script.contains("cancelled"),
