@@ -1082,15 +1082,21 @@ where
 ///
 /// Parses a LAZ compressed file and returns decompressed points.
 #[cfg(feature = "laz-support")]
+fn check_point_cloud_input_size(len: usize, label: &str) -> Result<(), SpatialErrorDetail> {
+    let limit = crate::get_current_input_limit();
+    if len > limit {
+        Err(SpatialError::InputTooLarge
+            .with_detail(format!("{label} input is {len} bytes, max is {limit}")))
+    } else {
+        Ok(())
+    }
+}
+
+/// WASM binding for LAZ point parsing.
+#[cfg(feature = "laz-support")]
 #[wasm_bindgen(js_name = "parseLazPoints")]
 pub fn parse_laz_points(bytes: &[u8]) -> Result<LasPointCloud, SpatialErrorDetail> {
-    if bytes.len() > DEFAULT_MAX_INPUT_SIZE {
-        return Err(SpatialError::InputTooLarge.with_detail(format!(
-            "LAZ input is {} bytes, max is {}",
-            bytes.len(),
-            DEFAULT_MAX_INPUT_SIZE
-        )));
-    }
+    check_point_cloud_input_size(bytes.len(), "LAZ")?;
     parse_laz_points_core(bytes).map_err(SpatialError::point_cloud_error)
 }
 
@@ -1101,6 +1107,7 @@ pub fn parse_laz_points_stream(
     bytes: &[u8],
     on_progress: &js_sys::Function,
 ) -> Result<LasPointCloud, SpatialErrorDetail> {
+    check_point_cloud_input_size(bytes.len(), "LAZ")?;
     let this = JsValue::NULL;
 
     parse_laz_points_with_progress_core(
@@ -4116,6 +4123,18 @@ DATA ascii
     fn test_laz_rejects_too_short() {
         let result = parse_laz_points_core(&[0u8; 10]);
         assert!(result.is_err());
+    }
+
+    #[test]
+    #[cfg(feature = "laz-support")]
+    fn test_laz_wasm_input_size_guard() {
+        crate::set_input_size_limit(1024);
+        let result = check_point_cloud_input_size(2048, "LAZ");
+        assert!(result.is_err());
+        if let Err(err) = result {
+            assert_eq!(err.code(), "INPUT_TOO_LARGE");
+        }
+        crate::set_input_size_limit(crate::DEFAULT_MAX_INPUT_SIZE);
     }
 
     #[test]
