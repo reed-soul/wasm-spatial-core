@@ -2558,62 +2558,125 @@ pub fn apply_color_ramp(
 fn estimate_normals_native(positions: &[f32], k: usize) -> Vec<f32> {
     let point_count = positions.len() / 3;
     let k = k.max(3).min(point_count.saturating_sub(1));
+    if k == 0 || point_count == 0 {
+        return vec![0.0f32; positions.len()];
+    }
+
+    if point_count <= 256 {
+        return estimate_normals_brute(positions, k);
+    }
+
+    use rstar::primitives::GeomWithData;
+    use rstar::RTree;
+
+    type Point3D = [f64; 3];
+    type IndexedPoint3D = GeomWithData<Point3D, usize>;
+
+    let indexed: Vec<IndexedPoint3D> = (0..point_count)
+        .map(|i| {
+            GeomWithData::new(
+                [
+                    positions[i * 3] as f64,
+                    positions[i * 3 + 1] as f64,
+                    positions[i * 3 + 2] as f64,
+                ],
+                i,
+            )
+        })
+        .collect();
+    let tree = RTree::bulk_load(indexed);
 
     let mut normals = vec![0.0f32; positions.len()];
-
     for i in 0..point_count {
-        let px = positions[i * 3] as f64;
-        let py = positions[i * 3 + 1] as f64;
-        let pz = positions[i * 3 + 2] as f64;
-
-        // Find k nearest neighbors using brute-force
-        let mut distances: Vec<(f64, usize)> = Vec::with_capacity(point_count);
-        for j in 0..point_count {
-            if j == i {
-                continue;
-            }
-            let dx = positions[j * 3] as f64 - px;
-            let dy = positions[j * 3 + 1] as f64 - py;
-            let dz = positions[j * 3 + 2] as f64 - pz;
-            distances.push((dx * dx + dy * dy + dz * dz, j));
-        }
-        distances.select_nth_unstable_by(k, |a, b| a.0.total_cmp(&b.0));
-
-        // Build covariance matrix from k neighbors (centered)
-        let neighbors = &distances[..k];
-        let mut cx = 0.0f64;
-        let mut cy = 0.0f64;
-        let mut cz = 0.0f64;
-        for &(_, j) in neighbors {
-            cx += positions[j * 3] as f64;
-            cy += positions[j * 3 + 1] as f64;
-            cz += positions[j * 3 + 2] as f64;
-        }
-        cx /= k as f64;
-        cy /= k as f64;
-        cz /= k as f64;
-
-        // Covariance matrix (symmetric 3x3, stored as 6 elements)
-        let mut cov = [0.0f64; 6];
-        for &(_, j) in neighbors {
-            let dx = positions[j * 3] as f64 - cx;
-            let dy = positions[j * 3 + 1] as f64 - cy;
-            let dz = positions[j * 3 + 2] as f64 - cz;
-            cov[0] += dx * dx;
-            cov[1] += dx * dy;
-            cov[2] += dx * dz;
-            cov[3] += dy * dy;
-            cov[4] += dy * dz;
-            cov[5] += dz * dz;
-        }
-
-        let (nx, ny, nz) = eigen_vector_3x3_symmetric(&cov);
-        normals[i * 3] = nx as f32;
-        normals[i * 3 + 1] = ny as f32;
-        normals[i * 3 + 2] = nz as f32;
+        let query = [
+            positions[i * 3] as f64,
+            positions[i * 3 + 1] as f64,
+            positions[i * 3 + 2] as f64,
+        ];
+        let neighbors: Vec<usize> = tree
+            .nearest_neighbor_iter(&query)
+            .filter(|p| p.data != i)
+            .take(k)
+            .map(|p| p.data)
+            .collect();
+        let (nx, ny, nz) = if neighbors.len() >= k {
+            normal_from_neighbor_indices(positions, &neighbors)
+        } else {
+            normal_from_neighbor_indices_brute(positions, i, k)
+        };
+        normals[i * 3] = nx;
+        normals[i * 3 + 1] = ny;
+        normals[i * 3 + 2] = nz;
     }
 
     normals
+}
+
+/// Brute-force k-NN normal estimation for small point clouds.
+fn estimate_normals_brute(positions: &[f32], k: usize) -> Vec<f32> {
+    let point_count = positions.len() / 3;
+    let mut normals = vec![0.0f32; positions.len()];
+
+    for i in 0..point_count {
+        let (nx, ny, nz) = normal_from_neighbor_indices_brute(positions, i, k);
+        normals[i * 3] = nx;
+        normals[i * 3 + 1] = ny;
+        normals[i * 3 + 2] = nz;
+    }
+
+    normals
+}
+
+fn normal_from_neighbor_indices_brute(positions: &[f32], i: usize, k: usize) -> (f32, f32, f32) {
+    let point_count = positions.len() / 3;
+    let px = positions[i * 3] as f64;
+    let py = positions[i * 3 + 1] as f64;
+    let pz = positions[i * 3 + 2] as f64;
+
+    let mut distances: Vec<(f64, usize)> = Vec::with_capacity(point_count);
+    for j in 0..point_count {
+        if j == i {
+            continue;
+        }
+        let dx = positions[j * 3] as f64 - px;
+        let dy = positions[j * 3 + 1] as f64 - py;
+        let dz = positions[j * 3 + 2] as f64 - pz;
+        distances.push((dx * dx + dy * dy + dz * dz, j));
+    }
+    distances.select_nth_unstable_by(k, |a, b| a.0.total_cmp(&b.0));
+    let neighbor_indices: Vec<usize> = distances[..k].iter().map(|&(_, j)| j).collect();
+    normal_from_neighbor_indices(positions, &neighbor_indices)
+}
+
+fn normal_from_neighbor_indices(positions: &[f32], neighbor_indices: &[usize]) -> (f32, f32, f32) {
+    let k = neighbor_indices.len();
+    let mut cx = 0.0f64;
+    let mut cy = 0.0f64;
+    let mut cz = 0.0f64;
+    for &j in neighbor_indices {
+        cx += positions[j * 3] as f64;
+        cy += positions[j * 3 + 1] as f64;
+        cz += positions[j * 3 + 2] as f64;
+    }
+    cx /= k as f64;
+    cy /= k as f64;
+    cz /= k as f64;
+
+    let mut cov = [0.0f64; 6];
+    for &j in neighbor_indices {
+        let dx = positions[j * 3] as f64 - cx;
+        let dy = positions[j * 3 + 1] as f64 - cy;
+        let dz = positions[j * 3 + 2] as f64 - cz;
+        cov[0] += dx * dx;
+        cov[1] += dx * dy;
+        cov[2] += dx * dz;
+        cov[3] += dy * dy;
+        cov[4] += dy * dz;
+        cov[5] += dz * dz;
+    }
+
+    let (nx, ny, nz) = eigen_vector_3x3_symmetric(&cov);
+    (nx as f32, ny as f32, nz as f32)
 }
 
 /// Native helper: flip normals consistently toward centroid.
@@ -2654,7 +2717,7 @@ fn flip_normals_native(normals: &[f32], positions: &[f32]) -> Vec<f32> {
     result
 }
 
-/// Estimate normals for a point cloud using brute-force k-nearest neighbors.
+/// Estimate normals for a point cloud using R-tree accelerated k-nearest neighbors.
 ///
 /// For each point, finds the k nearest neighbors, fits a plane via SVD,
 /// and returns the normal vector of that plane.
@@ -3086,47 +3149,8 @@ pub(crate) fn point_cloud_stats_core(positions: &[f32]) -> Result<String, String
     let volume = dx * dy * dz;
     let density = point_count as f64 / volume;
 
-    // Average nearest-neighbor distance (sampled for large clouds)
-    let sample_size = 1000.min(point_count);
-    let step = point_count / sample_size;
-    let mut total_nn_dist = 0.0_f64;
-    let mut nn_count = 0_usize;
-
-    for si in 0..sample_size {
-        let idx = si * step * 3;
-        if idx + 3 > positions.len() {
-            break;
-        }
-        let px = positions[idx] as f64;
-        let py = positions[idx + 1] as f64;
-        let pz = positions[idx + 2] as f64;
-
-        let mut min_dist_sq = f64::MAX;
-        // Search for nearest neighbor (avoid self)
-        for j in (0..positions.len()).step_by(3) {
-            if j == idx {
-                continue;
-            }
-            let dx = positions[j] as f64 - px;
-            let dy = positions[j + 1] as f64 - py;
-            let dz = positions[j + 2] as f64 - pz;
-            let dist_sq = dx * dx + dy * dy + dz * dz;
-            if dist_sq < min_dist_sq {
-                min_dist_sq = dist_sq;
-            }
-        }
-
-        if min_dist_sq < f64::MAX {
-            total_nn_dist += min_dist_sq.sqrt();
-            nn_count += 1;
-        }
-    }
-
-    let avg_spacing = if nn_count > 0 {
-        total_nn_dist / nn_count as f64
-    } else {
-        0.0
-    };
+    // Average nearest-neighbor distance (grid-sampled, same algorithm as tileset spacing)
+    let avg_spacing = crate::pnts::estimate_point_spacing(positions, Some(1000));
 
     let stats = serde_json::json!({
         "pointCount": point_count,
