@@ -84,7 +84,7 @@ fn test_point_cloud_export_to_pnts() {
 #[test]
 fn test_enu_roundtrip_1km() {
     let frame = EnuFrame::from_anchor(116.391, 39.907, 50.0);
-    let enu = [1000.0, 0.0, 0.0, 0.0, 1000.0, 0.0];
+    let enu: [f64; 6] = [1000.0, 0.0, 0.0, 0.0, 1000.0, 0.0];
     let wgs = batch_enu_to_wgs84_core(&enu, &frame);
     let back = batch_wgs84_to_enu_core(&wgs, &frame);
     for i in 0..2 {

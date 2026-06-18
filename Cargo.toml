@@ -110,6 +110,48 @@ wasm-opt = false
 
 [patch.crates-io]
 
+# Integration tests that import feature-gated APIs must declare required-features
+# so plain `cargo test` (default features) still compiles and runs.
+[[test]]
+name = "spatial_ir_test"
+required-features = ["mesh-ingest"]
+
+[[test]]
+name = "pipeline_integration_test"
+required-features = ["point-cloud", "test-helpers"]
+
+[[test]]
+name = "large_file_e2e"
+required-features = ["point-cloud", "test-helpers"]
+
+[[test]]
+name = "terrain_edit_test"
+required-features = ["terrain-edit"]
+
+[[test]]
+name = "laz_roundtrip_test"
+required-features = ["laz-support", "test-helpers"]
+
+[[test]]
+name = "large_laz_e2e"
+required-features = ["laz-support", "test-helpers"]
+
+[[test]]
+name = "runtime_abort_test"
+required-features = ["point-cloud", "test-helpers"]
+
+[[test]]
+name = "100m_perf"
+required-features = ["point-cloud", "test-helpers"]
+
+[[test]]
+name = "webgpu_layout_test"
+required-features = ["webgpu"]
+
+[[test]]
+name = "qem_gpu_parity_test"
+required-features = ["mesh-edit", "webgpu"]
+
 [[bench]]
 name = "spatial_benchmarks"
 harness = false
