@@ -1970,7 +1970,7 @@ export function estimateJobBytes(op: string, point_count: number, leaf_count: nu
 export function estimateMemoryForPoints(num_points: number, has_color: boolean, has_normals: boolean): number;
 
 /**
- * Estimate normals for a point cloud using brute-force k-nearest neighbors.
+ * Estimate normals for a point cloud using R-tree accelerated k-nearest neighbors.
  *
  * For each point, finds the k nearest neighbors, fits a plane via SVD,
  * and returns the normal vector of that plane.
@@ -3705,9 +3705,9 @@ export interface InitOutput {
     readonly tinresult_positions: (a: number) => number;
     readonly ifcmesh_positions: (a: number) => number;
     readonly tinresult_indices: (a: number) => number;
-    readonly __wasm_bindgen_func_elem_3494: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_3498: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_1055: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_3547: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_3551: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_1082: (a: number, b: number, c: number) => void;
     readonly __wbindgen_export: (a: number, b: number) => number;
     readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_export3: (a: number) => void;
