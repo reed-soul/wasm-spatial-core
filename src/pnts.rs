@@ -1244,8 +1244,9 @@ where
     let mut tiles = Vec::new();
     let mut tile_bounds = Vec::new();
     let mut tile_uris = Vec::new();
+    let mut tile_index = 0usize;
 
-    for (leaf_idx, node) in octree.leaves().enumerate() {
+    for node in octree.leaves() {
         if should_abort() {
             return Err(
                 crate::errors::SpatialError::Cancelled.with_detail("tileset generation cancelled")
@@ -1274,7 +1275,8 @@ where
         let tile_data = encode_pnts_tile(pos_slice, [cx, cy, cz], color_slice)
             .map_err(|e| crate::errors::SpatialError::PointCloudError.with_detail(e.to_string()))?;
 
-        let uri = format!("tile_{leaf_idx}.pnts");
+        let uri = format!("tile_{tile_index}.pnts");
+        tile_index += 1;
 
         tiles.push(tile_data);
         tile_bounds.push(node.bounds);
@@ -1325,32 +1327,34 @@ pub fn generate_tileset_parallel(
         .cloned()
         .collect();
 
-    let tile_results: Vec<(Vec<u8>, Bounds, String)> = leaves
-        .par_iter()
-        .enumerate()
-        .map(|(leaf_idx, node)| {
-            let start = node.point_start;
-            let count = node.point_count as usize;
-            let end = start + count;
+    let tile_results: Result<Vec<(Vec<u8>, Bounds, String)>, crate::errors::SpatialErrorDetail> =
+        leaves
+            .par_iter()
+            .enumerate()
+            .map(|(leaf_idx, node)| {
+                let start = node.point_start;
+                let count = node.point_count as usize;
+                let end = start + count;
 
-            let pos_slice = &positions[start * 3..end * 3];
+                let pos_slice = &positions[start * 3..end * 3];
 
-            let cx = (node.bounds[0] + node.bounds[3]) * 0.5;
-            let cy = (node.bounds[1] + node.bounds[4]) * 0.5;
-            let cz = (node.bounds[2] + node.bounds[5]) * 0.5;
+                let cx = (node.bounds[0] + node.bounds[3]) * 0.5;
+                let cy = (node.bounds[1] + node.bounds[4]) * 0.5;
+                let cz = (node.bounds[2] + node.bounds[5]) * 0.5;
 
-            let color_slice = colors.map(|c| &c[start * 3..end * 3]);
+                let color_slice = colors.map(|c| &c[start * 3..end * 3]);
 
-            let tile_data = encode_pnts_tile(pos_slice, [cx, cy, cz], color_slice)
-                .map_err(|e| {
-                    crate::errors::SpatialError::PointCloudError.with_detail(e.to_string())
-                })
-                .unwrap_or_default();
+                let tile_data =
+                    encode_pnts_tile(pos_slice, [cx, cy, cz], color_slice).map_err(|e| {
+                        crate::errors::SpatialError::PointCloudError.with_detail(e.to_string())
+                    })?;
 
-            let uri = format!("tile_{leaf_idx}.pnts");
-            (tile_data, node.bounds, uri)
-        })
-        .collect();
+                let uri = format!("tile_{leaf_idx}.pnts");
+                Ok((tile_data, node.bounds, uri))
+            })
+            .collect();
+
+    let tile_results = tile_results?;
 
     let mut tiles = Vec::with_capacity(tile_results.len());
     let mut tile_bounds = Vec::with_capacity(tile_results.len());
@@ -1503,6 +1507,21 @@ fn compute_geometric_error_with_spacing(
     diagonal * GEOMETRIC_ERROR_FACTOR / divider
 }
 
+/// Build an octree for tileset generation, keeping optional RGB colors aligned.
+fn build_octree_for_tileset(
+    positions: &[f32],
+    colors: &mut Option<Vec<u8>>,
+    max_pts: u32,
+    max_d: u32,
+) -> (Octree, Vec<f32>) {
+    let mut buf = positions.to_vec();
+    let octree = match colors {
+        Some(c) if c.len() == buf.len() => Octree::build_with_colors(&mut buf, c, max_pts, max_d),
+        _ => Octree::build(&mut buf, max_pts, max_d),
+    };
+    (octree, buf)
+}
+
 /// WASM export: generate a tileset from octree and point data.
 #[wasm_bindgen(js_name = "generateTileset")]
 #[allow(clippy::too_many_arguments)]
@@ -1514,10 +1533,10 @@ pub fn generate_tileset_js(
 ) -> Result<WasmTilesetResult, JsValue> {
     let max_pts = max_points_per_node.unwrap_or(DEFAULT_MAX_POINTS_PER_NODE);
     let max_d = max_depth.unwrap_or(crate::octree::DEFAULT_MAX_DEPTH);
-    let mut buf = positions.to_vec();
-    let octree = Octree::build(&mut buf, max_pts, max_d);
+    let mut color_buf = colors;
+    let (octree, buf) = build_octree_for_tileset(positions, &mut color_buf, max_pts, max_d);
 
-    let result = generate_tileset(&octree, &buf, colors.as_deref()).map_err(JsValue::from)?;
+    let result = generate_tileset(&octree, &buf, color_buf.as_deref()).map_err(JsValue::from)?;
 
     Ok(WasmTilesetResult { inner: result })
 }
@@ -1538,13 +1557,13 @@ pub fn generate_tileset_with_spacing_js(
 ) -> Result<WasmTilesetResult, JsValue> {
     let max_pts = max_points_per_node.unwrap_or(DEFAULT_MAX_POINTS_PER_NODE);
     let max_d = max_depth.unwrap_or(crate::octree::DEFAULT_MAX_DEPTH);
-    let mut buf = positions.to_vec();
-    let octree = Octree::build(&mut buf, max_pts, max_d);
+    let mut color_buf = colors;
+    let (octree, buf) = build_octree_for_tileset(positions, &mut color_buf, max_pts, max_d);
 
     let result = generate_tileset_with_spacing(
         &octree,
         &buf,
-        colors.as_deref(),
+        color_buf.as_deref(),
         avg_spacing,
         spacing_factor,
     )
@@ -1565,18 +1584,24 @@ pub fn generate_tileset_with_abort_js(
 ) -> Result<WasmTilesetResult, JsValue> {
     let max_pts = max_points_per_node.unwrap_or(DEFAULT_MAX_POINTS_PER_NODE);
     let max_d = max_depth.unwrap_or(crate::octree::DEFAULT_MAX_DEPTH);
-    let mut buf = positions.to_vec();
-    let octree = Octree::build(&mut buf, max_pts, max_d);
+    let mut color_buf = colors;
+    let (octree, buf) = build_octree_for_tileset(positions, &mut color_buf, max_pts, max_d);
     let this = wasm_bindgen::JsValue::NULL;
 
-    let result =
-        generate_tileset_with_spacing_abort(&octree, &buf, colors.as_deref(), None, None, || {
+    let result = generate_tileset_with_spacing_abort(
+        &octree,
+        &buf,
+        color_buf.as_deref(),
+        None,
+        None,
+        || {
             should_abort
                 .call0(&this)
                 .map(|v| v.is_truthy())
                 .unwrap_or(false)
-        })
-        .map_err(JsValue::from)?;
+        },
+    )
+    .map_err(JsValue::from)?;
 
     Ok(WasmTilesetResult { inner: result })
 }
@@ -2287,5 +2312,16 @@ mod tileset_tests {
         let par = generate_tileset_parallel(&tree, &positions, None).unwrap();
 
         assert_eq!(seq.tile_count(), par.tile_count());
+        for i in 0..seq.tile_count() as usize {
+            assert_eq!(seq.tile_uri(i), par.tile_uri(i));
+            assert_eq!(seq.tile(i), par.tile(i));
+        }
+        for i in 0..seq.tile_count() as usize {
+            let uri = seq.tile_uri(i).expect("uri");
+            assert!(
+                seq.tileset_json().contains(&format!("\"{uri}\"")),
+                "tileset.json must reference {uri}"
+            );
+        }
     }
 }

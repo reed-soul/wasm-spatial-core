@@ -72,8 +72,10 @@ impl OctreeNode {
 }
 
 /// Remove points with NaN or Infinity coordinates from a flat `[x,y,z,...]` buffer.
-/// Modifies the buffer in-place, truncating to valid points only.
-fn filter_valid_positions(positions: &mut Vec<f32>) {
+/// When `colors` is provided with matching length (`positions.len()` RGB bytes), drops
+/// the corresponding RGB triplets in lockstep.
+fn filter_valid_positions(positions: &mut Vec<f32>, mut colors: Option<&mut Vec<u8>>) {
+    let sync_colors = colors.as_ref().is_some_and(|c| c.len() == positions.len());
     let mut write_idx = 0usize;
     let len = positions.len();
     let mut i = 0usize;
@@ -85,11 +87,34 @@ fn filter_valid_positions(positions: &mut Vec<f32>) {
             positions[write_idx] = x;
             positions[write_idx + 1] = y;
             positions[write_idx + 2] = z;
+            if sync_colors {
+                let colors = colors.as_mut().expect("sync_colors implies Some");
+                colors[write_idx] = colors[i];
+                colors[write_idx + 1] = colors[i + 1];
+                colors[write_idx + 2] = colors[i + 2];
+            }
             write_idx += 3;
         }
         i += 3;
     }
     positions.truncate(write_idx);
+    if let Some(colors) = colors {
+        colors.truncate(write_idx);
+    }
+}
+
+/// Reorder RGB triplets using the same permutation applied to positions.
+fn reorder_colors(colors: &mut Vec<u8>, reorder_map: &[usize]) {
+    let old_colors = std::mem::take(colors);
+    let num_points = reorder_map.len();
+    colors.resize(num_points * 3, 0);
+    for (final_idx, &orig_idx) in reorder_map.iter().enumerate() {
+        let dst = final_idx * 3;
+        let src = orig_idx * 3;
+        if src + 3 <= old_colors.len() {
+            colors[dst..dst + 3].copy_from_slice(&old_colors[src..src + 3]);
+        }
+    }
 }
 
 // ===========================================================================
@@ -133,6 +158,26 @@ impl Octree {
     /// * `max_points_per_node` — Max points before splitting (default: 50 000).
     /// * `max_depth` — Max tree depth (default: 21).
     pub fn build(positions: &mut Vec<f32>, max_points_per_node: u32, max_depth: u32) -> Self {
+        Self::build_inner(positions, None, max_points_per_node, max_depth)
+    }
+
+    /// Like [`Self::build`], but keeps optional per-point RGB colors aligned through
+    /// NaN filtering and leaf-order reordering.
+    pub fn build_with_colors(
+        positions: &mut Vec<f32>,
+        colors: &mut Vec<u8>,
+        max_points_per_node: u32,
+        max_depth: u32,
+    ) -> Self {
+        Self::build_inner(positions, Some(colors), max_points_per_node, max_depth)
+    }
+
+    fn build_inner(
+        positions: &mut Vec<f32>,
+        mut colors: Option<&mut Vec<u8>>,
+        max_points_per_node: u32,
+        max_depth: u32,
+    ) -> Self {
         let num_points = positions.len() / 3;
         if num_points == 0 {
             return Octree {
@@ -148,7 +193,7 @@ impl Octree {
         }
 
         // Filter out NaN / Infinity coordinates in-place.
-        filter_valid_positions(positions);
+        filter_valid_positions(positions, colors.as_deref_mut());
         let num_points = positions.len() / 3;
         if num_points == 0 {
             return Octree {
@@ -210,6 +255,9 @@ impl Octree {
             positions[final_idx * 3] = old_positions[orig_idx * 3];
             positions[final_idx * 3 + 1] = old_positions[orig_idx * 3 + 1];
             positions[final_idx * 3 + 2] = old_positions[orig_idx * 3 + 2];
+        }
+        if let Some(colors) = colors {
+            reorder_colors(colors, &reorder_map);
         }
 
         Octree {
@@ -392,7 +440,7 @@ impl Octree {
             };
         }
 
-        filter_valid_positions(positions);
+        filter_valid_positions(positions, None);
         let num_points = positions.len() / 3;
         if num_points == 0 {
             return Octree {
@@ -875,6 +923,17 @@ pub fn build_octree_parallel(
     let max_pts = max_points_per_node.unwrap_or(DEFAULT_MAX_POINTS_PER_NODE);
     let max_d = max_depth.unwrap_or(DEFAULT_MAX_DEPTH);
 
+    let num_points = positions.len() as u32 / 3;
+    let estimated = crate::estimate_octree_memory(num_points);
+    if !crate::check_memory_available(estimated) {
+        return Err(SpatialError::PointCloudError.with_detail(format!(
+            "Insufficient WASM memory for octree: estimated {} bytes, limit {} bytes, current usage {} bytes",
+            estimated,
+            crate::get_max_wasm_memory(),
+            crate::get_allocated_bytes(),
+        )).into());
+    }
+
     let mut buf = positions.to_vec();
 
     #[cfg(feature = "multi-thread")]
@@ -1140,6 +1199,29 @@ mod tests {
         let tree = Octree::build(&mut positions, 10, 5);
         // Only 2 valid points should remain (NaN and Infinity filtered out).
         assert_eq!(tree.total_points(), 2);
+    }
+
+    #[test]
+    fn test_build_with_colors_filters_nan_in_lockstep() {
+        let mut positions = vec![
+            1.0,
+            2.0,
+            3.0, //
+            f32::NAN,
+            5.0,
+            6.0, //
+            7.0,
+            8.0,
+            9.0,
+        ];
+        let mut colors = vec![
+            10, 20, 30, //
+            40, 50, 60, //
+            70, 80, 90,
+        ];
+        let tree = Octree::build_with_colors(&mut positions, &mut colors, 10, 5);
+        assert_eq!(tree.total_points(), 2);
+        assert_eq!(colors, vec![10, 20, 30, 70, 80, 90]);
     }
 
     #[test]
