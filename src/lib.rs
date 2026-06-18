@@ -253,12 +253,17 @@ static INPUT_SIZE_LIMIT: LazyLock<RwLock<usize>> = LazyLock::new(|| RwLock::new(
 /// WASM linear memory maximum limit (0 = no limit, use WASM default).
 static WASM_MEMORY_MAX: LazyLock<RwLock<usize>> = LazyLock::new(|| RwLock::new(0));
 
-/// Get the current input size limit.
+/// Get the current input size limit (never returns 0 — 0 means reset to default).
 pub(crate) fn get_current_input_limit() -> usize {
-    INPUT_SIZE_LIMIT
+    let stored = INPUT_SIZE_LIMIT
         .read()
         .map(|v| *v)
-        .unwrap_or(DEFAULT_MAX_INPUT_SIZE)
+        .unwrap_or(DEFAULT_MAX_INPUT_SIZE);
+    if stored == 0 {
+        DEFAULT_MAX_INPUT_SIZE
+    } else {
+        stored
+    }
 }
 
 /// Get the current WASM memory max limit (0 = no limit).
@@ -327,7 +332,7 @@ pub use worker::{supports_worker, WorkerHandle, WorkerOptions};
 
 /// Dynamically set the maximum allowed input size in bytes.
 ///
-/// Default is 100 MB. Set to 0 to disable the limit.
+/// Default is 100 MB. Pass 0 to reset to the default limit.
 ///
 /// # Example (JS)
 /// ```js
@@ -564,7 +569,16 @@ mod tests {
     fn test_set_input_limit() {
         set_input_size_limit(50 * 1024 * 1024);
         assert_eq!(get_input_size_limit(), 50 * 1024 * 1024);
-        // Reset to default
+        set_input_size_limit(0);
+        assert_eq!(get_input_size_limit(), DEFAULT_MAX_INPUT_SIZE);
+        // Reset explicit default for other tests
+        set_input_size_limit(DEFAULT_MAX_INPUT_SIZE);
+    }
+
+    #[test]
+    fn test_zero_input_limit_means_default_not_unlimited() {
+        set_input_size_limit(0);
+        assert_eq!(get_current_input_limit(), DEFAULT_MAX_INPUT_SIZE);
         set_input_size_limit(DEFAULT_MAX_INPUT_SIZE);
     }
 

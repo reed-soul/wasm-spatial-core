@@ -451,7 +451,7 @@ impl TerrainTilesetResult {
 /// Parse a TIFF/GeoTIFF file from raw bytes.
 pub fn parse_geotiff_core(bytes: &[u8]) -> Result<GeotiffInfo, String> {
     let limit = crate::get_current_input_limit();
-    if limit > 0 && bytes.len() > limit {
+    if bytes.len() > limit {
         return Err(format!(
             "Input too large ({} > {} bytes): GeoTIFF",
             bytes.len(),
