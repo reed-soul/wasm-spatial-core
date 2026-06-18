@@ -10,6 +10,7 @@ use wasm_bindgen::prelude::*;
 use crate::errors::{SpatialError, SpatialErrorDetail};
 use crate::spatial_ir::{Aabb, ChunkMeta, MeshChunk, WasmMeshChunk};
 use crate::validate_input_size;
+use crate::{MAX_MESH_INDICES, MAX_MESH_VERTICES};
 
 const GLB_MAGIC: &[u8; 4] = b"glTF";
 const CHUNK_JSON: &[u8; 4] = b"JSON";
@@ -117,6 +118,13 @@ pub fn parse_glb_core(bytes: &[u8]) -> Result<MeshChunk, SpatialErrorDetail> {
                 chunks.bin,
                 primitive.attributes.get("POSITION").copied(),
             )?;
+            let new_vertex_count = positions.len() / 3;
+            let total_vertices = merged_positions.len() / 3 + new_vertex_count;
+            if total_vertices > MAX_MESH_VERTICES {
+                return Err(SpatialError::InputTooLarge.with_detail(format!(
+                    "GLB vertex count {total_vertices} exceeds limit of {MAX_MESH_VERTICES}"
+                )));
+            }
             let normals = match primitive.attributes.get("NORMAL") {
                 Some(idx) => Some(read_vec3_f32(&root, chunks.bin, Some(*idx))?),
                 None => None,
@@ -145,6 +153,12 @@ pub fn parse_glb_core(bytes: &[u8]) -> Result<MeshChunk, SpatialErrorDetail> {
 
             if let Some(indices_accessor) = primitive.indices {
                 let indices = read_indices(&root, chunks.bin, indices_accessor)?;
+                let total_indices = merged_indices.len() + indices.len();
+                if total_indices > MAX_MESH_INDICES {
+                    return Err(SpatialError::InputTooLarge.with_detail(format!(
+                        "GLB index count {total_indices} exceeds limit of {MAX_MESH_INDICES}"
+                    )));
+                }
                 merged_indices.extend(indices.into_iter().map(|i| i + vertex_offset));
             } else if prim_mode == MeshChunk::MODE_TRIANGLES {
                 let vertex_count = positions.len() / 3;
@@ -285,14 +299,27 @@ fn read_vec3_f32(
         return Err(SpatialError::ParseError.with_detail("POSITION/NORMAL must be FLOAT (5126)"));
     }
 
+    let count = accessor.count as usize;
+    if count > MAX_MESH_VERTICES {
+        return Err(SpatialError::InputTooLarge.with_detail(format!(
+            "GLB accessor vertex count {count} exceeds limit of {MAX_MESH_VERTICES}"
+        )));
+    }
+
     let raw = accessor_bytes(root, bin, accessor_index)?;
-    let expected = accessor.count as usize * 12;
+    let expected = count
+        .checked_mul(12)
+        .ok_or_else(|| SpatialError::ParseError.with_detail("accessor byte size overflow"))?;
     if raw.len() < expected {
         return Err(SpatialError::ParseError.with_detail("accessor data too short"));
     }
 
-    let mut out = Vec::with_capacity(accessor.count as usize * 3);
-    for i in 0..accessor.count as usize {
+    let mut out = Vec::with_capacity(
+        count
+            .checked_mul(3)
+            .ok_or_else(|| SpatialError::ParseError.with_detail("accessor capacity overflow"))?,
+    );
+    for i in 0..count {
         let base = i * 12;
         out.push(f32::from_le_bytes([
             raw[base],
@@ -332,6 +359,11 @@ fn read_indices(
 
     let raw = accessor_bytes(root, bin, accessor_index)?;
     let count = accessor.count as usize;
+    if count > MAX_MESH_INDICES {
+        return Err(SpatialError::InputTooLarge.with_detail(format!(
+            "GLB index accessor count {count} exceeds limit of {MAX_MESH_INDICES}"
+        )));
+    }
 
     match accessor.component_type {
         COMPONENT_UNSIGNED_INT => {

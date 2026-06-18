@@ -426,6 +426,21 @@ fn wasm_memory_total() -> usize {
 /// Default maximum allowed input size: 100 MB.
 pub(crate) const DEFAULT_MAX_INPUT_SIZE: usize = 100 * 1024 * 1024;
 
+/// Maximum decoded GeoTIFF raster pixels (64M ≈ 8192×8192, ~256 MiB as f32).
+pub(crate) const MAX_GEOTIFF_PIXELS: usize = 64 * 1024 * 1024;
+
+/// Per-strip/tile decompressed byte budget for GeoTIFF.
+pub(crate) const MAX_GEOTIFF_DECOMPRESS_CHUNK_BYTES: usize = 256 * 1024 * 1024;
+
+/// Maximum compressed→decompressed expansion ratio for one GeoTIFF chunk.
+pub(crate) const MAX_GEOTIFF_DECOMPRESS_RATIO: usize = 64;
+
+/// Maximum vertices for PLY / GLB mesh ingest.
+pub(crate) const MAX_MESH_VERTICES: usize = 50_000_000;
+
+/// Maximum indices when merging GLB mesh primitives.
+pub(crate) const MAX_MESH_INDICES: usize = 150_000_000;
+
 // ---------------------------------------------------------------------------
 // WASM Memory Control (Task 4)
 // ---------------------------------------------------------------------------
