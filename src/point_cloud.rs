@@ -169,6 +169,34 @@ pub(crate) fn read_i32_le(bytes: &[u8], offset: usize) -> i32 {
     ])
 }
 
+/// LAS 1.2 public header scale/offset fields (ASPRS offsets 131–178).
+struct LasScaleOffset {
+    x_scale: f64,
+    y_scale: f64,
+    z_scale: f64,
+    x_offset: f64,
+    y_offset: f64,
+    z_offset: f64,
+}
+
+fn read_las_scale_offset(bytes: &[u8]) -> Result<LasScaleOffset, String> {
+    if bytes.len() < 179 {
+        return Err("LAS header too short for scale/offset (need at least 179 bytes)".to_string());
+    }
+    Ok(LasScaleOffset {
+        x_scale: read_f64_le(bytes, 131),
+        y_scale: read_f64_le(bytes, 139),
+        z_scale: read_f64_le(bytes, 147),
+        x_offset: read_f64_le(bytes, 155),
+        y_offset: read_f64_le(bytes, 163),
+        z_offset: read_f64_le(bytes, 171),
+    })
+}
+
+fn las_truncated_error(declared: usize, parsed: usize) -> String {
+    format!("truncated LAS file: header allows {declared} points but only {parsed} could be read")
+}
+
 // ===========================================================================
 // LAS parsing
 // ===========================================================================
@@ -229,6 +257,19 @@ fn las_points_capacity(
     Ok(declared.min(max_in_file))
 }
 
+/// Cap LAZ point count from header — compressed size does not reflect point count.
+#[cfg(feature = "laz-support")]
+fn laz_points_capacity(declared: u32) -> Result<usize, String> {
+    let declared = declared as usize;
+    if declared > MAX_LAS_POINTS_RESERVE {
+        return Err(format!(
+            "LAZ point count {} exceeds limit of {}",
+            declared, MAX_LAS_POINTS_RESERVE
+        ));
+    }
+    Ok(declared)
+}
+
 pub fn parse_las_points_core(bytes: &[u8]) -> Result<LasPointCloud, String> {
     if bytes.len() < 230 {
         return Err("LAS data too short for point parsing (need at least 230 bytes)".to_string());
@@ -246,13 +287,15 @@ pub fn parse_las_points_core(bytes: &[u8]) -> Result<LasPointCloud, String> {
     let point_format = bytes[104];
     let point_record_len = read_u16_le(bytes, 105) as usize;
 
-    // Scale/offset for coordinate reconstruction
-    let x_scale = read_f64_le(bytes, 131);
-    let y_scale = read_f64_le(bytes, 139);
-    let z_scale = read_f64_le(bytes, 147);
-    let x_offset = read_f64_le(bytes, 155);
-    let y_offset = read_f64_le(bytes, 163);
-    let z_offset = read_f64_le(bytes, 171);
+    // Scale/offset for coordinate reconstruction (LAS 1.2 offsets 131–178).
+    let LasScaleOffset {
+        x_scale,
+        y_scale,
+        z_scale,
+        x_offset,
+        y_offset,
+        z_offset,
+    } = read_las_scale_offset(bytes)?;
 
     // Format 0: 20 bytes, Format 2: 26 bytes (with RGB)
     let has_color = point_format == 2 || point_format == 3;
@@ -298,8 +341,13 @@ pub fn parse_las_points_core(bytes: &[u8]) -> Result<LasPointCloud, String> {
         }
     }
 
+    let parsed = positions.len() / 3;
+    if parsed < num_points {
+        return Err(las_truncated_error(num_points, parsed));
+    }
+
     Ok(LasPointCloud {
-        point_count: positions.len() as u32 / 3,
+        point_count: parsed as u32,
         positions,
         colors,
     })
@@ -878,7 +926,7 @@ pub fn parse_laz_points_core(bytes: &[u8]) -> Result<LasPointCloud, String> {
     // start of the compressed data stream.
     let compressed_slice = &bytes[header.offset_to_points as usize..];
     let point_size = laszip_vlr.items_size() as usize;
-    let num_points = header.num_points as usize;
+    let num_points = laz_points_capacity(header.num_points)?;
 
     let has_color = matches!(
         header.point_format_id,
@@ -973,7 +1021,7 @@ where
     let compressed_slice = &bytes[header.offset_to_points as usize..];
 
     let point_size = laszip_vlr.items_size() as usize;
-    let num_points = header.num_points as usize;
+    let num_points = laz_points_capacity(header.num_points)?;
     let has_color_in_laz = laszip_vlr.items().iter().any(|item| {
         matches!(
             item.item_type(),
@@ -1669,17 +1717,30 @@ where
     F: FnMut(u32, u32),
     A: FnMut() -> bool,
 {
-    let num_points = read_u32_le(bytes, 100);
+    if bytes.len() < 230 {
+        return Err("LAS data too short for point parsing (need at least 230 bytes)".to_string());
+    }
+
+    if &bytes[0..4] != b"LASF" {
+        return Err(format!(
+            "Invalid LAS magic: expected b\"LASF\", got {:?}",
+            &bytes[0..4]
+        ));
+    }
+
+    let declared_points = read_u32_le(bytes, 100);
     let point_offset = read_u32_le(bytes, 96) as usize;
     let point_format = bytes[104];
     let point_record_len = read_u16_le(bytes, 105) as usize;
 
-    let x_scale = read_f64_le(bytes, 134);
-    let y_scale = read_f64_le(bytes, 142);
-    let z_scale = read_f64_le(bytes, 150);
-    let x_offset = read_f64_le(bytes, 158);
-    let y_offset = read_f64_le(bytes, 166);
-    let z_offset = read_f64_le(bytes, 174);
+    let LasScaleOffset {
+        x_scale,
+        y_scale,
+        z_scale,
+        x_offset,
+        y_offset,
+        z_offset,
+    } = read_las_scale_offset(bytes)?;
 
     let has_color = point_format == 2 || point_format == 3;
     let expected_record_len = if has_color { 26 } else { 20 };
@@ -1691,16 +1752,19 @@ where
         ));
     }
 
-    let mut positions: Vec<f32> = Vec::with_capacity(num_points as usize * 3);
+    let num_points =
+        las_points_capacity(bytes.len(), point_offset, point_record_len, declared_points)?;
+
+    let mut positions: Vec<f32> = Vec::with_capacity(num_points * 3);
     let mut colors: Option<Vec<u8>> = if has_color {
-        Some(Vec::with_capacity(num_points as usize * 3))
+        Some(Vec::with_capacity(num_points * 3))
     } else {
         None
     };
 
     let mut last_reported: u32 = 0;
 
-    for i in 0..num_points as usize {
+    for i in 0..num_points {
         let base = point_offset + i * point_record_len;
         if base + expected_record_len > bytes.len() {
             break;
@@ -1724,7 +1788,7 @@ where
 
         // Report progress periodically
         if interval > 0 && (i as u32).saturating_sub(last_reported) >= interval {
-            on_progress(i as u32, num_points);
+            on_progress(i as u32, num_points as u32);
             last_reported = i as u32;
             if should_abort() {
                 return Err("Operation cancelled".to_string());
@@ -1733,10 +1797,15 @@ where
     }
 
     // Final progress report
-    on_progress(positions.len() as u32 / 3, num_points);
+    on_progress(positions.len() as u32 / 3, num_points as u32);
+
+    let parsed = positions.len() / 3;
+    if parsed < num_points {
+        return Err(las_truncated_error(num_points, parsed));
+    }
 
     Ok(LasPointCloud {
-        point_count: positions.len() as u32 / 3,
+        point_count: parsed as u32,
         positions,
         colors,
     })
@@ -1781,7 +1850,6 @@ pub fn parse_las_points_with_progress(
     bytes: &[u8],
     on_progress: &js_sys::Function,
 ) -> Result<LasPointCloud, SpatialErrorDetail> {
-    let _num_points = read_u32_le(bytes, 100);
     let this = JsValue::NULL;
 
     parse_las_points_with_progress_core(
@@ -2161,18 +2229,18 @@ pub fn parse_las_header_only(bytes: &[u8]) -> Result<LasHeaderInfo, SpatialError
         point_offset: read_u32_le(bytes, 96),
         point_format_id: bytes[104],
         point_record_length: read_u16_le(bytes, 105),
-        x_scale: read_f64_le(bytes, 134),
-        y_scale: read_f64_le(bytes, 142),
-        z_scale: read_f64_le(bytes, 150),
-        x_offset: read_f64_le(bytes, 158),
-        y_offset: read_f64_le(bytes, 166),
-        z_offset: read_f64_le(bytes, 174),
-        bounds_max_x: read_f64_le(bytes, 182),
-        bounds_max_y: read_f64_le(bytes, 190),
-        bounds_max_z: read_f64_le(bytes, 198),
-        bounds_min_x: read_f64_le(bytes, 206),
-        bounds_min_y: read_f64_le(bytes, 214),
-        bounds_min_z: read_f64_le(bytes, 222),
+        x_scale: read_f64_le(bytes, 131),
+        y_scale: read_f64_le(bytes, 139),
+        z_scale: read_f64_le(bytes, 147),
+        x_offset: read_f64_le(bytes, 155),
+        y_offset: read_f64_le(bytes, 163),
+        z_offset: read_f64_le(bytes, 171),
+        bounds_max_x: read_f64_le(bytes, 179),
+        bounds_max_y: read_f64_le(bytes, 187),
+        bounds_max_z: read_f64_le(bytes, 195),
+        bounds_min_x: read_f64_le(bytes, 203),
+        bounds_min_y: read_f64_le(bytes, 211),
+        bounds_min_z: read_f64_le(bytes, 219),
         file_size: bytes.len() as u32,
     })
 }
@@ -3187,6 +3255,21 @@ pub(crate) mod tests {
         let mut blob = build_test_las_blob(&[(0.0, 0.0, 0.0)], false);
         blob[0] = b'X';
         let result = parse_las_header_core(&blob);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_progress_abort_parser_matches_core() {
+        let blob = build_test_las_blob(&[(10.0, 20.0, 30.0), (40.0, 50.0, 60.0)], true);
+        let core = parse_las_points_core(&blob).unwrap();
+        let progress = parse_las_points_with_progress_abort(&blob, |_, _| {}, 0, || false).unwrap();
+        assert_eq!(core.positions, progress.positions);
+        assert_eq!(core.colors, progress.colors);
+    }
+
+    #[test]
+    fn test_progress_parser_rejects_short_input() {
+        let result = parse_las_points_with_progress_abort(b"LASF", |_, _| {}, 0, || false);
         assert!(result.is_err());
     }
 
