@@ -1011,8 +1011,8 @@ export class WorkerHandle {
     /**
      * Cancel the current processing job.
      *
-     * The Worker will stop as soon as possible (between octree build
-     * and tileset generation phases).
+     * The Worker will stop as soon as possible during tileset generation
+     * (between leaf encodes). Octree build still runs to completion once started.
      */
     cancel(): void;
     /**
@@ -2988,7 +2988,7 @@ export function scalePointCloud(positions: Float32Array, sx: number, sy: number,
 /**
  * Dynamically set the maximum allowed input size in bytes.
  *
- * Default is 100 MB. Set to 0 to disable the limit.
+ * Default is 100 MB. Pass 0 to reset to the default limit.
  *
  * # Example (JS)
  * ```js
@@ -3705,8 +3705,8 @@ export interface InitOutput {
     readonly tinresult_positions: (a: number) => number;
     readonly ifcmesh_positions: (a: number) => number;
     readonly tinresult_indices: (a: number) => number;
-    readonly __wasm_bindgen_func_elem_3492: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_3496: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_3494: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_3498: (a: number, b: number, c: number, d: number) => void;
     readonly __wasm_bindgen_func_elem_1055: (a: number, b: number, c: number) => void;
     readonly __wbindgen_export: (a: number, b: number) => number;
     readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
