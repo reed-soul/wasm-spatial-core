@@ -399,6 +399,7 @@ fn benchmark_full_pipeline_100k() {
 
 #[test]
 #[ignore]
+#[cfg(feature = "mesh-edit")]
 fn benchmark_mesh_qem_100k_to_10k() {
     use wasm_spatial_core::{grid_mesh, simplify_mesh_qem};
 
