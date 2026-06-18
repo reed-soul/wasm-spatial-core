@@ -566,6 +566,8 @@ fn parse_geotiff_impl(bytes: &[u8]) -> Result<GeotiffInfo, String> {
         return Err("GeoTIFF: missing ImageWidth or ImageLength".into());
     }
 
+    raster_pixel_count(image_width, image_length)?;
+
     let is_tiled = !tile_offsets.is_empty();
 
     // 4. Parse GeoKeys
@@ -937,6 +939,28 @@ fn parse_geo_keys(dir: &[u16], ascii_params: &str) -> Vec<(u16, u16, u16, String
 // Data Decoding
 // ===========================================================================
 
+fn raster_pixel_count(width: u32, height: u32) -> Result<usize, String> {
+    let w = width as usize;
+    let h = height as usize;
+    let pixels = w
+        .checked_mul(h)
+        .ok_or_else(|| "GeoTIFF: image dimensions overflow".to_string())?;
+    if pixels > crate::MAX_GEOTIFF_PIXELS {
+        return Err(format!(
+            "GeoTIFF: image size {width}x{height} ({pixels} pixels) exceeds limit of {}",
+            crate::MAX_GEOTIFF_PIXELS
+        ));
+    }
+    Ok(pixels)
+}
+
+fn geotiff_decompress_budget(compressed_len: usize, expected_output: usize) -> usize {
+    let ratio_bound = compressed_len.saturating_mul(crate::MAX_GEOTIFF_DECOMPRESS_RATIO);
+    expected_output
+        .max(ratio_bound)
+        .min(crate::MAX_GEOTIFF_DECOMPRESS_CHUNK_BYTES)
+}
+
 /// Decode strip-organized image data into f32 elevation values.
 fn decode_strip_data(info: &GeotiffInternal, bytes: &[u8]) -> Result<Vec<f32>, String> {
     match info.bits_per_sample {
@@ -952,7 +976,7 @@ fn decode_strip_data(info: &GeotiffInternal, bytes: &[u8]) -> Result<Vec<f32>, S
 
 /// Decode float32 strip data.
 fn decode_strip_f32(info: &GeotiffInternal, bytes: &[u8]) -> Result<Vec<f32>, String> {
-    let total_pixels = info.image_width as usize * info.image_length as usize;
+    let total_pixels = raster_pixel_count(info.image_width, info.image_length)?;
     let mut elevations = Vec::with_capacity(total_pixels);
     let w = info.image_width as usize;
 
@@ -970,14 +994,17 @@ fn decode_strip_f32(info: &GeotiffInternal, bytes: &[u8]) -> Result<Vec<f32>, St
         }
 
         let raw_data = &bytes[offset..offset + byte_count];
-        let decompressed = decompress_data(raw_data, info.compression)?;
 
         let rows_this_strip = info
             .rows_per_strip
             .min((info.image_length - (strip_idx as u32 * info.rows_per_strip)).max(1))
             as usize;
         let pixels_this_strip = rows_this_strip * w;
-        let expected_bytes = pixels_this_strip * 4;
+        let expected_bytes = pixels_this_strip
+            .checked_mul(4)
+            .ok_or_else(|| "GeoTIFF: strip byte size overflow".to_string())?;
+        let budget = geotiff_decompress_budget(raw_data.len(), expected_bytes);
+        let decompressed = decompress_data(raw_data, info.compression, budget)?;
 
         if decompressed.len() < expected_bytes {
             return Err(format!(
@@ -1005,7 +1032,7 @@ fn decode_strip_f32(info: &GeotiffInternal, bytes: &[u8]) -> Result<Vec<f32>, St
 
 /// Decode uint16 strip data → f32.
 fn decode_strip_u16_to_f32(info: &GeotiffInternal, bytes: &[u8]) -> Result<Vec<f32>, String> {
-    let total_pixels = info.image_width as usize * info.image_length as usize;
+    let total_pixels = raster_pixel_count(info.image_width, info.image_length)?;
     let mut elevations = Vec::with_capacity(total_pixels);
     let w = info.image_width as usize;
 
@@ -1017,11 +1044,14 @@ fn decode_strip_u16_to_f32(info: &GeotiffInternal, bytes: &[u8]) -> Result<Vec<f
         }
 
         let raw_data = &bytes[offset..offset + byte_count];
-        let decompressed = decompress_data(raw_data, info.compression)?;
 
         let rows_this_strip = info.rows_this_strip(strip_idx);
         let pixels_this_strip = rows_this_strip * w;
-        let expected_bytes = pixels_this_strip * 2;
+        let expected_bytes = pixels_this_strip
+            .checked_mul(2)
+            .ok_or_else(|| "GeoTIFF: strip byte size overflow".to_string())?;
+        let budget = geotiff_decompress_budget(raw_data.len(), expected_bytes);
+        let decompressed = decompress_data(raw_data, info.compression, budget)?;
 
         if decompressed.len() < expected_bytes {
             return Err("GeoTIFF: strip decompressed data too small for u16".into());
@@ -1039,7 +1069,7 @@ fn decode_strip_u16_to_f32(info: &GeotiffInternal, bytes: &[u8]) -> Result<Vec<f
 
 /// Decode uint8 strip data → f32.
 fn decode_strip_u8_to_f32(info: &GeotiffInternal, bytes: &[u8]) -> Result<Vec<f32>, String> {
-    let total_pixels = info.image_width as usize * info.image_length as usize;
+    let total_pixels = raster_pixel_count(info.image_width, info.image_length)?;
     let mut elevations = Vec::with_capacity(total_pixels);
     let w = info.image_width as usize;
 
@@ -1051,11 +1081,12 @@ fn decode_strip_u8_to_f32(info: &GeotiffInternal, bytes: &[u8]) -> Result<Vec<f3
         }
 
         let raw_data = &bytes[offset..offset + byte_count];
-        let decompressed = decompress_data(raw_data, info.compression)?;
 
         let rows_this_strip = info.rows_this_strip(strip_idx);
         let pixels_this_strip = rows_this_strip * w;
         let expected_bytes = pixels_this_strip;
+        let budget = geotiff_decompress_budget(raw_data.len(), expected_bytes);
+        let decompressed = decompress_data(raw_data, info.compression, budget)?;
 
         if decompressed.len() < expected_bytes {
             return Err("GeoTIFF: strip decompressed data too small for u8".into());
@@ -1075,7 +1106,7 @@ fn decode_tiled_data(info: &GeotiffInternal, bytes: &[u8]) -> Result<Vec<f32>, S
         return Err("GeoTIFF: tiled image but tile dimensions are 0".into());
     }
 
-    let total_pixels = info.image_width as usize * info.image_length as usize;
+    let total_pixels = raster_pixel_count(info.image_width, info.image_length)?;
     let mut elevations = vec![0.0f32; total_pixels]; // Initialize to 0 for partial tiles
 
     let tw = info.tile_width as usize;
@@ -1112,11 +1143,14 @@ fn decode_tiled_data(info: &GeotiffInternal, bytes: &[u8]) -> Result<Vec<f32>, S
             }
 
             let raw_data = &bytes[offset..offset + byte_count];
-            let decompressed = decompress_data(raw_data, info.compression)?;
 
             let pixels_in_tile = tw * tl;
             let bytes_per_pixel = info.bits_per_sample as usize / 8;
-            let _expected_bytes = pixels_in_tile * bytes_per_pixel;
+            let expected_bytes = pixels_in_tile
+                .checked_mul(bytes_per_pixel)
+                .ok_or_else(|| "GeoTIFF: tile byte size overflow".to_string())?;
+            let budget = geotiff_decompress_budget(raw_data.len(), expected_bytes);
+            let decompressed = decompress_data(raw_data, info.compression, budget)?;
 
             // Fill pixels for this tile
             let col_start = tx * tw;
@@ -1177,23 +1211,59 @@ fn decompress_lzw(data: &[u8]) -> Result<Vec<u8>, String> {
         .map_err(|e| format!("GeoTIFF: LZW decompression failed: {e}"))
 }
 
-/// Decompress data based on compression method.
-fn decompress_data(data: &[u8], compression: u16) -> Result<Vec<u8>, String> {
+/// Decompress data based on compression method with a hard output byte budget.
+fn decompress_data(data: &[u8], compression: u16, max_output: usize) -> Result<Vec<u8>, String> {
     match compression {
-        compression::NONE => Ok(data.to_vec()),
-        compression::DEFLATE | compression::DEFLATE_GEOTIFF => {
-            let mut decoder = ZlibDecoder::new(data);
-            let mut output = Vec::new();
-            decoder
-                .read_to_end(&mut output)
-                .map_err(|e| format!("GeoTIFF: DEFLATE decompression failed: {e}"))?;
-            Ok(output)
+        compression::NONE => {
+            if data.len() > max_output {
+                return Err(format!(
+                    "GeoTIFF: uncompressed chunk size {} exceeds budget of {} bytes",
+                    data.len(),
+                    max_output
+                ));
+            }
+            Ok(data.to_vec())
         }
-        compression::LZW => decompress_lzw(data),
+        compression::DEFLATE | compression::DEFLATE_GEOTIFF => {
+            decompress_deflate_bounded(data, max_output)
+        }
+        compression::LZW => {
+            let decoded = decompress_lzw(data)?;
+            if decoded.len() > max_output {
+                return Err(format!(
+                    "GeoTIFF: LZW output size {} exceeds budget of {} bytes",
+                    decoded.len(),
+                    max_output
+                ));
+            }
+            Ok(decoded)
+        }
         _ => Err(format!(
             "GeoTIFF: unsupported compression method: {compression}"
         )),
     }
+}
+
+fn decompress_deflate_bounded(data: &[u8], max_output: usize) -> Result<Vec<u8>, String> {
+    let mut decoder = ZlibDecoder::new(data);
+    let mut output = Vec::with_capacity(data.len().min(max_output));
+    let mut buf = [0u8; 8192];
+    loop {
+        let n = decoder
+            .read(&mut buf)
+            .map_err(|e| format!("GeoTIFF: DEFLATE decompression failed: {e}"))?;
+        if n == 0 {
+            break;
+        }
+        if output.len() + n > max_output {
+            return Err(format!(
+                "GeoTIFF: decompressed size exceeds budget of {} bytes",
+                max_output
+            ));
+        }
+        output.extend_from_slice(&buf[..n]);
+    }
+    Ok(output)
 }
 
 impl GeotiffInternal {
@@ -2687,7 +2757,7 @@ mod tests {
     #[test]
     fn test_decompress_none() {
         let data = vec![1u8, 2, 3, 4];
-        let result = decompress_data(&data, compression::NONE).unwrap();
+        let result = decompress_data(&data, compression::NONE, 1024).unwrap();
         assert_eq!(result, data);
     }
 
@@ -2701,8 +2771,28 @@ mod tests {
         encoder.write_all(&original).unwrap();
         encoder.finish().unwrap();
 
-        let result = decompress_data(&compressed, compression::DEFLATE).unwrap();
+        let result = decompress_data(&compressed, compression::DEFLATE, 1024).unwrap();
         assert_eq!(result, original);
+    }
+
+    #[test]
+    fn test_decompress_deflate_rejects_budget_exceeded() {
+        use std::io::Write;
+        let original = vec![0u8; 64 * 1024];
+        let mut compressed = Vec::new();
+        let mut encoder =
+            flate2::write::ZlibEncoder::new(&mut compressed, flate2::Compression::default());
+        encoder.write_all(&original).unwrap();
+        encoder.finish().unwrap();
+
+        let err = decompress_data(&compressed, compression::DEFLATE, 1024).unwrap_err();
+        assert!(err.contains("budget"));
+    }
+
+    #[test]
+    fn test_raster_pixel_count_rejects_oversized_image() {
+        let err = raster_pixel_count(1, (crate::MAX_GEOTIFF_PIXELS + 1) as u32).unwrap_err();
+        assert!(err.contains("exceeds limit"));
     }
 
     #[test]
@@ -2717,13 +2807,13 @@ mod tests {
         payload.push(min_code_size);
         payload.extend_from_slice(&compressed);
 
-        let result = decompress_data(&payload, compression::LZW).unwrap();
+        let result = decompress_data(&payload, compression::LZW, 1024).unwrap();
         assert_eq!(result, original);
     }
 
     #[test]
     fn test_decompress_lzw_invalid_min_code_size() {
-        let result = decompress_data(&[1, 2, 3], compression::LZW);
+        let result = decompress_data(&[1, 2, 3], compression::LZW, 1024);
         assert!(result.is_err());
         assert!(result
             .unwrap_err()
