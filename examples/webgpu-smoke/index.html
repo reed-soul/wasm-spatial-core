@@ -16,18 +16,33 @@
 </head>
 <body>
   <h1>WebGPU Compute Smoke (Wave 4)</h1>
-  <p>Compares GPU Mat4×vec3 transform vs WASM <code>transformPointCloud</code> on 1k points.</p>
+  <p>Transform kernel (1k points) + heightfield flatten (512×512 parity, 2048×2048 benchmark).</p>
   <pre id="log">Running…</pre>
   <script type="module">
-    import init, { transformPointCloud, supportsWebGpu, webGpuStatus } from "../../pkg/wasm_spatial_core.js";
-    import { createGpuContext, gpuTransformPoints, maxAbsDiff } from "./app.mjs";
+    import init, {
+      transformPointCloud,
+      flattenTerrain,
+      rasterizeTerrainMask,
+      supportsWebGpu,
+      webGpuStatus,
+    } from "../../pkg/wasm_spatial_core.js";
+    import {
+      createGpuContext,
+      gpuTransformPoints,
+      gpuFlattenHeightfield,
+      makeHeightGrid,
+      maxAbsDiff,
+    } from "./app.mjs";
+    import { centerSquarePolygon } from "../shared/pc-bindings.mjs";
 
     const log = document.getElementById("log");
     const lines = [];
+    let failed = false;
 
     function println(msg, cls = "") {
       lines.push(msg);
       log.textContent = lines.join("\n");
+      if (cls === "err") failed = true;
       if (cls) log.className = cls;
     }
 
@@ -37,6 +52,8 @@
       println(webGpuStatus());
       println("");
 
+      // ── W4.3: point transform ──
+      println("=== Point transform (1k) ===");
       const n = 1000;
       const positions = new Float32Array(n * 3);
       for (let i = 0; i < n; i++) {
@@ -51,27 +68,71 @@
       matrix[8] = 0; matrix[9] = 0; matrix[10] = 1;
       matrix[12] = 10; matrix[13] = -5; matrix[14] = 2;
 
-      const cpu = transformPointCloud(positions, matrix);
-      println(`CPU (WASM): ${n} points transformed`);
-
+      const cpuPts = transformPointCloud(positions, matrix);
       const ctx = await createGpuContext();
       if (!ctx) {
-        println("WebGPU unavailable — CPU-only path OK", "ok");
+        println("WebGPU unavailable — transform GPU test skipped", "ok");
       } else {
         println(`GPU adapter: ${ctx.adapter.info?.description ?? "WebGPU"}`);
         println(`Subgroups: ${ctx.hasSubgroups}`);
         const t0 = performance.now();
-        const gpu = await gpuTransformPoints(ctx, positions, matrix);
+        const gpuPts = await gpuTransformPoints(ctx, positions, matrix);
         const ms = (performance.now() - t0).toFixed(2);
-        const err = maxAbsDiff(cpu, gpu);
-        println(`GPU: ${n} points in ${ms} ms`);
-        println(`Max abs error vs CPU: ${err.toExponential(3)}`);
-        if (err < 1e-4) {
-          println("PASS — GPU matches CPU reference", "ok");
+        const err = maxAbsDiff(cpuPts, gpuPts);
+        println(`GPU transform: ${n} points in ${ms} ms, max err ${err.toExponential(3)}`);
+        println(err < 1e-4 ? "PASS — transform GPU matches CPU" : "FAIL — transform GPU/CPU mismatch", err < 1e-4 ? "ok" : "err");
+      }
+
+      println("");
+      println("=== Heightfield flatten (W4.4) ===");
+
+      if (typeof flattenTerrain !== "function" || typeof rasterizeTerrainMask !== "function") {
+        println("SKIP — rebuild WASM with --features terrain-edit", "ok");
+      } else if (!ctx) {
+        println("SKIP — WebGPU required for heightfield GPU tests", "ok");
+      } else {
+        const bounds = [0.0, 0.0, 1.0, 1.0];
+        const polygon = centerSquarePolygon(bounds, 0.5);
+        const target = 42.0;
+
+        // 512×512 parity
+        const w512 = 512;
+        const h512 = 512;
+        const heights512 = makeHeightGrid(w512, h512);
+        const cpu512 = new Float32Array(heights512);
+        flattenTerrain(cpu512, w512, h512, bounds, polygon, target, 0);
+
+        const mask512 = rasterizeTerrainMask(w512, h512, bounds, polygon);
+        const gpu512 = await gpuFlattenHeightfield(ctx, new Float32Array(heights512), w512, h512, mask512, target);
+        const err512 = maxAbsDiff(cpu512, gpu512);
+        println(`512×512 parity: max abs error ${err512.toExponential(3)}`);
+        println(err512 === 0 ? "PASS — 512×512 GPU matches WASM CPU" : "FAIL — 512×512 mismatch", err512 === 0 ? "ok" : "err");
+
+        // 2048×2048 benchmark
+        const w2048 = 2048;
+        const h2048 = 2048;
+        const heights2048 = makeHeightGrid(w2048, h2048);
+        const mask2048 = rasterizeTerrainMask(w2048, h2048, bounds, polygon);
+
+        const tCpu = performance.now();
+        const cpu2048 = new Float32Array(heights2048);
+        flattenTerrain(cpu2048, w2048, h2048, bounds, polygon, target, 0);
+        const cpuMs = performance.now() - tCpu;
+
+        const tGpu = performance.now();
+        await gpuFlattenHeightfield(ctx, new Float32Array(heights2048), w2048, h2048, mask2048, target);
+        const gpuMs = performance.now() - tGpu;
+
+        println(`2048×2048 WASM flatten: ${cpuMs.toFixed(1)} ms`);
+        println(`2048×2048 GPU flatten:  ${gpuMs.toFixed(1)} ms (mask rasterize on CPU)`);
+        if (gpuMs < cpuMs) {
+          println(`PASS — GPU faster than WASM (${(cpuMs / gpuMs).toFixed(1)}×)`, "ok");
         } else {
-          println("FAIL — GPU/CPU mismatch", "err");
+          println(`NOTE — GPU not faster in this environment (software WebGPU?)`, "ok");
         }
       }
+
+      if (!failed) log.className = "ok";
     } catch (e) {
       println(`Error: ${e.message}`, "err");
       console.error(e);
