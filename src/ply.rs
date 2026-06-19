@@ -294,9 +294,9 @@ fn parse_ply_ascii(data: &str, header: &PlyHeader) -> Result<PlyResult, String> 
     let ny_idx = find_property(&header.vertex_properties, "ny");
     let nz_idx = find_property(&header.vertex_properties, "nz");
 
-    if x_idx.is_none() || y_idx.is_none() || z_idx.is_none() {
+    let (Some(x_idx), Some(y_idx), Some(z_idx)) = (x_idx, y_idx, z_idx) else {
         return Err("PLY: vertex element missing x/y/z properties".to_string());
-    }
+    };
 
     let has_colors = r_idx.is_some() && g_idx.is_some() && b_idx.is_some();
     let has_normals = nx_idx.is_some() && ny_idx.is_some() && nz_idx.is_some();
@@ -353,18 +353,21 @@ fn parse_ply_ascii(data: &str, header: &PlyHeader) -> Result<PlyResult, String> 
         }
 
         // Extract x, y, z
-        let x: f32 = values[x_idx.unwrap()].parse().unwrap_or(0.0);
-        let y: f32 = values[y_idx.unwrap()].parse().unwrap_or(0.0);
-        let z: f32 = values[z_idx.unwrap()].parse().unwrap_or(0.0);
+        let x: f32 = values[x_idx].parse().unwrap_or(0.0);
+        let y: f32 = values[y_idx].parse().unwrap_or(0.0);
+        let z: f32 = values[z_idx].parse().unwrap_or(0.0);
         positions.push(x);
         positions.push(y);
         positions.push(z);
 
         // Extract colors
         if has_colors {
-            let r: u8 = values[r_idx.unwrap()].parse().unwrap_or(0);
-            let g: u8 = values[g_idx.unwrap()].parse().unwrap_or(0);
-            let b: u8 = values[b_idx.unwrap()].parse().unwrap_or(0);
+            let (Some(r_idx), Some(g_idx), Some(b_idx)) = (r_idx, g_idx, b_idx) else {
+                continue;
+            };
+            let r: u8 = values[r_idx].parse().unwrap_or(0);
+            let g: u8 = values[g_idx].parse().unwrap_or(0);
+            let b: u8 = values[b_idx].parse().unwrap_or(0);
             if let Some(ref mut c) = colors {
                 c.push(r);
                 c.push(g);
@@ -374,9 +377,12 @@ fn parse_ply_ascii(data: &str, header: &PlyHeader) -> Result<PlyResult, String> 
 
         // Extract normals
         if has_normals {
-            let nx: f32 = values[nx_idx.unwrap()].parse().unwrap_or(0.0);
-            let ny: f32 = values[ny_idx.unwrap()].parse().unwrap_or(0.0);
-            let nz: f32 = values[nz_idx.unwrap()].parse().unwrap_or(0.0);
+            let (Some(nx_idx), Some(ny_idx), Some(nz_idx)) = (nx_idx, ny_idx, nz_idx) else {
+                continue;
+            };
+            let nx: f32 = values[nx_idx].parse().unwrap_or(0.0);
+            let ny: f32 = values[ny_idx].parse().unwrap_or(0.0);
+            let nz: f32 = values[nz_idx].parse().unwrap_or(0.0);
             if let Some(ref mut n) = normals {
                 n.push(nx);
                 n.push(ny);
@@ -416,6 +422,9 @@ fn parse_ply_binary_le(bytes: &[u8], header: &PlyHeader) -> Result<PlyResult, St
     if x_idx.is_none() || y_idx.is_none() || z_idx.is_none() {
         return Err("PLY: vertex element missing x/y/z properties".to_string());
     }
+    let x_idx = x_idx.unwrap();
+    let y_idx = y_idx.unwrap();
+    let z_idx = z_idx.unwrap();
 
     let has_colors = r_idx.is_some() && g_idx.is_some() && b_idx.is_some();
     let has_normals = nx_idx.is_some() && ny_idx.is_some() && nz_idx.is_some();
@@ -468,17 +477,17 @@ fn parse_ply_binary_le(bytes: &[u8], header: &PlyHeader) -> Result<PlyResult, St
         let x = read_float_at(
             data,
             vertex_base,
-            &header.vertex_properties[x_idx.unwrap()].type_,
+            &header.vertex_properties[x_idx].type_,
         );
         let y = read_float_at(
             data,
-            vertex_base + property_byte_offset(&header.vertex_properties, y_idx.unwrap()),
-            &header.vertex_properties[y_idx.unwrap()].type_,
+            vertex_base + property_byte_offset(&header.vertex_properties, y_idx),
+            &header.vertex_properties[y_idx].type_,
         );
         let z = read_float_at(
             data,
-            vertex_base + property_byte_offset(&header.vertex_properties, z_idx.unwrap()),
-            &header.vertex_properties[z_idx.unwrap()].type_,
+            vertex_base + property_byte_offset(&header.vertex_properties, z_idx),
+            &header.vertex_properties[z_idx].type_,
         );
 
         positions.push(x);
@@ -486,17 +495,22 @@ fn parse_ply_binary_le(bytes: &[u8], header: &PlyHeader) -> Result<PlyResult, St
         positions.push(z);
 
         if has_colors {
+            let (Some(r_idx), Some(g_idx), Some(b_idx)) = (r_idx, g_idx, b_idx) else {
+                // has_colors already checked, but be defensive
+                offset += vertex_size;
+                continue;
+            };
             let r = read_u8_at(
                 data,
-                vertex_base + property_byte_offset(&header.vertex_properties, r_idx.unwrap()),
+                vertex_base + property_byte_offset(&header.vertex_properties, r_idx),
             );
             let g = read_u8_at(
                 data,
-                vertex_base + property_byte_offset(&header.vertex_properties, g_idx.unwrap()),
+                vertex_base + property_byte_offset(&header.vertex_properties, g_idx),
             );
             let b = read_u8_at(
                 data,
-                vertex_base + property_byte_offset(&header.vertex_properties, b_idx.unwrap()),
+                vertex_base + property_byte_offset(&header.vertex_properties, b_idx),
             );
             if let Some(ref mut c) = colors {
                 c.push(r);
@@ -506,20 +520,24 @@ fn parse_ply_binary_le(bytes: &[u8], header: &PlyHeader) -> Result<PlyResult, St
         }
 
         if has_normals {
+            let (Some(nx_idx), Some(ny_idx), Some(nz_idx)) = (nx_idx, ny_idx, nz_idx) else {
+                offset += vertex_size;
+                continue;
+            };
             let nx = read_float_at(
                 data,
-                vertex_base + property_byte_offset(&header.vertex_properties, nx_idx.unwrap()),
-                &header.vertex_properties[nx_idx.unwrap()].type_,
+                vertex_base + property_byte_offset(&header.vertex_properties, nx_idx),
+                &header.vertex_properties[nx_idx].type_,
             );
             let ny = read_float_at(
                 data,
-                vertex_base + property_byte_offset(&header.vertex_properties, ny_idx.unwrap()),
-                &header.vertex_properties[ny_idx.unwrap()].type_,
+                vertex_base + property_byte_offset(&header.vertex_properties, ny_idx),
+                &header.vertex_properties[ny_idx].type_,
             );
             let nz = read_float_at(
                 data,
-                vertex_base + property_byte_offset(&header.vertex_properties, nz_idx.unwrap()),
-                &header.vertex_properties[nz_idx.unwrap()].type_,
+                vertex_base + property_byte_offset(&header.vertex_properties, nz_idx),
+                &header.vertex_properties[nz_idx].type_,
             );
             if let Some(ref mut n) = normals {
                 n.push(nx);

@@ -388,7 +388,7 @@ pub fn get_input_size_limit() -> usize {
 /// Returns 0 on non-WASM targets.
 #[wasm_bindgen(js_name = "getAllocatedBytes")]
 pub fn get_allocated_bytes() -> usize {
-    wasm_memory_total()
+    wasm_memory_total().unwrap_or(0)
 }
 
 // ---------------------------------------------------------------------------
@@ -401,7 +401,7 @@ pub fn get_allocated_bytes() -> usize {
 /// **Note:** Only available in WASM runtime. On native, returns zeros.
 #[wasm_bindgen(js_name = "memoryInfo")]
 pub fn memory_info() -> MemoryInfo {
-    let total = wasm_memory_total();
+    let total = wasm_memory_total().unwrap_or(0);
     MemoryInfo {
         total,
         used: total,  // approximation
@@ -439,19 +439,17 @@ impl MemoryInfo {
 }
 
 /// Get total WASM linear memory size.
-fn wasm_memory_total() -> usize {
+fn wasm_memory_total() -> Option<usize> {
     #[cfg(target_arch = "wasm32")]
     {
         let mem = wasm_bindgen::memory();
-        let buffer =
-            js_sys::Reflect::get(&mem, &"buffer".into()).expect("memory.buffer should exist");
-        let byte_length = js_sys::Reflect::get(&buffer, &"byteLength".into())
-            .expect("buffer.byteLength should exist");
-        byte_length.as_f64().expect("byteLength should be a number") as usize
+        let buffer = js_sys::Reflect::get(&mem, &"buffer".into()).ok()?;
+        let byte_length = js_sys::Reflect::get(&buffer, &"byteLength".into()).ok()?;
+        byte_length.as_f64().map(|v| v as usize)
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
-        0 // Not available in native testing
+        None
     }
 }
 
@@ -524,7 +522,7 @@ pub fn check_memory_available(estimated_bytes: usize) -> bool {
     }
 
     // Current WASM memory usage
-    let current = wasm_memory_total();
+    let current = wasm_memory_total().unwrap_or(0);
 
     // Check if current + estimated exceeds the limit
     current.saturating_add(estimated_bytes) <= max
