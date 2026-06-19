@@ -1003,11 +1003,26 @@ pub fn parse_laz_points_core(bytes: &[u8]) -> Result<LasPointCloud, String> {
 #[cfg(feature = "laz-support")]
 pub fn parse_laz_points_with_progress_core<F>(
     bytes: &[u8],
-    mut on_progress: F,
+    on_progress: F,
     interval: u32,
 ) -> Result<LasPointCloud, String>
 where
     F: FnMut(u32, u32),
+{
+    parse_laz_points_with_progress_abort_core(bytes, on_progress, interval, || false)
+}
+
+/// Core LAZ decompression with progress and optional abort.
+#[cfg(feature = "laz-support")]
+pub fn parse_laz_points_with_progress_abort_core<F, A>(
+    bytes: &[u8],
+    mut on_progress: F,
+    interval: u32,
+    mut should_abort: A,
+) -> Result<LasPointCloud, String>
+where
+    F: FnMut(u32, u32),
+    A: FnMut() -> bool,
 {
     if bytes.len() < 230 {
         return Err("LAZ data too short for header".to_string());
@@ -1057,6 +1072,10 @@ where
     let mut last_reported: u32 = 0;
 
     for i in 0..num_points {
+        if should_abort() {
+            return Err("LAZ parsing cancelled".to_string());
+        }
+
         decompressor
             .decompress_one(&mut point_buf)
             .map_err(|e| format!("LAZ decompression error: {}", e))?;
@@ -1132,6 +1151,39 @@ pub fn parse_laz_points_stream(
         10_000,
     )
     .map_err(SpatialError::point_cloud_error)
+}
+
+/// Parse LAZ points with progress and abort callbacks. Reports every 10,000 points.
+#[cfg(feature = "laz-support")]
+#[wasm_bindgen(js_name = "parseLazPointsStreamWithAbort")]
+pub fn parse_laz_points_stream_with_abort(
+    bytes: &[u8],
+    on_progress: &js_sys::Function,
+    should_abort: &js_sys::Function,
+) -> Result<LasPointCloud, SpatialErrorDetail> {
+    check_point_cloud_input_size(bytes.len(), "LAZ")?;
+    let this = JsValue::NULL;
+
+    parse_laz_points_with_progress_abort_core(
+        bytes,
+        |processed, total| {
+            let _ = on_progress.call2(&this, &JsValue::from(processed), &JsValue::from(total));
+        },
+        10_000,
+        || {
+            should_abort
+                .call0(&this)
+                .map(|v| v.is_truthy())
+                .unwrap_or(false)
+        },
+    )
+    .map_err(|e| {
+        if e.contains("cancelled") {
+            SpatialError::Cancelled.with_detail(e)
+        } else {
+            SpatialError::point_cloud_error(e)
+        }
+    })
 }
 
 // ===========================================================================
