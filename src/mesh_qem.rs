@@ -10,6 +10,8 @@ use crate::mesh_qem_math::{
 use crate::spatial_ir::{ChunkMeta, MeshChunk};
 
 const UV_SEAM_EPS: f32 = 1e-4;
+/// Rebuild the collapse heap after this many consecutive stale pops.
+const QEM_STALE_POP_REBUILD: usize = 256;
 
 /// QEM simplification options (Wave 5.6 seam preservation).
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -138,31 +140,43 @@ pub fn simplify_mesh_qem_with_options(
 
     rebuild_quadrics(&positions, &indices, &mut quadrics);
 
+    let mut heap: Option<BinaryHeap<CollapseCandidate>> = None;
+    let mut stale_pops = 0usize;
+
     loop {
         let tri_count = indices.len() / 3;
         if tri_count <= target_triangles {
             break;
         }
 
-        let mut heap = build_collapse_heap(
-            &positions,
-            texcoords.as_deref(),
-            &indices,
-            &quadrics,
-            &deleted,
-            &seam_edges,
-            options.preserve_uv_seams,
-        );
-        let Some(candidate) = heap.pop() else {
+        let need_rebuild =
+            heap.as_ref().is_none_or(|h| h.is_empty()) || stale_pops >= QEM_STALE_POP_REBUILD;
+        if need_rebuild {
+            heap = Some(build_collapse_heap(
+                &positions,
+                texcoords.as_deref(),
+                &indices,
+                &quadrics,
+                &deleted,
+                &seam_edges,
+                options.preserve_uv_seams,
+            ));
+            stale_pops = 0;
+        }
+
+        let heap_mut = heap.as_mut().expect("heap initialized before pop");
+        let Some(candidate) = heap_mut.pop() else {
             break;
         };
 
         if !edge_exists(&indices, candidate.edge, &deleted) {
+            stale_pops += 1;
             continue;
         }
 
         let Edge(a, b) = candidate.edge;
         if deleted[a as usize] || deleted[b as usize] {
+            stale_pops += 1;
             continue;
         }
         if is_uv_seam_collapse(
@@ -172,12 +186,25 @@ pub fn simplify_mesh_qem_with_options(
             &seam_edges,
             options.preserve_uv_seams,
         ) {
+            stale_pops += 1;
             continue;
         }
 
-        max_error = max_error.max(candidate.cost.sqrt());
+        // Recompute cost — stale heap entries must not drive collapses.
+        let Some(fresh) = collapse_cost(&positions, &quadrics, candidate.edge) else {
+            stale_pops += 1;
+            continue;
+        };
+        if (fresh.cost - candidate.cost).abs() > QEM_EPS {
+            heap_mut.push(fresh);
+            stale_pops += 1;
+            continue;
+        }
 
-        positions[a as usize] = candidate.position;
+        stale_pops = 0;
+        max_error = max_error.max(fresh.cost.sqrt());
+
+        positions[a as usize] = fresh.position;
         let b_q = quadrics[b as usize];
         quadrics[a as usize].add(&b_q);
         deleted[b as usize] = true;
@@ -189,6 +216,20 @@ pub fn simplify_mesh_qem_with_options(
         }
 
         remove_degenerate_triangles(&mut indices, &positions);
+
+        for edge in incident_edges(a, &indices) {
+            push_edge_cost_if_valid(
+                heap_mut,
+                edge,
+                &positions,
+                texcoords.as_deref(),
+                &quadrics,
+                &deleted,
+                &seam_edges,
+                options.preserve_uv_seams,
+            );
+        }
+
         if indices.len() / 3 <= target_triangles {
             break;
         }
@@ -427,6 +468,21 @@ fn edge_exists(indices: &[u32], edge: Edge, deleted: &[bool]) -> bool {
         let set = [tri[0], tri[1], tri[2]];
         set.contains(&a) && set.contains(&b)
     })
+}
+
+/// Edges incident on `vertex` in the current triangle list.
+fn incident_edges(vertex: u32, indices: &[u32]) -> HashSet<Edge> {
+    let mut edges = HashSet::new();
+    for tri in indices.chunks_exact(3) {
+        if tri.contains(&vertex) {
+            for &(va, vb) in &[(tri[0], tri[1]), (tri[1], tri[2]), (tri[2], tri[0])] {
+                if va == vertex || vb == vertex {
+                    edges.insert(Edge::new(va, vb));
+                }
+            }
+        }
+    }
+    edges
 }
 
 fn remove_degenerate_triangles(indices: &mut Vec<u32>, positions: &[[f64; 3]]) {
