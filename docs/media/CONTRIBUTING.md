@@ -4,7 +4,7 @@ Thanks for your interest in improving this project! This guide covers everything
 
 ## Design Philosophy
 
-`wasm-spatial-core` is built on one idea: **bring server-grade spatial computing to the browser via WebAssembly, compiled from Rust**. Every API is designed for zero-copy memory sharing, streaming processing of large datasets, and direct GPU pipeline feeding. We prioritise performance, correctness, and a clean JS/WASM interop boundary over feature count.
+`wasm-spatial-core` is built on one idea: **bring server-grade spatial computing to the browser via WebAssembly, compiled from Rust**. Every API is designed for zero-copy memory sharing, chunked processing of large datasets, and direct GPU pipeline feeding. We prioritise performance, correctness, and a clean JS/WASM interop boundary over feature count.
 
 ---
 
@@ -34,6 +34,20 @@ wasm-pack build --target web --release --out-dir pkg -- --features point-cloud
 ```
 
 The `pkg/` directory is listed in `.gitignore` and is **not** stored in git. CI builds it on every run; locally you must run `wasm-pack build` before opening browser examples.
+
+### npm publish vs CI test matrix
+
+| Artifact | WASM features | Tests |
+|----------|---------------|-------|
+| **npm package** (`point-cloud` + `geotiff`) | What consumers get from `npm install` | `cargo test --features point-cloud,geotiff` (~661) |
+| **CI full matrix** | `--all-features` | ~840 tests |
+
+Optional capabilities (LAZ/COPC, E57, terrain deformation, mesh QEM) require custom
+`wasm-pack build --features …` — see [README Feature Flags](./README.md#feature-flags).
+
+GeoJSON: `parseGeoJsonStream` parses the full input JSON then emits coordinate **chunks**
+(progress-friendly, not byte-stream input). Use `parseGeoJsonLazy` for one-feature-at-a-time
+iteration.
 
 ---
 
@@ -89,13 +103,17 @@ cargo clippy --all-targets --all-features -- -D warnings
 
 ### Feature Flags
 
-| Feature | Default | Description |
-|---------|---------|-------------|
-| `single-thread` | ✅ | Zero-config mode, works everywhere, no COOP/COEP needed |
-| `multi-thread` | ❌ | Web Workers + SharedArrayBuffer via Rayon (requires nightly) |
-| `point-cloud` | ❌ | LAS/PCD/PLY/OBJ parsing + voxel grid decimation + octree + 3D Tiles |
-| `laz-support` | ❌ | LAZ/COPC decompression via `laz` crate (implies `point-cloud`, adds ~400KB) |
-| `e57-support` | ❌ | E57 architectural/industrial scan format via `e57` crate |
+| Feature | Default crate | In npm | Description |
+|---------|---------------|--------|-------------|
+| `single-thread` | ✅ | ✅ | Zero-config mode, works everywhere, no COOP/COEP needed |
+| `point-cloud` | ❌ | ✅ | LAS/PCD/PLY/OBJ parsing + voxel grid decimation + octree + 3D Tiles |
+| `geotiff` | ❌ | ✅ | GeoTIFF terrain + quantized-mesh |
+| `multi-thread` | ❌ | ❌ | Web Workers + SharedArrayBuffer via Rayon (requires nightly) |
+| `laz-support` | ❌ | ❌ | LAZ/COPC decompression via `laz` crate (implies `point-cloud`, adds ~400KB) |
+| `e57-support` | ❌ | ❌ | E57 architectural/industrial scan format via `e57` crate |
+| `terrain-edit` | ❌ | ❌ | Heightfield flatten/deform (requires `geotiff`) |
+| `mesh-ingest` | ❌ | ❌ | Spatial IR + GLB ingest (Wave 2) |
+| `mesh-edit` | ❌ | ❌ | Mesh QEM / OBB split (requires `mesh-ingest`) |
 
 ### Feature Flag Combinations
 

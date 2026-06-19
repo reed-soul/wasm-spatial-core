@@ -9,7 +9,7 @@
 
 | Category | Examples |
 |----------|----------|
-| **Format I/O** | LAS/LAZ, GeoTIFF, GLB read/write, 3D Tiles encode |
+| **Format I/O** | LAS (+ LAZ/COPC/E57 optional builds), GeoTIFF, GLB read/write, 3D Tiles encode |
 | **Spatial IR** | `SpatialChunk`, region select, CRS / ENU |
 | **Geometry** | Terrain cut/flatten/fill, mesh clip, QEM decimate |
 | **Index & tiles** | Octree, R-tree, LOD, **incremental tile patch** |
