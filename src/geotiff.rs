@@ -1781,20 +1781,29 @@ pub fn encode_terrain_tileset(
         .map_err(|e| JsValue::from(crate::errors::SpatialError::tile_error(e)))
 }
 
-/// Check if GeoTIFF support is available (always true).
+/// Check if GeoTIFF support is available.
 #[wasm_bindgen(js_name = "supportsGeotiff")]
 pub fn supports_geotiff() -> bool {
-    true
+    cfg!(feature = "geotiff")
 }
 
 /// Get GeoTIFF support status as a human-readable string.
 #[wasm_bindgen(js_name = "geotiffStatus")]
 pub fn geotiff_status() -> String {
-    String::from(
-        "GeoTIFF support: AVAILABLE. Hand-written TIFF parser + DEFLATE decompression. \
+    #[cfg(feature = "geotiff")]
+    {
+        String::from(
+            "GeoTIFF support: AVAILABLE. Hand-written TIFF parser + DEFLATE decompression. \
          Supports Float32/Uint16/Uint8 elevation grids, strip and tile layouts, \
          GeoKey metadata. Outputs Cesium quantized-mesh terrain tiles.",
-    )
+        )
+    }
+    #[cfg(not(feature = "geotiff"))]
+    {
+        String::from(
+            "GeoTIFF support: DISABLED. Build with --features geotiff to enable terrain parsing.",
+        )
+    }
 }
 
 // ===========================================================================

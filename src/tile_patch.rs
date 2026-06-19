@@ -62,6 +62,10 @@ pub fn apply_patch(
         tiles[idx] = data.clone();
     }
 
+    if let Some(json) = &patch.tileset_json {
+        validate_tileset_json_uris(json, &tile_uris)?;
+    }
+
     let tileset_json = patch
         .tileset_json
         .clone()
@@ -73,6 +77,45 @@ pub fn apply_patch(
         tile_bounds,
         tile_uris,
     })
+}
+
+/// Collect leaf `content.uri` values from a tileset.json document.
+fn leaf_uris_from_tileset_json(json: &str) -> Result<Vec<String>, SpatialErrorDetail> {
+    let val: serde_json::Value = serde_json::from_str(json)
+        .map_err(|e| SpatialError::TileError.with_detail(format!("invalid tileset JSON: {e}")))?;
+    let root = val
+        .get("root")
+        .ok_or_else(|| SpatialError::TileError.with_detail("tileset JSON missing root node"))?;
+    let mut uris = Vec::new();
+    collect_content_uris(root, &mut uris);
+    uris.sort();
+    Ok(uris)
+}
+
+fn collect_content_uris(node: &serde_json::Value, uris: &mut Vec<String>) {
+    if let Some(content) = node.get("content") {
+        if let Some(uri) = content.get("uri").and_then(|u| u.as_str()) {
+            uris.push(uri.to_string());
+        }
+    }
+    if let Some(children) = node.get("children").and_then(|c| c.as_array()) {
+        for child in children {
+            collect_content_uris(child, uris);
+        }
+    }
+}
+
+/// Ensure a replacement tileset.json references the same leaf URIs as the tile blobs.
+fn validate_tileset_json_uris(json: &str, tile_uris: &[String]) -> Result<(), SpatialErrorDetail> {
+    let json_uris = leaf_uris_from_tileset_json(json)?;
+    let mut expected: Vec<String> = tile_uris.to_vec();
+    expected.sort();
+    if json_uris != expected {
+        return Err(SpatialError::TileError.with_detail(format!(
+            "tileset JSON URIs {json_uris:?} do not match tile URIs {expected:?}"
+        )));
+    }
+    Ok(())
 }
 
 // ===========================================================================
@@ -175,5 +218,21 @@ mod tests {
         let mut patch = TilesetPatch::new();
         patch.replace_tile("missing.pnts", vec![1, 2, 3]);
         assert!(apply_patch(&base, &patch).is_err());
+    }
+
+    #[test]
+    fn test_patch_tileset_json_uri_mismatch_errors() {
+        let base = sample_tileset();
+        let mut patch = TilesetPatch::new();
+        patch.set_tileset_json(r#"{"root":{"content":{"uri":"wrong.pnts"}}}"#.to_string());
+        assert!(apply_patch(&base, &patch).is_err());
+    }
+
+    #[test]
+    fn test_patch_tileset_json_uri_match_ok() {
+        let base = sample_tileset();
+        let mut patch = TilesetPatch::new();
+        patch.set_tileset_json(base.tileset_json().to_string());
+        assert!(apply_patch(&base, &patch).is_ok());
     }
 }

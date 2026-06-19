@@ -37,12 +37,22 @@ fn test_single_tile_patch_preserves_other_uris() {
 }
 
 #[test]
-fn test_patch_tileset_json() {
+fn test_patch_tileset_json_rejects_uri_mismatch() {
     let base = sample_tileset();
     let mut patch = TilesetPatch::new();
     patch.set_tileset_json(r#"{"asset":{"version":"1.0"}}"#);
 
+    let err = apply_patch(&base, &patch).unwrap_err();
+    assert_eq!(err.code(), "TILE_ERROR");
+}
+
+#[test]
+fn test_patch_tileset_json_with_matching_uris() {
+    let base = sample_tileset();
+    let mut patch = TilesetPatch::new();
+    patch.set_tileset_json(base.tileset_json().to_string());
+
     let patched = apply_patch(&base, &patch).unwrap();
-    assert_eq!(patched.tileset_json(), r#"{"asset":{"version":"1.0"}}"#);
+    assert_eq!(patched.tileset_json(), base.tileset_json());
     assert_eq!(patched.tile_count(), base.tile_count());
 }

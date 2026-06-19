@@ -1514,12 +1514,26 @@ fn build_octree_for_tileset(
     max_pts: u32,
     max_d: u32,
 ) -> (Octree, Vec<f32>) {
+    let mut noop = || false;
+    build_octree_for_tileset_abort(positions, colors, max_pts, max_d, &mut noop)
+        .expect("octree build without abort cannot fail")
+}
+
+fn build_octree_for_tileset_abort(
+    positions: &[f32],
+    colors: &mut Option<Vec<u8>>,
+    max_pts: u32,
+    max_d: u32,
+    should_abort: &mut dyn FnMut() -> bool,
+) -> Result<(Octree, Vec<f32>), crate::errors::SpatialErrorDetail> {
     let mut buf = positions.to_vec();
     let octree = match colors {
-        Some(c) if c.len() == buf.len() => Octree::build_with_colors(&mut buf, c, max_pts, max_d),
-        _ => Octree::build(&mut buf, max_pts, max_d),
+        Some(c) if c.len() == buf.len() => {
+            Octree::build_with_colors_abort(&mut buf, c, max_pts, max_d, should_abort)?
+        }
+        _ => Octree::build_with_abort(&mut buf, max_pts, max_d, should_abort)?,
     };
-    (octree, buf)
+    Ok((octree, buf))
 }
 
 /// WASM export: generate a tileset from octree and point data.
@@ -1585,8 +1599,20 @@ pub fn generate_tileset_with_abort_js(
     let max_pts = max_points_per_node.unwrap_or(DEFAULT_MAX_POINTS_PER_NODE);
     let max_d = max_depth.unwrap_or(crate::octree::DEFAULT_MAX_DEPTH);
     let mut color_buf = colors;
-    let (octree, buf) = build_octree_for_tileset(positions, &mut color_buf, max_pts, max_d);
     let this = wasm_bindgen::JsValue::NULL;
+    let mut check_abort = || {
+        should_abort
+            .call0(&this)
+            .map(|v| v.is_truthy())
+            .unwrap_or(false)
+    };
+    let (octree, buf) = build_octree_for_tileset_abort(
+        positions,
+        &mut color_buf,
+        max_pts,
+        max_d,
+        &mut check_abort,
+    )?;
 
     let result = generate_tileset_with_spacing_abort(
         &octree,
@@ -1594,12 +1620,7 @@ pub fn generate_tileset_with_abort_js(
         color_buf.as_deref(),
         None,
         None,
-        || {
-            should_abort
-                .call0(&this)
-                .map(|v| v.is_truthy())
-                .unwrap_or(false)
-        },
+        &mut check_abort,
     )
     .map_err(JsValue::from)?;
 
