@@ -51,6 +51,34 @@ export function readTilesetResult(tileset) {
   };
 }
 
+/** Rewrite terrain_*.cmpt (or other) URIs in tileset JSON to blob URLs. */
+export function bindTerrainTilesetUrls(tilesetResult) {
+  const { tileCount, tilesetJson } = readTilesetResult(tilesetResult);
+  let json = tilesetJson;
+  for (let i = 0; i < tileCount; i++) {
+    const uri = tilesetResult.tileUri(i);
+    const tileData = tilesetResult.tile(i);
+    const blob = new Blob([tileData], { type: 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    json = json.replaceAll(`"${uri}"`, `"${url}"`);
+  }
+  return json;
+}
+
+export function centerSquarePolygon(bounds, fraction = 0.5) {
+  const [west, south, east, north] = bounds;
+  const halfW = ((east - west) * fraction) / 2;
+  const halfH = ((north - south) * fraction) / 2;
+  const cx = (west + east) / 2;
+  const cy = (south + north) / 2;
+  return [
+    cx - halfW, cy - halfH,
+    cx + halfW, cy - halfH,
+    cx + halfW, cy + halfH,
+    cx - halfW, cy + halfH,
+  ];
+}
+
 export function memoryUsedBytes(mem) {
   return mem.used;
 }

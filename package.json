@@ -3,7 +3,7 @@
   "private": true,
   "description": "Local development scripts (not published to npm)",
   "scripts": {
-    "build:pkg": "wasm-pack build --target web --release --out-dir pkg",
+    "build:pkg": "wasm-pack build --target web --release --out-dir pkg -- --features point-cloud,terrain-edit",
     "build:site": "bash scripts/build-demo-site.sh",
     "demo": "npm run build:site && npx --yes http-server _site -p 8080 -c-1",
     "demo:dev": "npm run build:pkg && npx --yes http-server . -p 8080 -c-1",
