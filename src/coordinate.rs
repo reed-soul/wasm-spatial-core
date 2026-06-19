@@ -453,7 +453,8 @@ pub fn geohash_encode(lng: f64, lat: f64, precision: u8) -> String {
             }
             bit_count += 1;
         }
-        hash.push(GEOHASH_BASE32[bits as usize] as char);
+        let ch = GEOHASH_BASE32.get(bits as usize).copied().unwrap_or(b'?');
+        hash.push(ch as char);
         bits = 0;
     }
 

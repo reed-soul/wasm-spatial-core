@@ -165,7 +165,10 @@ impl GltfBuilder {
         indices: &js_sys::Uint32Array,
         normals: &js_sys::Float32Array,
         material_index: i32,
-    ) {
+    ) -> Result<(), JsValue> {
+        if positions.length() % 3 != 0 {
+            return Err(js_sys::Error::new("positions length must be a multiple of 3").into());
+        }
         let mut pos_buf = vec![0.0f32; positions.length() as usize];
         positions.copy_to(&mut pos_buf);
 
@@ -190,6 +193,7 @@ impl GltfBuilder {
             },
             mode: 4, // TRIANGLES
         });
+        Ok(())
     }
 
     /// Add a material with base color (RGBA 0–1 range).
@@ -243,7 +247,10 @@ pub fn point_cloud_to_glb(
     positions: &js_sys::Float32Array,
     colors: Option<Vec<u8>>,
     normals: Option<js_sys::Float32Array>,
-) -> js_sys::Uint8Array {
+) -> Result<js_sys::Uint8Array, JsValue> {
+    if positions.length() % 3 != 0 {
+        return Err(js_sys::Error::new("positions length must be a multiple of 3").into());
+    }
     let mut pos_buf = vec![0.0f32; positions.length() as usize];
     positions.copy_to(&mut pos_buf);
 
@@ -273,7 +280,7 @@ pub fn point_cloud_to_glb(
     let bytes = build_glb(&[mesh], &[]);
     let arr = js_sys::Uint8Array::new_with_length(bytes.len() as u32);
     arr.copy_from(&bytes);
-    arr
+    Ok(arr)
 }
 
 /// Convert a terrain heightmap directly to a GLB mesh (TRIANGLES primitive mode).
@@ -333,7 +340,10 @@ pub fn mesh_to_glb(
     vertices: &js_sys::Float32Array,
     indices: &js_sys::Uint32Array,
     normals: Option<js_sys::Float32Array>,
-) -> js_sys::Uint8Array {
+) -> Result<js_sys::Uint8Array, JsValue> {
+    if vertices.length() % 3 != 0 {
+        return Err(js_sys::Error::new("vertices length must be a multiple of 3").into());
+    }
     let mut v_buf = vec![0.0f32; vertices.length() as usize];
     vertices.copy_to(&mut v_buf);
 
@@ -362,7 +372,7 @@ pub fn mesh_to_glb(
     let bytes = build_glb(&[mesh], &[]);
     let arr = js_sys::Uint8Array::new_with_length(bytes.len() as u32);
     arr.copy_from(&bytes);
-    arr
+    Ok(arr)
 }
 
 // ===========================================================================
@@ -699,12 +709,15 @@ fn terrain_to_mesh(
 // ===========================================================================
 
 fn cast_slice_f32(slice: &[f32]) -> &[u8] {
-    // SAFETY: f32 is Copy with no padding; byte repr is well-defined.
+    // SAFETY: f32 is Copy, has no padding, and a well-defined byte representation.
+    // All Rust-supported targets have 4-byte f32 with no padding (IEEE 754).
+    debug_assert_eq!(std::mem::size_of::<f32>(), 4);
     unsafe { std::slice::from_raw_parts(slice.as_ptr() as *const u8, std::mem::size_of_val(slice)) }
 }
 
 fn cast_slice_u32(slice: &[u32]) -> &[u8] {
-    // SAFETY: u32 is Copy with no padding; byte repr is well-defined.
+    // SAFETY: u32 is Copy, has no padding, and a well-defined byte representation.
+    debug_assert_eq!(std::mem::size_of::<u32>(), 4);
     unsafe { std::slice::from_raw_parts(slice.as_ptr() as *const u8, std::mem::size_of_val(slice)) }
 }
 
