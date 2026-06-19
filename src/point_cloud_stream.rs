@@ -12,7 +12,9 @@
 use wasm_bindgen::prelude::*;
 
 use crate::errors::{SpatialError, SpatialErrorDetail};
-use crate::point_cloud::{read_f64_le, read_i32_le, read_u16_le, read_u32_le, LasPointCloud};
+use crate::point_cloud::{
+    max_las_points_reserve, read_f64_le, read_i32_le, read_u16_le, read_u32_le, LasPointCloud,
+};
 use crate::DEFAULT_MAX_INPUT_SIZE;
 
 // ===========================================================================
@@ -163,6 +165,14 @@ impl PointCloudStreamer {
             self.parse_header(header_bytes)?;
         }
 
+        let limit = max_las_points_reserve();
+        if self.num_points as usize > limit {
+            return Err(SpatialError::point_cloud_error(format!(
+                "point count {} exceeds limit of {}",
+                self.num_points, limit
+            )));
+        }
+
         if bytes.len() > DEFAULT_MAX_INPUT_SIZE {
             return Err(SpatialError::point_cloud_error(format!(
                 "Input too large: {} bytes (max {})",
@@ -225,6 +235,14 @@ impl PointCloudStreamer {
         let actual_count = cnt.min((self.num_points as usize).saturating_sub(si));
         if actual_count == 0 {
             return Err(SpatialError::point_cloud_error("count is 0"));
+        }
+
+        let limit = max_las_points_reserve();
+        if actual_count > limit {
+            return Err(SpatialError::point_cloud_error(format!(
+                "region count {} exceeds limit of {}",
+                actual_count, limit
+            )));
         }
 
         parse_las_region_core(

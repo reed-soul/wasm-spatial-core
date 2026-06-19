@@ -19,6 +19,8 @@ mod coordinate;
 mod errors;
 mod geojson_parser;
 mod geojson_streaming;
+
+#[cfg(feature = "geotiff")]
 mod geotiff;
 mod gltf_writer;
 
@@ -205,11 +207,32 @@ pub use point_cloud_stream::{laz_status, supports_laz, PointCloudStreamer};
 
 pub use ifc_reader::{parse_ifc_geometry_core, IfcGeometryResult, IfcMesh};
 
+#[cfg(feature = "geotiff")]
 pub use geotiff::{
     apply_color_ramp_core, contour_lines_core, encode_quantized_mesh_core,
     encode_terrain_tileset_core, hillshade_core, parse_geotiff_core, ColorRamp, GeotiffInfo,
     QuantizedMeshResult, TerrainTilesetResult,
 };
+
+#[cfg(not(feature = "geotiff"))]
+mod geotiff_disabled {
+    use wasm_bindgen::prelude::*;
+
+    #[wasm_bindgen(js_name = "supportsGeotiff")]
+    pub fn supports_geotiff() -> bool {
+        false
+    }
+
+    #[wasm_bindgen(js_name = "geotiffStatus")]
+    pub fn geotiff_status() -> String {
+        String::from(
+            "GeoTIFF support: DISABLED. Build with --features geotiff to enable terrain parsing.",
+        )
+    }
+}
+
+#[cfg(not(feature = "geotiff"))]
+pub use geotiff_disabled::{geotiff_status, supports_geotiff};
 
 pub use obj::parse_obj_vertices_core;
 pub use ply::{parse_ply_core, PlyResult};
