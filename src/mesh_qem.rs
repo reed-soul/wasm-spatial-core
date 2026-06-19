@@ -165,6 +165,15 @@ pub fn simplify_mesh_qem_with_options(
         if deleted[a as usize] || deleted[b as usize] {
             continue;
         }
+        if is_uv_seam_collapse(
+            candidate.edge,
+            &positions,
+            texcoords.as_deref(),
+            &seam_edges,
+            options.preserve_uv_seams,
+        ) {
+            continue;
+        }
 
         max_error = max_error.max(candidate.cost.sqrt());
 
@@ -270,14 +279,27 @@ pub(crate) fn detect_uv_seam_edges(indices: &[u32], texcoords: &[[f32; 2]]) -> H
 
 /// Forbid collapses between geometrically coincident vertices with different UVs.
 fn find_coincident_uv_seam_edges(positions: &[[f64; 3]], texcoords: &[[f32; 2]]) -> HashSet<Edge> {
+    use std::collections::HashMap;
+
+    let inv = 1.0 / POS_SEAM_EPS;
+    let mut buckets: HashMap<(i64, i64, i64), Vec<u32>> = HashMap::new();
+    for (i, pos) in positions.iter().enumerate() {
+        let key = (
+            (pos[0] * inv).round() as i64,
+            (pos[1] * inv).round() as i64,
+            (pos[2] * inv).round() as i64,
+        );
+        buckets.entry(key).or_default().push(i as u32);
+    }
+
     let mut seams = HashSet::new();
-    let n = positions.len();
-    for i in 0..n {
-        for j in (i + 1)..n {
-            if positions_coincident(positions, i as u32, j as u32)
-                && !uv_equal(texcoords[i], texcoords[j])
-            {
-                seams.insert(Edge::new(i as u32, j as u32));
+    for members in buckets.values() {
+        for i in 0..members.len() {
+            for j in (i + 1)..members.len() {
+                let (vi, vj) = (members[i], members[j]);
+                if !uv_equal(texcoords[vi as usize], texcoords[vj as usize]) {
+                    seams.insert(Edge::new(vi, vj));
+                }
             }
         }
     }
@@ -333,18 +355,41 @@ fn build_collapse_heap(
 
     let mut heap = BinaryHeap::new();
     for edge in edges {
-        let Edge(a, b) = edge;
-        if deleted[a as usize] || deleted[b as usize] {
-            continue;
-        }
-        if is_uv_seam_collapse(edge, positions, texcoords, seam_edges, preserve_uv_seams) {
-            continue;
-        }
-        if let Some(candidate) = collapse_cost(positions, quadrics, edge) {
-            heap.push(candidate);
-        }
+        push_edge_cost_if_valid(
+            &mut heap,
+            edge,
+            positions,
+            texcoords,
+            quadrics,
+            deleted,
+            seam_edges,
+            preserve_uv_seams,
+        );
     }
     heap
+}
+
+#[allow(clippy::too_many_arguments)]
+fn push_edge_cost_if_valid(
+    heap: &mut BinaryHeap<CollapseCandidate>,
+    edge: Edge,
+    positions: &[[f64; 3]],
+    texcoords: Option<&[[f32; 2]]>,
+    quadrics: &[Quadric],
+    deleted: &[bool],
+    seam_edges: &HashSet<Edge>,
+    preserve_uv_seams: bool,
+) {
+    let Edge(a, b) = edge;
+    if deleted[a as usize] || deleted[b as usize] {
+        return;
+    }
+    if is_uv_seam_collapse(edge, positions, texcoords, seam_edges, preserve_uv_seams) {
+        return;
+    }
+    if let Some(candidate) = collapse_cost(positions, quadrics, edge) {
+        heap.push(candidate);
+    }
 }
 
 fn compact_texcoords(texcoords: &mut Vec<[f32; 2]>, deleted: &[bool]) {

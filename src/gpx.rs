@@ -6,7 +6,7 @@
 
 use wasm_bindgen::prelude::*;
 
-use crate::validate_input_size;
+use crate::errors::{SpatialError, SpatialErrorDetail};
 
 // ===========================================================================
 // Internal XML parsing helpers (hand-written, no quick-xml dependency)
@@ -28,8 +28,9 @@ fn extract_trackpoints(gpx_xml: &str) -> Vec<String> {
     let mut i = 0;
     while i + tag_len <= len {
         if in_trkpt {
-            // Look for close tag
-            if bytes[i..].starts_with(close_tag.as_bytes()) {
+            if bytes[i..].len() >= close_len
+                && bytes[i..i + close_len].eq_ignore_ascii_case(close_tag.as_bytes())
+            {
                 trkpts.push(gpx_xml[start..i + close_len].to_string());
                 in_trkpt = false;
                 i += close_len;
@@ -126,8 +127,6 @@ fn extract_attr(xml: &str, attr_name: &str) -> Option<String> {
 
 /// Parse GPX and extract all trackpoint coordinates as `[lng, lat, ...]`.
 pub(crate) fn parse_gpx_core(input: &str) -> Result<Vec<f64>, String> {
-    validate_input_size(input.len(), "parseGpx").map_err(|e| e.as_string().unwrap_or_default())?;
-
     let trkpts = extract_trackpoints(input);
     let mut out = Vec::with_capacity(trkpts.len() * 2);
 
@@ -143,8 +142,6 @@ pub(crate) fn parse_gpx_core(input: &str) -> Result<Vec<f64>, String> {
 
 /// Parse GPX and extract trackpoint coordinates with elevation as `[lng, lat, elev, ...]`.
 pub(crate) fn parse_gpx_with_elevation_core(input: &str) -> Result<Vec<f64>, String> {
-    validate_input_size(input.len(), "parseGpxWithElevation").map_err(|e| e.as_string().unwrap_or_default())?;
-
     let trkpts = extract_trackpoints(input);
     let mut out = Vec::with_capacity(trkpts.len() * 3);
 
@@ -163,8 +160,6 @@ pub(crate) fn parse_gpx_with_elevation_core(input: &str) -> Result<Vec<f64>, Str
 /// Compute track statistics from GPX data.
 /// Returns JSON with: total_distance, total_ascent, total_descent, point_count, time_range.
 pub(crate) fn gpx_track_stats_core(input: &str) -> Result<String, String> {
-    validate_input_size(input.len(), "gpxTrackStats").map_err(|e| e.as_string().unwrap_or_default())?;
-
     let trkpts = extract_trackpoints(input);
     let mut total_distance = 0.0_f64;
     let mut total_ascent = 0.0_f64;
@@ -246,15 +241,10 @@ fn haversine_gpx(lat1: f64, lng1: f64, lat2: f64, lng2: f64) -> f64 {
 // ===========================================================================
 
 /// Parse GPX and return all trackpoint coordinates as a flat `Float64Array`.
-///
-/// # Arguments
-/// - `input`: GPX XML string.
-///
-/// # Returns
-/// Flat `Float64Array` `[lng0, lat0, lng1, lat1, ...]`.
 #[wasm_bindgen(js_name = "parseGpx")]
-pub fn parse_gpx(input: &str) -> Result<js_sys::Float64Array, JsValue> {
-    let coords = parse_gpx_core(input).map_err(|e| JsValue::from_str(&e))?;
+pub fn parse_gpx(input: &str) -> Result<js_sys::Float64Array, SpatialErrorDetail> {
+    crate::validate_input_size_detail(input.len(), "parseGpx")?;
+    let coords = parse_gpx_core(input).map_err(SpatialError::parse_error)?;
     let arr = js_sys::Float64Array::new_with_length(coords.len() as u32);
     if !coords.is_empty() {
         arr.copy_from(&coords);
@@ -263,15 +253,10 @@ pub fn parse_gpx(input: &str) -> Result<js_sys::Float64Array, JsValue> {
 }
 
 /// Parse GPX and return trackpoint coordinates with elevation as a flat `Float64Array`.
-///
-/// # Arguments
-/// - `input`: GPX XML string.
-///
-/// # Returns
-/// Flat `Float64Array` `[lng0, lat0, elev0, lng1, lat1, elev1, ...]`.
 #[wasm_bindgen(js_name = "parseGpxWithElevation")]
-pub fn parse_gpx_with_elevation(input: &str) -> Result<js_sys::Float64Array, JsValue> {
-    let coords = parse_gpx_with_elevation_core(input).map_err(|e| JsValue::from_str(&e))?;
+pub fn parse_gpx_with_elevation(input: &str) -> Result<js_sys::Float64Array, SpatialErrorDetail> {
+    crate::validate_input_size_detail(input.len(), "parseGpxWithElevation")?;
+    let coords = parse_gpx_with_elevation_core(input).map_err(SpatialError::parse_error)?;
     let arr = js_sys::Float64Array::new_with_length(coords.len() as u32);
     if !coords.is_empty() {
         arr.copy_from(&coords);
@@ -280,15 +265,10 @@ pub fn parse_gpx_with_elevation(input: &str) -> Result<js_sys::Float64Array, JsV
 }
 
 /// Compute track statistics from GPX data.
-///
-/// # Arguments
-/// - `input`: GPX XML string.
-///
-/// # Returns
-/// JSON string with `totalDistance`, `totalAscent`, `totalDescent`, `pointCount`, `timeRange`.
 #[wasm_bindgen(js_name = "gpxTrackStats")]
-pub fn gpx_track_stats(input: &str) -> Result<String, JsValue> {
-    gpx_track_stats_core(input).map_err(|e| JsValue::from_str(&e))
+pub fn gpx_track_stats(input: &str) -> Result<String, SpatialErrorDetail> {
+    crate::validate_input_size_detail(input.len(), "gpxTrackStats")?;
+    gpx_track_stats_core(input).map_err(SpatialError::parse_error)
 }
 
 // ===========================================================================

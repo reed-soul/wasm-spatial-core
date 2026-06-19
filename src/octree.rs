@@ -984,6 +984,20 @@ pub fn build_octree_with_abort(
     Ok(WasmOctree { inner })
 }
 
+/// Cancellable octree build for parallel entry points.
+///
+/// Delegates to the sequential [`build_octree_with_abort`] because JS abort callbacks
+/// cannot be invoked safely from Rayon worker threads in WASM.
+#[wasm_bindgen(js_name = "buildOctreeParallelWithAbort")]
+pub fn build_octree_parallel_with_abort(
+    positions: &[f32],
+    max_points_per_node: Option<u32>,
+    max_depth: Option<u32>,
+    should_abort: &js_sys::Function,
+) -> Result<WasmOctree, JsValue> {
+    build_octree_with_abort(positions, max_points_per_node, max_depth, should_abort)
+}
+
 // ===========================================================================
 // Multi-thread WASM exports
 // ===========================================================================
