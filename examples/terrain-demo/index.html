@@ -218,6 +218,22 @@
       <div class="panel">
         <button class="btn secondary" id="loadDemoBtn">Load Demo Terrain</button>
       </div>
+
+      <div class="panel" id="deformPanel" style="display:none">
+        <div class="panel-title">⛏️ Terrain Edit (W3)</div>
+        <label style="font-size:0.8rem;color:var(--muted);margin-bottom:4px;display:block">Operation</label>
+        <select id="deformMode">
+          <option value="flatten">Flatten to elevation</option>
+          <option value="excavate">Excavate by depth</option>
+          <option value="fill">Fill (raise only)</option>
+        </select>
+        <label style="font-size:0.8rem;color:var(--muted);margin-top:8px;margin-bottom:4px;display:block">Target / depth (m)</label>
+        <input type="number" id="deformValue" value="0" step="1" style="width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:0.8rem" />
+        <label style="font-size:0.8rem;color:var(--muted);margin-top:8px;margin-bottom:4px;display:block">Boundary feather (cells)</label>
+        <input type="number" id="deformFeather" value="1" min="0" max="12" style="width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:0.8rem" />
+        <button class="btn" id="applyDeformBtn" style="margin-top:10px">Apply to center polygon</button>
+        <div class="stat" style="margin-top:8px"><span class="label">Last edit</span><span class="value" id="deformTiming">—</span></div>
+      </div>
     </div>
 
     <div class="canvas-wrap" id="canvasWrap">
@@ -267,11 +283,14 @@
       console.warn('[terrain-demo] WASM not available, using fallback:', e.message);
     }
 
+    import { centerSquarePolygon } from '../shared/pc-bindings.mjs';
+
     // ── State ──
     let scene, camera, renderer, controls;
     let terrainMesh = null;
     let currentElevations = null;
     let currentWidth = 0, currentHeight = 0;
+    let currentBounds = null;
 
     // ── Init Three.js ──
     function init() {
@@ -439,6 +458,8 @@
         currentWidth = w;
         currentHeight = h;
 
+        currentBounds = Array.from(info.bounds());
+
         let minH = Infinity, maxH = -Infinity;
         for (const e of currentElevations) {
           if (e < minH) minH = e;
@@ -461,6 +482,7 @@
 
         document.getElementById('infoPanel').style.display = '';
         document.getElementById('infoBar').style.display = '';
+        document.getElementById('deformPanel').style.display = '';
 
         const scale = parseFloat(document.getElementById('heightScale').value);
         const mode = document.getElementById('colorMode').value;
@@ -507,6 +529,7 @@
       currentElevations = Array.from(elevations);
       currentWidth = w;
       currentHeight = h;
+      currentBounds = [0.0, 0.0, 1.0, 1.0];
 
       let minH = Infinity, maxH = -Infinity;
       for (const e of currentElevations) {
@@ -524,12 +547,48 @@
 
       document.getElementById('infoPanel').style.display = '';
       document.getElementById('infoBar').style.display = '';
+      document.getElementById('deformPanel').style.display = '';
 
       const scale = parseFloat(document.getElementById('heightScale').value);
       const mode = document.getElementById('colorMode').value;
       buildTerrain(currentElevations, w, h, scale, mode);
 
       hideLoading();
+      hideError();
+    }
+
+    function applyTerrainDeform() {
+      if (!currentElevations || !currentBounds) return;
+      if (typeof flattenTerrain !== 'function') {
+        showError('Terrain edit unavailable — rebuild WASM with --features terrain-edit');
+        return;
+      }
+      const w = currentWidth;
+      const h = currentHeight;
+      const heights = new Float32Array(currentElevations);
+      const polygon = centerSquarePolygon(currentBounds, 0.5);
+      const mode = document.getElementById('deformMode').value;
+      const value = parseFloat(document.getElementById('deformValue').value);
+      const feather = parseInt(document.getElementById('deformFeather').value, 10) || 0;
+      const t0 = performance.now();
+      try {
+        if (mode === 'flatten') {
+          flattenTerrain(heights, w, h, currentBounds, polygon, value, feather);
+        } else if (mode === 'excavate') {
+          excavateTerrain(heights, w, h, currentBounds, polygon, 'depth', value, feather);
+        } else {
+          fillTerrain(heights, w, h, currentBounds, polygon, value, feather);
+        }
+      } catch (e) {
+        showError('Terrain edit failed: ' + e.message);
+        return;
+      }
+      const ms = (performance.now() - t0).toFixed(1);
+      document.getElementById('deformTiming').textContent = ms + ' ms';
+      currentElevations = Array.from(heights);
+      const scale = parseFloat(document.getElementById('heightScale').value);
+      const colorMode = document.getElementById('colorMode').value;
+      buildTerrain(currentElevations, w, h, scale, colorMode);
       hideError();
     }
 
@@ -584,6 +643,7 @@
     });
 
     document.getElementById('loadDemoBtn').addEventListener('click', loadDemoTerrain);
+    document.getElementById('applyDeformBtn').addEventListener('click', applyTerrainDeform);
     document.getElementById('dismissError').addEventListener('click', hideError);
 
     // ── Init ──
