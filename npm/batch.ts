@@ -69,9 +69,9 @@ function collectTileUris(tileset: TilesetResult): string[] {
 /**
  * Parse a point cloud buffer and generate a complete 3D Tiles tileset.
  *
- * Suitable for server-side batch jobs: read a LAS/LAZ/COPC/PLY/OBJ/E57 file
- * from disk, pass the bytes here, then write `tilesetJson` and tile binaries
- * to an output directory.
+ * Suitable for server-side batch jobs: read a point cloud file from disk
+ * (formats depend on WASM build features — default npm: LAS/PLY/OBJ/PCD),
+ * pass the bytes here, then write `tilesetJson` and tile binaries to an output directory.
  */
 export async function batchPointCloudToTileset(
   core: SpatialCoreApi,

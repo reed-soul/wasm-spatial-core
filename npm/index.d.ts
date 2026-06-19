@@ -26,7 +26,8 @@ export interface ConvertOptions {
     inPlace?: boolean;
 }
 /**
- * Callback for the streaming GeoJSON parser.
+ * Callback for the chunked GeoJSON parser (`parseGeoJsonStream`).
+ * Parses the full input JSON first, then delivers coordinate batches.
  *
  * @param coords   — Flat `Float64Array` with coordinate pairs for this chunk.
  * @param processed — Number of features processed so far.

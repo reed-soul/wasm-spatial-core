@@ -1,31 +1,15 @@
-//! Streaming GeoJSON parser.
+//! Chunked GeoJSON parser.
 //!
 //! For large GeoJSON files (50 MB+), the standard `parseGeoJsonCoords` API
-//! holds the entire parsed DOM in memory. This module provides a chunked
-//! alternative that processes features in batches, calling a JS progress
-//! callback between chunks so the UI can remain responsive and show a
-//! progress bar.
+//! holds the entire parsed DOM in memory. This module provides a **chunked**
+//! alternative: it still parses the full input JSON once, then emits
+//! coordinate batches via a JS callback so the UI can stay responsive and
+//! the JS side can discard coords incrementally.
 //!
-//! ## Architecture
+//! For one-feature-at-a-time iteration with lower peak memory, use
+//! [`parse_geojson_lazy`](crate::geojson_streaming::parse_geojson_lazy).
 //!
-//! ```text
-//! ┌──────────────────────────────────────────────────┐
-//! │              WASM Linear Memory                   │
-//! │                                                   │
-//! │  ┌─────────────┐     ┌──────────────────────┐    │
-//! │  │ JSON string  │────►│ Stream Deserializer   │    │
-//! │  │ (input)      │     │ (feature-by-feature)  │    │
-//! │  └─────────────┘     └──────┬───────────────┘    │
-//! │                             │                     │
-//! │            ┌────────────────▼───────────────┐     │
-//! │            │  Chunk buffer (Vec<f64>)        │     │
-//! │            │  [lng, lat, lng, lat, …]        │     │
-//! │            └────────────────┬───────────────┘     │
-//! │                             │ every N features    │
-//! │                             ▼                     │
-//! │                    JS callback(chunk, progress)    │
-//! └──────────────────────────────────────────────────┘
-//! ```
+//! True byte-stream parsing (constant input memory) is not implemented yet.
 
 use geojson::{Feature, Geometry, Value as GeoValue};
 use js_sys::Float64Array;
@@ -77,8 +61,10 @@ fn extract_coords(geometry: &Geometry, out: &mut Vec<f64>) {
 // Public WASM API — Streaming / chunked parser
 // ---------------------------------------------------------------------------
 
-/// Parse a GeoJSON FeatureCollection in chunks, calling `on_chunk` with
-/// each batch of coordinate data and progress information.
+/// Parse a GeoJSON FeatureCollection in **chunks** (batched coordinate output).
+///
+/// **Not a byte-stream parser:** the full `input` string is parsed into a DOM
+/// first; chunks only affect how coordinates are delivered to JS.
 ///
 /// ## Parameters
 ///
