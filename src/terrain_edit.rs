@@ -379,6 +379,29 @@ pub fn rasterize_terrain_mask(
     Ok(js_sys::Uint8Array::from(&mask[..]))
 }
 
+/// Apply a mask-scoped deformation with optional boundary feathering.
+fn deform_terrain_in_polygon(
+    heights: &mut [f32],
+    width: u32,
+    height: u32,
+    bounds: [f64; 4],
+    polygon: &[f64],
+    feather_cells: u32,
+    mut apply: impl FnMut(&mut [f32], &[u8]) -> Result<(), SpatialErrorDetail>,
+) -> Result<(), SpatialErrorDetail> {
+    let mask = rasterize_polygon_mask(width, height, &bounds, polygon)?;
+    if feather_cells > 0 {
+        let original = heights.to_vec();
+        apply(heights, &mask)?;
+        let weights = compute_feather_weights(&mask, width, height, feather_cells)?;
+        let blended = feather_blend(&original, heights, &weights)?;
+        heights.copy_from_slice(&blended);
+    } else {
+        apply(heights, &mask)?;
+    }
+    Ok(())
+}
+
 /// Excavate terrain inside a polygon.
 #[allow(clippy::too_many_arguments)]
 #[wasm_bindgen(js_name = "excavateTerrain")]
@@ -397,22 +420,18 @@ pub fn excavate_terrain(
             .with_detail("bounds must be [west, south, east, north]")
             .into());
     }
-    let mut grid = TerrainGrid::new(
-        heights.to_vec(),
+    let bounds_arr = [bounds[0], bounds[1], bounds[2], bounds[3]];
+    let cut = parse_cut_mode(mode, value)?;
+    deform_terrain_in_polygon(
+        heights,
         width,
         height,
-        [bounds[0], bounds[1], bounds[2], bounds[3]],
-    )?;
-    let original = grid.heights.clone();
-    let mask = rasterize_polygon_mask(width, height, &grid.bounds, polygon)?;
-    let cut = parse_cut_mode(mode, value)?;
-    excavate_inside(&mut grid.heights, &mask, cut)?;
-    if feather_cells > 0 {
-        let weights = compute_feather_weights(&mask, width, height, feather_cells)?;
-        grid.heights = feather_blend(&original, &grid.heights, &weights)?;
-    }
-    heights.copy_from_slice(&grid.heights);
-    Ok(())
+        bounds_arr,
+        polygon,
+        feather_cells,
+        |h, mask| excavate_inside(h, mask, cut),
+    )
+    .map_err(Into::into)
 }
 
 /// Flatten terrain inside a polygon to target elevation.
@@ -432,15 +451,17 @@ pub fn flatten_terrain(
             .with_detail("bounds must be [west, south, east, north]")
             .into());
     }
-    let mut grid = TerrainGrid::new(
-        heights.to_vec(),
+    let bounds_arr = [bounds[0], bounds[1], bounds[2], bounds[3]];
+    deform_terrain_in_polygon(
+        heights,
         width,
         height,
-        [bounds[0], bounds[1], bounds[2], bounds[3]],
-    )?;
-    flatten_polygon(&mut grid, polygon, target, feather_cells)?;
-    heights.copy_from_slice(&grid.heights);
-    Ok(())
+        bounds_arr,
+        polygon,
+        feather_cells,
+        |h, mask| flatten_inside(h, mask, target),
+    )
+    .map_err(Into::into)
 }
 
 /// Fill terrain inside a polygon (only raises cells below target).
@@ -460,21 +481,17 @@ pub fn fill_terrain(
             .with_detail("bounds must be [west, south, east, north]")
             .into());
     }
-    let mut grid = TerrainGrid::new(
-        heights.to_vec(),
+    let bounds_arr = [bounds[0], bounds[1], bounds[2], bounds[3]];
+    deform_terrain_in_polygon(
+        heights,
         width,
         height,
-        [bounds[0], bounds[1], bounds[2], bounds[3]],
-    )?;
-    let original = grid.heights.clone();
-    let mask = rasterize_polygon_mask(width, height, &grid.bounds, polygon)?;
-    fill_inside(&mut grid.heights, &mask, target)?;
-    if feather_cells > 0 {
-        let weights = compute_feather_weights(&mask, width, height, feather_cells)?;
-        grid.heights = feather_blend(&original, &grid.heights, &weights)?;
-    }
-    heights.copy_from_slice(&grid.heights);
-    Ok(())
+        bounds_arr,
+        polygon,
+        feather_cells,
+        |h, mask| fill_inside(h, mask, target),
+    )
+    .map_err(Into::into)
 }
 
 /// Re-encode deformed terrain as a quantized-mesh tileset (WASM).
