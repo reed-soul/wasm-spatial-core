@@ -136,7 +136,7 @@
         <div class="panel-title">📂 Upload</div>
         <div class="drop-zone" id="dropZone">
           <div class="icon">🗺️</div>
-          <p>Drop a LAS/LAZ file here</p>
+          <p>Drop a LAS file here (LAZ if built with laz-support)</p>
           <p style="font-size:0.65rem">WASM-accelerated parsing → Octree → 3D Tiles</p>
         </div>
         <input type="file" id="fileInput" accept=".las,.laz" style="display:none">
@@ -933,7 +933,7 @@
     (async function boot() {
       try {
         await Promise.all([loadWasm(), initCesium()]);
-        log('Ready — drop a LAS/LAZ file to start');
+        log('Ready — drop a LAS file to start (LAZ if laz-support build)');
       } catch (err) {
         log('Boot failed: ' + err.message, 'err');
       }
