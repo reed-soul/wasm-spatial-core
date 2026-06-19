@@ -1,12 +1,12 @@
 <!DOCTYPE html><html class="default" lang="en" data-base="./"><head><meta charset="utf-8"/><meta http-equiv="x-ua-compatible" content="IE=edge"/><title>wasm-spatial-core</title><meta name="description" content="Documentation for wasm-spatial-core"/><meta name="viewport" content="width=device-width, initial-scale=1"/><link rel="stylesheet" href="assets/style.css"/><link rel="stylesheet" href="assets/highlight.css"/><script defer src="assets/main.js"></script><script async src="assets/icons.js" id="tsd-icons-script"></script><script async src="assets/search.js" id="tsd-search-script"></script><script async src="assets/navigation.js" id="tsd-nav-script"></script></head><body><script>document.documentElement.dataset.theme = localStorage.getItem("tsd-theme") || "os";document.body.style.display="none";setTimeout(() => window.app?app.showPage():document.body.style.removeProperty("display"),500)</script><header class="tsd-page-toolbar"><div class="tsd-toolbar-contents container"><a href="index.html" class="title">wasm-spatial-core</a><div id="tsd-toolbar-links"></div><button id="tsd-search-trigger" class="tsd-widget" aria-label="Search"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><use href="assets/icons.svg#icon-search"></use></svg></button><dialog id="tsd-search" aria-label="Search"><input role="combobox" id="tsd-search-input" aria-controls="tsd-search-results" aria-autocomplete="list" aria-expanded="true" autocapitalize="off" autocomplete="off" placeholder="Search the docs" maxLength="100"/><ul role="listbox" id="tsd-search-results"></ul><div id="tsd-search-status" aria-live="polite" aria-atomic="true"><div>Preparing search index...</div></div></dialog><a href="#" class="tsd-widget menu" id="tsd-toolbar-menu-trigger" data-toggle="menu" aria-label="Menu"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><use href="assets/icons.svg#icon-menu"></use></svg></a></div></header><div class="container container-main"><div class="col-content"><div class="tsd-page-title"><h1>wasm-spatial-core</h1></div><div class="tsd-panel tsd-typography"><div align="center">
 <h1 id="wasm-spatial-core" class="tsd-anchor-link">wasm-spatial-core<a href="#wasm-spatial-core" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h1>
-<p><strong>Drag a LAS/LAZ file into your browser → Cesium 3D. No server needed.</strong></p>
+<p><strong>Drag a LAS file into your browser → Cesium 3D. No server needed.</strong></p>
 <p><a href="https://github.com/reed-soul/wasm-spatial-core/actions/workflows/ci.yml"><img src="https://github.com/reed-soul/wasm-spatial-core/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 <a href="https://www.npmjs.com/package/wasm-spatial-core"><img src="https://img.shields.io/npm/v/wasm-spatial-core" alt="npm version"></a>
 <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a></p>
 <p><img src="https://img.shields.io/badge/code-33K-blue" alt="Lines">
-<img src="https://img.shields.io/badge/tests-680-success" alt="Tests">
-<img src="https://img.shields.io/badge/formats-15-green" alt="Formats"></p>
+<img src="https://img.shields.io/badge/tests-661%20(npm%20build)-success" alt="Tests">
+<img src="https://img.shields.io/badge/formats-10%2B%20(npm)%20%7C%2015%2B%20(engine)-green" alt="Formats"></p>
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="media/demo.png">
   <img alt="wasm-spatial-core demo" src="media/demo.png" width="600">
@@ -16,13 +16,13 @@
 <a href="https://reed-soul.github.io/wasm-spatial-core/docs/">📖 API Docs</a> ·
 <a href="media/ROADMAP_V1.md">🗺️ Roadmap</a> · <a href="media/VISION.md">🔭 Vision</a></p>
 <p><strong>🧪 Try it now:</strong></p>
-<pre><code class="html"><span class="hl-0">&lt;</span><span class="hl-1">script</span><span class="hl-2"> </span><span class="hl-3">type</span><span class="hl-2">=</span><span class="hl-4">&quot;module&quot;</span><span class="hl-0">&gt;</span><br/><span class="hl-2">  </span><span class="hl-5">import</span><span class="hl-2"> </span><span class="hl-6">init</span><span class="hl-2">, { </span><span class="hl-6">parsePointCloudAuto</span><span class="hl-2">, </span><span class="hl-6">buildOctree</span><span class="hl-2">, </span><span class="hl-6">generateTileset</span><span class="hl-2"> }</span><br/><span class="hl-2">    </span><span class="hl-5">from</span><span class="hl-2"> </span><span class="hl-7">&#39;https://esm.run/wasm-spatial-core&#39;</span><span class="hl-2">;</span><br/><span class="hl-2">  </span><span class="hl-5">await</span><span class="hl-2"> </span><span class="hl-8">init</span><span class="hl-2">();</span><br/><span class="hl-2">  </span><span class="hl-9">// LAS/LAZ file → parse → octree → 3D Tiles — all in-browser</span><br/><span class="hl-0">&lt;/</span><span class="hl-1">script</span><span class="hl-0">&gt;</span>
+<pre><code class="html"><span class="hl-0">&lt;</span><span class="hl-1">script</span><span class="hl-2"> </span><span class="hl-3">type</span><span class="hl-2">=</span><span class="hl-4">&quot;module&quot;</span><span class="hl-0">&gt;</span><br/><span class="hl-2">  </span><span class="hl-5">import</span><span class="hl-2"> </span><span class="hl-6">init</span><span class="hl-2">, { </span><span class="hl-6">parsePointCloudAuto</span><span class="hl-2">, </span><span class="hl-6">buildOctree</span><span class="hl-2">, </span><span class="hl-6">generateTileset</span><span class="hl-2"> }</span><br/><span class="hl-2">    </span><span class="hl-5">from</span><span class="hl-2"> </span><span class="hl-7">&#39;https://esm.run/wasm-spatial-core&#39;</span><span class="hl-2">;</span><br/><span class="hl-2">  </span><span class="hl-5">await</span><span class="hl-2"> </span><span class="hl-8">init</span><span class="hl-2">();</span><br/><span class="hl-2">  </span><span class="hl-9">// LAS file → parse → octree → 3D Tiles — all in-browser (LAZ needs custom build)</span><br/><span class="hl-0">&lt;/</span><span class="hl-1">script</span><span class="hl-0">&gt;</span>
 </code><button type="button">Copy</button></pre>
 
 </div>
 <hr>
 <h2 id="✨-what-is-this" class="tsd-anchor-link">✨ What is this?<a href="#✨-what-is-this" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
-<p>🚀 <strong>LAS/LAZ/COPC/E57/PLY/OBJ → 3D Tiles</strong> in the browser
+<p>🚀 <strong>LAS/PLY/OBJ → 3D Tiles</strong> in the browser (LAZ/COPC/E57 via optional build features)
 🏔️ <strong>GeoTIFF → Quantized-Mesh Terrain</strong> in the browser
 🗜️ <strong>Draco point cloud compression</strong> (Google draco3d integration)
 ⚡ <strong>100M points in 8.5 seconds</strong> (release build, native)
@@ -33,7 +33,7 @@
 <pre><code class="bash"><span class="hl-8">npm</span><span class="hl-10"> </span><span class="hl-7">install</span><span class="hl-10"> </span><span class="hl-7">wasm-spatial-core</span>
 </code><button type="button">Copy</button></pre>
 
-<pre><code class="js"><span class="hl-5">import</span><span class="hl-10"> </span><span class="hl-6">init</span><span class="hl-10">, {</span><br/><span class="hl-10">  </span><span class="hl-6">parsePointCloudAuto</span><span class="hl-10">,</span><br/><span class="hl-10">  </span><span class="hl-6">buildOctree</span><span class="hl-10">,</span><br/><span class="hl-10">  </span><span class="hl-6">generateTileset</span><span class="hl-10">,</span><br/><span class="hl-10">} </span><span class="hl-5">from</span><span class="hl-10"> </span><span class="hl-7">&#39;wasm-spatial-core&#39;</span><span class="hl-10">;</span><br/><br/><span class="hl-5">await</span><span class="hl-10"> </span><span class="hl-8">init</span><span class="hl-10">();</span><br/><br/><span class="hl-9">// Parse any point cloud (LAS, LAZ, COPC, PLY, OBJ...)</span><br/><span class="hl-11">const</span><span class="hl-10"> </span><span class="hl-12">cloud</span><span class="hl-10"> = </span><span class="hl-8">parsePointCloudAuto</span><span class="hl-10">(</span><span class="hl-6">lasBytes</span><span class="hl-10">);</span><br/><br/><span class="hl-9">// Build octree → 3D Tiles</span><br/><span class="hl-11">const</span><span class="hl-10"> </span><span class="hl-12">tiles</span><span class="hl-10"> = </span><span class="hl-8">generateTileset</span><span class="hl-10">(</span><br/><span class="hl-10">  </span><span class="hl-6">cloud</span><span class="hl-10">.</span><span class="hl-8">positions</span><span class="hl-10">(),</span><br/><span class="hl-10">  </span><span class="hl-13">50000</span><span class="hl-10">,  </span><span class="hl-9">// max points per node</span><br/><span class="hl-10">  </span><span class="hl-13">10</span><span class="hl-10">      </span><span class="hl-9">// max depth</span><br/><span class="hl-10">);</span>
+<pre><code class="js"><span class="hl-5">import</span><span class="hl-10"> </span><span class="hl-6">init</span><span class="hl-10">, {</span><br/><span class="hl-10">  </span><span class="hl-6">parsePointCloudAuto</span><span class="hl-10">,</span><br/><span class="hl-10">  </span><span class="hl-6">buildOctree</span><span class="hl-10">,</span><br/><span class="hl-10">  </span><span class="hl-6">generateTileset</span><span class="hl-10">,</span><br/><span class="hl-10">} </span><span class="hl-5">from</span><span class="hl-10"> </span><span class="hl-7">&#39;wasm-spatial-core&#39;</span><span class="hl-10">;</span><br/><br/><span class="hl-5">await</span><span class="hl-10"> </span><span class="hl-8">init</span><span class="hl-10">();</span><br/><br/><span class="hl-9">// Parse LAS (default npm). LAZ/COPC need --features laz-support at build time.</span><br/><span class="hl-11">const</span><span class="hl-10"> </span><span class="hl-12">cloud</span><span class="hl-10"> = </span><span class="hl-8">parsePointCloudAuto</span><span class="hl-10">(</span><span class="hl-6">lasBytes</span><span class="hl-10">);</span><br/><br/><span class="hl-9">// Build octree → 3D Tiles</span><br/><span class="hl-11">const</span><span class="hl-10"> </span><span class="hl-12">tiles</span><span class="hl-10"> = </span><span class="hl-8">generateTileset</span><span class="hl-10">(</span><br/><span class="hl-10">  </span><span class="hl-6">cloud</span><span class="hl-10">.</span><span class="hl-8">positions</span><span class="hl-10">(),</span><br/><span class="hl-10">  </span><span class="hl-13">50000</span><span class="hl-10">,  </span><span class="hl-9">// max points per node</span><br/><span class="hl-10">  </span><span class="hl-13">10</span><span class="hl-10">      </span><span class="hl-9">// max depth</span><br/><span class="hl-10">);</span>
 </code><button type="button">Copy</button></pre>
 
 <h3 id="draco-compression-optional" class="tsd-anchor-link">Draco Compression (optional)<a href="#draco-compression-optional" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
@@ -43,10 +43,44 @@
 <pre><code class="js"><span class="hl-5">import</span><span class="hl-10"> { </span><span class="hl-6">loadSpatialCore</span><span class="hl-10">, </span><span class="hl-6">compressTilesetWithDraco</span><span class="hl-10"> } </span><span class="hl-5">from</span><span class="hl-10"> </span><span class="hl-7">&#39;wasm-spatial-core&#39;</span><span class="hl-10">;</span><br/><span class="hl-5">import</span><span class="hl-10"> { </span><span class="hl-6">createEncoderModule</span><span class="hl-10"> } </span><span class="hl-5">from</span><span class="hl-10"> </span><span class="hl-7">&#39;draco3d&#39;</span><span class="hl-10">;</span><br/><br/><span class="hl-11">const</span><span class="hl-10"> </span><span class="hl-12">wasm</span><span class="hl-10"> = </span><span class="hl-5">await</span><span class="hl-10"> </span><span class="hl-8">loadSpatialCore</span><span class="hl-10">();</span><br/><span class="hl-11">const</span><span class="hl-10"> </span><span class="hl-12">encoderModule</span><span class="hl-10"> = </span><span class="hl-5">await</span><span class="hl-10"> </span><span class="hl-8">createEncoderModule</span><span class="hl-10">({});</span><br/><span class="hl-11">const</span><span class="hl-10"> </span><span class="hl-12">tileset</span><span class="hl-10"> = </span><span class="hl-6">wasm</span><span class="hl-10">.</span><span class="hl-8">generateTileset</span><span class="hl-10">(</span><span class="hl-6">positions</span><span class="hl-10">, </span><span class="hl-13">50000</span><span class="hl-10">, </span><span class="hl-13">21</span><span class="hl-10">);</span><br/><br/><span class="hl-11">const</span><span class="hl-10"> </span><span class="hl-12">results</span><span class="hl-10"> = </span><span class="hl-8">compressTilesetWithDraco</span><span class="hl-10">(</span><span class="hl-6">tileset</span><span class="hl-10">, </span><span class="hl-6">encoderModule</span><span class="hl-10">, {</span><br/><span class="hl-10">  </span><span class="hl-6">quantizationBits:</span><span class="hl-10"> </span><span class="hl-13">11</span><span class="hl-10">,</span><br/><span class="hl-10">  </span><span class="hl-8">onProgress</span><span class="hl-6">:</span><span class="hl-10"> (</span><span class="hl-6">i</span><span class="hl-10">, </span><span class="hl-6">total</span><span class="hl-10">, </span><span class="hl-6">orig</span><span class="hl-10">, </span><span class="hl-6">comp</span><span class="hl-10">) </span><span class="hl-11">=&gt;</span><span class="hl-10"> {</span><br/><span class="hl-10">    </span><span class="hl-6">console</span><span class="hl-10">.</span><span class="hl-8">log</span><span class="hl-10">(</span><span class="hl-7">`Tile </span><span class="hl-11">${</span><span class="hl-6">i</span><span class="hl-2"> </span><span class="hl-10">+</span><span class="hl-2"> </span><span class="hl-13">1</span><span class="hl-11">}</span><span class="hl-7">/</span><span class="hl-11">${</span><span class="hl-6">total</span><span class="hl-11">}</span><span class="hl-7">: </span><span class="hl-11">${</span><span class="hl-2">(</span><span class="hl-6">comp</span><span class="hl-2"> </span><span class="hl-10">/</span><span class="hl-2"> </span><span class="hl-6">orig</span><span class="hl-2"> </span><span class="hl-10">*</span><span class="hl-2"> </span><span class="hl-13">100</span><span class="hl-2">).</span><span class="hl-8">toFixed</span><span class="hl-2">(</span><span class="hl-13">0</span><span class="hl-2">)</span><span class="hl-11">}</span><span class="hl-7">%`</span><span class="hl-10">);</span><br/><span class="hl-10">  },</span><br/><span class="hl-10">});</span>
 </code><button type="button">Copy</button></pre>
 
+<h3 id="whats-in-the-npm-package" class="tsd-anchor-link">What's in the npm package?<a href="#whats-in-the-npm-package" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<p><code>npm install wasm-spatial-core</code> ships a <strong>prebuilt WASM binary</strong> compiled with
+<code>point-cloud</code> + <code>geotiff</code>. That gives you:</p>
+<table>
+<thead>
+<tr>
+<th>Included in npm</th>
+<th>Not in npm (custom <code>wasm-pack</code> build)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LAS, PLY, OBJ, PCD parsing</td>
+<td>LAZ / COPC (<code>laz-support</code>)</td>
+</tr>
+<tr>
+<td>Octree + 3D Tiles (pnts)</td>
+<td>E57 (<code>e57-support</code>)</td>
+</tr>
+<tr>
+<td>GeoTIFF → quantized-mesh terrain</td>
+<td>Terrain deformation (<code>terrain-edit</code>)</td>
+</tr>
+<tr>
+<td>Coordinates, GeoJSON, MVT, spatial analysis</td>
+<td>Mesh QEM / clip (<code>mesh-edit</code>)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Format counts:</strong> <strong>10+</strong> read/write paths in the default npm build (LAS/PLY/OBJ/PCD, GeoJSON, MVT, WKT/WKB, GeoTIFF, GPX, TopoJSON, 3D Tiles/glTF output, …). <strong>15+</strong> when optional format features are enabled (LAZ/COPC, E57, GLB ingest, …).</p>
+<p>Runtime checks: <code>supportsLaz()</code>, <code>supportsGeotiff()</code>, <code>lazStatus()</code>.</p>
+<p>CI runs <strong><code>cargo test --all-features</code></strong> (~840 tests across the full matrix).
+The npm build runs <strong>661 tests</strong> for the shipped feature set — the badge above
+reflects the npm build, not <code>--all-features</code>.</p>
 <hr>
 <h2 id="🎯-core-pipelines" class="tsd-anchor-link">🎯 Core Pipelines<a href="#🎯-core-pipelines" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
 <h3 id="point-cloud-→-3d-tiles" class="tsd-anchor-link">Point Cloud → 3D Tiles<a href="#point-cloud-→-3d-tiles" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
-<pre><code><span class="hl-12">LAS</span><span class="hl-10"> / </span><span class="hl-12">LAZ</span><span class="hl-10"> / </span><span class="hl-12">COPC</span><span class="hl-10"> / </span><span class="hl-12">E57</span><span class="hl-10"> / </span><span class="hl-12">PLY</span><span class="hl-10"> / </span><span class="hl-12">OBJ</span><br/><span class="hl-10">        │</span><br/><span class="hl-10">        ▼</span><br/><span class="hl-10">  ┌──────────────┐</span><br/><span class="hl-10">  │ </span><span class="hl-12">WASM</span><span class="hl-10"> </span><span class="hl-6">Parser</span><span class="hl-10">   │  </span><span class="hl-6">Full</span><span class="hl-10"> </span><span class="hl-6">format</span><span class="hl-10"> </span><span class="hl-6">support</span><span class="hl-10">, </span><span class="hl-6">browser</span><span class="hl-10">-</span><span class="hl-6">side</span><br/><span class="hl-10">  └──────┬───────┘</span><br/><span class="hl-10">         ▼</span><br/><span class="hl-10">  ┌──────────────┐</span><br/><span class="hl-10">  │ </span><span class="hl-6">Octree</span><span class="hl-10"> </span><span class="hl-6">Build</span><span class="hl-10">  │  </span><span class="hl-13">8</span><span class="hl-10">-</span><span class="hl-6">way</span><span class="hl-10"> </span><span class="hl-6">spatial</span><span class="hl-10"> </span><span class="hl-6">partitioning</span><br/><span class="hl-10">  └──────┬───────┘</span><br/><span class="hl-10">         ▼</span><br/><span class="hl-10">  ┌──────────────┐</span><br/><span class="hl-10">  │ </span><span class="hl-6">pnts</span><span class="hl-10"> </span><span class="hl-6">Encoder</span><span class="hl-10">  │  3</span><span class="hl-12">D</span><span class="hl-10"> </span><span class="hl-6">Tiles</span><span class="hl-10"> </span><span class="hl-6">Point</span><span class="hl-10"> </span><span class="hl-6">Cloud</span><span class="hl-10"> </span><span class="hl-6">binary</span><br/><span class="hl-10">  └──────┬───────┘</span><br/><span class="hl-10">         ▼</span><br/><span class="hl-10">  ┌──────────────┐     ┌──────────────┐</span><br/><span class="hl-10">  │ </span><span class="hl-6">tileset</span><span class="hl-10">.</span><span class="hl-6">json</span><span class="hl-10">  │     │ </span><span class="hl-6">Draco</span><span class="hl-10"> </span><span class="hl-6">Compress</span><span class="hl-10"> │  </span><span class="hl-8">Optional</span><span class="hl-10"> (~</span><span class="hl-13">20</span><span class="hl-10">% </span><span class="hl-6">ratio</span><span class="hl-10">)</span><br/><span class="hl-10">  └──────┬───────┘     └──────┬───────┘</span><br/><span class="hl-10">         │                      │</span><br/><span class="hl-10">         ▼                      ▼</span><br/><span class="hl-10">  </span><span class="hl-6">Cesium</span><span class="hl-10"> / </span><span class="hl-6">Three</span><span class="hl-10">.</span><span class="hl-6">js</span><span class="hl-10"> — </span><span class="hl-6">interactive</span><span class="hl-10"> 3</span><span class="hl-12">D</span>
+<pre><code><span class="hl-12">LAS</span><span class="hl-10"> / </span><span class="hl-12">PLY</span><span class="hl-10"> / </span><span class="hl-8">OBJ</span><span class="hl-10">  (</span><span class="hl-6">npm</span><span class="hl-10"> </span><span class="hl-6">default</span><span class="hl-10">)</span><br/><span class="hl-12">LAZ</span><span class="hl-10"> / </span><span class="hl-12">COPC</span><span class="hl-10"> / </span><span class="hl-8">E57</span><span class="hl-10"> (</span><span class="hl-6">optional</span><span class="hl-10"> </span><span class="hl-6">build</span><span class="hl-10"> </span><span class="hl-6">features</span><span class="hl-10"> — </span><span class="hl-6">see</span><span class="hl-10"> </span><span class="hl-6">table</span><span class="hl-10"> </span><span class="hl-6">above</span><span class="hl-10">)</span><br/><span class="hl-10">        │</span><br/><span class="hl-10">        ▼</span><br/><span class="hl-10">  ┌──────────────┐</span><br/><span class="hl-10">  │ </span><span class="hl-12">WASM</span><span class="hl-10"> </span><span class="hl-6">Parser</span><span class="hl-10">   │  </span><span class="hl-6">Browser</span><span class="hl-10">-</span><span class="hl-6">side</span><span class="hl-10">; </span><span class="hl-6">format</span><span class="hl-10"> </span><span class="hl-6">set</span><span class="hl-10"> </span><span class="hl-6">depends</span><span class="hl-10"> </span><span class="hl-6">on</span><span class="hl-10"> </span><span class="hl-6">build</span><span class="hl-10"> </span><span class="hl-6">features</span><br/><span class="hl-10">  └──────┬───────┘</span><br/><span class="hl-10">         ▼</span><br/><span class="hl-10">  ┌──────────────┐</span><br/><span class="hl-10">  │ </span><span class="hl-6">Octree</span><span class="hl-10"> </span><span class="hl-6">Build</span><span class="hl-10">  │  </span><span class="hl-13">8</span><span class="hl-10">-</span><span class="hl-6">way</span><span class="hl-10"> </span><span class="hl-6">spatial</span><span class="hl-10"> </span><span class="hl-6">partitioning</span><br/><span class="hl-10">  └──────┬───────┘</span><br/><span class="hl-10">         ▼</span><br/><span class="hl-10">  ┌──────────────┐</span><br/><span class="hl-10">  │ </span><span class="hl-6">pnts</span><span class="hl-10"> </span><span class="hl-6">Encoder</span><span class="hl-10">  │  3</span><span class="hl-12">D</span><span class="hl-10"> </span><span class="hl-6">Tiles</span><span class="hl-10"> </span><span class="hl-6">Point</span><span class="hl-10"> </span><span class="hl-6">Cloud</span><span class="hl-10"> </span><span class="hl-6">binary</span><br/><span class="hl-10">  └──────┬───────┘</span><br/><span class="hl-10">         ▼</span><br/><span class="hl-10">  ┌──────────────┐     ┌──────────────┐</span><br/><span class="hl-10">  │ </span><span class="hl-6">tileset</span><span class="hl-10">.</span><span class="hl-6">json</span><span class="hl-10">  │     │ </span><span class="hl-6">Draco</span><span class="hl-10"> </span><span class="hl-6">Compress</span><span class="hl-10"> │  </span><span class="hl-8">Optional</span><span class="hl-10"> (~</span><span class="hl-13">20</span><span class="hl-10">% </span><span class="hl-6">ratio</span><span class="hl-10">)</span><br/><span class="hl-10">  └──────┬───────┘     └──────┬───────┘</span><br/><span class="hl-10">         │                      │</span><br/><span class="hl-10">         ▼                      ▼</span><br/><span class="hl-10">  </span><span class="hl-6">Cesium</span><span class="hl-10"> / </span><span class="hl-6">Three</span><span class="hl-10">.</span><span class="hl-6">js</span><span class="hl-10"> — </span><span class="hl-6">interactive</span><span class="hl-10"> 3</span><span class="hl-12">D</span>
 </code><button>Copy</button></pre>
 
 <h3 id="geotiff-→-terrain-tiles" class="tsd-anchor-link">GeoTIFF → Terrain Tiles<a href="#geotiff-→-terrain-tiles" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
@@ -307,7 +341,7 @@
 <td><a href="https://reed-soul.github.io/wasm-spatial-core/">https://reed-soul.github.io/wasm-spatial-core/</a></td>
 </tr>
 <tr>
-<td><strong>Point Cloud</strong> (LAS/LAZ/PLY/OBJ/E57)</td>
+<td><strong>Point Cloud</strong> (LAS/PLY/OBJ; LAZ in custom builds)</td>
 <td><a href="https://reed-soul.github.io/wasm-spatial-core/point-cloud/">https://reed-soul.github.io/wasm-spatial-core/point-cloud/</a></td>
 </tr>
 <tr>
@@ -336,7 +370,7 @@
 </code><button type="button">Copy</button></pre>
 
 <h3 id="geojson" class="tsd-anchor-link">GeoJSON<a href="#geojson" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h3>
-<pre><code class="typescript"><span class="hl-6">wasm</span><span class="hl-10">.</span><span class="hl-8">parseGeoJsonStream</span><span class="hl-10">(</span><span class="hl-6">hugeGeojson</span><span class="hl-10">, </span><span class="hl-13">65536</span><span class="hl-10">, (</span><span class="hl-6">chunk</span><span class="hl-10">, </span><span class="hl-6">n</span><span class="hl-10">, </span><span class="hl-6">total</span><span class="hl-10">) </span><span class="hl-11">=&gt;</span><span class="hl-10"> { </span><span class="hl-9">/* ... */</span><span class="hl-10"> });</span><br/><span class="hl-11">const</span><span class="hl-10"> </span><span class="hl-12">iter</span><span class="hl-10"> = </span><span class="hl-6">wasm</span><span class="hl-10">.</span><span class="hl-8">parseGeoJsonLazy</span><span class="hl-10">(</span><span class="hl-6">hugeGeojson</span><span class="hl-10">);      </span><span class="hl-9">// O(single feature) memory</span>
+<pre><code class="typescript"><span class="hl-9">// Chunked output: parses the full JSON first, then emits coordinate batches</span><br/><span class="hl-9">// (progress callbacks + lower peak coord memory — not byte-stream input).</span><br/><span class="hl-6">wasm</span><span class="hl-10">.</span><span class="hl-8">parseGeoJsonStream</span><span class="hl-10">(</span><span class="hl-6">hugeGeojson</span><span class="hl-10">, </span><span class="hl-13">500</span><span class="hl-10">, (</span><span class="hl-6">chunk</span><span class="hl-10">, </span><span class="hl-6">processed</span><span class="hl-10">, </span><span class="hl-6">total</span><span class="hl-10">) </span><span class="hl-11">=&gt;</span><span class="hl-10"> { </span><span class="hl-9">/* ... */</span><span class="hl-10"> });</span><br/><br/><span class="hl-9">// Lower memory per iteration: one feature at a time (input string still required)</span><br/><span class="hl-11">const</span><span class="hl-10"> </span><span class="hl-12">iter</span><span class="hl-10"> = </span><span class="hl-6">wasm</span><span class="hl-10">.</span><span class="hl-8">parseGeoJsonLazy</span><span class="hl-10">(</span><span class="hl-6">hugeGeojson</span><span class="hl-10">);</span>
 </code><button type="button">Copy</button></pre>
 
 <p><strong><a href="https://reed-soul.github.io/wasm-spatial-core/docs/">📖 Full API Docs</a></strong></p>
@@ -350,7 +384,8 @@
 <thead>
 <tr>
 <th>Feature</th>
-<th>Default</th>
+<th>In npm</th>
+<th>Default crate</th>
 <th>Description</th>
 </tr>
 </thead>
@@ -358,35 +393,60 @@
 <tr>
 <td><code>single-thread</code></td>
 <td>✅</td>
+<td>✅</td>
 <td>Zero-config, works everywhere</td>
 </tr>
 <tr>
-<td><code>multi-thread</code></td>
-<td>❌</td>
-<td>Web Workers + SharedArrayBuffer</td>
-</tr>
-<tr>
 <td><code>point-cloud</code></td>
+<td>✅</td>
 <td>❌</td>
-<td>LAS/LAZ/COPC/PLY/OBJ + octree + 3D Tiles</td>
-</tr>
-<tr>
-<td><code>laz-support</code></td>
-<td>❌</td>
-<td>LAZ/COPC decompression</td>
-</tr>
-<tr>
-<td><code>e57-support</code></td>
-<td>❌</td>
-<td>E57 format</td>
+<td>LAS/PLY/OBJ/PCD + octree + 3D Tiles</td>
 </tr>
 <tr>
 <td><code>geotiff</code></td>
+<td>✅</td>
 <td>❌</td>
 <td>GeoTIFF terrain + quantized-mesh</td>
 </tr>
 <tr>
+<td><code>multi-thread</code></td>
+<td>❌</td>
+<td>❌</td>
+<td>Web Workers + SharedArrayBuffer</td>
+</tr>
+<tr>
+<td><code>laz-support</code></td>
+<td>❌</td>
+<td>❌</td>
+<td>LAZ/COPC decompression (+ ~400 KB WASM)</td>
+</tr>
+<tr>
+<td><code>e57-support</code></td>
+<td>❌</td>
+<td>❌</td>
+<td>E57 format</td>
+</tr>
+<tr>
+<td><code>terrain-edit</code></td>
+<td>❌</td>
+<td>❌</td>
+<td>Heightfield flatten/deform (requires <code>geotiff</code>)</td>
+</tr>
+<tr>
+<td><code>mesh-ingest</code></td>
+<td>❌</td>
+<td>❌</td>
+<td>Spatial IR + GLB ingest (Wave 2)</td>
+</tr>
+<tr>
+<td><code>mesh-edit</code></td>
+<td>❌</td>
+<td>❌</td>
+<td>Mesh QEM / OBB split (requires <code>mesh-ingest</code>)</td>
+</tr>
+<tr>
 <td><code>draco-support</code></td>
+<td>❌</td>
 <td>❌</td>
 <td>Draco compression API (JS-side via draco3d)</td>
 </tr>
@@ -420,8 +480,8 @@
 </tr>
 </tbody>
 </table>
-<p><strong>V1 highlights (done):</strong> LAS/LAZ → octree → 3D Tiles · GeoTIFF terrain · Draco · multi-thread WASM · Node.js batch API</p>
-<p><strong>V2 next:</strong> spatial IR · terrain/mesh edit · WebGPU · incremental tiles — see <a href="media/issues">issue templates</a> (start at <strong>W2</strong>)</p>
+<p><strong>V1 highlights (done):</strong> LAS → octree → 3D Tiles (npm) · LAZ/COPC/E57 (optional builds) · GeoTIFF terrain · Draco · multi-thread WASM · Node.js batch API</p>
+<p><strong>V2 next:</strong> spatial IR · terrain/mesh edit (source available; not in default npm) · WebGPU · incremental tiles — see <a href="media/issues">issue templates</a> (start at <strong>W2</strong>)</p>
 <hr>
 <h2 id="🤝-contributing" class="tsd-anchor-link">🤝 Contributing<a href="#🤝-contributing" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>
 <p>See <a href="media/CONTRIBUTING.md"><strong>CONTRIBUTING.md</strong></a>.</p>
@@ -436,4 +496,4 @@
 <div align="center">
 <p><strong>Built with 🦀 Rust + 🕸️ WebAssembly</strong></p>
 <p><em>Native spatial computing in every browser.</em></p>
-</div></div></div><div class="col-sidebar"><div class="page-menu"><div class="tsd-navigation settings"><details class="tsd-accordion"><summary class="tsd-accordion-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="assets/icons.svg#icon-chevronDown"></use></svg><h3>Settings</h3></summary><div class="tsd-accordion-details"><div class="tsd-filter-visibility"><span class="settings-label">Member Visibility</span><ul id="tsd-filter-options"><li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-protected" name="protected"/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>Protected</span></label></li><li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-inherited" name="inherited" checked/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>Inherited</span></label></li><li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-external" name="external"/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>External</span></label></li></ul></div><div class="tsd-theme-toggle"><label class="settings-label" for="tsd-theme">Theme</label><select id="tsd-theme"><option value="os">OS</option><option value="light">Light</option><option value="dark">Dark</option></select></div></div></details></div><details open class="tsd-accordion tsd-page-navigation"><summary class="tsd-accordion-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="assets/icons.svg#icon-chevronDown"></use></svg><h3>On This Page</h3></summary><div class="tsd-accordion-details"><a href="#wasm-spatial-core"><span>wasm-<wbr/>spatial-<wbr/>core</span></a><ul><li><a href="#✨-what-is-this"><span>✨ <wbr/>What is this?</span></a></li><li><a href="#🚀-quick-start"><span>🚀 <wbr/>Quick <wbr/>Start</span></a></li><li><ul><li><a href="#draco-compression-optional"><span>Draco <wbr/>Compression (optional)</span></a></li></ul></li><li><a href="#🎯-core-pipelines"><span>🎯 <wbr/>Core <wbr/>Pipelines</span></a></li><li><ul><li><a href="#point-cloud-→-3d-tiles"><span>Point <wbr/>Cloud → 3<wbr/>D <wbr/>Tiles</span></a></li><li><a href="#geotiff-→-terrain-tiles"><span>Geo<wbr/>TIFF → <wbr/>Terrain <wbr/>Tiles</span></a></li></ul></li><li><a href="#⚡-performance"><span>⚡ <wbr/>Performance</span></a></li><li><ul><li><a href="#point-cloud-pipeline-las-→-octree-→-3d-tiles"><span>Point <wbr/>Cloud <wbr/>Pipeline (<wbr/>LAS → <wbr/>Octree → 3<wbr/>D <wbr/>Tiles)</span></a></li><li><a href="#draco-compression"><span>Draco <wbr/>Compression</span></a></li><li><a href="#coordinate-conversion-vs-pure-js"><span>Coordinate <wbr/>Conversion (vs <wbr/>Pure <wbr/>JS)</span></a></li></ul></li><li><a href="#📦-format-support"><span>📦 <wbr/>Format <wbr/>Support</span></a></li><li><ul><li><a href="#point-cloud"><span>Point <wbr/>Cloud</span></a></li><li><a href="#vector-geometry"><span>Vector &amp; <wbr/>Geometry</span></a></li><li><a href="#coordinate-systems"><span>Coordinate <wbr/>Systems</span></a></li><li><a href="#spatial-analysis"><span>Spatial <wbr/>Analysis</span></a></li></ul></li><li><a href="#📸-demos"><span>📸 <wbr/>Demos</span></a></li><li><a href="#📖-api-reference"><span>📖 <wbr/>API <wbr/>Reference</span></a></li><li><ul><li><a href="#point-cloud-→-3d-tiles-1"><span>Point <wbr/>Cloud → 3<wbr/>D <wbr/>Tiles</span></a></li><li><a href="#draco-compression-1"><span>Draco <wbr/>Compression</span></a></li><li><a href="#coordinate-conversion"><span>Coordinate <wbr/>Conversion</span></a></li><li><a href="#geojson"><span>Geo<wbr/>JSON</span></a></li></ul></li><li><a href="#🛠️-build-from-source"><span>🛠️ <wbr/>Build from <wbr/>Source</span></a></li><li><ul><li><a href="#feature-flags"><span>Feature <wbr/>Flags</span></a></li></ul></li><li><a href="#📋-roadmap"><span>📋 <wbr/>Roadmap</span></a></li><li><a href="#🤝-contributing"><span>🤝 <wbr/>Contributing</span></a></li><li><a href="#📄-license"><span>📄 <wbr/>License</span></a></li></ul></div></details></div><div class="site-menu"><nav class="tsd-navigation"><a href="modules.html">wasm-spatial-core</a><ul class="tsd-small-nested-navigation" id="tsd-nav-container"><li>Loading...</li></ul></nav></div></div></div><footer><p class="tsd-generator">Generated using <a href="https://typedoc.org/" target="_blank">TypeDoc</a></p></footer><div class="overlay"></div></body></html>
+</div></div></div><div class="col-sidebar"><div class="page-menu"><div class="tsd-navigation settings"><details class="tsd-accordion"><summary class="tsd-accordion-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="assets/icons.svg#icon-chevronDown"></use></svg><h3>Settings</h3></summary><div class="tsd-accordion-details"><div class="tsd-filter-visibility"><span class="settings-label">Member Visibility</span><ul id="tsd-filter-options"><li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-protected" name="protected"/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>Protected</span></label></li><li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-inherited" name="inherited" checked/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>Inherited</span></label></li><li class="tsd-filter-item"><label class="tsd-filter-input"><input type="checkbox" id="tsd-filter-external" name="external"/><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect class="tsd-checkbox-background" width="30" height="30" x="1" y="1" rx="6" fill="none"></rect><path class="tsd-checkbox-checkmark" d="M8.35422 16.8214L13.2143 21.75L24.6458 10.25" stroke="none" stroke-width="3.5" stroke-linejoin="round" fill="none"></path></svg><span>External</span></label></li></ul></div><div class="tsd-theme-toggle"><label class="settings-label" for="tsd-theme">Theme</label><select id="tsd-theme"><option value="os">OS</option><option value="light">Light</option><option value="dark">Dark</option></select></div></div></details></div><details open class="tsd-accordion tsd-page-navigation"><summary class="tsd-accordion-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="assets/icons.svg#icon-chevronDown"></use></svg><h3>On This Page</h3></summary><div class="tsd-accordion-details"><a href="#wasm-spatial-core"><span>wasm-<wbr/>spatial-<wbr/>core</span></a><ul><li><a href="#✨-what-is-this"><span>✨ <wbr/>What is this?</span></a></li><li><a href="#🚀-quick-start"><span>🚀 <wbr/>Quick <wbr/>Start</span></a></li><li><ul><li><a href="#draco-compression-optional"><span>Draco <wbr/>Compression (optional)</span></a></li><li><a href="#whats-in-the-npm-package"><span>What&#39;s in the npm package?</span></a></li></ul></li><li><a href="#🎯-core-pipelines"><span>🎯 <wbr/>Core <wbr/>Pipelines</span></a></li><li><ul><li><a href="#point-cloud-→-3d-tiles"><span>Point <wbr/>Cloud → 3<wbr/>D <wbr/>Tiles</span></a></li><li><a href="#geotiff-→-terrain-tiles"><span>Geo<wbr/>TIFF → <wbr/>Terrain <wbr/>Tiles</span></a></li></ul></li><li><a href="#⚡-performance"><span>⚡ <wbr/>Performance</span></a></li><li><ul><li><a href="#point-cloud-pipeline-las-→-octree-→-3d-tiles"><span>Point <wbr/>Cloud <wbr/>Pipeline (<wbr/>LAS → <wbr/>Octree → 3<wbr/>D <wbr/>Tiles)</span></a></li><li><a href="#draco-compression"><span>Draco <wbr/>Compression</span></a></li><li><a href="#coordinate-conversion-vs-pure-js"><span>Coordinate <wbr/>Conversion (vs <wbr/>Pure <wbr/>JS)</span></a></li></ul></li><li><a href="#📦-format-support"><span>📦 <wbr/>Format <wbr/>Support</span></a></li><li><ul><li><a href="#point-cloud"><span>Point <wbr/>Cloud</span></a></li><li><a href="#vector-geometry"><span>Vector &amp; <wbr/>Geometry</span></a></li><li><a href="#coordinate-systems"><span>Coordinate <wbr/>Systems</span></a></li><li><a href="#spatial-analysis"><span>Spatial <wbr/>Analysis</span></a></li></ul></li><li><a href="#📸-demos"><span>📸 <wbr/>Demos</span></a></li><li><a href="#📖-api-reference"><span>📖 <wbr/>API <wbr/>Reference</span></a></li><li><ul><li><a href="#point-cloud-→-3d-tiles-1"><span>Point <wbr/>Cloud → 3<wbr/>D <wbr/>Tiles</span></a></li><li><a href="#draco-compression-1"><span>Draco <wbr/>Compression</span></a></li><li><a href="#coordinate-conversion"><span>Coordinate <wbr/>Conversion</span></a></li><li><a href="#geojson"><span>Geo<wbr/>JSON</span></a></li></ul></li><li><a href="#🛠️-build-from-source"><span>🛠️ <wbr/>Build from <wbr/>Source</span></a></li><li><ul><li><a href="#feature-flags"><span>Feature <wbr/>Flags</span></a></li></ul></li><li><a href="#📋-roadmap"><span>📋 <wbr/>Roadmap</span></a></li><li><a href="#🤝-contributing"><span>🤝 <wbr/>Contributing</span></a></li><li><a href="#📄-license"><span>📄 <wbr/>License</span></a></li></ul></div></details></div><div class="site-menu"><nav class="tsd-navigation"><a href="modules.html">wasm-spatial-core</a><ul class="tsd-small-nested-navigation" id="tsd-nav-container"><li>Loading...</li></ul></nav></div></div></div><footer><p class="tsd-generator">Generated using <a href="https://typedoc.org/" target="_blank">TypeDoc</a></p></footer><div class="overlay"></div></body></html>

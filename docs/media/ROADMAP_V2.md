@@ -165,14 +165,15 @@
 
 ## Feature Flags (Planned)
 
-| Feature | Modules | Default |
-|---------|---------|---------|
-| `point-cloud` | LAS/LAZ, octree, pnts | off (npm build enables) |
-| `geotiff` | Terrain | off |
-| `mesh-ingest` | GLB read, Spatial IR | off |
-| `terrain-edit` | W3 deformation | off |
-| `webgpu` | W4 compute | off |
-| `mesh-edit` | W5 clip/QEM | off |
+| Feature | Modules | Default crate | npm package |
+|---------|---------|---------------|-------------|
+| `point-cloud` | LAS/PLY/OBJ, octree, pnts | off | ✅ |
+| `geotiff` | Terrain decode + quantized-mesh | off | ✅ |
+| `laz-support` | LAZ/COPC decompression | off | ❌ (custom build) |
+| `mesh-ingest` | GLB read, Spatial IR | off | ❌ |
+| `terrain-edit` | W3 deformation | off | ❌ |
+| `webgpu` | W4 compute | off | ❌ |
+| `mesh-edit` | W5 clip/QEM | off | ❌ |
 
 No `live-twin` flag — instance export stays under existing 3D Tiles / i3dm APIs.
 
