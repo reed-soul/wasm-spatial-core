@@ -333,6 +333,27 @@
       <button id="rebuildBtn">Rebuild & Load</button>
     </div>
 
+    <!-- Terrain deformation (GeoTIFF → quantized-mesh) -->
+    <div id="terrainDeformPanel" class="panel hidden">
+      <div class="panel-title">🏔️ Terrain Deform (W3)</div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:0.8rem;margin-bottom:8px">
+        <input type="checkbox" id="terrainDeformEnable" checked>
+        Flatten center region before tile encode
+      </label>
+      <label>Mode</label>
+      <select id="terrainDeformMode">
+        <option value="flatten">Flatten</option>
+        <option value="excavate">Excavate (depth)</option>
+        <option value="fill">Fill</option>
+      </select>
+      <label>Target / depth (m)</label>
+      <input type="number" id="terrainDeformValue" value="50" step="1">
+      <label>Feather cells</label>
+      <input type="number" id="terrainFeather" value="1" min="0" max="12">
+      <label>Max zoom</label>
+      <input type="number" id="terrainMaxZoom" value="4" min="0" max="8">
+    </div>
+
     <!-- Actions -->
     <div id="actionsPanel" class="panel hidden">
       <div class="panel-title">🔀 Actions</div>
@@ -360,7 +381,7 @@
 <link href="https://cesium.com/downloads/cesiumjs/releases/1.119/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
 
 <script type="module">
-import { copyPointCloud, readTilesetResult } from '../shared/pc-bindings.mjs';
+import { copyPointCloud, readTilesetResult, bindTerrainTilesetUrls, centerSquarePolygon } from '../shared/pc-bindings.mjs';
 
 let wasm = null;
 let viewer = null;
@@ -646,41 +667,75 @@ async function processGlbFile(file, bytes) {
 // =========================================================================
 
 async function processGeoTiffFile(file, bytes) {
-  setStatus('Parsing GeoTIFF...');
-  setProgress(10, 'Reading TIFF structure...');
-
-  if (!wasm.parseGeotiffRaster) {
-    alert('GeoTIFF processing not available in this WASM build.');
+  if (!wasm.parseGeotiff) {
+    alert('GeoTIFF support not available in this WASM build (enable terrain-edit feature).');
     return;
   }
 
-  const raster = wasm.parseGeotiffRaster(bytes);
-  if (!raster) {
+  setStatus('Parsing GeoTIFF...');
+  setProgress(10, 'Reading raster...');
+
+  const info = wasm.parseGeotiff(bytes);
+  if (!info) {
     alert('Failed to parse GeoTIFF.');
     return;
   }
 
-  setStatus('Generating terrain tiles...');
-  setProgress(40, 'Quantized-mesh encoding...');
+  const w = info.width;
+  const h = info.height;
+  const bounds = Array.from(info.bounds());
+  let heights = new Float32Array(info.elevation());
 
-  if (!wasm.generateQuantizedMeshTile) {
-    alert('Quantized-mesh generation not available. Processing GeoTIFF metadata only.');
-    setProgress(100, 'Metadata extracted');
-    updateFileInfo(file, 'terrain', {
-      format: 'GeoTIFF',
-      metadata: 'Parsed',
-      totalBytes: bytes.length,
-    });
+  document.getElementById('terrainDeformPanel').classList.remove('hidden');
+
+  const deformOn = document.getElementById('terrainDeformEnable').checked;
+  if (deformOn && typeof wasm.flattenTerrain === 'function') {
+    setProgress(30, 'Applying polygon mask edit...');
+    const polygon = centerSquarePolygon(bounds, 0.45);
+    const mode = document.getElementById('terrainDeformMode').value;
+    const value = parseFloat(document.getElementById('terrainDeformValue').value);
+    const feather = parseInt(document.getElementById('terrainFeather').value, 10) || 0;
+    const t0 = performance.now();
+    if (mode === 'flatten') {
+      wasm.flattenTerrain(heights, w, h, bounds, polygon, value, feather);
+    } else if (mode === 'excavate') {
+      wasm.excavateTerrain(heights, w, h, bounds, polygon, 'depth', value, feather);
+    } else {
+      wasm.fillTerrain(heights, w, h, bounds, polygon, value, feather);
+    }
+    console.log(`[terrain] deform ${mode}: ${(performance.now() - t0).toFixed(1)} ms`);
+  }
+
+  setStatus('Encoding quantized-mesh tileset...');
+  setProgress(55, 'Building terrain tiles...');
+
+  const maxZoom = parseInt(document.getElementById('terrainMaxZoom').value, 10) || 4;
+  if (!wasm.encodeDeformedTerrainTileset) {
+    alert('Terrain tileset encoding not available — rebuild WASM with terrain-edit feature.');
+    return;
+  }
+  const tilesetResult = wasm.encodeDeformedTerrainTileset(heights, w, h, bounds, maxZoom);
+
+  if (!tilesetResult) {
+    alert('Failed to encode terrain tileset.');
     return;
   }
 
-  setProgress(80, 'Loading into Cesium...');
-  setProgress(100, 'Terrain processing complete (visualization requires terrain provider setup)');
+  const { tileCount, totalBytes } = readTilesetResult(tilesetResult);
+  const tilesetJson = bindTerrainTilesetUrls(tilesetResult);
+
+  setProgress(85, 'Loading into Cesium...');
+  await loadTilesetFromJson(tilesetJson);
+
+  setProgress(100, 'Done!');
   updateFileInfo(file, 'terrain', {
-    format: 'GeoTIFF',
-    size: `${raster.width()}×${raster.height()}`,
-    totalBytes: bytes.length,
+    format: 'GeoTIFF → quantized-mesh',
+    size: `${w}×${h}`,
+    tiles: tileCount,
+    totalBytes,
+    deform: deformOn ? document.getElementById('terrainDeformMode').value : 'none',
   });
+  updateLodInfo(tileCount, totalBytes);
 }
 
 // =========================================================================
@@ -862,7 +917,7 @@ function setProgress(pct, text) {
 }
 
 function showPanels(show) {
-  const panels = ['uploadPanel', 'paramsPanel', 'actionsPanel'];
+  const panels = ['uploadPanel', 'paramsPanel', 'terrainDeformPanel', 'actionsPanel'];
   panels.forEach(id => {
     document.getElementById(id).classList.toggle('hidden', !show);
   });
