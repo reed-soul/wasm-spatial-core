@@ -1429,14 +1429,14 @@ export function buildColorRamp(colors: Uint8Array, num_steps: number): Uint8Arra
 /**
  * Build an octree from a flat `[x, y, z, ...]` position buffer.
  *
- * The input buffer is **not** modified (a copy is made internally).
+ * The input buffer is **reordered in-place** (zero-copy from JS `Float32Array`).
  * Points with NaN/Infinity coordinates are silently filtered.
  *
  * Performs a memory pre-check if `setMaxWasmMemory` has been called with
  * a non-zero limit. Returns an error if estimated memory exceeds the limit.
  *
  * # Arguments
- * * `positions` — `Float32Array` of `[x, y, z, ...]` triples.
+ * * `positions` — Mutable `Float32Array` of `[x, y, z, ...]` triples.
  * * `max_points_per_node` — Max points per leaf (default: 50 000).
  * * `max_depth` — Max tree depth (default: 21).
  */
@@ -3396,9 +3396,9 @@ export interface InitOutput {
     readonly bufferLineString: (a: number, b: number, c: number) => number;
     readonly bufferPoint: (a: number, b: number, c: number, d: number) => number;
     readonly buildColorRamp: (a: number, b: number, c: number) => void;
-    readonly buildOctree: (a: number, b: number, c: number, d: number, e: number) => void;
-    readonly buildOctreeParallelWithAbort: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
-    readonly buildOctreeWithAbort: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
+    readonly buildOctree: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
+    readonly buildOctreeParallelWithAbort: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
+    readonly buildOctreeWithAbort: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
     readonly buildTin: (a: number, b: number) => void;
     readonly centroid: (a: number) => number;
     readonly cesium3dtile_batchTableJson: (a: number, b: number) => void;
@@ -3464,9 +3464,9 @@ export interface InitOutput {
     readonly generateCesiumGeometry: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly generateIndexedGeometry: (a: number) => number;
     readonly generateInterleavedVertexBuffer: (a: number, b: number, c: number) => number;
-    readonly generateTileset: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
-    readonly generateTilesetWithAbort: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
-    readonly generateTilesetWithSpacing: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => void;
+    readonly generateTileset: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
+    readonly generateTilesetWithAbort: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => void;
+    readonly generateTilesetWithSpacing: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => void;
     readonly geoJsonFeatureCollection: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly geoJsonFromCoords: (a: number, b: number, c: number, d: number) => void;
     readonly geohashDecode: (a: number, b: number) => number;
@@ -3490,7 +3490,7 @@ export interface InitOutput {
     readonly getInputSizeLimit: () => number;
     readonly getMaxWasmMemory: () => number;
     readonly getSupportedCrs: (a: number) => void;
-    readonly getVisibleTiles: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => number;
+    readonly getVisibleTiles: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number) => number;
     readonly gltfbuilder_addMaterial: (a: number, b: number, c: number, d: number, e: number) => number;
     readonly gltfbuilder_addMesh: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly gltfbuilder_new: () => number;
@@ -3608,8 +3608,8 @@ export interface InitOutput {
     readonly polygonIntersects: (a: number, b: number) => number;
     readonly polygonUnion: (a: number, b: number) => number;
     readonly polylineLength: (a: number, b: number) => void;
-    readonly processChunked: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
-    readonly processChunkedWithAbort: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => number;
+    readonly processChunked: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => number;
+    readonly processChunkedWithAbort: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => number;
     readonly processingcontext_clear: (a: number) => void;
     readonly processingcontext_new: () => number;
     readonly processingcontext_reserve: (a: number, b: number, c: number) => void;
@@ -3700,6 +3700,7 @@ export interface InitOutput {
     readonly pointcloudstats_boundsMinX: (a: number) => number;
     readonly pointdata_x: (a: number) => number;
     readonly wasmquantbounds_minX: (a: number) => number;
+    readonly buildOctreeParallel: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly laspointcloud_pointCount: (a: number) => number;
     readonly pcdpointcloud_pointCount: (a: number) => number;
     readonly __wbg_laspointcloud_free: (a: number, b: number) => void;
@@ -3748,7 +3749,6 @@ export interface InitOutput {
     readonly supportsLaz: () => number;
     readonly supportsMultiThread: () => number;
     readonly threadCount: () => number;
-    readonly buildOctreeParallel: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly __wbg_pointcloudstreamer_free: (a: number, b: number) => void;
     readonly pcdpointcloud_colors: (a: number) => number;
     readonly laspointcloud_colors: (a: number) => number;
@@ -3762,9 +3762,9 @@ export interface InitOutput {
     readonly tinresult_positions: (a: number) => number;
     readonly ifcmesh_positions: (a: number) => number;
     readonly tinresult_indices: (a: number) => number;
-    readonly __wasm_bindgen_func_elem_3631: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_3635: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_1106: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_3633: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_3637: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_1108: (a: number, b: number, c: number) => void;
     readonly __wbindgen_export: (a: number, b: number) => number;
     readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_export3: (a: number) => void;
