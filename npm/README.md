@@ -5,6 +5,21 @@
 [![npm](https://img.shields.io/npm/v/wasm-spatial-core)](https://www.npmjs.com/package/wasm-spatial-core)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 
+## What you get from `npm install`
+
+The published package is a **prebuilt WASM binary** (`point-cloud` + `geotiff`):
+
+| Included | Requires custom build |
+|----------|----------------------|
+| LAS, PLY, OBJ, PCD | LAZ / COPC (`laz-support`) |
+| Octree + 3D Tiles (pnts) | E57 (`e57-support`) |
+| GeoTIFF → quantized-mesh | Terrain deformation (`terrain-edit`) |
+| Coordinates, GeoJSON, MVT | Mesh QEM / clip (`mesh-edit`) |
+
+Check at runtime: `supportsLaz()`, `supportsGeotiff()`, `lazStatus()`.
+
+Full matrix: [Feature flags in the repo README](../README.md#feature-flags).
+
 ## 🚀 Quick Start
 
 ```bash
@@ -26,14 +41,18 @@ const coords = core.parseGeoJsonCoords(geojsonStr);
 
 ## ☁️ Point Cloud → 3D Tiles
 
-The killer feature: **drag a LAS/LAZ file into the browser, get a Cesium-ready 3D Tiles tileset** — no server needed.
+**Drag a LAS file into the browser, get a Cesium-ready 3D Tiles tileset** — no server needed.
+
+> **LAZ / COPC:** not included in the default npm binary. Build with
+> `--features laz-support` or check `supportsLaz()` before calling
+> `parsePointCloudAuto` on compressed files.
 
 ```typescript
 import { loadSpatialCore } from "wasm-spatial-core";
 
 const core = await loadSpatialCore();
 
-// 1. Parse point cloud (LAS or LAZ)
+// 1. Parse point cloud (LAS — default npm build)
 const lasBuffer = await fetch("scan.las").then(r => r.arrayBuffer());
 const points = core.parseLasPoints(new Uint8Array(lasBuffer));
 
@@ -94,26 +113,26 @@ const visible = core.getVisibleTiles(
 |----------|-------------|
 | `parseGeoJsonCoords(input)` | Extract coordinates → Float64Array |
 | `countGeoJsonFeatures(input)` | Count features |
-| `parseGeoJsonStream(input, size, cb)` | Streaming parser |
-| `parseGeoJsonLazy(input)` | O(1 feature) memory iterator |
+| `parseGeoJsonStream(input, size, cb)` | Chunked parser (full JSON parse, batched coord output) |
+| `parseGeoJsonLazy(input)` | One-feature-at-a-time iterator (input string required) |
 | `geoJsonFromCoords(coords, type)` | Generate GeoJSON |
 | `filterGeoJsonByProperty(input, k, v)` | Filter features |
 | `filterGeoJsonByBBox(input, ...)` | Spatial filter |
 
-### Point Cloud (LAS/LAZ)
+### Point Cloud (LAS — default npm)
 
 | Function | Description |
 |----------|-------------|
 | `parseLasHeader(bytes)` | Parse LAS header |
 | `parseLasPoints(bytes)` | Parse all points |
 | `parseLasPointsWithProgress(bytes, cb)` | Parse with progress |
-| `parsePointCloudAuto(bytes)` | Auto-detect LAS/LAZ |
+| `parsePointCloudAuto(bytes)` | Auto-detect format (LAZ/COPC only with `laz-support` build) |
 | `decimateVoxelGrid(pos, col, size)` | Voxel decimation |
 | `decimateRandom(pos, col, count)` | Random sampling |
 | `colorizeByHeight(pos, minZ, maxZ)` | Height-based coloring |
 | `estimateNormals(pos, k)` | kNN normal estimation |
 
-### Point Cloud Streaming (COPC)
+### Point Cloud — LAZ / COPC (custom build only)
 
 | Function | Description |
 |----------|-------------|
@@ -122,8 +141,8 @@ const visible = core.getVisibleTiles(
 | `.readPoints(offset, count)` | Read points by offset |
 | `.readRegion(min, max)` | Spatial range read |
 | `computeRegionByteRange(...)` | Compute byte range |
-| `supportsLaz()` | Check LAZ support |
-| `lazStatus()` | Runtime LAZ info |
+| `supportsLaz()` | `false` in default npm; `true` with `laz-support` |
+| `lazStatus()` | Runtime LAZ capability string |
 
 ### Octree
 

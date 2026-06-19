@@ -98,11 +98,13 @@
     "LICENSE"
   ],
   "scripts": {
-    "build:wasm": "cd .. && wasm-pack build --target web --release --out-dir npm/pkg -- --features point-cloud,terrain-edit",
-    "build:wasm:node": "cd .. && wasm-pack build --target nodejs --release --out-dir npm/pkg-node -- --features point-cloud,terrain-edit",
-    "build:wasm:mt": "cd .. && RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals' cargo +nightly build -Z build-std=panic_abort,std --target wasm32-unknown-unknown --release --features multi-thread,point-cloud,terrain-edit && wasm-bindgen --target web --out-dir npm/pkg target/wasm32-unknown-unknown/release/wasm_spatial_core.wasm",
+    "build:wasm": "cd .. && wasm-pack build --target web --release --out-dir npm/pkg -- --features point-cloud,geotiff",
+    "build:wasm:node": "cd .. && wasm-pack build --target nodejs --release --out-dir npm/pkg-node -- --features point-cloud,geotiff",
+    "build:wasm:mt": "cd .. && RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals' cargo +nightly build -Z build-std=panic_abort,std --target wasm32-unknown-unknown --release --features multi-thread,point-cloud,geotiff && wasm-bindgen --target web --out-dir npm/pkg target/wasm32-unknown-unknown/release/wasm_spatial_core.wasm",
     "build:wasm:pc": "cd .. && wasm-pack build --target web --release --out-dir npm/pkg -- --features point-cloud",
-    "build:wasm:all": "cd .. && wasm-pack build --target web --release --out-dir npm/pkg -- --features point-cloud,terrain-edit",
+    "build:wasm:all": "cd .. && wasm-pack build --target web --release --out-dir npm/pkg -- --features point-cloud,geotiff",
+    "build:wasm:laz": "cd .. && wasm-pack build --target web --release --out-dir npm/pkg -- --features laz-support,geotiff",
+    "build:wasm:terrain-edit": "cd .. && wasm-pack build --target web --release --out-dir npm/pkg -- --features point-cloud,terrain-edit",
     "build": "npm run build:wasm:all && npm run build:wasm:node && npm run build:types",
     "build:types": "cd pkg && npx -p typescript tsc --declaration --emitDeclarationOnly --outDir . index.ts --ignoreConfig --target esnext --moduleResolution bundler --module esnext --lib esnext --skipLibCheck",
     "prepack": "npm run build:wasm:all",
