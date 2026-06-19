@@ -1,17 +1,21 @@
 /**
  * WebGPU smoke test — sync core logic with npm/webgpu.ts
  */
-import { TRANSFORM_POINTS_WGSL_V1 } from "./kernels.mjs";
+import { TRANSFORM_POINTS_WGSL_V1 } from '../shared/webgpu-kernels.mjs';
+import { gpuFlattenHeightfield, maxAbsDiff } from '../shared/terrain-gpu.mjs';
+
+export { gpuFlattenHeightfield, maxAbsDiff };
 
 export async function createGpuContext() {
   if (!navigator.gpu) return null;
-  const adapter = await navigator.gpu.requestAdapter({ powerPreference: "high-performance" });
+  const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
   if (!adapter) return null;
-  const device = await adapter.requestDevice({ label: "webgpu-smoke" });
+  const device = await adapter.requestDevice({ label: 'webgpu-smoke' });
   return {
     adapter,
     device,
-    hasSubgroups: adapter.features.has("subgroups"),
+    hasSubgroups: adapter.features.has('subgroups'),
+    _flattenPipeline: null,
   };
 }
 
@@ -21,8 +25,8 @@ export async function gpuTransformPoints(ctx, positions, matrix) {
     code: TRANSFORM_POINTS_WGSL_V1,
   });
   const pipeline = await ctx.device.createComputePipelineAsync({
-    layout: "auto",
-    compute: { module, entryPoint: "main" },
+    layout: 'auto',
+    compute: { module, entryPoint: 'main' },
   });
 
   const uniformData = new ArrayBuffer(256);
@@ -74,10 +78,15 @@ export async function gpuTransformPoints(ctx, positions, matrix) {
   return result;
 }
 
-export function maxAbsDiff(a, b) {
-  let m = 0;
-  for (let i = 0; i < a.length; i++) {
-    m = Math.max(m, Math.abs(a[i] - b[i]));
+export function makeHeightGrid(width, height) {
+  const heights = new Float32Array(width * height);
+  for (let row = 0; row < height; row++) {
+    for (let col = 0; col < width; col++) {
+      const i = row * width + col;
+      const nx = col / width;
+      const ny = row / height;
+      heights[i] = Math.sin(nx * 12.7 + ny * 8.3) * 40 + Math.cos(nx * 5.1) * 20 + 100;
+    }
   }
-  return m;
+  return heights;
 }

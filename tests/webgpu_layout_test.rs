@@ -35,3 +35,14 @@ fn test_transform_cpu_reference_for_gpu_parity() {
     assert!((out[0] - 0.0).abs() < 1e-5);
     assert!((out[1] - 1.0).abs() < 1e-5);
 }
+
+#[cfg(all(feature = "webgpu", feature = "terrain-edit"))]
+#[test]
+fn test_flatten_heightfield_reference_for_gpu_parity() {
+    use wasm_spatial_core::test_exports::flatten_heightfield_reference;
+
+    let heights = vec![10.0f32, 20.0, 30.0, 40.0];
+    let mask = vec![1u8, 0, 1, 0];
+    let out = flatten_heightfield_reference(&heights, &mask, 5.0);
+    assert_eq!(out, vec![5.0, 20.0, 5.0, 40.0]);
+}

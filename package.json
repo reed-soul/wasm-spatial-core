@@ -8,6 +8,7 @@
     "demo": "npm run build:site && npx --yes http-server _site -p 8080 -c-1",
     "demo:dev": "npm run build:pkg && npx --yes http-server . -p 8080 -c-1",
     "test:wasm": "wasm-pack test --node --release -- --test web",
-    "check": "cargo fmt --all -- --check && cargo clippy --all-targets --all-features -- -D warnings && cargo test"
+    "check": "cargo fmt --all -- --check && cargo clippy --all-targets --all-features -- -D warnings && cargo test",
+    "test:webgpu-fallback": "node tests/webgpu_fallback_test.mjs && node tests/heightfield_gpu_fallback_test.mjs"
   }
 }
