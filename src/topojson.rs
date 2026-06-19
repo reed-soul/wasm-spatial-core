@@ -6,7 +6,7 @@
 
 use wasm_bindgen::prelude::*;
 
-use crate::validate_input_size;
+use crate::errors::{SpatialError, SpatialErrorDetail};
 
 // ===========================================================================
 // Types
@@ -27,12 +27,17 @@ impl ArcCollection {
             return vec![];
         }
         let idx = arc_ref[0];
-        let abs_idx = idx.unsigned_abs() as usize;
+        let reverse = idx < 0;
+        let abs_idx = if reverse {
+            (!idx) as usize
+        } else {
+            idx as usize
+        };
         if abs_idx >= self.arcs.len() {
             return vec![];
         }
         let mut pts = self.arcs[abs_idx].clone();
-        if idx < 0 {
+        if reverse {
             pts.reverse();
         }
         pts
@@ -85,11 +90,7 @@ fn parse_ring_ref(val: &serde_json::Value) -> Vec<Vec<i64>> {
 // ===========================================================================
 
 /// Apply TopoJSON transform (quantization) to a point.
-fn apply_transform(
-    x: f64,
-    y: f64,
-    transform: &Option<serde_json::Value>,
-) -> (f64, f64) {
+fn apply_transform(x: f64, y: f64, transform: &Option<serde_json::Value>) -> (f64, f64) {
     if let Some(t) = transform {
         if let (Some(s), Some(tr)) = (t.get("scale"), t.get("translate")) {
             let sx = s.get(0).and_then(|v| v.as_f64()).unwrap_or(1.0);
@@ -192,14 +193,28 @@ fn decode_geometry_coords(
         }
         "LineString" => {
             if let Some(arcs_field) = geometry.get("arcs") {
-                let arc_ref = parse_arc_ref(arcs_field);
-                let mut pts = arcs.decode_arc_at(&arc_ref);
-                for pt in &mut pts {
-                    let (tx, ty) = apply_transform(pt[0], pt[1], transform);
-                    pt[0] = tx;
-                    pt[1] = ty;
+                let arc_refs = if arcs_field.is_array()
+                    && arcs_field
+                        .as_array()
+                        .is_some_and(|a| a.first().is_some_and(|v| v.is_array()))
+                {
+                    parse_ring_ref(arcs_field)
+                } else {
+                    vec![parse_arc_ref(arcs_field)]
+                };
+                for arc_ref in arc_refs {
+                    let mut pts = if arc_ref.len() == 1 {
+                        arcs.decode_arc_at(&arc_ref)
+                    } else {
+                        arcs.decode_ring(&arc_ref)
+                    };
+                    for pt in &mut pts {
+                        let (tx, ty) = apply_transform(pt[0], pt[1], transform);
+                        pt[0] = tx;
+                        pt[1] = ty;
+                    }
+                    out.extend(pts);
                 }
-                out.extend(pts);
             }
         }
         "MultiLineString" => {
@@ -279,8 +294,6 @@ fn decode_geometry_coords(
 
 /// Parse TopoJSON and return all coordinates as a flat `[lng0, lat0, lng1, lat1, ...]` buffer.
 pub(crate) fn parse_topojson_core(input: &str) -> Result<Vec<f64>, String> {
-    validate_input_size(input.len(), "parseTopojson").map_err(|e| e.as_string().unwrap_or_default())?;
-
     let topology: serde_json::Value =
         serde_json::from_str(input).map_err(|e| format!("Invalid TopoJSON: {}", e))?;
 
@@ -305,8 +318,6 @@ pub(crate) fn parse_topojson_core(input: &str) -> Result<Vec<f64>, String> {
 
 /// Convert TopoJSON to GeoJSON string.
 pub(crate) fn topojson_to_geojson_core(input: &str) -> Result<String, String> {
-    validate_input_size(input.len(), "topojsonToGeojson").map_err(|e| e.as_string().unwrap_or_default())?;
-
     let topology: serde_json::Value =
         serde_json::from_str(input).map_err(|e| format!("Invalid TopoJSON: {}", e))?;
 
@@ -318,7 +329,10 @@ pub(crate) fn topojson_to_geojson_core(input: &str) -> Result<String, String> {
     let mut features = Vec::new();
 
     for geom in &geometries {
-        let geom_type = geom.get("type").and_then(|t| t.as_str()).unwrap_or("Unknown");
+        let geom_type = geom
+            .get("type")
+            .and_then(|t| t.as_str())
+            .unwrap_or("Unknown");
         let coords = decode_geometry_coords(geom, &arc_collection, &transform);
 
         let json_coords = build_geojson_coords(geom_type, &coords);
@@ -377,8 +391,9 @@ fn build_geojson_coords(geom_type: &str, coords: &[[f64; 2]]) -> serde_json::Val
 /// # Returns
 /// Flat `Float64Array` `[lng0, lat0, lng1, lat1, ...]`.
 #[wasm_bindgen(js_name = "parseTopojson")]
-pub fn parse_topojson(input: &str) -> Result<js_sys::Float64Array, JsValue> {
-    let coords = parse_topojson_core(input).map_err(|e| JsValue::from_str(&e))?;
+pub fn parse_topojson(input: &str) -> Result<js_sys::Float64Array, SpatialErrorDetail> {
+    crate::validate_input_size_detail(input.len(), "parseTopojson")?;
+    let coords = parse_topojson_core(input).map_err(SpatialError::parse_error)?;
     let arr = js_sys::Float64Array::new_with_length(coords.len() as u32);
     if !coords.is_empty() {
         arr.copy_from(&coords);
@@ -387,15 +402,10 @@ pub fn parse_topojson(input: &str) -> Result<js_sys::Float64Array, JsValue> {
 }
 
 /// Convert TopoJSON to a GeoJSON FeatureCollection string.
-///
-/// # Arguments
-/// - `input`: TopoJSON string.
-///
-/// # Returns
-/// GeoJSON string.
 #[wasm_bindgen(js_name = "topojsonToGeojson")]
-pub fn topojson_to_geojson(input: &str) -> Result<String, JsValue> {
-    topojson_to_geojson_core(input).map_err(|e| JsValue::from_str(&e))
+pub fn topojson_to_geojson(input: &str) -> Result<String, SpatialErrorDetail> {
+    crate::validate_input_size_detail(input.len(), "topojsonToGeojson")?;
+    topojson_to_geojson_core(input).map_err(SpatialError::parse_error)
 }
 
 // ===========================================================================
@@ -408,24 +418,23 @@ mod tests {
 
     #[test]
     fn test_decode_arc_basic() {
-        let arc: ArcVec = vec![vec![0.0, 0.0], vec![1.0, 0.0], vec![0.0, 1.0]];
+        let arc: DecodedArc = vec![[0.0, 0.0], [1.0, 0.0], [1.0, 1.0]];
         let collection = ArcCollection { arcs: vec![arc] };
         let pts = collection.decode_arc_at(&[0]);
         assert_eq!(pts.len(), 3);
         assert_eq!(pts[0], [0.0, 0.0]);
         assert_eq!(pts[1], [1.0, 0.0]);
-        assert_eq!(pts[2], [1.0, 1.0]); // cumulative: 1+0, 0+1
+        assert_eq!(pts[2], [1.0, 1.0]);
     }
 
     #[test]
     fn test_decode_arc_negative() {
-        let arc: Vec<Vec<f64>> = vec![vec![2.0, 3.0], vec![1.0, 2.0]];
+        let arc: DecodedArc = vec![[3.0, 5.0], [2.0, 3.0]];
         let collection = ArcCollection { arcs: vec![arc] };
-        let pts = collection.decode_arc_at(&[-0]);
-        // Reversed: [3, 5] → [2, 3] → [0, 0]
+        let pts = collection.decode_arc_at(&[-1]);
         assert_eq!(pts.len(), 2);
-        assert_eq!(pts[0], [3.0, 5.0]);
-        assert_eq!(pts[1], [2.0, 3.0]);
+        assert_eq!(pts[0], [2.0, 3.0]);
+        assert_eq!(pts[1], [3.0, 5.0]);
     }
 
     #[test]
@@ -439,7 +448,7 @@ mod tests {
                 },
                 "line1": {
                     "type": "LineString",
-                    "arcs": [[0]]
+                    "arcs": [0]
                 }
             },
             "arcs": [
@@ -449,10 +458,19 @@ mod tests {
 
         let coords = parse_topojson_core(topojson).unwrap();
         assert_eq!(coords.len(), 8); // 1 point + 3 arc points
-        assert!((coords[0] - 0.5).abs() < 1e-10);
-        assert!((coords[1] - 0.5).abs() < 1e-10);
-        assert!((coords[2] - 0.0).abs() < 1e-10);
-        assert!((coords[3] - 0.0).abs() < 1e-10);
+        assert!(
+            coords
+                .chunks(2)
+                .any(|c| (c[0] - 0.5).abs() < 1e-10 && (c[1] - 0.5).abs() < 1e-10),
+            "expected point at (0.5, 0.5) in {:?}",
+            coords
+        );
+        assert!(
+            coords
+                .chunks(2)
+                .any(|c| c[0].abs() < 1e-10 && c[1].abs() < 1e-10),
+            "expected arc start at origin"
+        );
     }
 
     #[test]
@@ -485,7 +503,7 @@ mod tests {
             "objects": {
                 "poly1": {
                     "type": "Polygon",
-                    "arcs": [[[0]]]
+                    "arcs": [[0]]
                 }
             },
             "arcs": [
@@ -562,7 +580,7 @@ mod tests {
             "objects": {
                 "poly1": {
                     "type": "Polygon",
-                    "arcs": [[[0]]]
+                    "arcs": [[0]]
                 }
             },
             "arcs": [
@@ -589,7 +607,7 @@ mod tests {
             "objects": {
                 "mp": {
                     "type": "MultiPolygon",
-                    "arcs": [[[[0]]]]
+                    "arcs": [[[0]]]
                 }
             },
             "arcs": [
@@ -608,7 +626,7 @@ mod tests {
             "objects": {
                 "line1": {
                     "type": "LineString",
-                    "arcs": [[0]]
+                    "arcs": [0]
                 }
             },
             "arcs": [

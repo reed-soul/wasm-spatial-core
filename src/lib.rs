@@ -19,10 +19,12 @@ mod coordinate;
 mod errors;
 mod geojson_parser;
 mod geojson_streaming;
+mod gpx;
 
 #[cfg(feature = "geotiff")]
 mod geotiff;
 mod gltf_writer;
+mod topojson;
 
 #[cfg(feature = "mesh-ingest")]
 mod spatial_ir;
@@ -552,6 +554,23 @@ pub fn estimate_octree_memory(num_points: u32) -> usize {
     let temp_bytes = positions_bytes / 2;
 
     positions_bytes + reorder_bytes + nodes_bytes + temp_bytes + 1024 // 1KB overhead
+}
+
+/// Validate input length against the current limit; returns structured error detail.
+#[inline]
+pub(crate) fn validate_input_size_detail(
+    len: usize,
+    label: &str,
+) -> Result<(), SpatialErrorDetail> {
+    let limit = get_current_input_limit();
+    if limit > 0 && len > limit {
+        Err(SpatialError::InputTooLarge.with_detail(format!(
+            "Input too large ({} > {} bytes): {}",
+            len, limit, label
+        )))
+    } else {
+        Ok(())
+    }
 }
 
 /// Validate input length is reasonable. Returns an error if input exceeds the current limit.
