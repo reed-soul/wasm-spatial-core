@@ -21,7 +21,10 @@ use rayon::prelude::*;
 
 use wasm_bindgen::prelude::*;
 
-use crate::errors::SpatialError;
+use crate::errors::{SpatialError, SpatialErrorDetail};
+
+/// Check abort callback every N points during partition passes.
+const ABORT_CHECK_INTERVAL: usize = 4096;
 
 // ===========================================================================
 // Data structures
@@ -158,7 +161,8 @@ impl Octree {
     /// * `max_points_per_node` — Max points before splitting (default: 50 000).
     /// * `max_depth` — Max tree depth (default: 21).
     pub fn build(positions: &mut Vec<f32>, max_points_per_node: u32, max_depth: u32) -> Self {
-        Self::build_inner(positions, None, max_points_per_node, max_depth)
+        Self::build_inner(positions, None, max_points_per_node, max_depth, &mut None)
+            .expect("octree build without abort cannot fail")
     }
 
     /// Like [`Self::build`], but keeps optional per-point RGB colors aligned through
@@ -169,7 +173,58 @@ impl Octree {
         max_points_per_node: u32,
         max_depth: u32,
     ) -> Self {
-        Self::build_inner(positions, Some(colors), max_points_per_node, max_depth)
+        Self::build_inner(
+            positions,
+            Some(colors),
+            max_points_per_node,
+            max_depth,
+            &mut None,
+        )
+        .expect("octree build without abort cannot fail")
+    }
+
+    /// Build an octree, checking `should_abort` at recursive node boundaries and
+    /// periodically during large partition passes.
+    pub fn build_with_abort(
+        positions: &mut Vec<f32>,
+        max_points_per_node: u32,
+        max_depth: u32,
+        should_abort: &mut dyn FnMut() -> bool,
+    ) -> Result<Self, SpatialErrorDetail> {
+        Self::build_inner(
+            positions,
+            None,
+            max_points_per_node,
+            max_depth,
+            &mut Some(should_abort),
+        )
+    }
+
+    /// Like [`Self::build_with_abort`], with synchronized RGB reordering.
+    pub fn build_with_colors_abort(
+        positions: &mut Vec<f32>,
+        colors: &mut Vec<u8>,
+        max_points_per_node: u32,
+        max_depth: u32,
+        should_abort: &mut dyn FnMut() -> bool,
+    ) -> Result<Self, SpatialErrorDetail> {
+        Self::build_inner(
+            positions,
+            Some(colors),
+            max_points_per_node,
+            max_depth,
+            &mut Some(should_abort),
+        )
+    }
+
+    fn check_abort(
+        should_abort: &mut Option<&mut dyn FnMut() -> bool>,
+    ) -> Result<(), SpatialErrorDetail> {
+        if should_abort.as_mut().is_some_and(|f| f()) {
+            Err(SpatialError::Cancelled.with_detail("octree build cancelled"))
+        } else {
+            Ok(())
+        }
     }
 
     fn build_inner(
@@ -177,10 +232,11 @@ impl Octree {
         mut colors: Option<&mut Vec<u8>>,
         max_points_per_node: u32,
         max_depth: u32,
-    ) -> Self {
+        should_abort: &mut Option<&mut dyn FnMut() -> bool>,
+    ) -> Result<Self, SpatialErrorDetail> {
         let num_points = positions.len() / 3;
         if num_points == 0 {
-            return Octree {
+            return Ok(Octree {
                 nodes: vec![OctreeNode {
                     bounds: [0.0; 6],
                     point_start: 0,
@@ -189,14 +245,14 @@ impl Octree {
                     level: 0,
                 }],
                 total_points: 0,
-            };
+            });
         }
 
         // Filter out NaN / Infinity coordinates in-place.
         filter_valid_positions(positions, colors.as_deref_mut());
         let num_points = positions.len() / 3;
         if num_points == 0 {
-            return Octree {
+            return Ok(Octree {
                 nodes: vec![OctreeNode {
                     bounds: [0.0; 6],
                     point_start: 0,
@@ -205,8 +261,10 @@ impl Octree {
                     level: 0,
                 }],
                 total_points: 0,
-            };
+            });
         }
+
+        Self::check_abort(should_abort)?;
 
         // Compute tight bounding box.
         let mut min_x = f64::INFINITY;
@@ -246,7 +304,8 @@ impl Octree {
             num_points,
             0,
             &config,
-        );
+            should_abort,
+        )?;
 
         // Pass 2: reorder positions using the map.
         let old_positions = std::mem::take(positions);
@@ -260,10 +319,10 @@ impl Octree {
             reorder_colors(colors, &reorder_map);
         }
 
-        Octree {
+        Ok(Octree {
             nodes,
             total_points: num_points,
-        }
+        })
     }
 
     /// Recursive octree construction. Builds the tree structure and populates
@@ -279,7 +338,10 @@ impl Octree {
         count: usize,
         level: u32,
         config: &OctreeConfig,
-    ) {
+        should_abort: &mut Option<&mut dyn FnMut() -> bool>,
+    ) -> Result<(), SpatialErrorDetail> {
+        Self::check_abort(should_abort)?;
+
         // If we should stop splitting, create a leaf.
         if count == 0 || count as u32 <= config.max_points || level >= config.max_depth {
             nodes.push(OctreeNode {
@@ -289,7 +351,7 @@ impl Octree {
                 children: None,
                 level,
             });
-            return;
+            return Ok(());
         }
 
         // Compute midpoint.
@@ -302,6 +364,9 @@ impl Octree {
 
         // First pass: count how many points go into each octant.
         for i in 0..count {
+            if i > 0 && i % ABORT_CHECK_INTERVAL == 0 {
+                Self::check_abort(should_abort)?;
+            }
             let orig_idx = reorder_map[output_start + i];
             let px = positions[orig_idx * 3] as f64;
             let py = positions[orig_idx * 3 + 1] as f64;
@@ -320,7 +385,7 @@ impl Octree {
                 children: None,
                 level,
             });
-            return;
+            return Ok(());
         }
 
         // Compute starting offsets for each child.
@@ -335,6 +400,9 @@ impl Octree {
         let mut temp = vec![0usize; count];
         let mut child_pos = child_starts;
         for i in 0..count {
+            if i > 0 && i % ABORT_CHECK_INTERVAL == 0 {
+                Self::check_abort(should_abort)?;
+            }
             let orig_idx = reorder_map[output_start + i];
             let px = positions[orig_idx * 3] as f64;
             let py = positions[orig_idx * 3 + 1] as f64;
@@ -371,11 +439,13 @@ impl Octree {
                 child_counts[i],
                 level + 1,
                 config,
-            );
+                should_abort,
+            )?;
         }
 
         // Fill in children for this node.
         nodes[node_idx].children = Some(Box::new(children_indices));
+        Ok(())
     }
 
     /// Determine which octant (0-7) a point belongs to.
@@ -874,6 +944,46 @@ pub fn build_octree(
     Ok(WasmOctree { inner })
 }
 
+/// Build an octree with an abort callback checked during construction.
+#[wasm_bindgen(js_name = "buildOctreeWithAbort")]
+pub fn build_octree_with_abort(
+    positions: &[f32],
+    max_points_per_node: Option<u32>,
+    max_depth: Option<u32>,
+    should_abort: &js_sys::Function,
+) -> Result<WasmOctree, JsValue> {
+    if !positions.len().is_multiple_of(3) {
+        return Err(
+            SpatialError::invalid_input("positions buffer length must be a multiple of 3").into(),
+        );
+    }
+    let max_pts = max_points_per_node.unwrap_or(DEFAULT_MAX_POINTS_PER_NODE);
+    let max_d = max_depth.unwrap_or(DEFAULT_MAX_DEPTH);
+
+    let num_points = positions.len() as u32 / 3;
+    let estimated = crate::estimate_octree_memory(num_points);
+    if !crate::check_memory_available(estimated) {
+        return Err(SpatialError::PointCloudError.with_detail(format!(
+            "Insufficient WASM memory for octree: estimated {} bytes, limit {} bytes, current usage {} bytes",
+            estimated,
+            crate::get_max_wasm_memory(),
+            crate::get_allocated_bytes(),
+        )).into());
+    }
+
+    let mut buf = positions.to_vec();
+    let this = wasm_bindgen::JsValue::NULL;
+    let mut check_abort = || {
+        should_abort
+            .call0(&this)
+            .map(|v| v.is_truthy())
+            .unwrap_or(false)
+    };
+    let inner = Octree::build_with_abort(&mut buf, max_pts, max_d, &mut check_abort)
+        .map_err(JsValue::from)?;
+    Ok(WasmOctree { inner })
+}
+
 // ===========================================================================
 // Multi-thread WASM exports
 // ===========================================================================
@@ -1299,6 +1409,27 @@ mod tests {
         assert_eq!(tree_seq.total_points(), tree_par.total_points());
         assert_eq!(tree_seq.node_count(), tree_par.node_count());
         assert_eq!(tree_seq.depth(), tree_par.depth());
+    }
+
+    #[test]
+    fn test_build_with_abort_cancels() {
+        let triples: Vec<[f32; 3]> = (0..50_000)
+            .map(|i| {
+                [
+                    (i % 100) as f32,
+                    ((i / 100) % 100) as f32,
+                    (i / 10_000) as f32,
+                ]
+            })
+            .collect();
+        let mut positions = make_positions(&triples);
+        let mut checks = 0usize;
+        let err = Octree::build_with_abort(&mut positions, 100, 12, &mut || {
+            checks += 1;
+            checks > 1
+        })
+        .expect_err("expected cancellation");
+        assert_eq!(err.code(), "CANCELLED");
     }
 
     #[cfg(feature = "multi-thread")]

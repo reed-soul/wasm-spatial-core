@@ -115,9 +115,9 @@ self.onmessage = async function(e) {
     
     if (type === 'init') {
         try {
-            const { default: init, buildOctree, generateTilesetWithAbort, parseGeotiff, applyTerrainColorRamp, hillshade, terrainToGlb } = await import(payload.wasmUrl);
+            const { default: init, buildOctreeWithAbort, generateTilesetWithAbort, parseGeotiff, applyTerrainColorRamp, hillshade, terrainToGlb } = await import(payload.wasmUrl);
             await init();
-            wasm = { init, buildOctree, generateTilesetWithAbort, parseGeotiff, applyTerrainColorRamp, hillshade, terrainToGlb };
+            wasm = { init, buildOctreeWithAbort, generateTilesetWithAbort, parseGeotiff, applyTerrainColorRamp, hillshade, terrainToGlb };
             self.postMessage({ type: 'ready' });
         } catch (err) {
             self.postMessage({ type: 'error', payload: { message: err.message, stage: 'init' } });
@@ -132,11 +132,12 @@ self.onmessage = async function(e) {
             // Report progress: 0% — starting octree build
             self.postMessage({ type: 'progress', payload: { stage: 'octree', progress: 0.0 } });
             
-            // Build octree
-            const octree = wasm.buildOctree(
+            // Build octree (cancellable during construction)
+            const octree = wasm.buildOctreeWithAbort(
                 positions,
                 options.maxPointsPerNode,
-                options.maxDepth
+                options.maxDepth,
+                () => cancelled
             );
             
             if (cancelled) {
@@ -614,8 +615,8 @@ impl WorkerHandle {
 
     /// Cancel the current processing job.
     ///
-    /// The Worker will stop as soon as possible during tileset generation
-    /// (between leaf encodes). Octree build still runs to completion once started.
+    /// The Worker will stop as soon as possible during octree build and tileset
+    /// generation when `cancel()` is called.
     #[wasm_bindgen(js_name = "cancel")]
     pub fn cancel(&self) -> Result<(), JsValue> {
         let msg = js_sys::Object::new();
@@ -634,6 +635,94 @@ impl WorkerHandle {
 // ===========================================================================
 // Main-Thread Chunked Processing (Fallback)
 // ===========================================================================
+
+/// Process point cloud data in chunks on the main thread with cancellation support.
+#[wasm_bindgen(js_name = "processChunkedWithAbort")]
+pub fn process_chunked_with_abort(
+    positions: &[f32],
+    colors: Option<Vec<u8>>,
+    max_points_per_node: Option<u32>,
+    max_depth: Option<u32>,
+    on_chunk: &js_sys::Function,
+    should_abort: &js_sys::Function,
+) -> js_sys::Promise {
+    let max_pts = max_points_per_node.unwrap_or(50_000);
+    let max_d = max_depth.unwrap_or(21);
+    let mut buf = positions.to_vec();
+    let colors_clone = colors.clone();
+    let on_chunk_clone = on_chunk.clone();
+    let should_abort_clone = should_abort.clone();
+
+    let future = wasm_bindgen_futures::future_to_promise(async move {
+        let this = JsValue::NULL;
+        let mut check_abort = || {
+            should_abort_clone
+                .call0(&this)
+                .map(|v| v.is_truthy())
+                .unwrap_or(false)
+        };
+
+        let _ = on_chunk_clone.call3(
+            &this,
+            &"octree".into(),
+            &JsValue::from(0u32),
+            &JsValue::from(2u32),
+        );
+
+        yield_to_main_thread().await;
+
+        let octree =
+            crate::octree::Octree::build_with_abort(&mut buf, max_pts, max_d, &mut check_abort)
+                .map_err(JsValue::from)?;
+
+        let _ = on_chunk_clone.call3(
+            &this,
+            &"tileset".into(),
+            &JsValue::from(1u32),
+            &JsValue::from(2u32),
+        );
+
+        yield_to_main_thread().await;
+
+        let result = crate::pnts::generate_tileset_with_spacing_abort(
+            &octree,
+            &buf,
+            colors_clone.as_deref(),
+            None,
+            None,
+            &mut check_abort,
+        )
+        .map_err(JsValue::from)?;
+
+        let obj = js_sys::Object::new();
+        js_sys::Reflect::set(
+            &obj,
+            &"tilesetJson".into(),
+            &JsValue::from_str(result.tileset_json()),
+        )?;
+        js_sys::Reflect::set(
+            &obj,
+            &"tileCount".into(),
+            &JsValue::from(result.tile_count()),
+        )?;
+        js_sys::Reflect::set(
+            &obj,
+            &"totalBytes".into(),
+            &JsValue::from(result.total_bytes() as u32),
+        )?;
+
+        let _ = on_chunk_clone.call3(
+            &this,
+            &"done".into(),
+            &JsValue::from(2u32),
+            &JsValue::from(2u32),
+        );
+
+        Ok(obj.into())
+    });
+
+    future
+}
 
 /// Process point cloud data in chunks on the main thread.
 ///
@@ -766,8 +855,8 @@ mod tests {
             "Script should handle cancel message"
         );
         assert!(
-            script.contains("buildOctree"),
-            "Script should call buildOctree"
+            script.contains("buildOctreeWithAbort"),
+            "Script should call buildOctreeWithAbort"
         );
         assert!(
             script.contains("generateTilesetWithAbort"),

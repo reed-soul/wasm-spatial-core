@@ -102,6 +102,32 @@ pub fn estimate_job_bytes(op: JobOp) -> usize {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_estimate_job_bytes_known_ops() {
+        assert!(
+            estimate_job_bytes(JobOp::LasParse {
+                point_count: 1_000_000,
+                has_color: true,
+            }) > 0
+        );
+        assert!(
+            estimate_job_bytes(JobOp::OctreeBuild {
+                point_count: 1_000_000,
+            }) > 0
+        );
+        assert!(
+            estimate_job_bytes(JobOp::TilesetGenerate {
+                point_count: 1_000_000,
+                leaf_count: 10,
+            }) > 0
+        );
+    }
+}
+
 // ===========================================================================
 // WASM API
 // ===========================================================================
@@ -149,7 +175,7 @@ pub fn estimate_job_bytes_js(
     point_count: u32,
     leaf_count: u32,
     has_color: bool,
-) -> usize {
+) -> Result<usize, JsValue> {
     let job = match op {
         "lasParse" => JobOp::LasParse {
             point_count,
@@ -160,10 +186,11 @@ pub fn estimate_job_bytes_js(
             point_count,
             leaf_count,
         },
-        _ => JobOp::LasParse {
-            point_count,
-            has_color,
-        },
+        _ => {
+            return Err(
+                crate::errors::SpatialError::invalid_input(format!("unknown job op: {op}")).into(),
+            )
+        }
     };
-    estimate_job_bytes(job)
+    Ok(estimate_job_bytes(job))
 }
