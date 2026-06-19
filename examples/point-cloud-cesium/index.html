@@ -338,7 +338,7 @@
       <div class="panel-title">🏔️ Terrain Deform (W3)</div>
       <label style="display:flex;align-items:center;gap:8px;font-size:0.8rem;margin-bottom:8px">
         <input type="checkbox" id="terrainDeformEnable" checked>
-        Flatten center region before tile encode
+        Apply polygon mask edit before tile encode
       </label>
       <label>Mode</label>
       <select id="terrainDeformMode">
@@ -356,6 +356,25 @@
       </label>
       <label>Max zoom</label>
       <input type="number" id="terrainMaxZoom" value="4" min="0" max="8">
+    </div>
+
+    <!-- Interactive polygon for terrain deform -->
+    <div id="polygonDrawPanel" class="panel hidden">
+      <div class="panel-title">📐 Deform Polygon</div>
+      <p class="note" style="margin-top:0;color:var(--muted)">
+        Click the globe to place vertices. Double-click or <strong>Finish</strong> to close the ring.
+        If no polygon is drawn, a center square is used.
+      </p>
+      <button id="polygonDrawStartBtn" type="button">Start drawing</button>
+      <div style="height:6px"></div>
+      <button id="polygonDrawFinishBtn" type="button">Finish polygon</button>
+      <div style="height:6px"></div>
+      <button id="polygonDrawUndoBtn" type="button">Undo vertex</button>
+      <div style="height:6px"></div>
+      <button id="polygonDrawClearBtn" type="button" class="danger">Clear polygon</button>
+      <div id="polygonDrawStatus" class="note" style="color:var(--muted);margin-top:10px">
+        No polygon — center square fallback
+      </div>
     </div>
 
     <!-- Actions -->
@@ -387,8 +406,12 @@
 <script type="module">
 import { copyPointCloud, readTilesetResult, bindTerrainTilesetUrls, centerSquarePolygon } from '../shared/pc-bindings.mjs';
 import { createGpuContext, applyFlattenDeform } from '../shared/terrain-gpu.mjs';
+import { createPolygonDrawer, showBoundsOutline } from '../shared/cesium-polygon-draw.mjs';
 
 let gpuCtx = null;
+let polygonDrawer = null;
+let clearBoundsOutline = null;
+let lastTerrainBounds = null;
 
 let wasm = null;
 let viewer = null;
@@ -515,8 +538,51 @@ function initCesium(token) {
   viewer.scene.backgroundColor = Cesium.Color.BLACK;
   viewer.scene.globe.baseColor = Cesium.Color.BLACK;
 
+  polygonDrawer = createPolygonDrawer(viewer, {
+    onChange: updatePolygonDrawStatus,
+  });
+
   showPanels(true);
+  document.getElementById('polygonDrawPanel').classList.remove('hidden');
   setStatus('Cesium ready — drop a file');
+}
+
+function updatePolygonDrawStatus(state) {
+  const el = document.getElementById('polygonDrawStatus');
+  if (!el) return;
+  if (state.closed && state.vertexCount >= 3) {
+    el.textContent = `Closed polygon: ${state.vertexCount} vertices`;
+    el.style.color = 'var(--green)';
+  } else if (state.drawing) {
+    el.textContent = `Drawing… ${state.vertexCount} vertices (double-click to finish)`;
+    el.style.color = 'var(--accent)';
+  } else if (state.vertexCount > 0) {
+    el.textContent = `${state.vertexCount} vertices (unfinished — Finish or Clear)`;
+    el.style.color = 'var(--orange)';
+  } else {
+    el.textContent = 'No polygon — center square fallback';
+    el.style.color = 'var(--muted)';
+  }
+}
+
+function resolveDeformPolygon(bounds) {
+  const custom = polygonDrawer?.getClosedPolygon();
+  if (custom && custom.length >= 6) return custom;
+  return centerSquarePolygon(bounds, 0.45);
+}
+
+function showTerrainBounds(bounds) {
+  if (!viewer) return;
+  if (clearBoundsOutline) {
+    clearBoundsOutline();
+    clearBoundsOutline = null;
+  }
+  clearBoundsOutline = showBoundsOutline(viewer, bounds);
+  lastTerrainBounds = bounds;
+  viewer.camera.flyTo({
+    destination: Cesium.Rectangle.fromDegrees(bounds[0], bounds[1], bounds[2], bounds[3]),
+    duration: 1.2,
+  });
 }
 
 // =========================================================================
@@ -700,11 +766,13 @@ async function processGeoTiffFile(file, bytes) {
   let heights = new Float32Array(info.elevation());
 
   document.getElementById('terrainDeformPanel').classList.remove('hidden');
+  showTerrainBounds(bounds);
 
   const deformOn = document.getElementById('terrainDeformEnable').checked;
+  const polygonSource = polygonDrawer?.getClosedPolygon() ? 'drawn' : 'center';
   if (deformOn && typeof wasm.flattenTerrain === 'function') {
     setProgress(30, 'Applying polygon mask edit...');
-    const polygon = centerSquarePolygon(bounds, 0.45);
+    const polygon = resolveDeformPolygon(bounds);
     const mode = document.getElementById('terrainDeformMode').value;
     const value = parseFloat(document.getElementById('terrainDeformValue').value);
     const feather = parseInt(document.getElementById('terrainFeather').value, 10) || 0;
@@ -762,7 +830,7 @@ async function processGeoTiffFile(file, bytes) {
     size: `${w}×${h}`,
     tiles: tileCount,
     totalBytes,
-    deform: deformOn ? document.getElementById('terrainDeformMode').value : 'none',
+    deform: deformOn ? `${document.getElementById('terrainDeformMode').value} (${polygonSource})` : 'none',
   });
   updateLodInfo(tileCount, totalBytes);
 }
@@ -1086,6 +1154,30 @@ document.getElementById('clearBtn').addEventListener('click', () => {
 // Color mode change (visual feedback)
 document.getElementById('colorMode').addEventListener('change', (e) => {
   setStatus(`Color mode: ${e.target.value}`);
+});
+
+document.getElementById('polygonDrawStartBtn').addEventListener('click', () => {
+  if (!polygonDrawer) return;
+  polygonDrawer.startDrawing();
+  setStatus('Polygon draw: click globe to add vertices');
+});
+
+document.getElementById('polygonDrawFinishBtn').addEventListener('click', () => {
+  if (!polygonDrawer) return;
+  if (polygonDrawer.finish()) {
+    setStatus('Polygon closed — Rebuild to apply');
+  } else {
+    setStatus('Need at least 3 vertices to finish polygon');
+  }
+});
+
+document.getElementById('polygonDrawUndoBtn').addEventListener('click', () => {
+  polygonDrawer?.undoVertex();
+});
+
+document.getElementById('polygonDrawClearBtn').addEventListener('click', () => {
+  polygonDrawer?.clear();
+  setStatus('Polygon cleared');
 });
 </script>
 
