@@ -234,7 +234,19 @@ pub fn parse_las_header_core(bytes: &[u8]) -> Result<LasHeader, String> {
 
 /// Upper bound on points we will reserve for in one `parse_las_points_core` call.
 /// Prevents bogus header counts from attempting multi‑GB `Vec` allocations.
-const MAX_LAS_POINTS_RESERVE: usize = 500_000_000;
+const DEFAULT_MAX_LAS_POINTS_RESERVE: usize = 50_000_000;
+
+/// WASM-realistic reserve cap: ties to [`crate::get_max_wasm_memory`] when set.
+pub(crate) fn max_las_points_reserve() -> usize {
+    let max_mem = crate::get_max_wasm_memory();
+    if max_mem > 0 {
+        let budget = max_mem.saturating_sub(16 * 1024 * 1024);
+        let from_mem = budget / 32;
+        from_mem.clamp(1_000_000, DEFAULT_MAX_LAS_POINTS_RESERVE)
+    } else {
+        DEFAULT_MAX_LAS_POINTS_RESERVE
+    }
+}
 
 fn las_points_capacity(
     bytes_len: usize,
@@ -246,10 +258,11 @@ fn las_points_capacity(
         return Err("LAS point record length cannot be zero".to_string());
     }
     let declared = declared as usize;
-    if declared > MAX_LAS_POINTS_RESERVE {
+    let limit = max_las_points_reserve();
+    if declared > limit {
         return Err(format!(
             "LAS point count {} exceeds limit of {}",
-            declared, MAX_LAS_POINTS_RESERVE
+            declared, limit
         ));
     }
     let available = bytes_len.saturating_sub(point_offset);
@@ -261,10 +274,11 @@ fn las_points_capacity(
 #[cfg(feature = "laz-support")]
 fn laz_points_capacity(declared: u32) -> Result<usize, String> {
     let declared = declared as usize;
-    if declared > MAX_LAS_POINTS_RESERVE {
+    let limit = max_las_points_reserve();
+    if declared > limit {
         return Err(format!(
             "LAZ point count {} exceeds limit of {}",
-            declared, MAX_LAS_POINTS_RESERVE
+            declared, limit
         ));
     }
     Ok(declared)
