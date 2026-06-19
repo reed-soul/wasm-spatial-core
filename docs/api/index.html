@@ -6,7 +6,7 @@
 <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a></p>
 <p><img src="https://img.shields.io/badge/code-33K-blue" alt="Lines">
 <img src="https://img.shields.io/badge/tests-661%20(npm%20build)-success" alt="Tests">
-<img src="https://img.shields.io/badge/formats-15-green" alt="Formats"></p>
+<img src="https://img.shields.io/badge/formats-10%2B%20(npm)%20%7C%2015%2B%20(engine)-green" alt="Formats"></p>
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="media/demo.png">
   <img alt="wasm-spatial-core demo" src="media/demo.png" width="600">
@@ -72,6 +72,7 @@
 </tr>
 </tbody>
 </table>
+<p><strong>Format counts:</strong> <strong>10+</strong> read/write paths in the default npm build (LAS/PLY/OBJ/PCD, GeoJSON, MVT, WKT/WKB, GeoTIFF, GPX, TopoJSON, 3D Tiles/glTF output, …). <strong>15+</strong> when optional format features are enabled (LAZ/COPC, E57, GLB ingest, …).</p>
 <p>Runtime checks: <code>supportsLaz()</code>, <code>supportsGeotiff()</code>, <code>lazStatus()</code>.</p>
 <p>CI runs <strong><code>cargo test --all-features</code></strong> (~840 tests across the full matrix).
 The npm build runs <strong>661 tests</strong> for the shipped feature set — the badge above

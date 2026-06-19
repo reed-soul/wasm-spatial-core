@@ -16,6 +16,8 @@ The published package is a **prebuilt WASM binary** (`point-cloud` + `geotiff`):
 | GeoTIFF → quantized-mesh | Terrain deformation (`terrain-edit`) |
 | Coordinates, GeoJSON, MVT | Mesh QEM / clip (`mesh-edit`) |
 
+**Formats:** **10+** in the default npm build · **15+** with optional format features (LAZ/COPC, E57, GLB ingest).
+
 Check at runtime: `supportsLaz()`, `supportsGeotiff()`, `lazStatus()`.
 
 Full matrix: [Feature flags in the repo README](../README.md#feature-flags).
