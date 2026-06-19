@@ -1011,8 +1011,8 @@ export class WorkerHandle {
     /**
      * Cancel the current processing job.
      *
-     * The Worker will stop as soon as possible during tileset generation
-     * (between leaf encodes). Octree build still runs to completion once started.
+     * The Worker will stop as soon as possible during octree build and tileset
+     * generation when `cancel()` is called.
      */
     cancel(): void;
     /**
@@ -1456,6 +1456,11 @@ export function buildOctree(positions: Float32Array, max_points_per_node?: numbe
  * * `max_depth` — Max tree depth (default: 21).
  */
 export function buildOctreeParallel(positions: Float32Array, max_points_per_node?: number | null, max_depth?: number | null): Octree;
+
+/**
+ * Build an octree with an abort callback checked during construction.
+ */
+export function buildOctreeWithAbort(positions: Float32Array, max_points_per_node: number | null | undefined, max_depth: number | null | undefined, should_abort: Function): Octree;
 
 /**
  * Build a TIN from scattered 3D points using the Bowyer-Watson algorithm.
@@ -2893,6 +2898,11 @@ export function polylineLength(coords: Float64Array): number;
 export function processChunked(positions: Float32Array, colors: Uint8Array | null | undefined, max_points_per_node: number | null | undefined, max_depth: number | null | undefined, on_chunk: Function): Promise<any>;
 
 /**
+ * Process point cloud data in chunks on the main thread with cancellation support.
+ */
+export function processChunkedWithAbort(positions: Float32Array, colors: Uint8Array | null | undefined, max_points_per_node: number | null | undefined, max_depth: number | null | undefined, on_chunk: Function, should_abort: Function): Promise<any>;
+
+/**
  * Quantize Float32 positions to Uint16, returning both the quantized data
  * and the bounding box needed for reconstruction.
  *
@@ -3073,7 +3083,7 @@ export function supportsDraco(): boolean;
 export function supportsE57(): boolean;
 
 /**
- * Check if GeoTIFF support is available (always true).
+ * Check if GeoTIFF support is available.
  */
 export function supportsGeotiff(): boolean;
 
@@ -3348,6 +3358,7 @@ export interface InitOutput {
     readonly bufferPoint: (a: number, b: number, c: number, d: number) => number;
     readonly buildColorRamp: (a: number, b: number, c: number) => void;
     readonly buildOctree: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly buildOctreeWithAbort: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly buildTin: (a: number, b: number) => void;
     readonly centroid: (a: number) => number;
     readonly cesium3dtile_batchTableJson: (a: number, b: number) => void;
@@ -3396,7 +3407,7 @@ export interface InitOutput {
     readonly encodePntsTileWithNormals: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => void;
     readonly encodeQuantizedMesh: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => void;
     readonly encodeTerrainTileset: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => void;
-    readonly estimateJobBytes: (a: number, b: number, c: number, d: number, e: number) => number;
+    readonly estimateJobBytes: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly estimateMemoryForPoints: (a: number, b: number, c: number) => number;
     readonly estimateNormals: (a: number, b: number) => number;
     readonly estimateOctreeMemory: (a: number) => number;
@@ -3554,6 +3565,7 @@ export interface InitOutput {
     readonly polygonUnion: (a: number, b: number) => number;
     readonly polylineLength: (a: number, b: number) => void;
     readonly processChunked: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
+    readonly processChunkedWithAbort: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => number;
     readonly processingcontext_clear: (a: number) => void;
     readonly processingcontext_new: () => number;
     readonly processingcontext_reserve: (a: number, b: number, c: number) => void;
@@ -3705,9 +3717,9 @@ export interface InitOutput {
     readonly tinresult_positions: (a: number) => number;
     readonly ifcmesh_positions: (a: number) => number;
     readonly tinresult_indices: (a: number) => number;
-    readonly __wasm_bindgen_func_elem_3547: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_3551: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_1082: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_3595: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_3599: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_1087: (a: number, b: number, c: number) => void;
     readonly __wbindgen_export: (a: number, b: number) => number;
     readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_export3: (a: number) => void;

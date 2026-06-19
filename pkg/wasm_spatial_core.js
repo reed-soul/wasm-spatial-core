@@ -2753,8 +2753,8 @@ export class WorkerHandle {
     /**
      * Cancel the current processing job.
      *
-     * The Worker will stop as soon as possible during tileset generation
-     * (between leaf encodes). Octree build still runs to completion once started.
+     * The Worker will stop as soon as possible during octree build and tileset
+     * generation when `cancel()` is called.
      */
     cancel() {
         try {
@@ -3759,6 +3759,33 @@ export function buildOctreeParallel(positions, max_points_per_node, max_depth) {
         return Octree.__wrap(r0);
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
+    }
+}
+
+/**
+ * Build an octree with an abort callback checked during construction.
+ * @param {Float32Array} positions
+ * @param {number | null | undefined} max_points_per_node
+ * @param {number | null | undefined} max_depth
+ * @param {Function} should_abort
+ * @returns {Octree}
+ */
+export function buildOctreeWithAbort(positions, max_points_per_node, max_depth, should_abort) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArrayF32ToWasm0(positions, wasm.__wbindgen_export);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.buildOctreeWithAbort(retptr, ptr0, len0, isLikeNone(max_points_per_node) ? Number.MAX_SAFE_INTEGER : (max_points_per_node) >>> 0, isLikeNone(max_depth) ? Number.MAX_SAFE_INTEGER : (max_depth) >>> 0, addBorrowedObject(should_abort));
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return Octree.__wrap(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        heap[stack_pointer++] = undefined;
     }
 }
 
@@ -4845,10 +4872,21 @@ export function encodeTerrainTileset(heights, width, height, bounds, center, max
  * @returns {number}
  */
 export function estimateJobBytes(op, point_count, leaf_count, has_color) {
-    const ptr0 = passStringToWasm0(op, wasm.__wbindgen_export, wasm.__wbindgen_export2);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.estimateJobBytes(ptr0, len0, point_count, leaf_count, has_color);
-    return ret >>> 0;
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passStringToWasm0(op, wasm.__wbindgen_export, wasm.__wbindgen_export2);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.estimateJobBytes(retptr, ptr0, len0, point_count, leaf_count, has_color);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return r0 >>> 0;
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
 }
 
 /**
@@ -6966,6 +7004,30 @@ export function processChunked(positions, colors, max_points_per_node, max_depth
 }
 
 /**
+ * Process point cloud data in chunks on the main thread with cancellation support.
+ * @param {Float32Array} positions
+ * @param {Uint8Array | null | undefined} colors
+ * @param {number | null | undefined} max_points_per_node
+ * @param {number | null | undefined} max_depth
+ * @param {Function} on_chunk
+ * @param {Function} should_abort
+ * @returns {Promise<any>}
+ */
+export function processChunkedWithAbort(positions, colors, max_points_per_node, max_depth, on_chunk, should_abort) {
+    try {
+        const ptr0 = passArrayF32ToWasm0(positions, wasm.__wbindgen_export);
+        const len0 = WASM_VECTOR_LEN;
+        var ptr1 = isLikeNone(colors) ? 0 : passArray8ToWasm0(colors, wasm.__wbindgen_export);
+        var len1 = WASM_VECTOR_LEN;
+        const ret = wasm.processChunkedWithAbort(ptr0, len0, ptr1, len1, isLikeNone(max_points_per_node) ? Number.MAX_SAFE_INTEGER : (max_points_per_node) >>> 0, isLikeNone(max_depth) ? Number.MAX_SAFE_INTEGER : (max_depth) >>> 0, addBorrowedObject(on_chunk), addBorrowedObject(should_abort));
+        return takeObject(ret);
+    } finally {
+        heap[stack_pointer++] = undefined;
+        heap[stack_pointer++] = undefined;
+    }
+}
+
+/**
  * Quantize Float32 positions to Uint16, returning both the quantized data
  * and the bounding box needed for reconstruction.
  *
@@ -7299,7 +7361,7 @@ export function supportsE57() {
 }
 
 /**
- * Check if GeoTIFF support is available (always true).
+ * Check if GeoTIFF support is available.
  * @returns {boolean}
  */
 export function supportsGeotiff() {
@@ -7836,7 +7898,7 @@ function __wbg_get_imports() {
                     const a = state0.a;
                     state0.a = 0;
                     try {
-                        return __wasm_bindgen_func_elem_3551(a, state0.b, arg0, arg1);
+                        return __wasm_bindgen_func_elem_3599(a, state0.b, arg0, arg1);
                     } finally {
                         state0.a = a;
                     }
@@ -7974,12 +8036,12 @@ function __wbg_get_imports() {
         },
         __wbindgen_cast_0000000000000001: function(arg0, arg1) {
             // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 11, ret: Unit, inner_ret: Some(Unit) }, mutable: false }) -> Externref`.
-            const ret = makeClosure(arg0, arg1, __wasm_bindgen_func_elem_1082);
+            const ret = makeClosure(arg0, arg1, __wasm_bindgen_func_elem_1087);
             return addHeapObject(ret);
         },
         __wbindgen_cast_0000000000000002: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 205, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
-            const ret = makeMutClosure(arg0, arg1, __wasm_bindgen_func_elem_3547);
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 218, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
+            const ret = makeMutClosure(arg0, arg1, __wasm_bindgen_func_elem_3595);
             return addHeapObject(ret);
         },
         __wbindgen_cast_0000000000000003: function(arg0) {
@@ -8006,14 +8068,14 @@ function __wbg_get_imports() {
     };
 }
 
-function __wasm_bindgen_func_elem_1082(arg0, arg1, arg2) {
-    wasm.__wasm_bindgen_func_elem_1082(arg0, arg1, addHeapObject(arg2));
+function __wasm_bindgen_func_elem_1087(arg0, arg1, arg2) {
+    wasm.__wasm_bindgen_func_elem_1087(arg0, arg1, addHeapObject(arg2));
 }
 
-function __wasm_bindgen_func_elem_3547(arg0, arg1, arg2) {
+function __wasm_bindgen_func_elem_3595(arg0, arg1, arg2) {
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-        wasm.__wasm_bindgen_func_elem_3547(retptr, arg0, arg1, addHeapObject(arg2));
+        wasm.__wasm_bindgen_func_elem_3595(retptr, arg0, arg1, addHeapObject(arg2));
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
         var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
         if (r1) {
@@ -8024,8 +8086,8 @@ function __wasm_bindgen_func_elem_3547(arg0, arg1, arg2) {
     }
 }
 
-function __wasm_bindgen_func_elem_3551(arg0, arg1, arg2, arg3) {
-    wasm.__wasm_bindgen_func_elem_3551(arg0, arg1, addHeapObject(arg2), addHeapObject(arg3));
+function __wasm_bindgen_func_elem_3599(arg0, arg1, arg2, arg3) {
+    wasm.__wasm_bindgen_func_elem_3599(arg0, arg1, addHeapObject(arg2), addHeapObject(arg3));
 }
 
 const Cesium3DTileFinalization = (typeof FinalizationRegistry === 'undefined')
