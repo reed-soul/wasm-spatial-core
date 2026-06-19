@@ -1509,38 +1509,38 @@ fn compute_geometric_error_with_spacing(
 
 /// Build an octree for tileset generation, keeping optional RGB colors aligned.
 fn build_octree_for_tileset(
-    positions: &[f32],
+    positions: &mut [f32],
     colors: &mut Option<Vec<u8>>,
     max_pts: u32,
     max_d: u32,
-) -> (Octree, Vec<f32>) {
+) -> (Octree, usize) {
     let mut noop = || false;
     build_octree_for_tileset_abort(positions, colors, max_pts, max_d, &mut noop)
         .expect("octree build without abort cannot fail")
 }
 
 fn build_octree_for_tileset_abort(
-    positions: &[f32],
+    positions: &mut [f32],
     colors: &mut Option<Vec<u8>>,
     max_pts: u32,
     max_d: u32,
     should_abort: &mut dyn FnMut() -> bool,
-) -> Result<(Octree, Vec<f32>), crate::errors::SpatialErrorDetail> {
-    let mut buf = positions.to_vec();
+) -> Result<(Octree, usize), crate::errors::SpatialErrorDetail> {
     let octree = match colors {
-        Some(c) if c.len() == buf.len() => {
-            Octree::build_with_colors_abort(&mut buf, c, max_pts, max_d, should_abort)?
+        Some(c) if c.len() == positions.len() => {
+            Octree::build_with_colors_abort(positions, c, max_pts, max_d, should_abort)?
         }
-        _ => Octree::build_with_abort(&mut buf, max_pts, max_d, should_abort)?,
+        _ => Octree::build_with_abort(positions, max_pts, max_d, should_abort)?,
     };
-    Ok((octree, buf))
+    let point_count = octree.total_points() as usize;
+    Ok((octree, point_count))
 }
 
 /// WASM export: generate a tileset from octree and point data.
 #[wasm_bindgen(js_name = "generateTileset")]
 #[allow(clippy::too_many_arguments)]
 pub fn generate_tileset_js(
-    positions: &[f32],
+    positions: &mut [f32],
     max_points_per_node: Option<u32>,
     max_depth: Option<u32>,
     colors: Option<Vec<u8>>,
@@ -1548,9 +1548,10 @@ pub fn generate_tileset_js(
     let max_pts = max_points_per_node.unwrap_or(DEFAULT_MAX_POINTS_PER_NODE);
     let max_d = max_depth.unwrap_or(crate::octree::DEFAULT_MAX_DEPTH);
     let mut color_buf = colors;
-    let (octree, buf) = build_octree_for_tileset(positions, &mut color_buf, max_pts, max_d);
+    let (octree, point_count) = build_octree_for_tileset(positions, &mut color_buf, max_pts, max_d);
+    let active = &positions[..point_count * 3];
 
-    let result = generate_tileset(&octree, &buf, color_buf.as_deref()).map_err(JsValue::from)?;
+    let result = generate_tileset(&octree, active, color_buf.as_deref()).map_err(JsValue::from)?;
 
     Ok(WasmTilesetResult { inner: result })
 }
@@ -1562,7 +1563,7 @@ pub fn generate_tileset_js(
 #[wasm_bindgen(js_name = "generateTilesetWithSpacing")]
 #[allow(clippy::too_many_arguments)]
 pub fn generate_tileset_with_spacing_js(
-    positions: &[f32],
+    positions: &mut [f32],
     max_points_per_node: Option<u32>,
     max_depth: Option<u32>,
     colors: Option<Vec<u8>>,
@@ -1572,11 +1573,12 @@ pub fn generate_tileset_with_spacing_js(
     let max_pts = max_points_per_node.unwrap_or(DEFAULT_MAX_POINTS_PER_NODE);
     let max_d = max_depth.unwrap_or(crate::octree::DEFAULT_MAX_DEPTH);
     let mut color_buf = colors;
-    let (octree, buf) = build_octree_for_tileset(positions, &mut color_buf, max_pts, max_d);
+    let (octree, point_count) = build_octree_for_tileset(positions, &mut color_buf, max_pts, max_d);
+    let active = &positions[..point_count * 3];
 
     let result = generate_tileset_with_spacing(
         &octree,
-        &buf,
+        active,
         color_buf.as_deref(),
         avg_spacing,
         spacing_factor,
@@ -1590,7 +1592,7 @@ pub fn generate_tileset_with_spacing_js(
 #[wasm_bindgen(js_name = "generateTilesetWithAbort")]
 #[allow(clippy::too_many_arguments)]
 pub fn generate_tileset_with_abort_js(
-    positions: &[f32],
+    positions: &mut [f32],
     max_points_per_node: Option<u32>,
     max_depth: Option<u32>,
     colors: Option<Vec<u8>>,
@@ -1606,17 +1608,18 @@ pub fn generate_tileset_with_abort_js(
             .map(|v| v.is_truthy())
             .unwrap_or(false)
     };
-    let (octree, buf) = build_octree_for_tileset_abort(
+    let (octree, point_count) = build_octree_for_tileset_abort(
         positions,
         &mut color_buf,
         max_pts,
         max_d,
         &mut check_abort,
     )?;
+    let active = &positions[..point_count * 3];
 
     let result = generate_tileset_with_spacing_abort(
         &octree,
-        &buf,
+        active,
         color_buf.as_deref(),
         None,
         None,
@@ -1762,7 +1765,7 @@ fn traverse_lod(octree: &Octree, node_idx: usize, params: &LodParams, visible: &
 #[wasm_bindgen(js_name = "getVisibleTiles")]
 #[allow(clippy::too_many_arguments)]
 pub fn get_visible_tiles_js(
-    positions: &[f32],
+    positions: &mut [f32],
     camera_x: f64,
     camera_y: f64,
     camera_z: f64,
@@ -1775,8 +1778,8 @@ pub fn get_visible_tiles_js(
 ) -> js_sys::Uint32Array {
     let max_pts = max_points_per_node.unwrap_or(DEFAULT_MAX_POINTS_PER_NODE);
     let max_d = max_depth.unwrap_or(crate::octree::DEFAULT_MAX_DEPTH);
-    let mut buf = positions.to_vec();
-    let octree = Octree::build(&mut buf, max_pts, max_d);
+    let octree = Octree::build_in_place(positions, None, max_pts, max_d, &mut None)
+        .expect("getVisibleTiles octree build");
 
     let visible = get_visible_tiles(
         &octree,

@@ -425,6 +425,15 @@ fn test_truncated_file_no_panic() {
             "panic on truncated input at {} bytes",
             truncate_at
         );
+
+        // Severely truncated inputs must return an error, not success with garbage.
+        if truncate_at < 230 {
+            assert!(
+                parse_las_points_core(truncated).is_err(),
+                "truncation at {} bytes should fail parse",
+                truncate_at
+            );
+        }
     }
 
     eprintln!("Truncated file: no panic at any truncation point");
@@ -446,6 +455,7 @@ fn test_corrupt_header_no_panic() {
 
     // Should return errors, not panic
     assert!(parse_las_header_core(&garbage).is_err());
+    assert!(parse_las_points_core(&garbage).is_err());
 
     eprintln!("Corrupt header: graceful error");
 }
