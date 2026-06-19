@@ -3694,14 +3694,14 @@ export function buildColorRamp(colors, num_steps) {
 /**
  * Build an octree from a flat `[x, y, z, ...]` position buffer.
  *
- * The input buffer is **not** modified (a copy is made internally).
+ * The input buffer is **reordered in-place** (zero-copy from JS `Float32Array`).
  * Points with NaN/Infinity coordinates are silently filtered.
  *
  * Performs a memory pre-check if `setMaxWasmMemory` has been called with
  * a non-zero limit. Returns an error if estimated memory exceeds the limit.
  *
  * # Arguments
- * * `positions` — `Float32Array` of `[x, y, z, ...]` triples.
+ * * `positions` — Mutable `Float32Array` of `[x, y, z, ...]` triples.
  * * `max_points_per_node` — Max points per leaf (default: 50 000).
  * * `max_depth` — Max tree depth (default: 21).
  * @param {Float32Array} positions
@@ -3712,9 +3712,9 @@ export function buildColorRamp(colors, num_steps) {
 export function buildOctree(positions, max_points_per_node, max_depth) {
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-        const ptr0 = passArrayF32ToWasm0(positions, wasm.__wbindgen_export);
-        const len0 = WASM_VECTOR_LEN;
-        wasm.buildOctree(retptr, ptr0, len0, isLikeNone(max_points_per_node) ? Number.MAX_SAFE_INTEGER : (max_points_per_node) >>> 0, isLikeNone(max_depth) ? Number.MAX_SAFE_INTEGER : (max_depth) >>> 0);
+        var ptr0 = passArrayF32ToWasm0(positions, wasm.__wbindgen_export);
+        var len0 = WASM_VECTOR_LEN;
+        wasm.buildOctree(retptr, ptr0, len0, addHeapObject(positions), isLikeNone(max_points_per_node) ? Number.MAX_SAFE_INTEGER : (max_points_per_node) >>> 0, isLikeNone(max_depth) ? Number.MAX_SAFE_INTEGER : (max_depth) >>> 0);
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
         var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
         var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
@@ -3747,9 +3747,9 @@ export function buildOctree(positions, max_points_per_node, max_depth) {
 export function buildOctreeParallel(positions, max_points_per_node, max_depth) {
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-        const ptr0 = passArrayF32ToWasm0(positions, wasm.__wbindgen_export);
-        const len0 = WASM_VECTOR_LEN;
-        wasm.buildOctreeParallel(retptr, ptr0, len0, isLikeNone(max_points_per_node) ? Number.MAX_SAFE_INTEGER : (max_points_per_node) >>> 0, isLikeNone(max_depth) ? Number.MAX_SAFE_INTEGER : (max_depth) >>> 0);
+        var ptr0 = passArrayF32ToWasm0(positions, wasm.__wbindgen_export);
+        var len0 = WASM_VECTOR_LEN;
+        wasm.buildOctreeParallel(retptr, ptr0, len0, addHeapObject(positions), isLikeNone(max_points_per_node) ? Number.MAX_SAFE_INTEGER : (max_points_per_node) >>> 0, isLikeNone(max_depth) ? Number.MAX_SAFE_INTEGER : (max_depth) >>> 0);
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
         var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
         var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
@@ -3776,9 +3776,9 @@ export function buildOctreeParallel(positions, max_points_per_node, max_depth) {
 export function buildOctreeParallelWithAbort(positions, max_points_per_node, max_depth, should_abort) {
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-        const ptr0 = passArrayF32ToWasm0(positions, wasm.__wbindgen_export);
-        const len0 = WASM_VECTOR_LEN;
-        wasm.buildOctreeParallelWithAbort(retptr, ptr0, len0, isLikeNone(max_points_per_node) ? Number.MAX_SAFE_INTEGER : (max_points_per_node) >>> 0, isLikeNone(max_depth) ? Number.MAX_SAFE_INTEGER : (max_depth) >>> 0, addBorrowedObject(should_abort));
+        var ptr0 = passArrayF32ToWasm0(positions, wasm.__wbindgen_export);
+        var len0 = WASM_VECTOR_LEN;
+        wasm.buildOctreeParallelWithAbort(retptr, ptr0, len0, addHeapObject(positions), isLikeNone(max_points_per_node) ? Number.MAX_SAFE_INTEGER : (max_points_per_node) >>> 0, isLikeNone(max_depth) ? Number.MAX_SAFE_INTEGER : (max_depth) >>> 0, addBorrowedObject(should_abort));
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
         var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
         var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
@@ -3803,9 +3803,9 @@ export function buildOctreeParallelWithAbort(positions, max_points_per_node, max
 export function buildOctreeWithAbort(positions, max_points_per_node, max_depth, should_abort) {
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-        const ptr0 = passArrayF32ToWasm0(positions, wasm.__wbindgen_export);
-        const len0 = WASM_VECTOR_LEN;
-        wasm.buildOctreeWithAbort(retptr, ptr0, len0, isLikeNone(max_points_per_node) ? Number.MAX_SAFE_INTEGER : (max_points_per_node) >>> 0, isLikeNone(max_depth) ? Number.MAX_SAFE_INTEGER : (max_depth) >>> 0, addBorrowedObject(should_abort));
+        var ptr0 = passArrayF32ToWasm0(positions, wasm.__wbindgen_export);
+        var len0 = WASM_VECTOR_LEN;
+        wasm.buildOctreeWithAbort(retptr, ptr0, len0, addHeapObject(positions), isLikeNone(max_points_per_node) ? Number.MAX_SAFE_INTEGER : (max_points_per_node) >>> 0, isLikeNone(max_depth) ? Number.MAX_SAFE_INTEGER : (max_depth) >>> 0, addBorrowedObject(should_abort));
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
         var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
         var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
@@ -5296,11 +5296,11 @@ export function generateInterleavedVertexBuffer(positions, colors, normals) {
 export function generateTileset(positions, max_points_per_node, max_depth, colors) {
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-        const ptr0 = passArrayF32ToWasm0(positions, wasm.__wbindgen_export);
-        const len0 = WASM_VECTOR_LEN;
+        var ptr0 = passArrayF32ToWasm0(positions, wasm.__wbindgen_export);
+        var len0 = WASM_VECTOR_LEN;
         var ptr1 = isLikeNone(colors) ? 0 : passArray8ToWasm0(colors, wasm.__wbindgen_export);
         var len1 = WASM_VECTOR_LEN;
-        wasm.generateTileset(retptr, ptr0, len0, isLikeNone(max_points_per_node) ? Number.MAX_SAFE_INTEGER : (max_points_per_node) >>> 0, isLikeNone(max_depth) ? Number.MAX_SAFE_INTEGER : (max_depth) >>> 0, ptr1, len1);
+        wasm.generateTileset(retptr, ptr0, len0, addHeapObject(positions), isLikeNone(max_points_per_node) ? Number.MAX_SAFE_INTEGER : (max_points_per_node) >>> 0, isLikeNone(max_depth) ? Number.MAX_SAFE_INTEGER : (max_depth) >>> 0, ptr1, len1);
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
         var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
         var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
@@ -5325,11 +5325,11 @@ export function generateTileset(positions, max_points_per_node, max_depth, color
 export function generateTilesetWithAbort(positions, max_points_per_node, max_depth, colors, should_abort) {
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-        const ptr0 = passArrayF32ToWasm0(positions, wasm.__wbindgen_export);
-        const len0 = WASM_VECTOR_LEN;
+        var ptr0 = passArrayF32ToWasm0(positions, wasm.__wbindgen_export);
+        var len0 = WASM_VECTOR_LEN;
         var ptr1 = isLikeNone(colors) ? 0 : passArray8ToWasm0(colors, wasm.__wbindgen_export);
         var len1 = WASM_VECTOR_LEN;
-        wasm.generateTilesetWithAbort(retptr, ptr0, len0, isLikeNone(max_points_per_node) ? Number.MAX_SAFE_INTEGER : (max_points_per_node) >>> 0, isLikeNone(max_depth) ? Number.MAX_SAFE_INTEGER : (max_depth) >>> 0, ptr1, len1, addBorrowedObject(should_abort));
+        wasm.generateTilesetWithAbort(retptr, ptr0, len0, addHeapObject(positions), isLikeNone(max_points_per_node) ? Number.MAX_SAFE_INTEGER : (max_points_per_node) >>> 0, isLikeNone(max_depth) ? Number.MAX_SAFE_INTEGER : (max_depth) >>> 0, ptr1, len1, addBorrowedObject(should_abort));
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
         var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
         var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
@@ -5359,11 +5359,11 @@ export function generateTilesetWithAbort(positions, max_points_per_node, max_dep
 export function generateTilesetWithSpacing(positions, max_points_per_node, max_depth, colors, avg_spacing, spacing_factor) {
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-        const ptr0 = passArrayF32ToWasm0(positions, wasm.__wbindgen_export);
-        const len0 = WASM_VECTOR_LEN;
+        var ptr0 = passArrayF32ToWasm0(positions, wasm.__wbindgen_export);
+        var len0 = WASM_VECTOR_LEN;
         var ptr1 = isLikeNone(colors) ? 0 : passArray8ToWasm0(colors, wasm.__wbindgen_export);
         var len1 = WASM_VECTOR_LEN;
-        wasm.generateTilesetWithSpacing(retptr, ptr0, len0, isLikeNone(max_points_per_node) ? Number.MAX_SAFE_INTEGER : (max_points_per_node) >>> 0, isLikeNone(max_depth) ? Number.MAX_SAFE_INTEGER : (max_depth) >>> 0, ptr1, len1, !isLikeNone(avg_spacing), isLikeNone(avg_spacing) ? 0 : avg_spacing, !isLikeNone(spacing_factor), isLikeNone(spacing_factor) ? 0 : spacing_factor);
+        wasm.generateTilesetWithSpacing(retptr, ptr0, len0, addHeapObject(positions), isLikeNone(max_points_per_node) ? Number.MAX_SAFE_INTEGER : (max_points_per_node) >>> 0, isLikeNone(max_depth) ? Number.MAX_SAFE_INTEGER : (max_depth) >>> 0, ptr1, len1, !isLikeNone(avg_spacing), isLikeNone(avg_spacing) ? 0 : avg_spacing, !isLikeNone(spacing_factor), isLikeNone(spacing_factor) ? 0 : spacing_factor);
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
         var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
         var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
@@ -5631,9 +5631,9 @@ export function getSupportedCrs() {
  * @returns {Uint32Array}
  */
 export function getVisibleTiles(positions, camera_x, camera_y, camera_z, camera_fov, screen_width, screen_height, max_points_per_node, max_depth, sse_threshold) {
-    const ptr0 = passArrayF32ToWasm0(positions, wasm.__wbindgen_export);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.getVisibleTiles(ptr0, len0, camera_x, camera_y, camera_z, camera_fov, screen_width, screen_height, isLikeNone(max_points_per_node) ? Number.MAX_SAFE_INTEGER : (max_points_per_node) >>> 0, isLikeNone(max_depth) ? Number.MAX_SAFE_INTEGER : (max_depth) >>> 0, !isLikeNone(sse_threshold), isLikeNone(sse_threshold) ? 0 : sse_threshold);
+    var ptr0 = passArrayF32ToWasm0(positions, wasm.__wbindgen_export);
+    var len0 = WASM_VECTOR_LEN;
+    const ret = wasm.getVisibleTiles(ptr0, len0, addHeapObject(positions), camera_x, camera_y, camera_z, camera_fov, screen_width, screen_height, isLikeNone(max_points_per_node) ? Number.MAX_SAFE_INTEGER : (max_points_per_node) >>> 0, isLikeNone(max_depth) ? Number.MAX_SAFE_INTEGER : (max_depth) >>> 0, !isLikeNone(sse_threshold), isLikeNone(sse_threshold) ? 0 : sse_threshold);
     return takeObject(ret);
 }
 
@@ -7129,11 +7129,11 @@ export function polylineLength(coords) {
  */
 export function processChunked(positions, colors, max_points_per_node, max_depth, on_chunk) {
     try {
-        const ptr0 = passArrayF32ToWasm0(positions, wasm.__wbindgen_export);
-        const len0 = WASM_VECTOR_LEN;
+        var ptr0 = passArrayF32ToWasm0(positions, wasm.__wbindgen_export);
+        var len0 = WASM_VECTOR_LEN;
         var ptr1 = isLikeNone(colors) ? 0 : passArray8ToWasm0(colors, wasm.__wbindgen_export);
         var len1 = WASM_VECTOR_LEN;
-        const ret = wasm.processChunked(ptr0, len0, ptr1, len1, isLikeNone(max_points_per_node) ? Number.MAX_SAFE_INTEGER : (max_points_per_node) >>> 0, isLikeNone(max_depth) ? Number.MAX_SAFE_INTEGER : (max_depth) >>> 0, addBorrowedObject(on_chunk));
+        const ret = wasm.processChunked(ptr0, len0, addHeapObject(positions), ptr1, len1, isLikeNone(max_points_per_node) ? Number.MAX_SAFE_INTEGER : (max_points_per_node) >>> 0, isLikeNone(max_depth) ? Number.MAX_SAFE_INTEGER : (max_depth) >>> 0, addBorrowedObject(on_chunk));
         return takeObject(ret);
     } finally {
         heap[stack_pointer++] = undefined;
@@ -7152,11 +7152,11 @@ export function processChunked(positions, colors, max_points_per_node, max_depth
  */
 export function processChunkedWithAbort(positions, colors, max_points_per_node, max_depth, on_chunk, should_abort) {
     try {
-        const ptr0 = passArrayF32ToWasm0(positions, wasm.__wbindgen_export);
-        const len0 = WASM_VECTOR_LEN;
+        var ptr0 = passArrayF32ToWasm0(positions, wasm.__wbindgen_export);
+        var len0 = WASM_VECTOR_LEN;
         var ptr1 = isLikeNone(colors) ? 0 : passArray8ToWasm0(colors, wasm.__wbindgen_export);
         var len1 = WASM_VECTOR_LEN;
-        const ret = wasm.processChunkedWithAbort(ptr0, len0, ptr1, len1, isLikeNone(max_points_per_node) ? Number.MAX_SAFE_INTEGER : (max_points_per_node) >>> 0, isLikeNone(max_depth) ? Number.MAX_SAFE_INTEGER : (max_depth) >>> 0, addBorrowedObject(on_chunk), addBorrowedObject(should_abort));
+        const ret = wasm.processChunkedWithAbort(ptr0, len0, addHeapObject(positions), ptr1, len1, isLikeNone(max_points_per_node) ? Number.MAX_SAFE_INTEGER : (max_points_per_node) >>> 0, isLikeNone(max_depth) ? Number.MAX_SAFE_INTEGER : (max_depth) >>> 0, addBorrowedObject(on_chunk), addBorrowedObject(should_abort));
         return takeObject(ret);
     } finally {
         heap[stack_pointer++] = undefined;
@@ -8067,7 +8067,7 @@ function __wbg_get_imports() {
                     const a = state0.a;
                     state0.a = 0;
                     try {
-                        return __wasm_bindgen_func_elem_3635(a, state0.b, arg0, arg1);
+                        return __wasm_bindgen_func_elem_3637(a, state0.b, arg0, arg1);
                     } finally {
                         state0.a = a;
                     }
@@ -8205,12 +8205,12 @@ function __wbg_get_imports() {
         },
         __wbindgen_cast_0000000000000001: function(arg0, arg1) {
             // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 11, ret: Unit, inner_ret: Some(Unit) }, mutable: false }) -> Externref`.
-            const ret = makeClosure(arg0, arg1, __wasm_bindgen_func_elem_1106);
+            const ret = makeClosure(arg0, arg1, __wasm_bindgen_func_elem_1108);
             return addHeapObject(ret);
         },
         __wbindgen_cast_0000000000000002: function(arg0, arg1) {
             // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 218, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
-            const ret = makeMutClosure(arg0, arg1, __wasm_bindgen_func_elem_3631);
+            const ret = makeMutClosure(arg0, arg1, __wasm_bindgen_func_elem_3633);
             return addHeapObject(ret);
         },
         __wbindgen_cast_0000000000000003: function(arg0) {
@@ -8237,14 +8237,14 @@ function __wbg_get_imports() {
     };
 }
 
-function __wasm_bindgen_func_elem_1106(arg0, arg1, arg2) {
-    wasm.__wasm_bindgen_func_elem_1106(arg0, arg1, addHeapObject(arg2));
+function __wasm_bindgen_func_elem_1108(arg0, arg1, arg2) {
+    wasm.__wasm_bindgen_func_elem_1108(arg0, arg1, addHeapObject(arg2));
 }
 
-function __wasm_bindgen_func_elem_3631(arg0, arg1, arg2) {
+function __wasm_bindgen_func_elem_3633(arg0, arg1, arg2) {
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-        wasm.__wasm_bindgen_func_elem_3631(retptr, arg0, arg1, addHeapObject(arg2));
+        wasm.__wasm_bindgen_func_elem_3633(retptr, arg0, arg1, addHeapObject(arg2));
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
         var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
         if (r1) {
@@ -8255,8 +8255,8 @@ function __wasm_bindgen_func_elem_3631(arg0, arg1, arg2) {
     }
 }
 
-function __wasm_bindgen_func_elem_3635(arg0, arg1, arg2, arg3) {
-    wasm.__wasm_bindgen_func_elem_3635(arg0, arg1, addHeapObject(arg2), addHeapObject(arg3));
+function __wasm_bindgen_func_elem_3637(arg0, arg1, arg2, arg3) {
+    wasm.__wasm_bindgen_func_elem_3637(arg0, arg1, addHeapObject(arg2), addHeapObject(arg3));
 }
 
 const Cesium3DTileFinalization = (typeof FinalizationRegistry === 'undefined')
