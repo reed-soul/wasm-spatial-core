@@ -6226,8 +6226,10 @@ export function parseGeoJsonProperties(input) {
 }
 
 /**
- * Parse a GeoJSON FeatureCollection in chunks, calling `on_chunk` with
- * each batch of coordinate data and progress information.
+ * Parse a GeoJSON FeatureCollection in **chunks** (batched coordinate output).
+ *
+ * **Not a byte-stream parser:** the full `input` string is parsed into a DOM
+ * first; chunks only affect how coordinates are delivered to JS.
  *
  * ## Parameters
  *

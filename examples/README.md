@@ -18,7 +18,7 @@ Demos import WASM from `../pkg/`. **`pkg/` is not in git** — build it first:
 
 ```bash
 npm run build:pkg
-# or: wasm-pack build --target web --release --out-dir pkg -- --features point-cloud
+# or: wasm-pack build --target web --release --out-dir pkg -- --features point-cloud,geotiff
 ```
 
 | Demo | URL (after `npm run demo`) |
@@ -48,12 +48,12 @@ Interactive **3D WebGL preview** embedded in the demo hub:
 
 - Orbit / pan / zoom (mouse + touch)
 - WASM `decimateVoxelGrid` on synthetic terrain
-- **Drag-drop LAS/LAZ** or one-click **Sample LAS** (`sample-data/demo_terrain.las`)
+- **Drag-drop LAS** (LAZ if built with `laz-support`) or one-click **Sample LAS** (`sample-data/demo_terrain.las`)
 - Links to full viewers below
 
 ### Three.js Point Cloud Viewer (`point-cloud-demo/`)
 
-Zero-dependency 3D point cloud viewer. Drag a `.las` or `.laz` file to render it in 3D.
+Zero-dependency 3D point cloud viewer. Drag a `.las` file to render it in 3D (`.laz` requires a `laz-support` WASM build).
 
 - No API keys or tokens required
 - WASM-powered octree + pnts encoding
@@ -64,7 +64,7 @@ Zero-dependency 3D point cloud viewer. Drag a `.las` or `.laz` file to render it
 
 Point cloud rendered on a 3D globe via Cesium and 3D Tiles.
 
-- Drag-and-drop LAS/LAZ file upload
+- Drag-and-drop LAS upload (LAZ if built with `laz-support`)
 - Full 3D Tiles pipeline (octree → pnts → tileset.json)
 - Globe navigation with automatic fly-to
 - Requires Cesium Ion token (free tier)

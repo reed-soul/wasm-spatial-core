@@ -2,15 +2,15 @@
 
 # wasm-spatial-core
 
-**Drag a LAS/LAZ file into your browser → Cesium 3D. No server needed.**
+**Drag a LAS file into your browser → Cesium 3D. No server needed.**
 
 [![CI](https://github.com/reed-soul/wasm-spatial-core/actions/workflows/ci.yml/badge.svg)](https://github.com/reed-soul/wasm-spatial-core/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/wasm-spatial-core)](https://www.npmjs.com/package/wasm-spatial-core)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 ![Lines](https://img.shields.io/badge/code-33K-blue)
-![Tests](https://img.shields.io/badge/tests-680-success)
-![Formats](https://img.shields.io/badge/formats-15-green)
+![Tests](https://img.shields.io/badge/tests-661%20(npm%20build)-success)
+![Formats](https://img.shields.io/badge/formats-10%2B%20(npm)%20|%2015%2B%20(engine)-green)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/demo.png">
@@ -29,7 +29,7 @@
   import init, { parsePointCloudAuto, buildOctree, generateTileset }
     from 'https://esm.run/wasm-spatial-core';
   await init();
-  // LAS/LAZ file → parse → octree → 3D Tiles — all in-browser
+  // LAS file → parse → octree → 3D Tiles — all in-browser (LAZ needs custom build)
 </script>
 ```
 
@@ -39,7 +39,7 @@
 
 ## ✨ What is this?
 
-🚀 **LAS/LAZ/COPC/E57/PLY/OBJ → 3D Tiles** in the browser
+🚀 **LAS/PLY/OBJ → 3D Tiles** in the browser (LAZ/COPC/E57 via optional build features)
 🏔️ **GeoTIFF → Quantized-Mesh Terrain** in the browser
 🗜️ **Draco point cloud compression** (Google draco3d integration)
 ⚡ **100M points in 8.5 seconds** (release build, native)
@@ -64,7 +64,7 @@ import init, {
 
 await init();
 
-// Parse any point cloud (LAS, LAZ, COPC, PLY, OBJ...)
+// Parse LAS (default npm). LAZ/COPC need --features laz-support at build time.
 const cloud = parsePointCloudAuto(lasBytes);
 
 // Build octree → 3D Tiles
@@ -97,6 +97,26 @@ const results = compressTilesetWithDraco(tileset, encoderModule, {
 });
 ```
 
+### What's in the npm package?
+
+`npm install wasm-spatial-core` ships a **prebuilt WASM binary** compiled with
+`point-cloud` + `geotiff`. That gives you:
+
+| Included in npm | Not in npm (custom `wasm-pack` build) |
+|-----------------|---------------------------------------|
+| LAS, PLY, OBJ, PCD parsing | LAZ / COPC (`laz-support`) |
+| Octree + 3D Tiles (pnts) | E57 (`e57-support`) |
+| GeoTIFF → quantized-mesh terrain | Terrain deformation (`terrain-edit`) |
+| Coordinates, GeoJSON, MVT, spatial analysis | Mesh QEM / clip (`mesh-edit`) |
+
+**Format counts:** **10+** read/write paths in the default npm build (LAS/PLY/OBJ/PCD, GeoJSON, MVT, WKT/WKB, GeoTIFF, GPX, TopoJSON, 3D Tiles/glTF output, …). **15+** when optional format features are enabled (LAZ/COPC, E57, GLB ingest, …).
+
+Runtime checks: `supportsLaz()`, `supportsGeotiff()`, `lazStatus()`.
+
+CI runs **`cargo test --all-features`** (~840 tests across the full matrix).
+The npm build runs **661 tests** for the shipped feature set — the badge above
+reflects the npm build, not `--all-features`.
+
 ---
 
 ## 🎯 Core Pipelines
@@ -104,11 +124,12 @@ const results = compressTilesetWithDraco(tileset, encoderModule, {
 ### Point Cloud → 3D Tiles
 
 ```
-LAS / LAZ / COPC / E57 / PLY / OBJ
+LAS / PLY / OBJ  (npm default)
+LAZ / COPC / E57 (optional build features — see table above)
         │
         ▼
   ┌──────────────┐
-  │ WASM Parser   │  Full format support, browser-side
+  │ WASM Parser   │  Browser-side; format set depends on build features
   └──────┬───────┘
          ▼
   ┌──────────────┐
@@ -228,7 +249,7 @@ R-Tree / Octree indexing, bounding box / KNN queries, haversine / vincenty dista
 | Demo | URL |
 |------|-----|
 | **🏠 Landing Page** | https://reed-soul.github.io/wasm-spatial-core/ |
-| **Point Cloud** (LAS/LAZ/PLY/OBJ/E57) | https://reed-soul.github.io/wasm-spatial-core/point-cloud/ |
+| **Point Cloud** (LAS/PLY/OBJ; LAZ in custom builds) | https://reed-soul.github.io/wasm-spatial-core/point-cloud/ |
 | **Cesium 3D Tiles** | https://reed-soul.github.io/wasm-spatial-core/cesium-workflow/ |
 | **Terrain Viewer** (GeoTIFF) | https://reed-soul.github.io/wasm-spatial-core/terrain/ |
 
@@ -294,8 +315,12 @@ const [zone, easting, northing] = wasm.wgs84ToUtm(116.404, 39.915);
 ### GeoJSON
 
 ```typescript
-wasm.parseGeoJsonStream(hugeGeojson, 65536, (chunk, n, total) => { /* ... */ });
-const iter = wasm.parseGeoJsonLazy(hugeGeojson);      // O(single feature) memory
+// Chunked output: parses the full JSON first, then emits coordinate batches
+// (progress callbacks + lower peak coord memory — not byte-stream input).
+wasm.parseGeoJsonStream(hugeGeojson, 500, (chunk, processed, total) => { /* ... */ });
+
+// Lower memory per iteration: one feature at a time (input string still required)
+const iter = wasm.parseGeoJsonLazy(hugeGeojson);
 ```
 
 **[📖 Full API Docs](https://reed-soul.github.io/wasm-spatial-core/docs/)**
@@ -317,15 +342,18 @@ npm run demo
 
 ### Feature Flags
 
-| Feature | Default | Description |
-|---------|---------|-------------|
-| `single-thread` | ✅ | Zero-config, works everywhere |
-| `multi-thread` | ❌ | Web Workers + SharedArrayBuffer |
-| `point-cloud` | ❌ | LAS/LAZ/COPC/PLY/OBJ + octree + 3D Tiles |
-| `laz-support` | ❌ | LAZ/COPC decompression |
-| `e57-support` | ❌ | E57 format |
-| `geotiff` | ❌ | GeoTIFF terrain + quantized-mesh |
-| `draco-support` | ❌ | Draco compression API (JS-side via draco3d) |
+| Feature | In npm | Default crate | Description |
+|---------|--------|---------------|-------------|
+| `single-thread` | ✅ | ✅ | Zero-config, works everywhere |
+| `point-cloud` | ✅ | ❌ | LAS/PLY/OBJ/PCD + octree + 3D Tiles |
+| `geotiff` | ✅ | ❌ | GeoTIFF terrain + quantized-mesh |
+| `multi-thread` | ❌ | ❌ | Web Workers + SharedArrayBuffer |
+| `laz-support` | ❌ | ❌ | LAZ/COPC decompression (+ ~400 KB WASM) |
+| `e57-support` | ❌ | ❌ | E57 format |
+| `terrain-edit` | ❌ | ❌ | Heightfield flatten/deform (requires `geotiff`) |
+| `mesh-ingest` | ❌ | ❌ | Spatial IR + GLB ingest (Wave 2) |
+| `mesh-edit` | ❌ | ❌ | Mesh QEM / OBB split (requires `mesh-ingest`) |
+| `draco-support` | ❌ | ❌ | Draco compression API (JS-side via draco3d) |
 
 ---
 
@@ -338,9 +366,9 @@ npm run demo
 | **[docs/ENGINE_BOUNDARY.md](./docs/ENGINE_BOUNDARY.md)** | What is **in** the engine vs your application |
 | **[ROADMAP_V1.md](./ROADMAP_V1.md)** | ✅ Completed — point cloud → 3D Tiles browser pipeline |
 
-**V1 highlights (done):** LAS/LAZ → octree → 3D Tiles · GeoTIFF terrain · Draco · multi-thread WASM · Node.js batch API
+**V1 highlights (done):** LAS → octree → 3D Tiles (npm) · LAZ/COPC/E57 (optional builds) · GeoTIFF terrain · Draco · multi-thread WASM · Node.js batch API
 
-**V2 next:** spatial IR · terrain/mesh edit · WebGPU · incremental tiles — see [issue templates](./docs/issues/) (start at **W2**)
+**V2 next:** spatial IR · terrain/mesh edit (source available; not in default npm) · WebGPU · incremental tiles — see [issue templates](./docs/issues/) (start at **W2**)
 
 ---
 
