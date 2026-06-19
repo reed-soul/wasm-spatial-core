@@ -129,6 +129,10 @@ name = "terrain_edit_test"
 required-features = ["terrain-edit"]
 
 [[test]]
+name = "terrain_edit_golden_test"
+required-features = ["terrain-edit"]
+
+[[test]]
 name = "laz_roundtrip_test"
 required-features = ["laz-support", "test-helpers"]
 
