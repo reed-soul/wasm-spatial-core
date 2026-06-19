@@ -7,7 +7,7 @@ cd "$ROOT"
 
 if [[ "${SKIP_WASM_BUILD:-0}" != "1" ]]; then
   echo "Building WASM package → pkg/"
-  wasm-pack build --target web --release --out-dir pkg --features point-cloud,geotiff
+  wasm-pack build --target web --release --out-dir pkg --features point-cloud,terrain-edit
 fi
 
 if [[ ! -f pkg/wasm_spatial_core.js ]]; then

@@ -86,3 +86,24 @@ fn test_golden_fill_2x2() {
         assert!((got - want).abs() < 1e-5);
     }
 }
+
+/// W3 exit gate: 2048×2048 flatten &lt; 500 ms (release only).
+#[test]
+#[ignore = "W3 perf gate — cargo test test_flatten_2048_w3_gate --release --features terrain-edit -- --ignored --nocapture"]
+fn test_flatten_2048_w3_gate() {
+    use wasm_spatial_core::{flatten_polygon, TerrainGrid};
+
+    let n = 2048u32;
+    let bounds = [0.0, 0.0, 1.0, 1.0];
+    let heights = vec![10.0f32; (n * n) as usize];
+    let mut grid = TerrainGrid::new(heights, n, n, bounds).unwrap();
+    let polygon = vec![0.25, 0.25, 0.75, 0.25, 0.75, 0.75, 0.25, 0.75];
+    let start = std::time::Instant::now();
+    flatten_polygon(&mut grid, &polygon, 5.0, 0).unwrap();
+    let elapsed = start.elapsed();
+    assert!(
+        elapsed.as_millis() < 500,
+        "2048×2048 flatten took {} ms (W3 gate: <500 ms)",
+        elapsed.as_millis()
+    );
+}
