@@ -252,6 +252,15 @@
       color: var(--muted);
       margin-top: 2px;
     }
+    .stats-note {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.78rem;
+      padding: 0 24px 20px;
+      max-width: 720px;
+      margin: -8px auto 0;
+      line-height: 1.5;
+    }
 
     /* Footer */
     footer {
@@ -279,7 +288,7 @@
   <div class="badges">
     <span class="badge badge-green">33K+ Lines of Rust</span>
     <span class="badge badge-blue">661 Tests (npm build)</span>
-    <span class="badge badge-purple">15+ Data Formats (engine)</span>
+    <span class="badge badge-purple">10+ / 15+ Formats</span>
     <span class="badge badge-orange">MIT License</span>
     <span class="badge badge-cyan">v0.7.1</span>
   </div>
@@ -295,9 +304,9 @@
     <div class="value">10M+</div>
     <div class="label">Points in seconds</div>
   </div>
-  <div class="stat-item">
-    <div class="value">15+</div>
-    <div class="label">Data formats</div>
+  <div class="stat-item" title="Input/output format paths: default npm WASM vs full engine with optional features">
+    <div class="value">10+ / 15+</div>
+    <div class="label">Formats · npm / engine</div>
   </div>
   <div class="stat-item">
     <div class="value">0</div>
@@ -308,6 +317,11 @@
     <div class="label">WASM binary</div>
   </div>
 </div>
+
+<p class="stats-note">
+  <strong>10+</strong> formats in the default npm build (LAS/PLY/OBJ/PCD, GeoJSON, MVT, WKT/WKB, GeoTIFF, GPX, TopoJSON, 3D Tiles &amp; glTF output).
+  <strong>15+</strong> across optional builds — add LAZ/COPC, E57, GLB ingest, and related paths via feature flags.
+</p>
 
 <div class="content">
 

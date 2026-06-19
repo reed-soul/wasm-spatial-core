@@ -10,7 +10,7 @@
 
 ![Lines](https://img.shields.io/badge/code-33K-blue)
 ![Tests](https://img.shields.io/badge/tests-661%20(npm%20build)-success)
-![Formats](https://img.shields.io/badge/formats-15-green)
+![Formats](https://img.shields.io/badge/formats-10%2B%20(npm)%20|%2015%2B%20(engine)-green)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/demo.png">
@@ -108,6 +108,8 @@ const results = compressTilesetWithDraco(tileset, encoderModule, {
 | Octree + 3D Tiles (pnts) | E57 (`e57-support`) |
 | GeoTIFF → quantized-mesh terrain | Terrain deformation (`terrain-edit`) |
 | Coordinates, GeoJSON, MVT, spatial analysis | Mesh QEM / clip (`mesh-edit`) |
+
+**Format counts:** **10+** read/write paths in the default npm build (LAS/PLY/OBJ/PCD, GeoJSON, MVT, WKT/WKB, GeoTIFF, GPX, TopoJSON, 3D Tiles/glTF output, …). **15+** when optional format features are enabled (LAZ/COPC, E57, GLB ingest, …).
 
 Runtime checks: `supportsLaz()`, `supportsGeotiff()`, `lazStatus()`.
 
