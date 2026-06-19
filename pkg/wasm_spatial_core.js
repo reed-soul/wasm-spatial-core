@@ -3763,6 +3763,36 @@ export function buildOctreeParallel(positions, max_points_per_node, max_depth) {
 }
 
 /**
+ * Cancellable octree build for parallel entry points.
+ *
+ * Delegates to the sequential [`build_octree_with_abort`] because JS abort callbacks
+ * cannot be invoked safely from Rayon worker threads in WASM.
+ * @param {Float32Array} positions
+ * @param {number | null | undefined} max_points_per_node
+ * @param {number | null | undefined} max_depth
+ * @param {Function} should_abort
+ * @returns {Octree}
+ */
+export function buildOctreeParallelWithAbort(positions, max_points_per_node, max_depth, should_abort) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArrayF32ToWasm0(positions, wasm.__wbindgen_export);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.buildOctreeParallelWithAbort(retptr, ptr0, len0, isLikeNone(max_points_per_node) ? Number.MAX_SAFE_INTEGER : (max_points_per_node) >>> 0, isLikeNone(max_depth) ? Number.MAX_SAFE_INTEGER : (max_depth) >>> 0, addBorrowedObject(should_abort));
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return Octree.__wrap(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        heap[stack_pointer++] = undefined;
+    }
+}
+
+/**
  * Build an octree with an abort callback checked during construction.
  * @param {Float32Array} positions
  * @param {number | null | undefined} max_points_per_node
@@ -5608,6 +5638,38 @@ export function getVisibleTiles(positions, camera_x, camera_y, camera_z, camera_
 }
 
 /**
+ * Compute track statistics from GPX data.
+ * @param {string} input
+ * @returns {string}
+ */
+export function gpxTrackStats(input) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passStringToWasm0(input, wasm.__wbindgen_export, wasm.__wbindgen_export2);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.gpxTrackStats(retptr, ptr0, len0);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        var r3 = getDataViewMemory0().getInt32(retptr + 4 * 3, true);
+        var ptr2 = r0;
+        var len2 = r1;
+        if (r3) {
+            ptr2 = 0; len2 = 0;
+            throw takeObject(r2);
+        }
+        deferred3_0 = ptr2;
+        deferred3_1 = len2;
+        return getStringFromWasm0(ptr2, len2);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        wasm.__wbindgen_export4(deferred3_0, deferred3_1, 1);
+    }
+}
+
+/**
  * Assign each point to a spatial grid cell.
  *
  * # Arguments
@@ -6280,6 +6342,52 @@ export function parseGeotiffTile(bytes, tile_index) {
 }
 
 /**
+ * Parse GPX and return all trackpoint coordinates as a flat `Float64Array`.
+ * @param {string} input
+ * @returns {Float64Array}
+ */
+export function parseGpx(input) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passStringToWasm0(input, wasm.__wbindgen_export, wasm.__wbindgen_export2);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.parseGpx(retptr, ptr0, len0);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return takeObject(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
+}
+
+/**
+ * Parse GPX and return trackpoint coordinates with elevation as a flat `Float64Array`.
+ * @param {string} input
+ * @returns {Float64Array}
+ */
+export function parseGpxWithElevation(input) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passStringToWasm0(input, wasm.__wbindgen_export, wasm.__wbindgen_export2);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.parseGpxWithElevation(retptr, ptr0, len0);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return takeObject(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
+}
+
+/**
  * Parse IFC-SPF text and extract mesh geometry from IFCEXTRUDEDAREASOLID entities.
  *
  * This is an **experimental** feature that extracts a practical subset of IFC geometry:
@@ -6635,6 +6743,35 @@ export function parsePointCloudAuto(bytes) {
             throw takeObject(r1);
         }
         return LasPointCloud.__wrap(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
+}
+
+/**
+ * Parse TopoJSON and return all geometry coordinates as a flat `Float64Array`.
+ *
+ * # Arguments
+ * - `input`: TopoJSON string.
+ *
+ * # Returns
+ * Flat `Float64Array` `[lng0, lat0, lng1, lat1, ...]`.
+ * @param {string} input
+ * @returns {Float64Array}
+ */
+export function parseTopojson(input) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passStringToWasm0(input, wasm.__wbindgen_export, wasm.__wbindgen_export2);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.parseTopojson(retptr, ptr0, len0);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return takeObject(r0);
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
     }
@@ -7539,6 +7676,38 @@ export function toWkt(coords, geometry_type) {
 }
 
 /**
+ * Convert TopoJSON to a GeoJSON FeatureCollection string.
+ * @param {string} input
+ * @returns {string}
+ */
+export function topojsonToGeojson(input) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passStringToWasm0(input, wasm.__wbindgen_export, wasm.__wbindgen_export2);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.topojsonToGeojson(retptr, ptr0, len0);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        var r3 = getDataViewMemory0().getInt32(retptr + 4 * 3, true);
+        var ptr2 = r0;
+        var len2 = r1;
+        if (r3) {
+            ptr2 = 0; len2 = 0;
+            throw takeObject(r2);
+        }
+        deferred3_0 = ptr2;
+        deferred3_1 = len2;
+        return getStringFromWasm0(ptr2, len2);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        wasm.__wbindgen_export4(deferred3_0, deferred3_1, 1);
+    }
+}
+
+/**
  * Check if two polygons touch (share boundary but not interior).
  *
  * # Arguments
@@ -7898,7 +8067,7 @@ function __wbg_get_imports() {
                     const a = state0.a;
                     state0.a = 0;
                     try {
-                        return __wasm_bindgen_func_elem_3599(a, state0.b, arg0, arg1);
+                        return __wasm_bindgen_func_elem_3635(a, state0.b, arg0, arg1);
                     } finally {
                         state0.a = a;
                     }
@@ -8036,12 +8205,12 @@ function __wbg_get_imports() {
         },
         __wbindgen_cast_0000000000000001: function(arg0, arg1) {
             // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 11, ret: Unit, inner_ret: Some(Unit) }, mutable: false }) -> Externref`.
-            const ret = makeClosure(arg0, arg1, __wasm_bindgen_func_elem_1087);
+            const ret = makeClosure(arg0, arg1, __wasm_bindgen_func_elem_1106);
             return addHeapObject(ret);
         },
         __wbindgen_cast_0000000000000002: function(arg0, arg1) {
             // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 218, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
-            const ret = makeMutClosure(arg0, arg1, __wasm_bindgen_func_elem_3595);
+            const ret = makeMutClosure(arg0, arg1, __wasm_bindgen_func_elem_3631);
             return addHeapObject(ret);
         },
         __wbindgen_cast_0000000000000003: function(arg0) {
@@ -8068,14 +8237,14 @@ function __wbg_get_imports() {
     };
 }
 
-function __wasm_bindgen_func_elem_1087(arg0, arg1, arg2) {
-    wasm.__wasm_bindgen_func_elem_1087(arg0, arg1, addHeapObject(arg2));
+function __wasm_bindgen_func_elem_1106(arg0, arg1, arg2) {
+    wasm.__wasm_bindgen_func_elem_1106(arg0, arg1, addHeapObject(arg2));
 }
 
-function __wasm_bindgen_func_elem_3595(arg0, arg1, arg2) {
+function __wasm_bindgen_func_elem_3631(arg0, arg1, arg2) {
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-        wasm.__wasm_bindgen_func_elem_3595(retptr, arg0, arg1, addHeapObject(arg2));
+        wasm.__wasm_bindgen_func_elem_3631(retptr, arg0, arg1, addHeapObject(arg2));
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
         var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
         if (r1) {
@@ -8086,8 +8255,8 @@ function __wasm_bindgen_func_elem_3595(arg0, arg1, arg2) {
     }
 }
 
-function __wasm_bindgen_func_elem_3599(arg0, arg1, arg2, arg3) {
-    wasm.__wasm_bindgen_func_elem_3599(arg0, arg1, addHeapObject(arg2), addHeapObject(arg3));
+function __wasm_bindgen_func_elem_3635(arg0, arg1, arg2, arg3) {
+    wasm.__wasm_bindgen_func_elem_3635(arg0, arg1, addHeapObject(arg2), addHeapObject(arg3));
 }
 
 const Cesium3DTileFinalization = (typeof FinalizationRegistry === 'undefined')

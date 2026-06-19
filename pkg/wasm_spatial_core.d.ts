@@ -1458,6 +1458,14 @@ export function buildOctree(positions: Float32Array, max_points_per_node?: numbe
 export function buildOctreeParallel(positions: Float32Array, max_points_per_node?: number | null, max_depth?: number | null): Octree;
 
 /**
+ * Cancellable octree build for parallel entry points.
+ *
+ * Delegates to the sequential [`build_octree_with_abort`] because JS abort callbacks
+ * cannot be invoked safely from Rayon worker threads in WASM.
+ */
+export function buildOctreeParallelWithAbort(positions: Float32Array, max_points_per_node: number | null | undefined, max_depth: number | null | undefined, should_abort: Function): Octree;
+
+/**
  * Build an octree with an abort callback checked during construction.
  */
 export function buildOctreeWithAbort(positions: Float32Array, max_points_per_node: number | null | undefined, max_depth: number | null | undefined, should_abort: Function): Octree;
@@ -2246,6 +2254,11 @@ export function getSupportedCrs(): string;
 export function getVisibleTiles(positions: Float32Array, camera_x: number, camera_y: number, camera_z: number, camera_fov: number, screen_width: number, screen_height: number, max_points_per_node?: number | null, max_depth?: number | null, sse_threshold?: number | null): Uint32Array;
 
 /**
+ * Compute track statistics from GPX data.
+ */
+export function gpxTrackStats(input: string): string;
+
+/**
  * Assign each point to a spatial grid cell.
  *
  * # Arguments
@@ -2588,6 +2601,16 @@ export function parseGeotiff(bytes: Uint8Array): GeotiffInfo;
 export function parseGeotiffTile(bytes: Uint8Array, tile_index: number): Float32Array;
 
 /**
+ * Parse GPX and return all trackpoint coordinates as a flat `Float64Array`.
+ */
+export function parseGpx(input: string): Float64Array;
+
+/**
+ * Parse GPX and return trackpoint coordinates with elevation as a flat `Float64Array`.
+ */
+export function parseGpxWithElevation(input: string): Float64Array;
+
+/**
  * Parse IFC-SPF text and extract mesh geometry from IFCEXTRUDEDAREASOLID entities.
  *
  * This is an **experimental** feature that extracts a practical subset of IFC geometry:
@@ -2727,6 +2750,17 @@ export function parsePly(bytes: Uint8Array): PlyResult;
  * spatial indexing but falls back to full decompression for the auto path.
  */
 export function parsePointCloudAuto(bytes: Uint8Array): LasPointCloud;
+
+/**
+ * Parse TopoJSON and return all geometry coordinates as a flat `Float64Array`.
+ *
+ * # Arguments
+ * - `input`: TopoJSON string.
+ *
+ * # Returns
+ * Flat `Float64Array` `[lng0, lat0, lng1, lat1, ...]`.
+ */
+export function parseTopojson(input: string): Float64Array;
 
 /**
  * Parse Well-Known Binary (WKB) data into a flat `Float64Array`.
@@ -3171,6 +3205,11 @@ export function toWkb(coords: Float64Array, geometry_type: string): Uint8Array;
 export function toWkt(coords: Float64Array, geometry_type: string): string;
 
 /**
+ * Convert TopoJSON to a GeoJSON FeatureCollection string.
+ */
+export function topojsonToGeojson(input: string): string;
+
+/**
  * Check if two polygons touch (share boundary but not interior).
  *
  * # Arguments
@@ -3358,6 +3397,7 @@ export interface InitOutput {
     readonly bufferPoint: (a: number, b: number, c: number, d: number) => number;
     readonly buildColorRamp: (a: number, b: number, c: number) => void;
     readonly buildOctree: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly buildOctreeParallelWithAbort: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly buildOctreeWithAbort: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly buildTin: (a: number, b: number) => void;
     readonly centroid: (a: number) => number;
@@ -3456,6 +3496,7 @@ export interface InitOutput {
     readonly gltfbuilder_new: () => number;
     readonly gltfbuilder_toGlb: (a: number) => number;
     readonly gltfbuilder_toGltfJson: (a: number, b: number) => void;
+    readonly gpxTrackStats: (a: number, b: number, c: number) => void;
     readonly gridIndex: (a: number, b: number) => number;
     readonly haversineDistance: (a: number, b: number, c: number, d: number) => number;
     readonly hillshade: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
@@ -3520,6 +3561,8 @@ export interface InitOutput {
     readonly parseGeoJsonStream: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly parseGeotiff: (a: number, b: number, c: number) => void;
     readonly parseGeotiffTile: (a: number, b: number, c: number, d: number) => void;
+    readonly parseGpx: (a: number, b: number, c: number) => void;
+    readonly parseGpxWithElevation: (a: number, b: number, c: number) => void;
     readonly parseIfcGeometry: (a: number, b: number) => number;
     readonly parseLasHeader: (a: number, b: number, c: number) => void;
     readonly parseLasHeaderOnly: (a: number, b: number, c: number) => void;
@@ -3533,6 +3576,7 @@ export interface InitOutput {
     readonly parsePcdBinary: (a: number, b: number, c: number) => void;
     readonly parsePly: (a: number, b: number, c: number) => void;
     readonly parsePointCloudAuto: (a: number, b: number, c: number) => void;
+    readonly parseTopojson: (a: number, b: number, c: number) => void;
     readonly parseWkb: (a: number, b: number) => void;
     readonly parseWkt: (a: number, b: number, c: number) => void;
     readonly plyresult_colors: (a: number) => number;
@@ -3616,6 +3660,7 @@ export interface InitOutput {
     readonly tinInterpolate: (a: number, b: number, c: number) => number;
     readonly toWkb: (a: number, b: number, c: number, d: number) => void;
     readonly toWkt: (a: number, b: number, c: number, d: number) => void;
+    readonly topojsonToGeojson: (a: number, b: number, c: number) => void;
     readonly touches: (a: number, b: number) => number;
     readonly transformPointCloud: (a: number, b: number) => number;
     readonly translatePointCloud: (a: number, b: number, c: number, d: number) => number;
@@ -3717,9 +3762,9 @@ export interface InitOutput {
     readonly tinresult_positions: (a: number) => number;
     readonly ifcmesh_positions: (a: number) => number;
     readonly tinresult_indices: (a: number) => number;
-    readonly __wasm_bindgen_func_elem_3595: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_3599: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_1087: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_3631: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_3635: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_1106: (a: number, b: number, c: number) => void;
     readonly __wbindgen_export: (a: number, b: number) => number;
     readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_export3: (a: number) => void;
