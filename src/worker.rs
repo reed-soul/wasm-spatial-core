@@ -13,6 +13,8 @@
 
 use wasm_bindgen::prelude::*;
 
+use crate::errors::SpatialError;
+
 // ===========================================================================
 // Worker Options
 // ===========================================================================
@@ -327,19 +329,31 @@ impl WorkerHandle {
         let blob_parts = js_sys::Array::new_with_length(1);
         blob_parts.set(0, script_bytes.into());
 
-        let blob = web_sys::Blob::new_with_u8_array_sequence(&blob_parts)
-            .map_err(|e| JsValue::from_str(&format!("Failed to create Blob: {e:?}")))?;
+        let blob = web_sys::Blob::new_with_u8_array_sequence(&blob_parts).map_err(|e| {
+            JsValue::from(SpatialError::invalid_input(format!(
+                "Failed to create Blob: {e:?}"
+            )))
+        })?;
 
-        let url = web_sys::Url::create_object_url_with_blob(&blob)
-            .map_err(|e| JsValue::from_str(&format!("Failed to create Blob URL: {e:?}")))?;
+        let url = web_sys::Url::create_object_url_with_blob(&blob).map_err(|e| {
+            JsValue::from(SpatialError::invalid_input(format!(
+                "Failed to create Blob URL: {e:?}"
+            )))
+        })?;
 
         // Create Worker from URL string
-        let worker = web_sys::Worker::new(&url)
-            .map_err(|e| JsValue::from_str(&format!("Failed to create Worker: {e:?}")))?;
+        let worker = web_sys::Worker::new(&url).map_err(|e| {
+            JsValue::from(SpatialError::invalid_input(format!(
+                "Failed to create Worker: {e:?}"
+            )))
+        })?;
 
         // Release the Blob URL
-        web_sys::Url::revoke_object_url(&url)
-            .map_err(|e| JsValue::from_str(&format!("Failed to revoke Blob URL: {e:?}")))?;
+        web_sys::Url::revoke_object_url(&url).map_err(|e| {
+            JsValue::from(SpatialError::invalid_input(format!(
+                "Failed to revoke Blob URL: {e:?}"
+            )))
+        })?;
 
         Ok(WorkerHandle {
             worker,
@@ -639,7 +653,7 @@ impl WorkerHandle {
 /// Process point cloud data in chunks on the main thread with cancellation support.
 #[wasm_bindgen(js_name = "processChunkedWithAbort")]
 pub fn process_chunked_with_abort(
-    positions: &[f32],
+    positions: &mut [f32],
     colors: Option<Vec<u8>>,
     max_points_per_node: Option<u32>,
     max_depth: Option<u32>,
@@ -648,6 +662,7 @@ pub fn process_chunked_with_abort(
 ) -> js_sys::Promise {
     let max_pts = max_points_per_node.unwrap_or(50_000);
     let max_d = max_depth.unwrap_or(21);
+    // Own a copy for the async future (`'static`); octree build reorders in-place on `buf`.
     let mut buf = positions.to_vec();
     let colors_clone = colors.clone();
     let on_chunk_clone = on_chunk.clone();
@@ -674,6 +689,8 @@ pub fn process_chunked_with_abort(
         let octree =
             crate::octree::Octree::build_with_abort(&mut buf, max_pts, max_d, &mut check_abort)
                 .map_err(JsValue::from)?;
+        let point_count = octree.total_points() as usize;
+        let active = &buf[..point_count * 3];
 
         let _ = on_chunk_clone.call3(
             &this,
@@ -686,7 +703,7 @@ pub fn process_chunked_with_abort(
 
         let result = crate::pnts::generate_tileset_with_spacing_abort(
             &octree,
-            &buf,
+            active,
             colors_clone.as_deref(),
             None,
             None,
@@ -745,7 +762,7 @@ pub fn process_chunked_with_abort(
 /// A `Promise` that resolves with the `TilesetResult` (as JSON string).
 #[wasm_bindgen(js_name = "processChunked")]
 pub fn process_chunked(
-    positions: &[f32],
+    positions: &mut [f32],
     colors: Option<Vec<u8>>,
     max_points_per_node: Option<u32>,
     max_depth: Option<u32>,
@@ -760,7 +777,6 @@ pub fn process_chunked(
     let future = wasm_bindgen_futures::future_to_promise(async move {
         let this = JsValue::NULL;
 
-        // Phase 1: Build octree (this is the expensive part)
         let _ = on_chunk_clone.call3(
             &this,
             &"octree".into(),
@@ -768,10 +784,11 @@ pub fn process_chunked(
             &JsValue::from(2u32),
         );
 
-        // Yield to main thread before heavy work
         yield_to_main_thread().await;
 
         let octree = crate::octree::Octree::build(&mut buf, max_pts, max_d);
+        let point_count = octree.total_points() as usize;
+        let active = &buf[..point_count * 3];
 
         let _ = on_chunk_clone.call3(
             &this,
@@ -780,11 +797,10 @@ pub fn process_chunked(
             &JsValue::from(2u32),
         );
 
-        // Yield again before tileset generation
         yield_to_main_thread().await;
 
-        let result = crate::pnts::generate_tileset(&octree, &buf, colors_clone.as_deref())
-            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let result = crate::pnts::generate_tileset(&octree, active, colors_clone.as_deref())
+            .map_err(JsValue::from)?;
 
         // Build result object
         let obj = js_sys::Object::new();
