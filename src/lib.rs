@@ -264,6 +264,8 @@ pub mod test_exports {
     pub use crate::utils::{
         clean_coords_native, deduplicate_coords_native, validate_coords_native,
     };
+    #[cfg(all(feature = "webgpu", feature = "terrain-edit"))]
+    pub use crate::webgpu::flatten_heightfield_cpu_reference as flatten_heightfield_reference;
     #[cfg(feature = "webgpu")]
     pub use crate::webgpu::transform_points_cpu_reference as transform_points_reference;
 }

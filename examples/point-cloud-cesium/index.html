@@ -350,6 +350,10 @@
       <input type="number" id="terrainDeformValue" value="50" step="1">
       <label>Feather cells</label>
       <input type="number" id="terrainFeather" value="1" min="0" max="12">
+      <label style="display:flex;align-items:center;gap:8px;font-size:0.8rem;margin:8px 0">
+        <input type="checkbox" id="terrainPreferGpu" checked>
+        GPU flatten when feather=0
+      </label>
       <label>Max zoom</label>
       <input type="number" id="terrainMaxZoom" value="4" min="0" max="8">
     </div>
@@ -382,6 +386,9 @@
 
 <script type="module">
 import { copyPointCloud, readTilesetResult, bindTerrainTilesetUrls, centerSquarePolygon } from '../shared/pc-bindings.mjs';
+import { createGpuContext, applyFlattenDeform } from '../shared/terrain-gpu.mjs';
+
+let gpuCtx = null;
 
 let wasm = null;
 let viewer = null;
@@ -452,6 +459,9 @@ async function loadWasm() {
     const module = await import('https://unpkg.com/wasm-spatial-core@0.2.0/pkg/wasm_spatial_core.js');
     await module.default();
     wasm = module;
+    try {
+      gpuCtx = await createGpuContext();
+    } catch (_) { /* WebGPU optional */ }
     return true;
   } catch (e) {
     console.warn('CDN load failed, trying local:', e);
@@ -460,6 +470,9 @@ async function loadWasm() {
     const module = await import('../pkg/wasm_spatial_core.js');
     await module.default();
     wasm = module;
+    try {
+      gpuCtx = await createGpuContext();
+    } catch (_) { /* WebGPU optional */ }
     return true;
   } catch (e) {
     console.error('Failed to load WASM module:', e);
@@ -695,15 +708,31 @@ async function processGeoTiffFile(file, bytes) {
     const mode = document.getElementById('terrainDeformMode').value;
     const value = parseFloat(document.getElementById('terrainDeformValue').value);
     const feather = parseInt(document.getElementById('terrainFeather').value, 10) || 0;
+    const preferGpu = document.getElementById('terrainPreferGpu').checked;
     const t0 = performance.now();
     if (mode === 'flatten') {
-      wasm.flattenTerrain(heights, w, h, bounds, polygon, value, feather);
+      const out = await applyFlattenDeform({
+        gpuCtx,
+        wasm,
+        heights,
+        width: w,
+        height: h,
+        bounds,
+        polygon,
+        target: value,
+        feather,
+        preferGpu,
+      });
+      heights = out;
+      const backend = preferGpu && gpuCtx && feather === 0 ? 'WebGPU' : 'WASM';
+      console.log(`[terrain] deform flatten (${backend}): ${(performance.now() - t0).toFixed(1)} ms`);
     } else if (mode === 'excavate') {
       wasm.excavateTerrain(heights, w, h, bounds, polygon, 'depth', value, feather);
+      console.log(`[terrain] deform excavate: ${(performance.now() - t0).toFixed(1)} ms`);
     } else {
       wasm.fillTerrain(heights, w, h, bounds, polygon, value, feather);
+      console.log(`[terrain] deform fill: ${(performance.now() - t0).toFixed(1)} ms`);
     }
-    console.log(`[terrain] deform ${mode}: ${(performance.now() - t0).toFixed(1)} ms`);
   }
 
   setStatus('Encoding quantized-mesh tileset...');

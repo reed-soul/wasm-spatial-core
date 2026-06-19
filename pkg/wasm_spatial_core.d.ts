@@ -64,6 +64,18 @@ export enum ColorRamp {
 }
 
 /**
+ * Result of a point cloud filter operation.
+ */
+export class FilteredResult {
+    private constructor();
+    free(): void;
+    [Symbol.dispose](): void;
+    readonly colors: Uint8Array | undefined;
+    readonly pointCount: number;
+    readonly positions: Float32Array;
+}
+
+/**
  * Result of structured GeoJSON feature parsing.
  *
  * Contains per-feature coordinate buffers, offsets, counts, and geometry types.
@@ -516,6 +528,38 @@ export class PlyResult {
 }
 
 /**
+ * Comprehensive point cloud statistics.
+ */
+export class PointCloudStats {
+    private constructor();
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * Serialize stats to JSON string.
+     */
+    toJson(): string;
+    readonly avgSpacing: number;
+    readonly boundsMaxX: number;
+    readonly boundsMaxY: number;
+    readonly boundsMaxZ: number;
+    readonly boundsMinX: number;
+    readonly boundsMinY: number;
+    readonly boundsMinZ: number;
+    readonly centroidX: number;
+    readonly centroidY: number;
+    readonly centroidZ: number;
+    readonly colorMeanB: number;
+    readonly colorMeanG: number;
+    readonly colorMeanR: number;
+    readonly density: number;
+    readonly hasColor: boolean;
+    readonly pointCount: number;
+    readonly stdDevX: number;
+    readonly stdDevY: number;
+    readonly stdDevZ: number;
+}
+
+/**
  * Streaming point cloud loader.
  *
  * Parse a LAS header first, then read points or regions on demand without
@@ -600,6 +644,65 @@ export class PointData {
     readonly x: number;
     readonly y: number;
     readonly z: number;
+}
+
+export class ProcessingContext {
+    free(): void;
+    [Symbol.dispose](): void;
+    clear(): void;
+    constructor();
+    reserve(point_count: number, has_color: boolean): void;
+    readonly reservedBytes: number;
+}
+
+/**
+ * WASM-exposed bounding box.
+ */
+export class QuantBounds {
+    private constructor();
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * Maximum X.
+     */
+    readonly maxX: number;
+    /**
+     * Maximum Y.
+     */
+    readonly maxY: number;
+    /**
+     * Maximum Z.
+     */
+    readonly maxZ: number;
+    /**
+     * Minimum X.
+     */
+    readonly minX: number;
+    /**
+     * Minimum Y.
+     */
+    readonly minY: number;
+    /**
+     * Minimum Z.
+     */
+    readonly minZ: number;
+}
+
+/**
+ * WASM result object for quantization.
+ */
+export class QuantizeResult {
+    private constructor();
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * Bounding box for reconstruction.
+     */
+    readonly bounds: QuantBounds;
+    /**
+     * Quantized positions as Uint16Array.
+     */
+    readonly quantized: Uint16Array;
 }
 
 /**
@@ -722,6 +825,24 @@ export class TerrainTilesetResult {
      * Total bytes across all tiles.
      */
     readonly totalBytes: number;
+}
+
+export class TilesetPatch {
+    free(): void;
+    [Symbol.dispose](): void;
+    constructor();
+    /**
+     * Replace tile content for a URI (e.g. `tile_3.pnts`).
+     */
+    setTile(uri: string, data: Uint8Array): void;
+    /**
+     * Replace tileset.json content.
+     */
+    setTilesetJson(json: string): void;
+    /**
+     * Approximate patch payload size in bytes.
+     */
+    readonly patchBytes: number;
 }
 
 /**
@@ -890,8 +1011,8 @@ export class WorkerHandle {
     /**
      * Cancel the current processing job.
      *
-     * The Worker will stop as soon as possible (between octree build
-     * and tileset generation phases).
+     * The Worker will stop as soon as possible during octree build and tileset
+     * generation when `cancel()` is called.
      */
     cancel(): void;
     /**
@@ -1034,6 +1155,11 @@ export function applyColorRamp(positions: Float32Array, colors: Float32Array): F
 export function applyTerrainColorRamp(heights: Float32Array, min_z: number, max_z: number, ramp: number): Uint8Array;
 
 /**
+ * Apply an incremental patch to a tileset result.
+ */
+export function applyTilesetPatch(base: TilesetResult, patch: TilesetPatch): TilesetResult;
+
+/**
  * Calculate the area of a polygon with holes in square meters.
  * Exterior ring area minus the sum of all hole areas.
  *
@@ -1045,6 +1171,26 @@ export function applyTerrainColorRamp(heights: Float32Array, min_z: number, max_
  * Each ring must be closed (first point = last point).
  */
 export function areaWithHoles(rings: Float64Array, ring_sizes: Uint32Array): number;
+
+/**
+ * Auto-decimate a point cloud to the target count using the specified method.
+ *
+ * # Arguments
+ * * `positions` — Flat `[x, y, z, ...]` buffer.
+ * * `target_count` — Desired number of output points.
+ * * `method` — Decimation method: 0 = random, 1 = grid, 2 = voxel grid (with colors).
+ *
+ * # Returns
+ * Decimated positions as `Float32Array`.
+ *
+ * Methods:
+ * - **Random** (0): Fisher-Yates shuffle, keep first N.
+ * - **Grid** (1): Divide space into grid cells, keep first point per cell.
+ *   Cell size is computed to approximately achieve `target_count`.
+ * - **Voxel Grid** (2): Same as grid but uses dedicated voxel grid decimation
+ *   (useful when colors are also available).
+ */
+export function autoDecimate(positions: Float32Array, target_count: number, method: number): Float32Array;
 
 /**
  * Batch BD-09 → GCJ-02. Returns a **new** `Float64Array`.
@@ -1283,18 +1429,46 @@ export function buildColorRamp(colors: Uint8Array, num_steps: number): Uint8Arra
 /**
  * Build an octree from a flat `[x, y, z, ...]` position buffer.
  *
- * The input buffer is **not** modified (a copy is made internally).
+ * The input buffer is **reordered in-place** (zero-copy from JS `Float32Array`).
  * Points with NaN/Infinity coordinates are silently filtered.
  *
  * Performs a memory pre-check if `setMaxWasmMemory` has been called with
  * a non-zero limit. Returns an error if estimated memory exceeds the limit.
  *
  * # Arguments
- * * `positions` — `Float32Array` of `[x, y, z, ...]` triples.
+ * * `positions` — Mutable `Float32Array` of `[x, y, z, ...]` triples.
  * * `max_points_per_node` — Max points per leaf (default: 50 000).
  * * `max_depth` — Max tree depth (default: 21).
  */
 export function buildOctree(positions: Float32Array, max_points_per_node?: number | null, max_depth?: number | null): Octree;
+
+/**
+ * Build an octree using multi-threaded parallel processing.
+ *
+ * Requires the `multi-thread` feature to be enabled at build time and
+ * `SharedArrayBuffer` support at runtime (COOP/COEP headers).
+ *
+ * If multi-thread is not available, falls back to single-threaded build.
+ *
+ * # Arguments
+ * * `positions` — `Float32Array` of `[x, y, z, ...]` triples.
+ * * `max_points_per_node` — Max points per leaf (default: 50 000).
+ * * `max_depth` — Max tree depth (default: 21).
+ */
+export function buildOctreeParallel(positions: Float32Array, max_points_per_node?: number | null, max_depth?: number | null): Octree;
+
+/**
+ * Cancellable octree build for parallel entry points.
+ *
+ * Delegates to the sequential [`build_octree_with_abort`] because JS abort callbacks
+ * cannot be invoked safely from Rayon worker threads in WASM.
+ */
+export function buildOctreeParallelWithAbort(positions: Float32Array, max_points_per_node: number | null | undefined, max_depth: number | null | undefined, should_abort: Function): Octree;
+
+/**
+ * Build an octree with an abort callback checked during construction.
+ */
+export function buildOctreeWithAbort(positions: Float32Array, max_points_per_node: number | null | undefined, max_depth: number | null | undefined, should_abort: Function): Octree;
 
 /**
  * Build a TIN from scattered 3D points using the Bowyer-Watson algorithm.
@@ -1665,6 +1839,19 @@ export function deduplicateCoords(coords: Float64Array, tolerance: number): Floa
 export function denormalizeCoords(normals: Float64Array, source_bounds: Float64Array): Float64Array;
 
 /**
+ * Dequantize Uint16 positions back to Float32.
+ *
+ * # Arguments
+ * * `quantized` — Quantized positions (Uint16Array).
+ * * `bounds` — Bounding box from quantization.
+ * * `bits` — Quantization bits (must match).
+ *
+ * # Returns
+ * Float32Array of reconstructed positions.
+ */
+export function dequantizePositions(quantized: Uint16Array, bounds: QuantBounds, bits?: number | null): Float32Array;
+
+/**
  * Calculate the destination point given a start point, bearing, and distance.
  *
  * Uses the direct geodesic problem solution.
@@ -1711,6 +1898,11 @@ export function e57Status(): string;
  * Uint8Array containing the `.b3dm` binary.
  */
 export function encodeB3dmTile(glb_bytes: Uint8Array, batch_length: number, batch_table_json?: string | null): Uint8Array;
+
+/**
+ * Re-encode deformed terrain as a quantized-mesh tileset (WASM).
+ */
+export function encodeDeformedTerrainTileset(heights: Float32Array, width: number, height: number, bounds: Float64Array, max_zoom: number): TerrainTilesetResult;
 
 /**
  * WASM-exported i3dm encoder.
@@ -1770,7 +1962,33 @@ export function encodeQuantizedMesh(heights: Float32Array, width: number, height
 export function encodeTerrainTileset(heights: Float32Array, width: number, height: number, bounds: Float64Array, center: Float64Array, max_zoom: number): TerrainTilesetResult;
 
 /**
- * Estimate normals for a point cloud using brute-force k-nearest neighbors.
+ * Estimate job memory in bytes. Pass `op` as `"lasParse"`, `"octreeBuild"`, or `"tilesetGenerate"`.
+ */
+export function estimateJobBytes(op: string, point_count: number, leaf_count: number, has_color: boolean): number;
+
+/**
+ * Estimate memory usage for a point cloud with the given parameters.
+ *
+ * # Arguments
+ * * `num_points` — Number of points.
+ * * `has_color` — Whether RGB color data is included.
+ * * `has_normals` — Whether normal vectors are included.
+ *
+ * # Returns
+ * Estimated memory in bytes.
+ *
+ * Breakdown:
+ * - Positions: 12 bytes/point (Float32 × 3)
+ * - Colors: 3 bytes/point (Uint8 × 3, if has_color)
+ * - Normals: 12 bytes/point (Float32 × 3, if has_normals)
+ * - Octree nodes: ~64 bytes/node (estimated as num_points / maxPointsPerNode * 8)
+ * - pnts tiles: ~14 bytes/point
+ * - Overhead: ~1KB
+ */
+export function estimateMemoryForPoints(num_points: number, has_color: boolean, has_normals: boolean): number;
+
+/**
+ * Estimate normals for a point cloud using R-tree accelerated k-nearest neighbors.
  *
  * For each point, finds the k nearest neighbors, fits a plane via SVD,
  * and returns the normal vector of that plane.
@@ -1809,6 +2027,40 @@ export function estimateOctreeMemory(num_points: number): number;
 export function estimatePointSpacing(positions: Float32Array, sample_size?: number | null): number;
 
 /**
+ * Excavate terrain inside a polygon.
+ */
+export function excavateTerrain(heights: Float32Array, width: number, height: number, bounds: Float64Array, polygon: Float64Array, mode: string, value: number, feather_cells: number): void;
+
+/**
+ * Fill terrain inside a polygon (only raises cells below target).
+ */
+export function fillTerrain(heights: Float32Array, width: number, height: number, bounds: Float64Array, polygon: Float64Array, target: number, feather_cells: number): void;
+
+/**
+ * Filter point cloud by axis-aligned bounding box.
+ *
+ * Keeps only points where `min_x <= x <= max_x`, etc.
+ *
+ * # Arguments
+ * * `positions` — Float32Array of `[x, y, z, ...]`
+ * * `colors` — Optional Uint8Array of `[r, g, b, ...]` (pass `null` or omit)
+ * * `minX`, `minY`, `minZ` — Minimum bounds
+ * * `maxX`, `maxY`, `maxZ` — Maximum bounds
+ */
+export function filterByBounds(positions: Float32Array, colors: any, min_x: number, min_y: number, min_z: number, max_x: number, max_y: number, max_z: number): FilteredResult;
+
+/**
+ * Filter point cloud by ASPRS classification IDs.
+ *
+ * # Arguments
+ * * `positions` — Float32Array of `[x, y, z, ...]`
+ * * `colors` — Optional Uint8Array of `[r, g, b, ...]` (pass `null` or omit)
+ * * `classifications` — Uint8Array of per-point classification values
+ * * `classIds` — Uint8Array of class IDs to keep (e.g., `[2, 3]` for vegetation)
+ */
+export function filterByClassification(positions: Float32Array, colors: any, classifications: Uint8Array, class_ids: Uint8Array): FilteredResult;
+
+/**
  * Filter GeoJSON features by bounding box.
  *
  * Keeps features that have at least one vertex inside the specified bbox.
@@ -1841,6 +2093,11 @@ export function filterGeoJsonByBBox(input: string, min_lng: number, min_lat: num
  * Filtered GeoJSON FeatureCollection string.
  */
 export function filterGeoJsonByProperty(input: string, key: string, value: string): string;
+
+/**
+ * Flatten terrain inside a polygon to target elevation.
+ */
+export function flattenTerrain(heights: Float32Array, width: number, height: number, bounds: Float64Array, polygon: Float64Array, target: number, feather_cells: number): void;
 
 /**
  * Flip normals to ensure consistent orientation toward the centroid.
@@ -1897,7 +2154,15 @@ export function generateInterleavedVertexBuffer(positions: Float32Array, colors:
 export function generateTileset(positions: Float32Array, max_points_per_node?: number | null, max_depth?: number | null, colors?: Uint8Array | null): TilesetResult;
 
 /**
- * WASM export: generate a tileset with spacing-aware geometric error.
+ * Generate tileset with abort callback checked between leaf encodes.
+ */
+export function generateTilesetWithAbort(positions: Float32Array, max_points_per_node: number | null | undefined, max_depth: number | null | undefined, colors: Uint8Array | null | undefined, should_abort: Function): TilesetResult;
+
+/**
+ * WASM export: generate a tileset with explicit spacing calibration overrides.
+ *
+ * `generateTileset` already auto-estimates spacing; use this API when you
+ * need to supply a known average spacing or a custom spacing factor.
  */
 export function generateTilesetWithSpacing(positions: Float32Array, max_points_per_node?: number | null, max_depth?: number | null, colors?: Uint8Array | null, avg_spacing?: number | null, spacing_factor?: number | null): TilesetResult;
 
@@ -2009,6 +2274,11 @@ export function getSupportedCrs(): string;
 export function getVisibleTiles(positions: Float32Array, camera_x: number, camera_y: number, camera_z: number, camera_fov: number, screen_width: number, screen_height: number, max_points_per_node?: number | null, max_depth?: number | null, sse_threshold?: number | null): Uint32Array;
 
 /**
+ * Compute track statistics from GPX data.
+ */
+export function gpxTrackStats(input: string): string;
+
+/**
  * Assign each point to a spatial grid cell.
  *
  * # Arguments
@@ -2103,6 +2373,20 @@ export function lazStatus(): string;
  * **Note:** Only available in WASM runtime. On native, returns zeros.
  */
 export function memoryInfo(): MemoryInfo;
+
+/**
+ * Merge two point clouds into one.
+ *
+ * Colors are merged when both inputs have colors; if only one has colors,
+ * the other's points get gray (128, 128, 128).
+ *
+ * # Arguments
+ * * `positionsA` — Float32Array for cloud A
+ * * `colorsA` — Optional Uint8Array for cloud A (pass `null` or omit)
+ * * `positionsB` — Float32Array for cloud B
+ * * `colorsB` — Optional Uint8Array for cloud B (pass `null` or omit)
+ */
+export function mergePointClouds(positions_a: Float32Array, colors_a: any, positions_b: Float32Array, colors_b: any): FilteredResult;
 
 /**
  * Convert a generic indexed mesh directly to a GLB file (TRIANGLES primitive mode).
@@ -2337,6 +2621,16 @@ export function parseGeotiff(bytes: Uint8Array): GeotiffInfo;
 export function parseGeotiffTile(bytes: Uint8Array, tile_index: number): Float32Array;
 
 /**
+ * Parse GPX and return all trackpoint coordinates as a flat `Float64Array`.
+ */
+export function parseGpx(input: string): Float64Array;
+
+/**
+ * Parse GPX and return trackpoint coordinates with elevation as a flat `Float64Array`.
+ */
+export function parseGpxWithElevation(input: string): Float64Array;
+
+/**
  * Parse IFC-SPF text and extract mesh geometry from IFCEXTRUDEDAREASOLID entities.
  *
  * This is an **experimental** feature that extracts a practical subset of IFC geometry:
@@ -2415,6 +2709,11 @@ export function parseLasPoints(bytes: Uint8Array): LasPointCloud;
 export function parseLasPointsWithProgress(bytes: Uint8Array, on_progress: Function): LasPointCloud;
 
 /**
+ * Parse LAS with progress and abort callback. `shouldAbort` returns true to cancel.
+ */
+export function parseLasPointsWithProgressAndAbort(bytes: Uint8Array, on_progress: Function, should_abort: Function): LasPointCloud;
+
+/**
  * Extract vertex positions from an OBJ file.
  *
  * Returns a Float32Array of [x0, y0, z0, x1, y1, z1, ...].
@@ -2473,6 +2772,17 @@ export function parsePly(bytes: Uint8Array): PlyResult;
 export function parsePointCloudAuto(bytes: Uint8Array): LasPointCloud;
 
 /**
+ * Parse TopoJSON and return all geometry coordinates as a flat `Float64Array`.
+ *
+ * # Arguments
+ * - `input`: TopoJSON string.
+ *
+ * # Returns
+ * Flat `Float64Array` `[lng0, lat0, lng1, lat1, ...]`.
+ */
+export function parseTopojson(input: string): Float64Array;
+
+/**
  * Parse Well-Known Binary (WKB) data into a flat `Float64Array`.
  *
  * Supports 2D POINT, LINESTRING, POLYGON, MULTIPOINT.
@@ -2505,6 +2815,18 @@ export function parseWkb(bytes: Uint8Array): Float64Array;
  * ```
  */
 export function parseWkt(input: string): Float64Array;
+
+/**
+ * Compute comprehensive point cloud statistics.
+ *
+ * Returns a `PointCloudStats` object with bounds, centroid, spacing,
+ * density, standard deviation per axis, and color distribution.
+ *
+ * # Arguments
+ * * `positions` — Float32Array of `[x, y, z, ...]`
+ * * `colors` — Optional Uint8Array of `[r, g, b, ...]` (pass `null` or omit)
+ */
+export function pointCloudAnalysis(positions: Float32Array, colors: any): PointCloudStats;
 
 /**
  * Compute axis-aligned bounding box of a point cloud.
@@ -2630,6 +2952,29 @@ export function polylineLength(coords: Float64Array): number;
 export function processChunked(positions: Float32Array, colors: Uint8Array | null | undefined, max_points_per_node: number | null | undefined, max_depth: number | null | undefined, on_chunk: Function): Promise<any>;
 
 /**
+ * Process point cloud data in chunks on the main thread with cancellation support.
+ */
+export function processChunkedWithAbort(positions: Float32Array, colors: Uint8Array | null | undefined, max_points_per_node: number | null | undefined, max_depth: number | null | undefined, on_chunk: Function, should_abort: Function): Promise<any>;
+
+/**
+ * Quantize Float32 positions to Uint16, returning both the quantized data
+ * and the bounding box needed for reconstruction.
+ *
+ * # Arguments
+ * * `positions` — Flat `[x, y, z, ...]` Float32 positions.
+ * * `bits` — Quantization bits (8 or 16). Default: 16.
+ *
+ * # Returns
+ * An object with `quantized` (Uint16Array) and `bounds` (QuantBounds).
+ */
+export function quantizePositions(positions: Float32Array, bits?: number | null): QuantizeResult;
+
+/**
+ * Rasterize polygon mask on a terrain grid.
+ */
+export function rasterizeTerrainMask(width: number, height: number, bounds: Float64Array, polygon: Float64Array): Uint8Array;
+
+/**
  * Remove a property key from all features of a GeoJSON FeatureCollection.
  *
  * If a feature doesn't have the key, it's silently skipped.
@@ -2689,9 +3034,30 @@ export function rhumbBearing(lng1: number, lat1: number, lng2: number, lat2: num
 export function rhumbDistance(lng1: number, lat1: number, lng2: number, lat2: number): number;
 
 /**
+ * Rotate a point cloud around an arbitrary axis.
+ *
+ * Uses Rodrigues' rotation formula. The axis vector should be normalized.
+ *
+ * # Arguments
+ * * `positions` — Float32Array of `[x, y, z, ...]`
+ * * `axis` — Float32Array of `[x, y, z]` (rotation axis, should be normalized)
+ * * `angle` — Rotation angle in radians
+ */
+export function rotatePointCloud(positions: Float32Array, axis: Float32Array, angle: number): Float32Array;
+
+/**
+ * Scale a point cloud.
+ *
+ * # Arguments
+ * * `positions` — Float32Array of `[x, y, z, ...]`
+ * * `sx`, `sy`, `sz` — Scale factors
+ */
+export function scalePointCloud(positions: Float32Array, sx: number, sy: number, sz: number): Float32Array;
+
+/**
  * Dynamically set the maximum allowed input size in bytes.
  *
- * Default is 100 MB. Set to 0 to disable the limit.
+ * Default is 100 MB. Pass 0 to reset to the default limit.
  *
  * # Example (JS)
  * ```js
@@ -2776,7 +3142,7 @@ export function supportsDraco(): boolean;
 export function supportsE57(): boolean;
 
 /**
- * Check if GeoTIFF support is available (always true).
+ * Check if GeoTIFF support is available.
  */
 export function supportsGeotiff(): boolean;
 
@@ -2784,6 +3150,19 @@ export function supportsGeotiff(): boolean;
  * Check if LAZ (compressed LAS) is supported.
  */
 export function supportsLaz(): boolean;
+
+/**
+ * Check if multi-threaded WASM is supported at runtime.
+ *
+ * Tests for `SharedArrayBuffer` availability, which requires
+ * Cross-Origin-Isolation (COOP + COEP headers).
+ */
+export function supportsMultiThread(): boolean;
+
+/**
+ * Whether terrain edit (Wave 3) is available.
+ */
+export function supportsTerrainEdit(): boolean;
 
 /**
  * Check if Web Workers are available in the current environment.
@@ -2807,6 +3186,14 @@ export function supportsWorker(): boolean;
  * `Uint8Array` containing the complete GLB binary.
  */
 export function terrainToGlb(heights: Float32Array, width: number, height: number, bounds: Float64Array): Uint8Array;
+
+/**
+ * Get the number of available threads for parallel processing.
+ *
+ * Returns `navigator.hardwareConcurrency` in WASM, or the Rayon
+ * thread count on native.
+ */
+export function threadCount(): number;
 
 /**
  * Interpolate a Z value on a TIN surface at (x, y) using barycentric interpolation.
@@ -2848,6 +3235,11 @@ export function toWkb(coords: Float64Array, geometry_type: string): Uint8Array;
 export function toWkt(coords: Float64Array, geometry_type: string): string;
 
 /**
+ * Convert TopoJSON to a GeoJSON FeatureCollection string.
+ */
+export function topojsonToGeojson(input: string): string;
+
+/**
  * Check if two polygons touch (share boundary but not interior).
  *
  * # Arguments
@@ -2856,6 +3248,26 @@ export function toWkt(coords: Float64Array, geometry_type: string): string;
  * * `ring2` — Second polygon as flat closed ring
  */
 export function touches(ring1: Float64Array, ring2: Float64Array): boolean;
+
+/**
+ * Apply a 4×4 transformation matrix to point positions.
+ *
+ * Matrix is column-major (WebGL/OpenGL convention).
+ *
+ * # Arguments
+ * * `positions` — Float32Array of `[x, y, z, ...]`
+ * * `matrix` — Float32Array of 16 elements (column-major 4×4)
+ */
+export function transformPointCloud(positions: Float32Array, matrix: Float32Array): Float32Array;
+
+/**
+ * Translate (move) a point cloud.
+ *
+ * # Arguments
+ * * `positions` — Float32Array of `[x, y, z, ...]`
+ * * `dx`, `dy`, `dz` — Translation offsets
+ */
+export function translatePointCloud(positions: Float32Array, dx: number, dy: number, dz: number): Float32Array;
 
 /**
  * Convert a single UTM coordinate to WGS84.
@@ -2930,6 +3342,7 @@ export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_cesium3dtile_free: (a: number, b: number) => void;
     readonly __wbg_cesiummeshgeometry_free: (a: number, b: number) => void;
+    readonly __wbg_filteredresult_free: (a: number, b: number) => void;
     readonly __wbg_geojsonfeaturesresult_free: (a: number, b: number) => void;
     readonly __wbg_geotiffinfo_free: (a: number, b: number) => void;
     readonly __wbg_get_vectortileoptions_buffer: (a: number) => number;
@@ -2944,15 +3357,18 @@ export interface InitOutput {
     readonly __wbg_ifcgeometryresult_free: (a: number, b: number) => void;
     readonly __wbg_lasheader_free: (a: number, b: number) => void;
     readonly __wbg_lasheaderinfo_free: (a: number, b: number) => void;
-    readonly __wbg_laspointcloud_free: (a: number, b: number) => void;
     readonly __wbg_lazygeojsoniter_free: (a: number, b: number) => void;
     readonly __wbg_memoryinfo_free: (a: number, b: number) => void;
     readonly __wbg_mvtfeature_free: (a: number, b: number) => void;
     readonly __wbg_mvtlayer_free: (a: number, b: number) => void;
     readonly __wbg_octree_free: (a: number, b: number) => void;
     readonly __wbg_plyresult_free: (a: number, b: number) => void;
+    readonly __wbg_pointcloudstats_free: (a: number, b: number) => void;
     readonly __wbg_pointdata_free: (a: number, b: number) => void;
+    readonly __wbg_processingcontext_free: (a: number, b: number) => void;
+    readonly __wbg_quantbounds_free: (a: number, b: number) => void;
     readonly __wbg_quantizedmeshresult_free: (a: number, b: number) => void;
+    readonly __wbg_quantizeresult_free: (a: number, b: number) => void;
     readonly __wbg_set_vectortileoptions_buffer: (a: number, b: number) => void;
     readonly __wbg_set_vectortileoptions_extent: (a: number, b: number) => void;
     readonly __wbg_set_vectortileoptions_generate_id: (a: number, b: number) => void;
@@ -2964,6 +3380,7 @@ export interface InitOutput {
     readonly __wbg_spatialedgeindex_free: (a: number, b: number) => void;
     readonly __wbg_spatialindex_free: (a: number, b: number) => void;
     readonly __wbg_terraintilesetresult_free: (a: number, b: number) => void;
+    readonly __wbg_tilesetpatch_free: (a: number, b: number) => void;
     readonly __wbg_tilesetresult_free: (a: number, b: number) => void;
     readonly __wbg_validationresult_free: (a: number, b: number) => void;
     readonly __wbg_vectortileengine_free: (a: number, b: number) => void;
@@ -2973,7 +3390,9 @@ export interface InitOutput {
     readonly addProperty: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
     readonly applyColorRamp: (a: number, b: number) => number;
     readonly applyTerrainColorRamp: (a: number, b: number, c: number, d: number, e: number) => number;
+    readonly applyTilesetPatch: (a: number, b: number, c: number) => void;
     readonly areaWithHoles: (a: number, b: number, c: number) => void;
+    readonly autoDecimate: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly batchBd09ToGcj02: (a: number) => number;
     readonly batchBd09ToGcj02InPlace: (a: number, b: number, c: number) => void;
     readonly batchBd09ToWgs84: (a: number) => number;
@@ -3007,7 +3426,9 @@ export interface InitOutput {
     readonly bufferLineString: (a: number, b: number, c: number) => number;
     readonly bufferPoint: (a: number, b: number, c: number, d: number) => number;
     readonly buildColorRamp: (a: number, b: number, c: number) => void;
-    readonly buildOctree: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly buildOctree: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
+    readonly buildOctreeParallelWithAbort: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
+    readonly buildOctreeWithAbort: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
     readonly buildTin: (a: number, b: number) => void;
     readonly centroid: (a: number) => number;
     readonly cesium3dtile_batchTableJson: (a: number, b: number) => void;
@@ -3044,29 +3465,42 @@ export interface InitOutput {
     readonly decodeOct16Normal: (a: number) => number;
     readonly deduplicateCoords: (a: number, b: number) => number;
     readonly denormalizeCoords: (a: number, b: number) => number;
+    readonly dequantizePositions: (a: number, b: number, c: number, d: number) => number;
     readonly destination: (a: number, b: number, c: number, d: number) => number;
     readonly disjoint: (a: number, b: number) => number;
     readonly dracoStatus: (a: number) => void;
     readonly e57Status: (a: number) => void;
     readonly encodeB3dmTile: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly encodeDeformedTerrainTileset: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
     readonly encodeI3dmTile: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly encodeOct16Normal: (a: number, b: number, c: number) => number;
     readonly encodePntsTile: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
     readonly encodePntsTileWithNormals: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => void;
     readonly encodeQuantizedMesh: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => void;
     readonly encodeTerrainTileset: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => void;
+    readonly estimateJobBytes: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
+    readonly estimateMemoryForPoints: (a: number, b: number, c: number) => number;
     readonly estimateNormals: (a: number, b: number) => number;
     readonly estimateOctreeMemory: (a: number) => number;
     readonly estimatePointSpacing: (a: number, b: number, c: number) => number;
+    readonly excavateTerrain: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number) => void;
+    readonly fillTerrain: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => void;
+    readonly filterByBounds: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => number;
+    readonly filterByClassification: (a: number, b: number, c: number, d: number) => number;
     readonly filterGeoJsonByBBox: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
     readonly filterGeoJsonByProperty: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
+    readonly filteredresult_colors: (a: number) => number;
+    readonly filteredresult_pointCount: (a: number) => number;
+    readonly filteredresult_positions: (a: number) => number;
+    readonly flattenTerrain: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => void;
     readonly flipNormals: (a: number, b: number) => number;
     readonly generate3DTile: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly generateCesiumGeometry: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly generateIndexedGeometry: (a: number) => number;
     readonly generateInterleavedVertexBuffer: (a: number, b: number, c: number) => number;
-    readonly generateTileset: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
-    readonly generateTilesetWithSpacing: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => void;
+    readonly generateTileset: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
+    readonly generateTilesetWithAbort: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => void;
+    readonly generateTilesetWithSpacing: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => void;
     readonly geoJsonFeatureCollection: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly geoJsonFromCoords: (a: number, b: number, c: number, d: number) => void;
     readonly geohashDecode: (a: number, b: number) => number;
@@ -3090,12 +3524,13 @@ export interface InitOutput {
     readonly getInputSizeLimit: () => number;
     readonly getMaxWasmMemory: () => number;
     readonly getSupportedCrs: (a: number) => void;
-    readonly getVisibleTiles: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => number;
+    readonly getVisibleTiles: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number) => number;
     readonly gltfbuilder_addMaterial: (a: number, b: number, c: number, d: number, e: number) => number;
     readonly gltfbuilder_addMesh: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly gltfbuilder_new: () => number;
     readonly gltfbuilder_toGlb: (a: number) => number;
     readonly gltfbuilder_toGltfJson: (a: number, b: number) => void;
+    readonly gpxTrackStats: (a: number, b: number, c: number) => void;
     readonly gridIndex: (a: number, b: number) => number;
     readonly haversineDistance: (a: number, b: number, c: number, d: number) => number;
     readonly hillshade: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
@@ -3118,9 +3553,6 @@ export interface InitOutput {
     readonly lasheaderinfo_pointFormatId: (a: number) => number;
     readonly lasheaderinfo_pointOffset: (a: number) => number;
     readonly lasheaderinfo_pointRecordLength: (a: number) => number;
-    readonly laspointcloud_colors: (a: number) => number;
-    readonly laspointcloud_pointCount: (a: number) => number;
-    readonly laspointcloud_positions: (a: number) => number;
     readonly lazStatus: (a: number) => void;
     readonly lazygeojsoniter_nextFeature: (a: number) => number;
     readonly lazygeojsoniter_remaining: (a: number) => number;
@@ -3129,6 +3561,7 @@ export interface InitOutput {
     readonly memoryinfo_remaining: (a: number) => number;
     readonly memoryinfo_total: (a: number) => number;
     readonly memoryinfo_used: (a: number) => number;
+    readonly mergePointClouds: (a: number, b: number, c: number, d: number) => number;
     readonly meshToGlb: (a: number, b: number, c: number) => number;
     readonly midpoint: (a: number, b: number, c: number, d: number) => number;
     readonly mvtLayerInfo: (a: number, b: number) => void;
@@ -3162,18 +3595,22 @@ export interface InitOutput {
     readonly parseGeoJsonStream: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly parseGeotiff: (a: number, b: number, c: number) => void;
     readonly parseGeotiffTile: (a: number, b: number, c: number, d: number) => void;
+    readonly parseGpx: (a: number, b: number, c: number) => void;
+    readonly parseGpxWithElevation: (a: number, b: number, c: number) => void;
     readonly parseIfcGeometry: (a: number, b: number) => number;
     readonly parseLasHeader: (a: number, b: number, c: number) => void;
     readonly parseLasHeaderOnly: (a: number, b: number, c: number) => void;
     readonly parseLasPointAt: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly parseLasPoints: (a: number, b: number, c: number) => void;
     readonly parseLasPointsWithProgress: (a: number, b: number, c: number, d: number) => void;
+    readonly parseLasPointsWithProgressAndAbort: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly parseObjVertices: (a: number, b: number) => number;
     readonly parseObjWithNormals: (a: number, b: number, c: number) => void;
     readonly parsePcdAscii: (a: number, b: number, c: number) => void;
     readonly parsePcdBinary: (a: number, b: number, c: number) => void;
     readonly parsePly: (a: number, b: number, c: number) => void;
     readonly parsePointCloudAuto: (a: number, b: number, c: number) => void;
+    readonly parseTopojson: (a: number, b: number, c: number) => void;
     readonly parseWkb: (a: number, b: number) => void;
     readonly parseWkt: (a: number, b: number, c: number) => void;
     readonly plyresult_colors: (a: number) => number;
@@ -3183,10 +3620,14 @@ export interface InitOutput {
     readonly plyresult_normals: (a: number) => number;
     readonly plyresult_positions: (a: number) => number;
     readonly plyresult_vertexCount: (a: number) => number;
+    readonly pointCloudAnalysis: (a: number, b: number, c: number) => void;
     readonly pointCloudBounds: (a: number) => number;
     readonly pointCloudCentroid: (a: number) => number;
     readonly pointCloudStats: (a: number, b: number) => void;
     readonly pointCloudToGlb: (a: number, b: number, c: number, d: number) => number;
+    readonly pointcloudstats_hasColor: (a: number) => number;
+    readonly pointcloudstats_pointCount: (a: number) => number;
+    readonly pointcloudstats_toJson: (a: number, b: number) => void;
     readonly pointcloudstreamer_new: () => number;
     readonly pointcloudstreamer_parseHeader: (a: number, b: number, c: number, d: number) => void;
     readonly pointcloudstreamer_readPoints: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
@@ -3201,13 +3642,24 @@ export interface InitOutput {
     readonly polygonIntersects: (a: number, b: number) => number;
     readonly polygonUnion: (a: number, b: number) => number;
     readonly polylineLength: (a: number, b: number) => void;
-    readonly processChunked: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
+    readonly processChunked: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => number;
+    readonly processChunkedWithAbort: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => number;
+    readonly processingcontext_clear: (a: number) => void;
+    readonly processingcontext_new: () => number;
+    readonly processingcontext_reserve: (a: number, b: number, c: number) => void;
+    readonly processingcontext_reservedBytes: (a: number) => number;
+    readonly quantizePositions: (a: number, b: number, c: number) => number;
     readonly quantizedmeshresult_byte_length: (a: number) => number;
     readonly quantizedmeshresult_data: (a: number) => number;
+    readonly quantizeresult_bounds: (a: number) => number;
+    readonly quantizeresult_quantized: (a: number) => number;
+    readonly rasterizeTerrainMask: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
     readonly removeProperty: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly renameProperty: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
     readonly rhumbBearing: (a: number, b: number, c: number, d: number) => number;
     readonly rhumbDistance: (a: number, b: number, c: number, d: number) => number;
+    readonly rotatePointCloud: (a: number, b: number, c: number) => number;
+    readonly scalePointCloud: (a: number, b: number, c: number, d: number) => number;
     readonly setInputSizeLimit: (a: number) => void;
     readonly setMaxWasmMemory: (a: number) => void;
     readonly simplifyDouglasPeucker: (a: number, b: number) => number;
@@ -3222,7 +3674,7 @@ export interface InitOutput {
     readonly spatialindex_new: (a: number) => number;
     readonly spatialindex_searchBBox: (a: number, b: number, c: number, d: number, e: number) => number;
     readonly spatialindex_size: (a: number) => number;
-    readonly supportsDraco: () => number;
+    readonly supportsE57: () => number;
     readonly supportsWorker: () => number;
     readonly terrainToGlb: (a: number, b: number, c: number, d: number) => number;
     readonly terraintilesetresult_tile: (a: number, b: number) => number;
@@ -3230,6 +3682,10 @@ export interface InitOutput {
     readonly terraintilesetresult_tile_count: (a: number) => number;
     readonly terraintilesetresult_tilesetJson: (a: number, b: number) => void;
     readonly terraintilesetresult_totalBytes: (a: number) => number;
+    readonly tilesetpatch_new: () => number;
+    readonly tilesetpatch_patchBytes: (a: number) => number;
+    readonly tilesetpatch_setTile: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly tilesetpatch_setTilesetJson: (a: number, b: number, c: number) => void;
     readonly tilesetresult_tile: (a: number, b: number) => number;
     readonly tilesetresult_tileBounds: (a: number, b: number) => number;
     readonly tilesetresult_tileUri: (a: number, b: number, c: number) => void;
@@ -3239,7 +3695,10 @@ export interface InitOutput {
     readonly tinInterpolate: (a: number, b: number, c: number) => number;
     readonly toWkb: (a: number, b: number, c: number, d: number) => void;
     readonly toWkt: (a: number, b: number, c: number, d: number) => void;
+    readonly topojsonToGeojson: (a: number, b: number, c: number) => void;
     readonly touches: (a: number, b: number) => number;
+    readonly transformPointCloud: (a: number, b: number) => number;
+    readonly translatePointCloud: (a: number, b: number, c: number, d: number) => number;
     readonly utmToWgs84: (a: number, b: number, c: number, d: number) => number;
     readonly validateCoords: (a: number, b: number, c: number, d: number) => void;
     readonly validationresult_invalid_count: (a: number) => number;
@@ -3271,9 +3730,16 @@ export interface InitOutput {
     readonly workeroptions_new: () => number;
     readonly workeroptions_set_maxDepth: (a: number, b: number) => void;
     readonly workeroptions_set_maxPointsPerNode: (a: number, b: number) => void;
-    readonly supportsE57: () => number;
-    readonly supportsGeotiff: () => number;
-    readonly supportsLaz: () => number;
+    readonly lasheader_boundsMinX: (a: number) => number;
+    readonly lasheaderinfo_xScale: (a: number) => number;
+    readonly pointcloudstats_boundsMinX: (a: number) => number;
+    readonly pointdata_x: (a: number) => number;
+    readonly wasmquantbounds_minX: (a: number) => number;
+    readonly buildOctreeParallel: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
+    readonly laspointcloud_pointCount: (a: number) => number;
+    readonly pcdpointcloud_pointCount: (a: number) => number;
+    readonly __wbg_laspointcloud_free: (a: number, b: number) => void;
+    readonly __wbg_pcdpointcloud_free: (a: number, b: number) => void;
     readonly lasheader_boundsMaxX: (a: number) => number;
     readonly lasheader_boundsMaxY: (a: number) => number;
     readonly lasheader_boundsMaxZ: (a: number) => number;
@@ -3290,27 +3756,51 @@ export interface InitOutput {
     readonly lasheaderinfo_yScale: (a: number) => number;
     readonly lasheaderinfo_zOffset: (a: number) => number;
     readonly lasheaderinfo_zScale: (a: number) => number;
+    readonly pointcloudstats_avgSpacing: (a: number) => number;
+    readonly pointcloudstats_boundsMaxX: (a: number) => number;
+    readonly pointcloudstats_boundsMaxY: (a: number) => number;
+    readonly pointcloudstats_boundsMaxZ: (a: number) => number;
+    readonly pointcloudstats_boundsMinY: (a: number) => number;
+    readonly pointcloudstats_boundsMinZ: (a: number) => number;
+    readonly pointcloudstats_centroidX: (a: number) => number;
+    readonly pointcloudstats_centroidY: (a: number) => number;
+    readonly pointcloudstats_centroidZ: (a: number) => number;
+    readonly pointcloudstats_colorMeanB: (a: number) => number;
+    readonly pointcloudstats_colorMeanG: (a: number) => number;
+    readonly pointcloudstats_colorMeanR: (a: number) => number;
+    readonly pointcloudstats_density: (a: number) => number;
+    readonly pointcloudstats_stdDevX: (a: number) => number;
+    readonly pointcloudstats_stdDevY: (a: number) => number;
+    readonly pointcloudstats_stdDevZ: (a: number) => number;
     readonly pointdata_y: (a: number) => number;
     readonly pointdata_z: (a: number) => number;
-    readonly lasheader_boundsMinX: (a: number) => number;
-    readonly lasheaderinfo_xScale: (a: number) => number;
-    readonly pointdata_x: (a: number) => number;
-    readonly __wbg_tinresult_free: (a: number, b: number) => void;
-    readonly __wbg_ifcmesh_free: (a: number, b: number) => void;
+    readonly wasmquantbounds_maxX: (a: number) => number;
+    readonly wasmquantbounds_maxY: (a: number) => number;
+    readonly wasmquantbounds_maxZ: (a: number) => number;
+    readonly wasmquantbounds_minY: (a: number) => number;
+    readonly wasmquantbounds_minZ: (a: number) => number;
+    readonly supportsDraco: () => number;
+    readonly supportsGeotiff: () => number;
+    readonly supportsLaz: () => number;
+    readonly supportsMultiThread: () => number;
+    readonly supportsTerrainEdit: () => number;
+    readonly threadCount: () => number;
     readonly __wbg_pointcloudstreamer_free: (a: number, b: number) => void;
+    readonly pcdpointcloud_colors: (a: number) => number;
+    readonly laspointcloud_colors: (a: number) => number;
+    readonly pcdpointcloud_positions: (a: number) => number;
+    readonly laspointcloud_positions: (a: number) => number;
+    readonly __wbg_ifcmesh_free: (a: number, b: number) => void;
+    readonly __wbg_tinresult_free: (a: number, b: number) => void;
     readonly tinresult_vertexCount: (a: number) => number;
     readonly tinresult_triangleCount: (a: number) => number;
-    readonly pcdpointcloud_pointCount: (a: number) => number;
-    readonly tinresult_positions: (a: number) => number;
     readonly ifcmesh_positions: (a: number) => number;
-    readonly tinresult_indices: (a: number) => number;
-    readonly pcdpointcloud_positions: (a: number) => number;
     readonly ifcmesh_indices: (a: number) => number;
-    readonly __wbg_pcdpointcloud_free: (a: number, b: number) => void;
-    readonly pcdpointcloud_colors: (a: number) => number;
-    readonly __wasm_bindgen_func_elem_3270: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_3272: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_956: (a: number, b: number, c: number) => void;
+    readonly tinresult_indices: (a: number) => number;
+    readonly tinresult_positions: (a: number) => number;
+    readonly __wasm_bindgen_func_elem_3670: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_3674: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_1124: (a: number, b: number, c: number) => void;
     readonly __wbindgen_export: (a: number, b: number) => number;
     readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_export3: (a: number) => void;

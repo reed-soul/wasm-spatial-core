@@ -231,8 +231,13 @@
         <input type="number" id="deformValue" value="0" step="1" style="width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:0.8rem" />
         <label style="font-size:0.8rem;color:var(--muted);margin-top:8px;margin-bottom:4px;display:block">Boundary feather (cells)</label>
         <input type="number" id="deformFeather" value="1" min="0" max="12" style="width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:0.8rem" />
+        <label style="display:flex;align-items:center;gap:8px;font-size:0.8rem;margin-top:8px">
+          <input type="checkbox" id="deformPreferGpu" checked>
+          GPU flatten (feather=0)
+        </label>
         <button class="btn" id="applyDeformBtn" style="margin-top:10px">Apply to center polygon</button>
         <div class="stat" style="margin-top:8px"><span class="label">Last edit</span><span class="value" id="deformTiming">—</span></div>
+        <div class="stat"><span class="label">Backend</span><span class="value" id="deformBackend">—</span></div>
       </div>
     </div>
 
@@ -284,6 +289,15 @@
     }
 
     import { centerSquarePolygon } from '../shared/pc-bindings.mjs';
+    import { createGpuContext, applyFlattenDeform } from '../shared/terrain-gpu.mjs';
+
+    let gpuCtx = null;
+    try {
+      gpuCtx = await createGpuContext();
+      if (gpuCtx) console.log('[terrain-demo] WebGPU available for flatten');
+    } catch (e) {
+      console.warn('[terrain-demo] WebGPU init failed:', e.message);
+    }
 
     // ── State ──
     let scene, camera, renderer, controls;
@@ -557,7 +571,7 @@
       hideError();
     }
 
-    function applyTerrainDeform() {
+    async function applyTerrainDeform() {
       if (!currentElevations || !currentBounds) return;
       if (typeof flattenTerrain !== 'function') {
         showError('Terrain edit unavailable — rebuild WASM with --features terrain-edit');
@@ -567,17 +581,33 @@
       const h = currentHeight;
       const heights = new Float32Array(currentElevations);
       const polygon = centerSquarePolygon(currentBounds, 0.5);
+      const bounds = currentBounds;
       const mode = document.getElementById('deformMode').value;
       const value = parseFloat(document.getElementById('deformValue').value);
       const feather = parseInt(document.getElementById('deformFeather').value, 10) || 0;
+      const preferGpu = document.getElementById('deformPreferGpu').checked;
       const t0 = performance.now();
+      let backend = 'WASM';
       try {
         if (mode === 'flatten') {
-          flattenTerrain(heights, w, h, currentBounds, polygon, value, feather);
+          const out = await applyFlattenDeform({
+            gpuCtx,
+            wasm: window,
+            heights,
+            width: w,
+            height: h,
+            bounds,
+            polygon,
+            target: value,
+            feather,
+            preferGpu,
+          });
+          heights.set(out);
+          backend = preferGpu && gpuCtx && feather === 0 ? 'WebGPU' : 'WASM';
         } else if (mode === 'excavate') {
-          excavateTerrain(heights, w, h, currentBounds, polygon, 'depth', value, feather);
+          excavateTerrain(heights, w, h, bounds, polygon, 'depth', value, feather);
         } else {
-          fillTerrain(heights, w, h, currentBounds, polygon, value, feather);
+          fillTerrain(heights, w, h, bounds, polygon, value, feather);
         }
       } catch (e) {
         showError('Terrain edit failed: ' + e.message);
@@ -585,6 +615,7 @@
       }
       const ms = (performance.now() - t0).toFixed(1);
       document.getElementById('deformTiming').textContent = ms + ' ms';
+      document.getElementById('deformBackend').textContent = backend;
       currentElevations = Array.from(heights);
       const scale = parseFloat(document.getElementById('heightScale').value);
       const colorMode = document.getElementById('colorMode').value;

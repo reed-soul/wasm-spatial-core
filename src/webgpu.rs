@@ -71,6 +71,14 @@ pub fn transform_points_cpu_reference(positions: &[f32], matrix: &[f32]) -> Vec<
     crate::point_cloud_analysis::transform_points_core(positions, matrix)
 }
 
+/// CPU reference for GPU heightfield flatten parity tests (masked flatten, no feather).
+#[cfg(all(feature = "webgpu", feature = "terrain-edit"))]
+pub fn flatten_heightfield_cpu_reference(heights: &[f32], mask: &[u8], target: f32) -> Vec<f32> {
+    let mut out = heights.to_vec();
+    let _ = crate::terrain_edit::flatten_inside(&mut out, mask, target);
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
