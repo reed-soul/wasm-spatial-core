@@ -270,14 +270,18 @@
   <h1>🌍 wasm-spatial-core</h1>
   <p class="tagline">
     High-performance WebAssembly spatial data engine for frontend Web3D/GIS applications.
-    Drag a point cloud file into your browser, get interactive 3D — zero server, zero upload.
+    Drag a <strong>LAS</strong> point cloud into your browser, get interactive 3D — zero server, zero upload.
+    <span style="display:block;margin-top:0.5rem;font-size:0.9rem;color:var(--muted)">
+      Default npm build: <code>point-cloud</code> + <code>geotiff</code> (LAS/PLY/OBJ + GeoTIFF terrain).
+      LAZ/COPC/E57 and mesh/terrain edit require custom WASM builds — see README.
+    </span>
   </p>
   <div class="badges">
-    <span class="badge badge-green">30K+ Lines of Rust</span>
-    <span class="badge badge-blue">633 Tests</span>
-    <span class="badge badge-purple">15+ Data Formats</span>
+    <span class="badge badge-green">33K+ Lines of Rust</span>
+    <span class="badge badge-blue">661 Tests (npm build)</span>
+    <span class="badge badge-purple">15+ Data Formats (engine)</span>
     <span class="badge badge-orange">MIT License</span>
-    <span class="badge badge-cyan">v0.6.0</span>
+    <span class="badge badge-cyan">v0.7.1</span>
   </div>
   <div class="hero-actions">
     <a class="btn btn-primary" href="demo/">🚀 Try Live Demo</a>
@@ -325,13 +329,13 @@
       <a class="demo-card" href="point-cloud/" style="text-decoration:none;color:inherit">
         <span class="icon">☁️</span>
         <h3>Point Cloud Viewer</h3>
-        <p>Drag & drop point cloud files — auto-detect format, render with Three.js</p>
+        <p>Drag & drop LAS/PLY/OBJ — auto-detect format, render with Three.js (LAZ/COPC/E57 need custom build)</p>
         <div class="formats">
           <span class="format-tag">LAS</span>
-          <span class="format-tag">LAZ</span>
           <span class="format-tag">PLY</span>
           <span class="format-tag">OBJ</span>
-          <span class="format-tag">E57</span>
+          <span class="format-tag" title="Requires laz-support build">LAZ*</span>
+          <span class="format-tag" title="Requires e57-support build">E57*</span>
         </div>
       </a>
       <a class="demo-card" href="terrain/" style="text-decoration:none;color:inherit">
@@ -356,7 +360,7 @@
         <span class="check">✓</span>
         <div>
           <div class="feat-title">Point Cloud Pipeline</div>
-          <div class="feat-desc">LAS/LAZ/COPC/E57/PLY/OBJ → Octree → 3D Tiles (pnts)</div>
+          <div class="feat-desc">LAS/PLY/OBJ (npm) → Octree → 3D Tiles (pnts); LAZ/COPC/E57 via optional builds</div>
         </div>
       </div>
       <div class="feature-item">
@@ -384,7 +388,7 @@
         <span class="check">✓</span>
         <div>
           <div class="feat-title">GeoJSON Processing</div>
-          <div class="feat-desc">Streaming parser, lazy iteration, spatial filter, feature editing</div>
+          <div class="feat-desc">Chunked coord output, lazy per-feature iteration, spatial filter, feature editing</div>
         </div>
       </div>
       <div class="feature-item">
@@ -434,6 +438,13 @@
 <span class="comment"># Install the WASM package</span>
 npm install wasm-spatial-core
       </div>
+      <h3>npm package contents</h3>
+      <div class="code-block">
+<span class="comment"># Shipped WASM features: point-cloud + geotiff</span>
+<span class="comment"># LAS/PLY/OBJ/PCD, octree, 3D Tiles, GeoTIFF terrain</span>
+<span class="comment"># NOT included: LAZ/COPC (laz-support), E57, terrain-edit, mesh-edit</span>
+<span class="comment"># Runtime: supportsLaz(), supportsGeotiff(), lazStatus()</span>
+      </div>
       <br>
       <h3>From Source</h3>
       <div class="code-block">
@@ -457,7 +468,7 @@ wasm-pack build --target web --release --out-dir pkg -- --features point-cloud,g
 
 <span class="kw">await</span> init();
 
-<span class="cmt">// Parse any point cloud format (LAS, LAZ, COPC, PLY, OBJ...)</span>
+<span class="cmt">// Parse LAS (default npm). LAZ/COPC need laz-support at build time.</span>
 <span class="kw">const</span> cloud = <span class="fn">parsePointCloudAuto</span>(lasBytes);
 
 <span class="cmt">// Build octree for spatial partitioning</span>

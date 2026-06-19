@@ -7,7 +7,7 @@ A lightweight, zero-dependency point cloud viewer powered by native WebGL. No Ce
 - **Native WebGL rendering** — Custom vertex/fragment shaders with circular points and Eye-Dome Lighting
 - **Adaptive point size** — Distance-based sizing: closer points are smaller, distant points are larger
 - **Trackball camera** — Left-drag rotate, right-drag pan, scroll zoom, double-click reset
-- **WASM integration** — Loads `wasm-spatial-core` for high-performance LAS/LAZ parsing (with JS fallback)
+- **WASM integration** — Loads `wasm-spatial-core` for high-performance LAS parsing (LAZ with `laz-support` build; JS fallback for PLY)
 - **Color modes** — Original colors, height gradient, ASPRS classification, density heatmap
 - **Point size control** — Real-time adjustable base point size
 - **FPS counter** — Live rendering performance monitoring
@@ -18,7 +18,7 @@ A lightweight, zero-dependency point cloud viewer powered by native WebGL. No Ce
 | Format | Extension | WASM Required |
 |--------|-----------|---------------|
 | LAS    | .las      | No (JS fallback) |
-| LAZ    | .laz      | Yes |
+| LAZ    | .laz      | Custom build (`laz-support`) |
 | PLY    | .ply      | No |
 | XYZ    | .xyz      | No |
 
