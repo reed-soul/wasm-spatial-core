@@ -5,7 +5,7 @@
 //!
 //! Run: `cargo bench`
 
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use criterion::{black_box, criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion, Throughput};
 use rand::Rng;
 
 // ---------------------------------------------------------------------------
@@ -195,6 +195,57 @@ fn bench_geojson_parse(c: &mut Criterion) {
     group.finish();
 }
 
+// ---------------------------------------------------------------------------
+// Octree build benchmark (primary point-cloud spatial-index perf metric).
+// Mirrors `tests/perf_test.rs::perf_10m_octree_build` (same generator + config)
+// so criterion numbers are directly comparable to the cited baseline.
+// ---------------------------------------------------------------------------
+
+/// Deterministic scan-line point grid, matching `tests/perf_test.rs::generate_points`.
+fn generate_octree_points(count: usize, spread: f32) -> Vec<f32> {
+    let mut positions = Vec::with_capacity(count * 3);
+    let rows = (count as f64).sqrt().ceil() as usize;
+    let cols = count.div_ceil(rows);
+    for r in 0..rows {
+        for c in 0..cols {
+            if positions.len() / 3 >= count {
+                break;
+            }
+            let x = (c as f32 - cols as f32 / 2.0) * spread;
+            let y = (r as f32 - rows as f32 / 2.0) * spread;
+            let z = x * 0.3 + y * 0.1 + ((r * 7 + c * 13) % 100) as f32 * spread * 0.02;
+            positions.push(x);
+            positions.push(y);
+            positions.push(z);
+        }
+    }
+    positions
+}
+
+/// Measure pure `Octree::build` time (max_points=20000, max_depth=16) for 1M and
+/// 10M points. `iter_batched` excludes the per-sample clone from timing, matching
+/// the `perf_10m_octree_build` test which times only the build call.
+fn bench_octree_build(c: &mut Criterion) {
+    use wasm_spatial_core::Octree;
+    let mut group = c.benchmark_group("octree_build");
+    group.sample_size(10);
+    for &n in &[1_000_000usize, 10_000_000usize] {
+        let template = generate_octree_points(n, 0.2);
+        group.throughput(Throughput::Elements(n as u64));
+        group.bench_with_input(BenchmarkId::new("points", n), &template, |b, data| {
+            b.iter_batched(
+                || data.clone(),
+                |mut positions| {
+                    let tree = Octree::build(&mut positions, 20000, 16);
+                    black_box(tree.node_count());
+                },
+                BatchSize::LargeInput,
+            );
+        });
+    }
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_wgs84_to_gcj02,
@@ -203,6 +254,7 @@ criterion_group!(
     bench_geojson_parse,
     bench_las_parse,
     bench_laz_decompress,
+    bench_octree_build,
 );
 
 criterion_main!(benches);
