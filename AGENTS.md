@@ -32,7 +32,9 @@ rustup component add clippy rustfmt
 
 ### `pkg/` directory
 
-**Not in git.** Run `wasm-pack build --target web --release --out-dir pkg` before `examples/*` demos. CI uploads `pkg/` as an artifact for Pages.
+**Not in git** (`.gitignore` rule `/pkg`). Run `wasm-pack build --target web --release --out-dir pkg` before `examples/*` demos. CI builds `pkg/` fresh on every run and uploads it as an artifact for Pages — it never reads `pkg/` from the repo.
+
+⚠️ **Do not `git add pkg/` or `git add -A` after a local `wasm-pack build`.** `pkg/wasm_spatial_core_bg.wasm` is a ~1 MB binary; committing it bloats history and has happened before (regressed in commits `719998e`, `17e51d0`). If `git status` shows `pkg/` files after a build, the `.gitignore` rule has been bypassed — stop and investigate rather than staging.
 
 ### Browser demos
 
