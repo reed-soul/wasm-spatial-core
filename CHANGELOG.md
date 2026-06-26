@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.8.0] - 2026-06-27
 
 ### Added
 - **Wave 1 — Core runtime** (incremental tiles, cancellable jobs, memory budget):
@@ -53,6 +53,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **Wave 1 scope** — Dropped trajectory/geofence from engine roadmap (application-layer concern)
 - **Core-only pass** — Removed instance/parking twin APIs from roadmap; W1 = runtime (patch/cancel) only; added [ENGINE_BOUNDARY.md](./docs/ENGINE_BOUNDARY.md); deferred frustum cull, GPU QEM, SVD from core path; **W2 Spatial IR** is default start
+
+### Engineering & quality (0.8.0 release hardening)
+- **CI baseline restored** — Fixed 4 CI-blocking issues: `cargo fmt` on bench/geotiff/ply; clippy `manual_is_multiple_of` (Rust 1.93) in `gltf_writer.rs`; `real_geotiff_test` / `external_geotiff_test` missing `required-features = ["geotiff"]` (E0432/E0282); feature-gated runtime test assertion
+- **Test count** — 819 tests green under `cargo test --all-features` (was 661 on prior landing page)
+- **Perf gates verified** — W3 flatten 2048×2048 ~40 ms (native release, budget 500 ms); W5 QEM 99458→10000 triangles, max_error 0.058650
+- **Roadmap calibrated** — All V2 exit criteria annotated with backing test (✅/🟡/⚠️); only 2 items remain open (W4.3/W4.4 discrete-GPU speedup, hardware-dependent)
+- **`pkg/` untracked** — Removed 8 build artifacts from git tracking (incl. ~1.1 MB `.wasm` binary committed across 7 history entries); root cause was a tracked `pkg/.gitignore` bypassing the top-level `/pkg` rule; anti-regression notes added to `AGENTS.md` / `CONTRIBUTING.md`
 
 ## [0.7.1] - 2026-06-06
 
