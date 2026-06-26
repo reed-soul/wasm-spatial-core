@@ -3494,7 +3494,7 @@ export interface InitOutput {
     readonly getSupportedCrs: (a: number) => void;
     readonly getVisibleTiles: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number) => number;
     readonly gltfbuilder_addMaterial: (a: number, b: number, c: number, d: number, e: number) => number;
-    readonly gltfbuilder_addMesh: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly gltfbuilder_addMesh: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly gltfbuilder_new: () => number;
     readonly gltfbuilder_toGlb: (a: number) => number;
     readonly gltfbuilder_toGltfJson: (a: number, b: number) => void;
@@ -3530,7 +3530,7 @@ export interface InitOutput {
     readonly memoryinfo_total: (a: number) => number;
     readonly memoryinfo_used: (a: number) => number;
     readonly mergePointClouds: (a: number, b: number, c: number, d: number) => number;
-    readonly meshToGlb: (a: number, b: number, c: number) => number;
+    readonly meshToGlb: (a: number, b: number, c: number, d: number) => void;
     readonly midpoint: (a: number, b: number, c: number, d: number) => number;
     readonly mvtLayerInfo: (a: number, b: number) => void;
     readonly mvtToGeoJson: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
@@ -3592,7 +3592,7 @@ export interface InitOutput {
     readonly pointCloudBounds: (a: number) => number;
     readonly pointCloudCentroid: (a: number) => number;
     readonly pointCloudStats: (a: number, b: number) => void;
-    readonly pointCloudToGlb: (a: number, b: number, c: number, d: number) => number;
+    readonly pointCloudToGlb: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly pointcloudstats_hasColor: (a: number) => number;
     readonly pointcloudstats_pointCount: (a: number) => number;
     readonly pointcloudstats_toJson: (a: number, b: number) => void;
@@ -3762,11 +3762,11 @@ export interface InitOutput {
     readonly tinresult_triangleCount: (a: number) => number;
     readonly ifcmesh_indices: (a: number) => number;
     readonly tinresult_positions: (a: number) => number;
-    readonly ifcmesh_positions: (a: number) => number;
     readonly tinresult_indices: (a: number) => number;
-    readonly __wasm_bindgen_func_elem_3633: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_3637: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_1108: (a: number, b: number, c: number) => void;
+    readonly ifcmesh_positions: (a: number) => number;
+    readonly __wasm_bindgen_func_elem_3634: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_3638: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_1109: (a: number, b: number, c: number) => void;
     readonly __wbindgen_export: (a: number, b: number) => number;
     readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_export3: (a: number) => void;

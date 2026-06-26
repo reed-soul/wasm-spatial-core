@@ -394,8 +394,15 @@ export class GltfBuilder {
      */
     addMesh(positions, indices, normals, material_index) {
         try {
-            wasm.gltfbuilder_addMesh(this.__wbg_ptr, addBorrowedObject(positions), addBorrowedObject(indices), addBorrowedObject(normals), material_index);
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.gltfbuilder_addMesh(retptr, this.__wbg_ptr, addBorrowedObject(positions), addBorrowedObject(indices), addBorrowedObject(normals), material_index);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            if (r1) {
+                throw takeObject(r0);
+            }
         } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
             heap[stack_pointer++] = undefined;
             heap[stack_pointer++] = undefined;
             heap[stack_pointer++] = undefined;
@@ -5877,9 +5884,17 @@ export function mergePointClouds(positions_a, colors_a, positions_b, colors_b) {
  */
 export function meshToGlb(vertices, indices, normals) {
     try {
-        const ret = wasm.meshToGlb(addBorrowedObject(vertices), addBorrowedObject(indices), isLikeNone(normals) ? 0 : addHeapObject(normals));
-        return takeObject(ret);
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        wasm.meshToGlb(retptr, addBorrowedObject(vertices), addBorrowedObject(indices), isLikeNone(normals) ? 0 : addHeapObject(normals));
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return takeObject(r0);
     } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
         heap[stack_pointer++] = undefined;
         heap[stack_pointer++] = undefined;
     }
@@ -6968,11 +6983,19 @@ export function pointCloudStats(positions) {
  */
 export function pointCloudToGlb(positions, colors, normals) {
     try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
         var ptr0 = isLikeNone(colors) ? 0 : passArray8ToWasm0(colors, wasm.__wbindgen_export);
         var len0 = WASM_VECTOR_LEN;
-        const ret = wasm.pointCloudToGlb(addBorrowedObject(positions), ptr0, len0, isLikeNone(normals) ? 0 : addHeapObject(normals));
-        return takeObject(ret);
+        wasm.pointCloudToGlb(retptr, addBorrowedObject(positions), ptr0, len0, isLikeNone(normals) ? 0 : addHeapObject(normals));
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return takeObject(r0);
     } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
         heap[stack_pointer++] = undefined;
     }
 }
@@ -8050,6 +8073,10 @@ function __wbg_get_imports() {
             const ret = new Worker(getStringFromWasm0(arg0, arg1));
             return addHeapObject(ret);
         }, arguments); },
+        __wbg_new_c9ea13ea803a692e: function(arg0, arg1) {
+            const ret = new Error(getStringFromWasm0(arg0, arg1));
+            return addHeapObject(ret);
+        },
         __wbg_new_from_slice_0f99167330d1143b: function(arg0, arg1) {
             const ret = new Float32Array(getArrayF32FromWasm0(arg0, arg1));
             return addHeapObject(ret);
@@ -8069,7 +8096,7 @@ function __wbg_get_imports() {
                     const a = state0.a;
                     state0.a = 0;
                     try {
-                        return __wasm_bindgen_func_elem_3637(a, state0.b, arg0, arg1);
+                        return __wasm_bindgen_func_elem_3638(a, state0.b, arg0, arg1);
                     } finally {
                         state0.a = a;
                     }
@@ -8207,12 +8234,12 @@ function __wbg_get_imports() {
         },
         __wbindgen_cast_0000000000000001: function(arg0, arg1) {
             // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 11, ret: Unit, inner_ret: Some(Unit) }, mutable: false }) -> Externref`.
-            const ret = makeClosure(arg0, arg1, __wasm_bindgen_func_elem_1108);
+            const ret = makeClosure(arg0, arg1, __wasm_bindgen_func_elem_1109);
             return addHeapObject(ret);
         },
         __wbindgen_cast_0000000000000002: function(arg0, arg1) {
             // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 218, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
-            const ret = makeMutClosure(arg0, arg1, __wasm_bindgen_func_elem_3633);
+            const ret = makeMutClosure(arg0, arg1, __wasm_bindgen_func_elem_3634);
             return addHeapObject(ret);
         },
         __wbindgen_cast_0000000000000003: function(arg0) {
@@ -8239,14 +8266,14 @@ function __wbg_get_imports() {
     };
 }
 
-function __wasm_bindgen_func_elem_1108(arg0, arg1, arg2) {
-    wasm.__wasm_bindgen_func_elem_1108(arg0, arg1, addHeapObject(arg2));
+function __wasm_bindgen_func_elem_1109(arg0, arg1, arg2) {
+    wasm.__wasm_bindgen_func_elem_1109(arg0, arg1, addHeapObject(arg2));
 }
 
-function __wasm_bindgen_func_elem_3633(arg0, arg1, arg2) {
+function __wasm_bindgen_func_elem_3634(arg0, arg1, arg2) {
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-        wasm.__wasm_bindgen_func_elem_3633(retptr, arg0, arg1, addHeapObject(arg2));
+        wasm.__wasm_bindgen_func_elem_3634(retptr, arg0, arg1, addHeapObject(arg2));
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
         var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
         if (r1) {
@@ -8257,8 +8284,8 @@ function __wasm_bindgen_func_elem_3633(arg0, arg1, arg2) {
     }
 }
 
-function __wasm_bindgen_func_elem_3637(arg0, arg1, arg2, arg3) {
-    wasm.__wasm_bindgen_func_elem_3637(arg0, arg1, addHeapObject(arg2), addHeapObject(arg3));
+function __wasm_bindgen_func_elem_3638(arg0, arg1, arg2, arg3) {
+    wasm.__wasm_bindgen_func_elem_3638(arg0, arg1, addHeapObject(arg2), addHeapObject(arg3));
 }
 
 const Cesium3DTileFinalization = (typeof FinalizationRegistry === 'undefined')
