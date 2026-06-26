@@ -33,7 +33,9 @@ cargo build
 wasm-pack build --target web --release --out-dir pkg -- --features point-cloud
 ```
 
-The `pkg/` directory is listed in `.gitignore` and is **not** stored in git. CI builds it on every run; locally you must run `wasm-pack build` before opening browser examples.
+The `pkg/` directory is listed in `.gitignore` (`/pkg`) and is **not** stored in git. CI builds it on every run; locally you must run `wasm-pack build` before opening browser examples.
+
+**Anti-regression note:** never `git add pkg/` or `git add -A` after building — `pkg/wasm_spatial_core_bg.wasm` is a ~1 MB binary that bloats history. If `git status` lists `pkg/` files, the ignore rule was bypassed (this regressed historically in `719998e` and `17e51d0`); investigate instead of staging.
 
 ### npm publish vs CI test matrix
 
