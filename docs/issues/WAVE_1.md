@@ -22,8 +22,8 @@ Small scene edits invalidate entire `tileset.json` + all tile blobs.
 
 ### Acceptance
 
-- [ ] Integration test: replace one leaf tile without changing unrelated URIs
-- [ ] Patch size ≪ full tileset for single-tile edit
+- [x] Integration test: replace one leaf tile without changing unrelated URIs — `src/tile_patch.rs::tests::test_apply_patch_single_tile`
+- [x] Patch size ≪ full tileset for single-tile edit — same test asserts `patch_bytes() < full_bytes`
 
 ---
 
@@ -43,8 +43,8 @@ Large parses and tile generation cannot be cancelled.
 
 ### Acceptance
 
-- [ ] Abort mid-parse on large synthetic LAS → prompt return, no panic
-- [ ] Document pattern in AGENTS.md
+- [x] Abort mid-parse on large synthetic LAS → prompt return, no panic — `tests/runtime_abort_test.rs`
+- [x] Document pattern in AGENTS.md — `AGENTS.md § Cancellable pipelines (W1)`
 
 ---
 
@@ -63,7 +63,7 @@ Repeated allocations in multi-step pipelines cause WASM memory growth.
 
 ### Acceptance
 
-- [ ] Octree + tileset job reuses single position buffer where safe
-- [ ] Estimate within 2× of actual for LAS parse benchmark
+- [x] Octree + tileset job reuses single position buffer where safe — `src/runtime.rs::ProcessingContext` (positions/colors arena, `reserve`/`clear`)
+- [x] Estimate within 2× of actual for LAS parse benchmark — `estimate_job_bytes(JobOp::LasParse)` backed by `estimate_memory_for_points`; unit test `test_estimate_job_bytes_known_ops`
 
 **Note:** Defer if W1.1–W1.2 ship first; not blocking IR work.

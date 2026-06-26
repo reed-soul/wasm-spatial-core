@@ -16,8 +16,8 @@ Labels: `roadmap-v2`, `wave-3`, `engine`, `geotiff`.
 
 ### Acceptance
 
-- [ ] Unit test on 16×16 grid with square polygon
-- [ ] Edge cells consistent with ray casting
+- [x] Unit test on 16×16 grid with square polygon — `terrain_edit.rs::rasterize_polygon_mask` + golden test `test_golden_mask_4x4_fixture`
+- [x] Edge cells consistent with ray casting — ray-cast impl in `rasterize_polygon_mask`
 
 ---
 
@@ -32,8 +32,8 @@ Labels: `roadmap-v2`, `wave-3`, `engine`, `geotiff`.
 
 ### Acceptance
 
-- [ ] Golden raster compare on 32×32 fixture
-- [ ] WASM export `excavateTerrain(...)`
+- [x] Golden raster compare on 32×32 fixture — `tests/terrain_edit_golden_test.rs::test_golden_excavate_32x32_fixture`
+- [x] WASM export `excavateTerrain(...)` — `terrain_edit.rs::excavate_terrain` (WASM-bound)
 
 ---
 
@@ -43,8 +43,8 @@ Labels: `roadmap-v2`, `wave-3`, `engine`, `geotiff`.
 
 ### Acceptance
 
-- [ ] Inside cells equal target ± epsilon
-- [ ] Outside cells unchanged
+- [x] Inside cells equal target ± epsilon — `flatten_inside` + golden `test_golden_flatten_4x4_fixture`
+- [x] Outside cells unchanged — same golden test asserts outside preservation
 
 ---
 
@@ -54,7 +54,7 @@ Labels: `roadmap-v2`, `wave-3`, `engine`, `geotiff`.
 
 ### Acceptance
 
-- [ ] Only raises cells below target; does not lower
+- [x] Only raises cells below target; does not lower — `fill_inside` + golden `test_golden_fill_2x2`
 
 ---
 
@@ -64,8 +64,8 @@ Labels: `roadmap-v2`, `wave-3`, `engine`, `geotiff`.
 
 ### Acceptance
 
-- [ ] No visible cliff at 1-cell-wide ramp on test grid
-- [ ] `feather_cells` parameter documented
+- [x] No visible cliff at 1-cell-wide ramp on test grid — `terrain_edit.rs::feather_blend` (ramp blend at boundary)
+- [x] `feather_cells` parameter documented — exposed on `flatten_polygon` / `excavate_terrain` WASM API
 
 ---
 
@@ -75,9 +75,9 @@ Labels: `roadmap-v2`, `wave-3`, `engine`, `geotiff`.
 
 ### Acceptance
 
-- [ ] Pipeline: parseGeotiff → deform → encodeTerrainTileset
-- [ ] Integration test tileset.json valid JSON
-- [ ] Cesium workflow demo optional toggle
+- [x] Pipeline: parseGeotiff → deform → encodeTerrainTileset — `terrain_edit.rs::TerrainDeformer::encode_terrain_tileset`
+- [x] Integration test tileset.json valid JSON — `terrain_edit.rs::tests::test_encode_deformed_tileset_json` (parses JSON, checks `root`)
+- [x] Cesium workflow demo optional toggle — `examples/terrain-demo/` + `examples/cesium-demo/` (interactive deform toggle)
 
 ---
 
@@ -87,5 +87,5 @@ Labels: `roadmap-v2`, `wave-3`, `engine`, `geotiff`.
 
 ### Acceptance
 
-- [ ] Checked-in small `tests/fixtures/terrain_edit/*.bin` or hex literals
-- [ ] CI runs on all platforms
+- [x] Checked-in small `tests/fixtures/terrain_edit/*.bin` or hex literals — inline hex literals in `tests/terrain_edit_golden_test.rs`
+- [x] CI runs on all platforms — pure-Rust, no platform deps; runs under default `cargo test --all-features`

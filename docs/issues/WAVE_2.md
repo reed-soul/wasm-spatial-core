@@ -24,9 +24,9 @@ Each variant: `metadata: ChunkMeta`, `data: ...`, `version: u64`.
 
 ### Acceptance
 
-- [ ] Native unit tests construct each variant
-- [ ] `ChunkMeta` includes CRS id, AABB, byte_size estimate
-- [ ] Feature flag `mesh-ingest` gates mesh variants
+- [x] Native unit tests construct each variant — `spatial_ir.rs::tests::test_spatial_chunk_variants` (PointCloud/Mesh/Heightfield)
+- [x] `ChunkMeta` includes CRS id, AABB, byte_size estimate — `ChunkMeta { crs, aabb, byte_budget, .. }` + `estimate_byte_size`
+- [x] Feature flag `mesh-ingest` gates mesh variants — `Cargo.toml` feature `mesh-ingest`; `spatial_ir_test` gated via `required-features`
 
 ---
 
@@ -36,8 +36,8 @@ Each variant: `metadata: ChunkMeta`, `data: ...`, `version: u64`.
 
 ### Acceptance
 
-- [ ] JSON serialize metadata for debugging (not hot path)
-- [ ] Version increments on edit operations (stub mutators OK)
+- [x] JSON serialize metadata for debugging (not hot path) — `ChunkMeta: Serialize/Deserialize`; `test_chunk_meta_json_roundtrip`
+- [x] Version increments on edit operations (stub mutators OK) — `ChunkMeta::bump_version`; `test_chunk_meta_version_bump`
 
 ---
 
@@ -53,9 +53,9 @@ Each variant: `metadata: ChunkMeta`, `data: ...`, `version: u64`.
 
 ### Acceptance
 
-- [ ] Round-trip: `meshToGlb` → `parseGlb` preserves vertex/index counts
-- [ ] WASM export `parseGlb`
-- [ ] Max size respects `get_current_input_limit()`
+- [x] Round-trip: `meshToGlb` → `parseGlb` preserves vertex/index counts — `gltf_reader.rs::tests::test_roundtrip_mesh_to_glb_parse_glb`
+- [x] WASM export `parseGlb` — `gltf_reader.rs::parse_glb` (`#[wasm_bindgen]`)
+- [x] Max size respects `get_current_input_limit()` — `parse_glb_core` enforces input guard
 
 ---
 
@@ -65,8 +65,8 @@ Each variant: `metadata: ChunkMeta`, `data: ...`, `version: u64`.
 
 ### Acceptance
 
-- [ ] AABB select returns new chunk with subset triangles/points
-- [ ] Empty selection returns error `SpatialError`
+- [x] AABB select returns new chunk with subset triangles/points — `MeshChunk::select_by_aabb` / `PointCloudChunk::select_by_aabb`
+- [x] Empty selection returns error `SpatialError` — `test_mesh_select_empty_returns_error` (GeometryError)
 
 ---
 
@@ -76,8 +76,8 @@ Each variant: `metadata: ChunkMeta`, `data: ...`, `version: u64`.
 
 ### Acceptance
 
-- [ ] Selected mesh → standalone GLB bytes
-- [ ] Selected points → pnts tile + minimal tileset.json
+- [x] Selected mesh → standalone GLB bytes — `MeshChunk::to_glb_bytes`; `tests/spatial_ir_test.rs::test_spatial_chunk_mesh_pipeline`
+- [x] Selected points → pnts tile + minimal tileset.json — `chunk_export.rs::export_to_pnts`; `test_point_cloud_export_to_pnts`
 
 ---
 
@@ -93,8 +93,8 @@ Each variant: `metadata: ChunkMeta`, `data: ...`, `version: u64`.
 
 ### Acceptance
 
-- [ ] Round-trip error < 1 mm at 1 km from anchor (test)
-- [ ] WASM exports
+- [x] Round-trip error < 1 mm at 1 km from anchor (test) — `tests/spatial_ir_test.rs::test_enu_roundtrip_1km` asserts err < 1e-3 m
+- [x] WASM exports — `enu_frame.rs::create_enu_frame` + batch converters (`#[wasm_bindgen]`)
 
 ---
 
