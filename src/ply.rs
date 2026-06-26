@@ -474,11 +474,7 @@ fn parse_ply_binary_le(bytes: &[u8], header: &PlyHeader) -> Result<PlyResult, St
         let vertex_base = offset;
 
         // Read x
-        let x = read_float_at(
-            data,
-            vertex_base,
-            &header.vertex_properties[x_idx].type_,
-        );
+        let x = read_float_at(data, vertex_base, &header.vertex_properties[x_idx].type_);
         let y = read_float_at(
             data,
             vertex_base + property_byte_offset(&header.vertex_properties, y_idx),

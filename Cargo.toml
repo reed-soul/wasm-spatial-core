@@ -133,6 +133,14 @@ name = "terrain_edit_golden_test"
 required-features = ["terrain-edit"]
 
 [[test]]
+name = "real_geotiff_test"
+required-features = ["geotiff"]
+
+[[test]]
+name = "external_geotiff_test"
+required-features = ["geotiff"]
+
+[[test]]
 name = "laz_roundtrip_test"
 required-features = ["laz-support", "test-helpers"]
 
