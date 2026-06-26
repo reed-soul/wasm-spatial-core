@@ -323,7 +323,10 @@ jobs:
 
       - name: Publish to npm
         working-directory: pkg
-        run: npm publish --provenance --access public
+        # --ignore-scripts: skip `prepack` (which rebuilds WASM via wasm-pack).
+        # This job consumes the pre-built pkg/ from the download-artifact step
+        # above and has no Rust toolchain, so prepack would fail with exit 127.
+        run: npm publish --provenance --access public --ignore-scripts
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
