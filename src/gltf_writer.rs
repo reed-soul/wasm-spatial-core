@@ -166,7 +166,7 @@ impl GltfBuilder {
         normals: &js_sys::Float32Array,
         material_index: i32,
     ) -> Result<(), JsValue> {
-        if positions.length() % 3 != 0 {
+        if !positions.length().is_multiple_of(3) {
             return Err(js_sys::Error::new("positions length must be a multiple of 3").into());
         }
         let mut pos_buf = vec![0.0f32; positions.length() as usize];
@@ -248,7 +248,7 @@ pub fn point_cloud_to_glb(
     colors: Option<Vec<u8>>,
     normals: Option<js_sys::Float32Array>,
 ) -> Result<js_sys::Uint8Array, JsValue> {
-    if positions.length() % 3 != 0 {
+    if !positions.length().is_multiple_of(3) {
         return Err(js_sys::Error::new("positions length must be a multiple of 3").into());
     }
     let mut pos_buf = vec![0.0f32; positions.length() as usize];
@@ -341,7 +341,7 @@ pub fn mesh_to_glb(
     indices: &js_sys::Uint32Array,
     normals: Option<js_sys::Float32Array>,
 ) -> Result<js_sys::Uint8Array, JsValue> {
-    if vertices.length() % 3 != 0 {
+    if !vertices.length().is_multiple_of(3) {
         return Err(js_sys::Error::new("vertices length must be a multiple of 3").into());
     }
     let mut v_buf = vec![0.0f32; vertices.length() as usize];

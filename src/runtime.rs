@@ -108,6 +108,9 @@ mod tests {
 
     #[test]
     fn test_estimate_job_bytes_known_ops() {
+        // LasParse estimate is non-zero only when point-cloud provides the
+        // real memory model; without the feature the estimate is intentionally 0.
+        #[cfg(feature = "point-cloud")]
         assert!(
             estimate_job_bytes(JobOp::LasParse {
                 point_count: 1_000_000,

@@ -31,3 +31,6 @@ Thumbs.db
 # Environment
 .env
 .env.local
+
+# External agent/tool configs (not part of this repo)
+arbor_config.yaml

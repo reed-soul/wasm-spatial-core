@@ -691,9 +691,9 @@ fn read_tag_value_u16(bytes: &[u8], entry: &IfdEntry, order: ByteOrder) -> Resul
     if type_size == 0 {
         return Err(format!("unknown field type {}", entry.field_type));
     }
-    let total_size = type_size.checked_mul(entry.count as usize).ok_or_else(|| {
-        format!("tag count overflow: {} * {}", type_size, entry.count)
-    })?;
+    let total_size = type_size
+        .checked_mul(entry.count as usize)
+        .ok_or_else(|| format!("tag count overflow: {} * {}", type_size, entry.count))?;
     if total_size <= 4 {
         // Value is inline in the 4-byte value/offset field
         read_u16(bytes, entry.value_bytes_offset, order)
@@ -709,9 +709,9 @@ fn read_tag_value_u32(bytes: &[u8], entry: &IfdEntry, order: ByteOrder) -> Resul
     if type_size == 0 {
         return Err(format!("unknown field type {}", entry.field_type));
     }
-    let total_size = type_size.checked_mul(entry.count as usize).ok_or_else(|| {
-        format!("tag count overflow: {} * {}", type_size, entry.count)
-    })?;
+    let total_size = type_size
+        .checked_mul(entry.count as usize)
+        .ok_or_else(|| format!("tag count overflow: {} * {}", type_size, entry.count))?;
     if total_size <= 4 {
         // Value is inline
         read_u32(bytes, entry.value_bytes_offset, order)
@@ -735,9 +735,9 @@ fn read_tag_values_u32(
     if count > MAX_TAG_VALUES {
         return Err(format!("tag count {} exceeds limit", entry.count));
     }
-    let total_size = type_size.checked_mul(count).ok_or_else(|| {
-        format!("tag count overflow: {} * {}", type_size, entry.count)
-    })?;
+    let total_size = type_size
+        .checked_mul(count)
+        .ok_or_else(|| format!("tag count overflow: {} * {}", type_size, entry.count))?;
     let mut result = Vec::with_capacity(count);
 
     if total_size <= 4 {
@@ -773,9 +773,9 @@ fn read_tag_values_u64(
     if count > MAX_TAG_VALUES {
         return Err(format!("tag count {} exceeds limit", entry.count));
     }
-    let total_size = type_size.checked_mul(count).ok_or_else(|| {
-        format!("tag count overflow: {} * {}", type_size, entry.count)
-    })?;
+    let total_size = type_size
+        .checked_mul(count)
+        .ok_or_else(|| format!("tag count overflow: {} * {}", type_size, entry.count))?;
     let mut result = Vec::with_capacity(count);
 
     if total_size <= 4 {
@@ -838,9 +838,9 @@ fn read_tag_values_u16(
     if count > MAX_TAG_VALUES {
         return Err(format!("tag count {} exceeds limit", entry.count));
     }
-    let total_size = type_size.checked_mul(count).ok_or_else(|| {
-        format!("tag count overflow: {} * {}", type_size, entry.count)
-    })?;
+    let total_size = type_size
+        .checked_mul(count)
+        .ok_or_else(|| format!("tag count overflow: {} * {}", type_size, entry.count))?;
     let mut result = Vec::with_capacity(count);
 
     if total_size <= 4 {
@@ -874,9 +874,9 @@ fn read_tag_values_f64(
     if type_size == 0 {
         return Err(format!("unknown field type {}", entry.field_type));
     }
-    let total_size = type_size.checked_mul(count).ok_or_else(|| {
-        format!("tag count overflow: {} * {}", type_size, entry.count)
-    })?;
+    let total_size = type_size
+        .checked_mul(count)
+        .ok_or_else(|| format!("tag count overflow: {} * {}", type_size, entry.count))?;
 
     if total_size <= 4 {
         // Unusual but handle: very small double array inline
@@ -916,9 +916,9 @@ fn read_tag_value_string(bytes: &[u8], entry: &IfdEntry) -> Result<String, Strin
     if type_size == 0 {
         return Err(format!("unknown field type {}", entry.field_type));
     }
-    let total_size = type_size.checked_mul(entry.count as usize).ok_or_else(|| {
-        format!("tag count overflow: {} * {}", type_size, entry.count)
-    })?;
+    let total_size = type_size
+        .checked_mul(entry.count as usize)
+        .ok_or_else(|| format!("tag count overflow: {} * {}", type_size, entry.count))?;
 
     let base = if total_size <= 4 {
         entry.value_bytes_offset
