@@ -278,15 +278,15 @@
 <div class="hero">
   <h1>🌍 wasm-spatial-core</h1>
   <p class="tagline">
-    High-performance WebAssembly spatial data engine for frontend Web3D/GIS applications.
-    Drag a <strong>LAS</strong> point cloud into your browser, get interactive 3D — zero server, zero upload.
+    A Web3D spatial compute engine for the browser — ingest, edit geometry, emit 3D Tiles / glTF.
+    Point clouds, terrain, and meshes converge to one internal representation: <strong>zero server, zero upload</strong>.
     <span style="display:block;margin-top:0.5rem;font-size:0.9rem;color:var(--muted)">
       Default npm build: <code>point-cloud</code> + <code>geotiff</code> (LAS/PLY/OBJ + GeoTIFF terrain).
-      LAZ/COPC/E57 and mesh/terrain edit require custom WASM builds — see README.
+      Wave 2–5 capabilities (Spatial IR, mesh edit, terrain deform, WebGPU) ship behind optional feature flags.
     </span>
   </p>
   <div class="badges">
-    <span class="badge badge-green">33K+ Lines of Rust</span>
+    <span class="badge badge-green">40K+ Lines of Rust</span>
     <span class="badge badge-blue">819 Tests (all features)</span>
     <span class="badge badge-purple">10+ / 15+ Formats</span>
     <span class="badge badge-orange">MIT License</span>
@@ -440,6 +440,48 @@
           <div class="feat-desc">MVT decoding, vector tile slicing engine</div>
         </div>
       </div>
+      <div class="feature-item">
+        <span class="check">✓</span>
+        <div>
+          <div class="feat-title">Spatial IR (v0.8 · Wave 2)</div>
+          <div class="feat-desc">Unified <code>SpatialChunk</code> (point cloud / mesh / heightfield) — all formats converge before edit or tile export</div>
+        </div>
+      </div>
+      <div class="feature-item">
+        <span class="check">✓</span>
+        <div>
+          <div class="feat-title">GLB Ingest &amp; Mesh Edit (v0.8 · Wave 5)</div>
+          <div class="feat-desc"><code>parseGlb</code>, OBB split, plane clip with UV/normal interp, hole capping, QEM decimation (UV-seam aware)</div>
+        </div>
+      </div>
+      <div class="feature-item">
+        <span class="check">✓</span>
+        <div>
+          <div class="feat-title">Terrain Deformation (v0.8 · Wave 3)</div>
+          <div class="feat-desc">Polygon-masked cut / flatten / fill + edge feathering; 2048×2048 in ~40 ms; re-encode to quantized-mesh</div>
+        </div>
+      </div>
+      <div class="feature-item">
+        <span class="check">✓</span>
+        <div>
+          <div class="feat-title">WebGPU Compute (v0.8 · Wave 4)</div>
+          <div class="feat-desc">WGSL kernels for point transform, heightfield deform, QEM quadrics — automatic WASM fallback</div>
+        </div>
+      </div>
+      <div class="feature-item">
+        <span class="check">✓</span>
+        <div>
+          <div class="feat-title">Incremental Tiles &amp; Cancellable Jobs (v0.8 · Wave 1)</div>
+          <div class="feat-desc"><code>TilesetPatch</code> (patch ≪ full rebuild), <code>AbortSignal</code> jobs, memory budget estimation</div>
+        </div>
+      </div>
+      <div class="feature-item">
+        <span class="check">✓</span>
+        <div>
+          <div class="feat-title">ENU Frame &amp; SVD Alignment (v0.8)</div>
+          <div class="feat-desc">Local ENU tangent frame (sub-mm at 1 km), Umeyama/Kabsch SVD registration with RANSAC</div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -456,8 +498,14 @@ npm install wasm-spatial-core
       <div class="code-block">
 <span class="comment"># Shipped WASM features: point-cloud + geotiff</span>
 <span class="comment"># LAS/PLY/OBJ/PCD, octree, 3D Tiles, GeoTIFF terrain</span>
-<span class="comment"># NOT included: LAZ/COPC (laz-support), E57, terrain-edit, mesh-edit</span>
-<span class="comment"># Runtime: supportsLaz(), supportsGeotiff(), lazStatus()</span>
+<span class="comment"># Optional builds (feature flags):</span>
+<span class="comment">#   laz-support  — LAZ/COPC decompression</span>
+<span class="comment">#   e57-support  — E57 industrial scans</span>
+<span class="comment">#   terrain-edit — Wave 3 deform (cut/flatten/fill)</span>
+<span class="comment">#   mesh-ingest  — Wave 2 Spatial IR + GLB read</span>
+<span class="comment">#   mesh-edit    — Wave 5 clip/QEM/cap (needs mesh-ingest)</span>
+<span class="comment">#   webgpu       — Wave 4 compute kernels</span>
+<span class="comment"># Runtime probes: supportsLaz(), supportsGeotiff(), supportsWebGpu(), supportsMeshEdit()</span>
       </div>
       <br>
       <h3>From Source</h3>

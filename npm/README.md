@@ -1,6 +1,6 @@
 # wasm-spatial-core
 
-> High-performance WebAssembly spatial data engine — runs entirely in the browser. Zero server, zero upload.
+> A Web3D spatial compute engine for the browser — ingest, edit geometry, emit 3D Tiles / glTF. Zero server, zero upload.
 
 [![npm](https://img.shields.io/npm/v/wasm-spatial-core)](https://www.npmjs.com/package/wasm-spatial-core)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
@@ -14,11 +14,13 @@ The published package is a **prebuilt WASM binary** (`point-cloud` + `geotiff`):
 | LAS, PLY, OBJ, PCD | LAZ / COPC (`laz-support`) |
 | Octree + 3D Tiles (pnts) | E57 (`e57-support`) |
 | GeoTIFF → quantized-mesh | Terrain deformation (`terrain-edit`) |
-| Coordinates, GeoJSON, MVT | Mesh QEM / clip (`mesh-edit`) |
+| Coordinates, GeoJSON, MVT | Spatial IR + GLB ingest (`mesh-ingest`) |
+| | Mesh QEM / clip / OBB split (`mesh-edit`, needs `mesh-ingest`) |
+| | WebGPU compute kernels (`webgpu`) |
 
 **Formats:** **10+** in the default npm build · **15+** with optional format features (LAZ/COPC, E57, GLB ingest).
 
-Check at runtime: `supportsLaz()`, `supportsGeotiff()`, `lazStatus()`.
+Check at runtime: `supportsLaz()`, `supportsGeotiff()`, `lazStatus()`, `supportsWebGpu()`, `supportsMeshEdit()`.
 
 Full matrix: [Feature flags in the repo README](../README.md#feature-flags).
 

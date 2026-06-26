@@ -2,14 +2,14 @@
 
 # wasm-spatial-core
 
-**Drag a LAS file into your browser → Cesium 3D. No server needed.**
+**A Web3D spatial compute engine for the browser. Ingest, edit geometry, emit 3D Tiles / glTF — no server, no upload.**
 
 [![CI](https://github.com/reed-soul/wasm-spatial-core/actions/workflows/ci.yml/badge.svg)](https://github.com/reed-soul/wasm-spatial-core/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/wasm-spatial-core)](https://www.npmjs.com/package/wasm-spatial-core)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-![Lines](https://img.shields.io/badge/code-33K-blue)
-![Tests](https://img.shields.io/badge/tests-661%20(npm%20build)-success)
+![Lines](https://img.shields.io/badge/code-40K-blue)
+![Tests](https://img.shields.io/badge/tests-819%20(all%20features)-success)
 ![Formats](https://img.shields.io/badge/formats-10%2B%20(npm)%20|%2015%2B%20(engine)-green)
 
 <picture>
@@ -20,7 +20,7 @@
 **[🌐 Live Demo](https://reed-soul.github.io/wasm-spatial-core/)** ·
 [📦 npm](https://www.npmjs.com/package/wasm-spatial-core) ·
 [📖 API Docs](https://reed-soul.github.io/wasm-spatial-core/docs/) ·
-[🗺️ Roadmap](./ROADMAP_V1.md) · [🔭 Vision](./VISION.md)
+[🗺️ Roadmap](./ROADMAP_V2.md) · [🔭 Vision](./VISION.md)
 
 **🧪 Try it now:**
 
@@ -40,12 +40,13 @@
 ## ✨ What is this?
 
 🚀 **LAS/PLY/OBJ → 3D Tiles** in the browser (LAZ/COPC/E57 via optional build features)
-🏔️ **GeoTIFF → Quantized-Mesh Terrain** in the browser
+🏔️ **GeoTIFF → Quantized-Mesh Terrain** + terrain deformation (cut/flatten/fill)
 🗜️ **Draco point cloud compression** (Google draco3d integration)
-⚡ **100M points in 8.5 seconds** (release build, native)
+🧊 **Spatial IR + Mesh edit** — GLB ingest, OBB split, plane clip, QEM decimation (Wave 2/5)
+⚡ **WebGPU compute** kernels with WASM fallback (Wave 4)
 🔒 **Zero server, zero upload, zero dependencies**
 
-`wasm-spatial-core` is a high-performance WebAssembly engine that compiles spatial computing from Rust to run directly in the browser. Point cloud parsing, octree spatial partitioning, 3D Tiles generation, Draco compression, GeoTIFF terrain decoding, coordinate projection, GeoJSON processing — all at near-native speed.
+`wasm-spatial-core` is a Web3D spatial compute engine: all spatial formats converge to one internal **Spatial IR** (`SpatialChunk`) before geometry editing or tile/glTF export. Point clouds, terrain, and meshes — ingest, edit, and emit 3D Tiles or glTF, all at near-native WASM speed with optional WebGPU acceleration.
 
 ---
 
@@ -107,15 +108,15 @@ const results = compressTilesetWithDraco(tileset, encoderModule, {
 | LAS, PLY, OBJ, PCD parsing | LAZ / COPC (`laz-support`) |
 | Octree + 3D Tiles (pnts) | E57 (`e57-support`) |
 | GeoTIFF → quantized-mesh terrain | Terrain deformation (`terrain-edit`) |
-| Coordinates, GeoJSON, MVT, spatial analysis | Mesh QEM / clip (`mesh-edit`) |
+| Coordinates, GeoJSON, MVT, spatial analysis | Spatial IR + GLB ingest (`mesh-ingest`) |
+| | Mesh QEM / clip / OBB split (`mesh-edit`, needs `mesh-ingest`) |
+| | WebGPU compute kernels (`webgpu`) |
 
 **Format counts:** **10+** read/write paths in the default npm build (LAS/PLY/OBJ/PCD, GeoJSON, MVT, WKT/WKB, GeoTIFF, GPX, TopoJSON, 3D Tiles/glTF output, …). **15+** when optional format features are enabled (LAZ/COPC, E57, GLB ingest, …).
 
 Runtime checks: `supportsLaz()`, `supportsGeotiff()`, `lazStatus()`.
 
-CI runs **`cargo test --all-features`** (~840 tests across the full matrix).
-The npm build runs **661 tests** for the shipped feature set — the badge above
-reflects the npm build, not `--all-features`.
+CI runs **`cargo test --all-features`** — **819 tests** green across the full feature matrix.
 
 ---
 
