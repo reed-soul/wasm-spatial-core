@@ -132,6 +132,9 @@ pub use terrain_edit::{
     flatten_polygon, flatten_terrain, point_in_ring_core, rasterize_polygon_mask,
     rasterize_terrain_mask, supports_terrain_edit, CutMode, TerrainGrid,
 };
+
+#[cfg(feature = "terrain-edit")]
+pub use quantized_mesh::{decode_index_stream, encode_quantized_mesh, zigzag_decode};
 mod ifc_reader;
 mod octree;
 mod pnts;

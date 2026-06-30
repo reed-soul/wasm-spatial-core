@@ -133,6 +133,10 @@ name = "terrain_edit_golden_test"
 required-features = ["terrain-edit"]
 
 [[test]]
+name = "quantized_mesh_roundtrip_test"
+required-features = ["terrain-edit"]
+
+[[test]]
 name = "real_geotiff_test"
 required-features = ["geotiff"]
 
