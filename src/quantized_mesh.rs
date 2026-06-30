@@ -4,8 +4,9 @@
 //! Module responsibility: (de)serialize the quantized-mesh binary stream.
 //! Grid → mesh triangulation + geometry math lives here too.
 
-// Helpers below are consumed by the assembler added in later tasks of the
-// W3.6 plan. Allow dead code until the full encoder is wired up.
+// decode helpers are pub (#[doc(hidden)]) so the round-trip integration test
+// can exercise them; all other helpers are pub(crate) and consumed by the
+// assembler below.
 #![allow(dead_code)]
 
 /// Zig-zag encode a signed delta into a non-negative integer.
@@ -17,7 +18,8 @@ pub(crate) fn zigzag_encode(n: i32) -> u32 {
 
 /// Inverse of `zigzag_encode`.
 #[inline]
-pub(crate) fn zigzag_decode(n: u32) -> i32 {
+#[doc(hidden)]
+pub fn zigzag_decode(n: u32) -> i32 {
     ((n >> 1) as i32) ^ -((n & 1) as i32)
 }
 
@@ -40,7 +42,8 @@ pub(crate) fn encode_index_stream(indices: &[u32]) -> Vec<u32> {
 }
 
 /// Inverse of `encode_index_stream`.
-pub(crate) fn decode_index_stream(encoded: &[u32]) -> Vec<u32> {
+#[doc(hidden)]
+pub fn decode_index_stream(encoded: &[u32]) -> Vec<u32> {
     let mut out = Vec::with_capacity(encoded.len());
     let mut hwm: i64 = 0;
     for &e in encoded {
@@ -61,37 +64,33 @@ pub(crate) fn decode_index_stream(encoded: &[u32]) -> Vec<u32> {
 // Header (Task 2) — fixed 88-byte layout per CesiumGS/quantized-mesh spec
 // ===========================================================================
 
+/// Fields for the 88-byte quantized-mesh header.
+pub(crate) struct MeshHeader {
+    pub center: [f64; 3],
+    pub min_height: f32,
+    pub max_height: f32,
+    /// Bounding sphere center (ECEF) + radius (must contain all verts).
+    pub bs_center: [f64; 3],
+    pub bs_radius: f64,
+    /// Horizon occlusion point; `{0,0,0}` disables horizon culling.
+    pub horizon: [f64; 3],
+}
+
 /// Build the fixed 88-byte quantized-mesh header.
-///
-/// `bs_center`/`bs_radius` define the bounding sphere (must contain all verts).
-/// `horizon` may be `{0,0,0}` to disable horizon culling.
-pub(crate) fn build_header(
-    center_x: f64,
-    center_y: f64,
-    center_z: f64,
-    min_height: f32,
-    max_height: f32,
-    bs_x: f64,
-    bs_y: f64,
-    bs_z: f64,
-    bs_radius: f64,
-    horizon_x: f64,
-    horizon_y: f64,
-    horizon_z: f64,
-) -> Vec<u8> {
+pub(crate) fn build_header(h: &MeshHeader) -> Vec<u8> {
     let mut buf = Vec::with_capacity(88);
-    buf.extend_from_slice(&center_x.to_le_bytes()); // 0..8
-    buf.extend_from_slice(&center_y.to_le_bytes()); // 8..16
-    buf.extend_from_slice(&center_z.to_le_bytes()); // 16..24
-    buf.extend_from_slice(&min_height.to_le_bytes()); // 24..28  REAL f32
-    buf.extend_from_slice(&max_height.to_le_bytes()); // 28..32  REAL f32
-    buf.extend_from_slice(&bs_x.to_le_bytes()); // 32..40
-    buf.extend_from_slice(&bs_y.to_le_bytes()); // 40..48
-    buf.extend_from_slice(&bs_z.to_le_bytes()); // 48..56
-    buf.extend_from_slice(&bs_radius.to_le_bytes()); // 56..64
-    buf.extend_from_slice(&horizon_x.to_le_bytes()); // 64..72
-    buf.extend_from_slice(&horizon_y.to_le_bytes()); // 72..80
-    buf.extend_from_slice(&horizon_z.to_le_bytes()); // 80..88
+    buf.extend_from_slice(&h.center[0].to_le_bytes()); // 0..8
+    buf.extend_from_slice(&h.center[1].to_le_bytes()); // 8..16
+    buf.extend_from_slice(&h.center[2].to_le_bytes()); // 16..24
+    buf.extend_from_slice(&h.min_height.to_le_bytes()); // 24..28  REAL f32
+    buf.extend_from_slice(&h.max_height.to_le_bytes()); // 28..32  REAL f32
+    buf.extend_from_slice(&h.bs_center[0].to_le_bytes()); // 32..40
+    buf.extend_from_slice(&h.bs_center[1].to_le_bytes()); // 40..48
+    buf.extend_from_slice(&h.bs_center[2].to_le_bytes()); // 48..56
+    buf.extend_from_slice(&h.bs_radius.to_le_bytes()); // 56..64
+    buf.extend_from_slice(&h.horizon[0].to_le_bytes()); // 64..72
+    buf.extend_from_slice(&h.horizon[1].to_le_bytes()); // 72..80
+    buf.extend_from_slice(&h.horizon[2].to_le_bytes()); // 80..88
     buf
 }
 
@@ -224,6 +223,97 @@ pub(crate) fn bounding_sphere(verts_ecef: &[[f64; 3]]) -> (f64, f64, f64, f64) {
     (cx, cy, cz, r)
 }
 
+// ===========================================================================
+// Top-level assembler (Task 6)
+// ===========================================================================
+
+/// Encode a height grid into a spec-conformant quantized-mesh-1.0 byte stream.
+///
+/// `bounds` = [min_lng, min_lat, max_lng, max_lat].
+/// `center` = ECEF sphere-center (any reasonable centroid; affects culling only).
+/// Returns the concatenated header + vertex + index + edge bytes.
+pub fn encode_quantized_mesh(
+    heights: &[f32],
+    width: u32,
+    height: u32,
+    bounds: &[f64; 4],
+    center: &[f64; 3],
+) -> Result<Vec<u8>, String> {
+    if width < 2 || height < 2 {
+        return Err("QuantizedMesh: grid must be at least 2×2".into());
+    }
+    if heights.len() != (width * height) as usize {
+        return Err(format!(
+            "QuantizedMesh: heights length {} != width×height {}",
+            heights.len(),
+            width * height
+        ));
+    }
+
+    // Height range
+    let mut min_h = f32::INFINITY;
+    let mut max_h = f32::NEG_INFINITY;
+    for &h in heights {
+        min_h = min_h.min(h);
+        max_h = max_h.max(h);
+    }
+
+    // Quantize u/v/h per vertex (row-major, matching grid_to_triangles indexing)
+    let mut u = Vec::with_capacity(heights.len());
+    let mut v = Vec::with_capacity(heights.len());
+    let mut h_q = Vec::with_capacity(heights.len());
+    for row in 0..height {
+        for col in 0..width {
+            u.push(quantize_uv(col, width));
+            v.push(quantize_uv(row, height));
+            h_q.push(quantize_height(
+                heights[(row * width + col) as usize],
+                min_h,
+                max_h,
+            ));
+        }
+    }
+
+    // Triangles + edge index lists
+    let tris = grid_to_triangles(width, height);
+    let west: Vec<u32> = (0..height).map(|r| r * width).collect();
+    let south: Vec<u32> = (0..width).map(|c| (height - 1) * width + c).collect();
+    let east: Vec<u32> = (0..height).rev().map(|r| r * width + width - 1).collect();
+    let north: Vec<u32> = (0..width).rev().collect();
+
+    // Bounding sphere: approximate ECEF verts via bounds corners at min/max height.
+    let verts_ecef = approximate_ecef_corners(bounds, min_h, max_h);
+    let (bsx, bsy, bsz, bsr) = bounding_sphere(&verts_ecef);
+
+    let header = MeshHeader {
+        center: [center[0], center[1], center[2]],
+        min_height: min_h,
+        max_height: max_h,
+        bs_center: [bsx, bsy, bsz],
+        bs_radius: bsr,
+        horizon: [0.0, 0.0, 0.0], // horizon occlusion disabled
+    };
+    let mut buf = build_header(&header);
+    buf.extend_from_slice(&build_vertex_data(&u, &v, &h_q));
+    buf.extend_from_slice(&build_index_block(&tris));
+    buf.extend_from_slice(&build_edge_indices_block(&west, &south, &east, &north));
+    Ok(buf)
+}
+
+/// 8 ECEF corners of the tile's lat/lng box at min and max height (for bounding sphere).
+fn approximate_ecef_corners(bounds: &[f64; 4], min_h: f32, max_h: f32) -> Vec<[f64; 3]> {
+    let mut out = Vec::with_capacity(8);
+    for &lng in &[bounds[0], bounds[2]] {
+        for &lat in &[bounds[1], bounds[3]] {
+            for &alt in &[min_h as f64, max_h as f64] {
+                let (x, y, z) = crate::cesium_adapter::wgs84_to_cartesian3_single(lng, lat, alt);
+                out.push([x, y, z]);
+            }
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -253,13 +343,15 @@ mod tests {
 
     #[test]
     fn test_header_is_88_bytes_and_decodes() {
-        let header = build_header(
-            0.0, 0.0, 0.0,    // center ECEF
-            0.0_f32, 0.0_f32, // min/max height
-            0.0, 0.0, 0.0,    // bounding sphere center
-            1.0,              // bounding sphere radius
-            0.0, 0.0, 0.0,    // horizon occlusion point (disabled)
-        );
+        let h = MeshHeader {
+            center: [0.0, 0.0, 0.0],
+            min_height: 0.0_f32,
+            max_height: 0.0_f32,
+            bs_center: [0.0, 0.0, 0.0],
+            bs_radius: 1.0,
+            horizon: [0.0, 0.0, 0.0],
+        };
+        let header = build_header(&h);
         assert_eq!(header.len(), 88, "header must be exactly 88 bytes");
         // min height at offset 24..28 is a real f32 (not truncated)
         let min_h = f32::from_le_bytes([header[24], header[25], header[26], header[27]]);
@@ -334,5 +426,26 @@ mod tests {
             let d = ((x - cx).powi(2) + (y - cy).powi(2) + (z - cz).powi(2)).sqrt();
             assert!(d <= r + 1e-6, "vertex outside sphere: d={}, r={}", d, r);
         }
+    }
+
+    #[test]
+    fn test_encode_produces_spec_layout() {
+        // 2x2 flat grid, heights all 0, bounds [0,0,1,1], center ECEF origin.
+        let heights = vec![0.0_f32, 0.0, 0.0, 0.0];
+        let bounds = [0.0_f64, 0.0, 1.0, 1.0];
+        let center = [0.0_f64, 0.0, 0.0];
+        let bytes = encode_quantized_mesh(&heights, 2, 2, &bounds, &center).unwrap();
+        // Layout: 88 header + 12 vertex counts + 4*6 verts + 4 tri-count + 6*4 idx
+        //       + edge block (16 + 8*4)
+        let expected = 88 + 12 + 24 + 4 + 24 + 16 + 32;
+        assert_eq!(
+            bytes.len(),
+            expected,
+            "len={}, header starts {:?}",
+            bytes.len(),
+            &bytes[0..8]
+        );
+        // Header sanity: center[0] f64 == 0.0
+        assert_eq!(f64::from_le_bytes(bytes[0..8].try_into().unwrap()), 0.0);
     }
 }
