@@ -75,9 +75,11 @@ Labels: `roadmap-v2`, `wave-3`, `engine`, `geotiff`.
 
 ### Acceptance
 
-- [x] Pipeline: parseGeotiff → deform → encodeTerrainTileset — `terrain_edit.rs::TerrainDeformer::encode_terrain_tileset`
+- [x] Pipeline: parseGeotiff → deform → encodeTerrainTileset — `terrain_edit.rs::encode_deformed_terrain_tileset` (delegates to `geotiff.rs::encode_terrain_tileset_core`)
 - [x] Integration test tileset.json valid JSON — `terrain_edit.rs::tests::test_encode_deformed_tileset_json` (parses JSON, checks `root`)
-- [x] Cesium workflow demo optional toggle — `examples/terrain-demo/` + `examples/cesium-demo/` (interactive deform toggle)
+- [x] Cesium workflow demo optional toggle — `examples/point-cloud-cesium/` (loads `encodeDeformedTerrainTileset` output into Cesium); `examples/terrain-demo/` renders deformed grids via Three.js
+- [x] Quantized-mesh bytes conform to CesiumGS/quantized-mesh-1.0 spec — 88-byte header (real f32 heights, bounding sphere, horizon point), zig-zag delta vertex encoding, high-water-mark index encoding; round-trip test in `tests/quantized_mesh_roundtrip_test.rs`
+- [x] Tile URIs use `.terrain` extension (was `.cmpt`)
 
 ---
 
