@@ -3760,12 +3760,12 @@ export interface InitOutput {
     readonly __wbg_ifcmesh_free: (a: number, b: number) => void;
     readonly tinresult_vertexCount: (a: number) => number;
     readonly tinresult_triangleCount: (a: number) => number;
-    readonly ifcmesh_indices: (a: number) => number;
     readonly tinresult_positions: (a: number) => number;
-    readonly tinresult_indices: (a: number) => number;
+    readonly ifcmesh_indices: (a: number) => number;
     readonly ifcmesh_positions: (a: number) => number;
-    readonly __wasm_bindgen_func_elem_3634: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_3638: (a: number, b: number, c: number, d: number) => void;
+    readonly tinresult_indices: (a: number) => number;
+    readonly __wasm_bindgen_func_elem_3660: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_3666: (a: number, b: number, c: number, d: number) => void;
     readonly __wasm_bindgen_func_elem_1109: (a: number, b: number, c: number) => void;
     readonly __wbindgen_export: (a: number, b: number) => number;
     readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
