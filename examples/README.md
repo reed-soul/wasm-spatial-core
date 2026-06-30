@@ -30,6 +30,7 @@ npm run build:pkg
 | Cesium 3D Tiles Point Cloud | http://127.0.0.1:8080/examples/point-cloud-cesium/index.html |
 | Worker (COOP/COEP) | http://127.0.0.1:8080/examples/worker-demo/index.html |
 | **WebGPU smoke** (Wave 4) | http://127.0.0.1:8080/examples/webgpu-smoke/index.html |
+| Cesium workflow (b3dm export) | http://127.0.0.1:8080/examples/cesium-workflow/index.html |
 
 ```bash
 npm run demo      # builds pkg + assembles _site, then serves on :8080
