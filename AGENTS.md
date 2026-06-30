@@ -26,9 +26,13 @@ rustup component add clippy rustfmt
 |------|---------|
 | Format | `cargo fmt --all -- --check` |
 | Lint | `cargo clippy --all-targets --all-features -- -D warnings` |
-| Test | `cargo test --verbose` |
+| Test | `cargo test --all-features --verbose` |
 | WASM build | `wasm-pack build --target web --release --out-dir pkg` |
+| WASM smoke | `WASM_PKG_DIR=pkg-node node tests/wasm_smoke_test.mjs` |
+| Node batch | `node tests/node_batch_test.mjs` |
 | WASM bindgen tests | `wasm-pack test --node --release -- --test web` |
+
+CI runs tests with `--test-threads=2` and `RAYON_NUM_THREADS=1` to keep flake-free; local runs may omit those flags.
 
 ### `pkg/` directory
 
