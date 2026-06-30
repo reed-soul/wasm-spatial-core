@@ -112,7 +112,7 @@
 ### Exit criteria
 
 - [x] 2048×2048 flatten &lt; 500 ms WASM release — ✅ `terrain_edit.rs::tests::test_flatten_2048_performance` passes; native release measured ~40 ms (well under 500 ms budget)
-- [x] Cesium terrain demo loads re-encoded pyramid — ⚠️ `examples/terrain-demo/` + `cesium-demo/` provide the workflow; no automated headless assertion
+- [x] Cesium terrain demo loads re-encoded pyramid — 🟡 binary format now spec-conformant (88-byte header, zig-zag/HWM encoding, `.terrain` ext) per `tests/quantized_mesh_roundtrip_test.rs`; `examples/point-cloud-cesium/` loads it into Cesium. Full headless Cesium load test still pending a browser-test harness
 
 ---
 
