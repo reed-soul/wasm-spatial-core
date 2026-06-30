@@ -39,8 +39,8 @@ The `pkg/` directory is listed in `.gitignore` and is **not** stored in git. CI 
 
 | Artifact | WASM features | Tests |
 |----------|---------------|-------|
-| **npm package** (`point-cloud` + `geotiff`) | What consumers get from `npm install` | `cargo test --features point-cloud,geotiff` (~661) |
-| **CI full matrix** | `--all-features` | ~840 tests |
+| **npm package** (`point-cloud` + `geotiff`) | What consumers get from `npm install` | `cargo test --features point-cloud,geotiff` (~633) |
+| **CI full matrix** | `--all-features` | 805+ tests |
 
 Optional capabilities (LAZ/COPC, E57, terrain deformation, mesh QEM) require custom
 `wasm-pack build --features …` — see [README Feature Flags](./README.md#feature-flags).

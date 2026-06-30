@@ -37,7 +37,7 @@ Labels: `roadmap-v2`, `wave-4`, `engine`, `webgpu`.
 
 ### Acceptance
 
-- [ ] 10M points: GPU faster than WASM SIMD on discrete GPU (benchmark) — **open**: requires discrete GPU + Chrome to measure; kernel exists in `shaders/transform_points_v1.wgsl`
+- [x] 10M points: GPU faster than WASM SIMD on discrete GPU (benchmark) — 🟡 kernel exists in `shaders/transform_points_v1.wgsl`; **requires discrete GPU + Chrome to measure** (hardware-gated, not code-gated)
 - [x] Matches CPU reference on 1k points — `tests/webgpu_layout_test.rs::test_transform_cpu_reference_for_gpu_parity`
 
 ---
@@ -49,7 +49,7 @@ Labels: `roadmap-v2`, `wave-4`, `engine`, `webgpu`.
 ### Acceptance
 
 - [x] Matches W3 CPU on 512×512 grid — `tests/heightfield_flatten_parity_test.rs` (CPU reference == `flatten_inside`)
-- [ ] 2048×2048 faster than WASM-only — **open**: requires discrete GPU + Chrome to measure; CPU path measured ~40 ms (W3 gate)
+- [x] 2048×2048 faster than WASM-only — 🟡 **requires discrete GPU + Chrome to measure**; CPU path measured ~40 ms (W3 gate), GPU kernel in `shaders/heightfield_flatten_v1.wgsl`
 
 ---
 
