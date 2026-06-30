@@ -62,6 +62,9 @@ mod mesh_qem_gpu;
 #[cfg(feature = "terrain-edit")]
 mod terrain_edit;
 
+#[cfg(feature = "terrain-edit")]
+mod quantized_mesh;
+
 #[cfg(feature = "webgpu")]
 mod webgpu;
 
