@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **W3.6 quantized-mesh compliance** — `encode_quantized_mesh_core` now emits byte-exact Cesium quantized-mesh-1.0 tiles (was a self-invented layout that CesiumTerrainProvider could not load): correct 88-byte header with real f32 heights + bounding sphere + horizon occlusion point, zig-zag delta vertex encoding (MAX_UV=32767), high-water-mark index/edge encoding, `.terrain` extension (was `.cmpt`). New module `src/quantized_mesh.rs` with round-trip test in `tests/quantized_mesh_roundtrip_test.rs`.
+
 ## [0.8.0] - 2026-06-27
 
 ### Added
