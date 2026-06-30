@@ -386,7 +386,7 @@ chore: upgrade wasm-bindgen to 0.2.97
 
 ### Current Test Coverage
 
-- **529 tests** across all 26 modules
+- **805+ tests** across all 43 modules
 - **Integration tests**: `tests/integration_test.rs`, `tests/point_cloud_pipeline.rs`, `tests/pipeline_integration_test.rs`
 - **Stress tests**: `tests/stress_test.rs` (marked `#[ignore]`, run with `--ignored`)
 - **Error path tests**: `tests/error_path_test.rs`

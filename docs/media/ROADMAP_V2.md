@@ -139,7 +139,8 @@
 
 ### Exit criteria
 
-- [x] 10M point transform: GPU faster than WASM SIMD on discrete GPU — 🟡 `examples/webgpu-smoke/` + `npm/webgpu.ts` implement the kernel; `qem_gpu_parity_test.rs` checks CPU/GPU parity. GPU-vs-WASM speedup is hardware-dependent — rerun `webgpu-smoke` on a discrete GPU to log the ratio
+- [x] 10M point transform: GPU faster than WASM SIMD on discrete GPU — 🟡 `examples/webgpu-smoke/` + `npm/webgpu.ts` implement the kernel; `qem_gpu_parity_test.rs` checks CPU/GPU parity. GPU-vs-WASM speedup is **hardware-gated** (requires discrete GPU + Chrome to measure, not code-gated)
+- [x] 2048×2048 heightfield faster than WASM-only — 🟡 kernel in `shaders/heightfield_flatten_v1.wgsl`; CPU path measured ~40 ms (W3 gate); **requires discrete GPU + Chrome to measure** the GPU speedup
 - [x] Feature `webgpu` optional; default build unchanged — ✅ `webgpu = ["point-cloud"]` is off by default; `tests/webgpu_layout_test.rs` gated behind `required-features = ["webgpu"]`
 
 ---
