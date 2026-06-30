@@ -1375,187 +1375,14 @@ pub fn encode_quantized_mesh_core(
     heights: &[f32],
     width: u32,
     height: u32,
-    _bounds: &[f64; 4],
+    bounds: &[f64; 4],
     center: &[f64; 3],
 ) -> Result<Vec<u8>, String> {
-    if width < 2 || height < 2 {
-        return Err("QuantizedMesh: grid must be at least 2×2".into());
-    }
-    if heights.len() != (width * height) as usize {
-        return Err(format!(
-            "QuantizedMesh: heights length {} != width×height {}",
-            heights.len(),
-            width * height
-        ));
-    }
-
-    // Compute height range
-    let mut min_h = f32::INFINITY;
-    let mut max_h = f32::NEG_INFINITY;
-    for &h in heights {
-        min_h = min_h.min(h);
-        max_h = max_h.max(h);
-    }
-    let h_range = max_h - min_h;
-    if h_range == 0.0 {
-        // Flat terrain
-    }
-
-    let vertex_count = width * height;
-    let use_32bit_indices = vertex_count > 65535;
-
-    // Build header
-    let mut buf: Vec<u8> = Vec::with_capacity(128 + vertex_count as usize * 6);
-    // Center X (encoded as f64 → bytes)
-    buf.extend_from_slice(&center[0].to_le_bytes());
-    // Center Y
-    buf.extend_from_slice(&center[1].to_le_bytes());
-    // Center Z
-    buf.extend_from_slice(&center[2].to_le_bytes());
-    // Minimum height (f16 — approximate with f32 truncated to 2 bytes)
-    buf.extend_from_slice(&min_h.to_le_bytes()[..2]); // Low 2 bytes as f16 approx
-                                                      // Maximum height
-    buf.extend_from_slice(&max_h.to_le_bytes()[..2]);
-    // Oct-encoded normal (unused, set to 0)
-    buf.push(0);
-    // Water mask (unused, set to 0)
-    buf.push(0);
-    // Header byte size (variable) — we'll patch this later
-    let header_size_offset = buf.len();
-    buf.extend_from_slice(&88u32.to_le_bytes()); // placeholder
-
-    // Vertex data
-    let u16_max = 65535u16;
-    buf.extend_from_slice(&vertex_count.to_le_bytes()); // vertex count
-
-    // Quantized coordinates
-    for row in 0..height {
-        for col in 0..width {
-            // u: quantized longitude (0..65535)
-            let u_val = if width > 1 {
-                ((col as f64 / (width - 1) as f64) * u16_max as f64) as u16
-            } else {
-                0
-            };
-            buf.extend_from_slice(&u_val.to_le_bytes());
-
-            // v: quantized latitude (0..65535, note: inverted — south=0, north=65535)
-            let v_val = if height > 1 {
-                ((row as f64 / (height - 1) as f64) * u16_max as f64) as u16
-            } else {
-                0
-            };
-            buf.extend_from_slice(&v_val.to_le_bytes());
-
-            // height: quantized Z
-            let h_idx = (row * width + col) as usize;
-            let h_val = heights[h_idx];
-            let h_quantized = if h_range > 0.0 {
-                ((h_val - min_h) / h_range * u16_max as f32) as u16
-            } else {
-                0 // Flat terrain
-            };
-            buf.extend_from_slice(&h_quantized.to_le_bytes());
-        }
-    }
-
-    // Index data — triangulate regular grid
-    let triangle_count = (width - 1) * (height - 1) * 2;
-    buf.extend_from_slice(&triangle_count.to_le_bytes());
-
-    // Triangle indices
-    if use_32bit_indices {
-        for row in 0..height - 1 {
-            for col in 0..width - 1 {
-                let i0 = row * width + col;
-                let i1 = i0 + 1;
-                let i2 = (row + 1) * width + col;
-                let i3 = i2 + 1;
-                // Triangle 1: i0, i2, i1
-                buf.extend_from_slice(&i0.to_le_bytes());
-                buf.extend_from_slice(&i2.to_le_bytes());
-                buf.extend_from_slice(&i1.to_le_bytes());
-                // Triangle 2: i1, i2, i3
-                buf.extend_from_slice(&i1.to_le_bytes());
-                buf.extend_from_slice(&i2.to_le_bytes());
-                buf.extend_from_slice(&i3.to_le_bytes());
-            }
-        }
-    } else {
-        for row in 0..height - 1 {
-            for col in 0..width - 1 {
-                let i0 = (row * width + col) as u16;
-                let i1 = i0 + 1;
-                let i2 = ((row + 1) * width + col) as u16;
-                let i3 = i2 + 1;
-                buf.extend_from_slice(&i0.to_le_bytes());
-                buf.extend_from_slice(&i2.to_le_bytes());
-                buf.extend_from_slice(&i1.to_le_bytes());
-                buf.extend_from_slice(&i1.to_le_bytes());
-                buf.extend_from_slice(&i2.to_le_bytes());
-                buf.extend_from_slice(&i3.to_le_bytes());
-            }
-        }
-    }
-
-    // Edge indices — west, south, east, north borders
-    // West edge (col=0): rows 0..height
-    let west_count = height as usize;
-    buf.extend_from_slice(&(west_count as u32).to_le_bytes());
-    for row in 0..height {
-        let idx = row * width;
-        if use_32bit_indices {
-            buf.extend_from_slice(&idx.to_le_bytes());
-        } else {
-            buf.extend_from_slice(&(idx as u16).to_le_bytes());
-        }
-    }
-
-    // South edge (row=height-1): cols 0..width
-    let south_count = width as usize;
-    buf.extend_from_slice(&(south_count as u32).to_le_bytes());
-    for col in 0..width {
-        let idx = (height - 1) * width + col;
-        if use_32bit_indices {
-            buf.extend_from_slice(&idx.to_le_bytes());
-        } else {
-            buf.extend_from_slice(&(idx as u16).to_le_bytes());
-        }
-    }
-
-    // East edge (col=width-1): rows 0..height (reversed for proper winding)
-    let east_count = height as usize;
-    buf.extend_from_slice(&(east_count as u32).to_le_bytes());
-    for row in (0..height).rev() {
-        let idx = row * width + width - 1;
-        if use_32bit_indices {
-            buf.extend_from_slice(&idx.to_le_bytes());
-        } else {
-            buf.extend_from_slice(&(idx as u16).to_le_bytes());
-        }
-    }
-
-    // North edge (row=0): cols 0..width (reversed for proper winding)
-    let north_count = width as usize;
-    buf.extend_from_slice(&(north_count as u32).to_le_bytes());
-    for col in (0..width).rev() {
-        let idx = col;
-        if use_32bit_indices {
-            buf.extend_from_slice(&idx.to_le_bytes());
-        } else {
-            buf.extend_from_slice(&(idx as u16).to_le_bytes());
-        }
-    }
-
-    // Patch header size
-    let actual_header_size = header_size_offset + 4; // 4 bytes for the header_size field itself
-    let header_bytes = actual_header_size.to_le_bytes();
-    buf[header_size_offset] = header_bytes[0];
-    buf[header_size_offset + 1] = header_bytes[1];
-    buf[header_size_offset + 2] = header_bytes[2];
-    buf[header_size_offset + 3] = header_bytes[3];
-
-    Ok(buf)
+    // Delegate to the spec-conformant encoder in src/quantized_mesh.rs.
+    // The previous inline implementation wrote a self-invented binary layout
+    // (34-byte header, f32-truncated heights, no zig-zag/HWM encoding) that
+    // CesiumTerrainProvider could not load. See W3.6 plan + tests/quantized_mesh_roundtrip_test.rs.
+    crate::quantized_mesh::encode_quantized_mesh(heights, width, height, bounds, center)
 }
 
 // ===========================================================================
@@ -1606,7 +1433,7 @@ pub fn encode_terrain_tileset_core(
         let mesh_data =
             encode_quantized_mesh_core(&current_heights, current_w, current_h, bounds, center)?;
 
-        let uri = format!("terrain_{level}.cmpt");
+        let uri = format!("terrain_{level}.terrain");
         tiles.push(mesh_data);
         tile_uris.push(uri);
 
@@ -1663,7 +1490,7 @@ fn build_tileset_json(bounds: &[f64; 4], max_zoom: u32, center: &[f64; 3]) -> St
             "geometricError": geo_error,
             "refine": "ADD",
             "content": {
-                "uri": format!("terrain_{}.cmpt", level)
+                "uri": format!("terrain_{}.terrain", level)
             }
         }));
     }
@@ -2668,22 +2495,10 @@ mod tests {
 
         let data = encode_quantized_mesh_core(&heights, 4, 4, &bounds, &center).unwrap();
 
-        // Header: 24 bytes (center xyz) + 2 + 2 + 1 + 1 + 4 = 34...
-        // Actually: 8+8+8 = 24 (center), 2+2 (min/max height), 1+1 (oct/water), 4 (header_size) = 34
-        // Vertex data: 4 (vertex_count) + 16*6 = 100
-        // Index data: 4 (triangle_count=18) + 18*3*2 = 112 + edge indices
-        assert!(data.len() > 100);
-
-        // Verify vertex count (4x4=16)
-        // vertex count is at offset after header_size
-        let header_size = u32::from_le_bytes([data[30], data[31], data[32], data[33]]) as usize;
-        assert_eq!(header_size, 34); // 24 + 2 + 2 + 1 + 1 + 4
-        let vertex_count = u32::from_le_bytes([
-            data[header_size],
-            data[header_size + 1],
-            data[header_size + 2],
-            data[header_size + 3],
-        ]);
+        // New spec-conformant layout: 88-byte fixed header, then vertex data.
+        assert!(data.len() > 88);
+        // Vertex count is the first u32 after the 88-byte header.
+        let vertex_count = u32::from_le_bytes([data[88], data[89], data[90], data[91]]);
         assert_eq!(vertex_count, 16);
     }
 
@@ -2696,14 +2511,9 @@ mod tests {
         let data = encode_quantized_mesh_core(&heights, 3, 2, &bounds, &center).unwrap();
         assert!(!data.is_empty());
 
-        // Should have 6 vertices, 4 triangles
-        let header_size = u32::from_le_bytes([data[30], data[31], data[32], data[33]]) as usize;
-        let vertex_count = u32::from_le_bytes([
-            data[header_size],
-            data[header_size + 1],
-            data[header_size + 2],
-            data[header_size + 3],
-        ]);
+        // 88-byte header, then vertex count = 6 at offset 88.
+        assert!(data.len() > 88);
+        let vertex_count = u32::from_le_bytes([data[88], data[89], data[90], data[91]]);
         assert_eq!(vertex_count, 6);
     }
 
@@ -2769,9 +2579,9 @@ mod tests {
         let center = [0.0, 0.0, 0.0];
 
         let result = encode_terrain_tileset_core(&heights, 2, 2, &bounds, &center, 2).unwrap();
-        assert_eq!(result.tile_uri(0), "terrain_0.cmpt");
-        assert_eq!(result.tile_uri(1), "terrain_1.cmpt");
-        assert_eq!(result.tile_uri(2), "terrain_2.cmpt");
+        assert_eq!(result.tile_uri(0), "terrain_0.terrain");
+        assert_eq!(result.tile_uri(1), "terrain_1.terrain");
+        assert_eq!(result.tile_uri(2), "terrain_2.terrain");
     }
 
     #[test]

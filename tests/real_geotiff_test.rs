@@ -333,20 +333,17 @@ fn test_quantized_mesh_4x4_grid() {
     let data = encode_quantized_mesh_core(info.elevations(), 4, 4, &bounds, &center)
         .expect("4x4 quantized-mesh failed");
 
-    // Header layout:
-    //   0-23: center x/y/z (3 × f64 = 24 bytes)
-    //   24-25: min height (2 bytes)
-    //   26-27: max height (2 bytes)
-    //   28: normal (1 byte)
-    //   29: watermask (1 byte)
-    //   30-33: headerSize (4 bytes)
-    //   34-37: vertexCount (4 bytes)
-    //   38+: vertex data (6 bytes each: u16 u, u16 v, u16 h)
-    let vertex_count = u32::from_le_bytes(data[34..38].try_into().unwrap());
+    // Spec-conformant layout (CesiumGS/quantized-mesh-1.0):
+    //   0-87:  88-byte fixed header (center ECEF, f32 min/max height,
+    //          bounding sphere, horizon occlusion point)
+    //   88-91: vertexCount (u32)
+    //   92-99: uVertexCount + vVertexCount (u32 each, legacy redundancy)
+    //   100+:  vertex data (6 bytes each: u16 u, u16 v, u16 h, zig-zag delta)
+    let vertex_count = u32::from_le_bytes(data[88..92].try_into().unwrap());
     assert_eq!(vertex_count, 16, "should have 16 vertices for 4x4 grid");
 
-    // Vertex data: 6 bytes per vertex (u, v, h as u16)
-    let vertex_data_end = 38 + (vertex_count as usize) * 6;
+    // Vertex data: 6 bytes per vertex, starting after the 3 count u32s.
+    let vertex_data_end = 100 + (vertex_count as usize) * 6;
     // Triangle count follows vertex data
     let triangle_count = u32::from_le_bytes(
         data[vertex_data_end..vertex_data_end + 4]
