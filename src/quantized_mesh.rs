@@ -132,6 +132,98 @@ pub(crate) fn build_vertex_data(u: &[u16], v: &[u16], h: &[u16]) -> Vec<u8> {
     buf
 }
 
+// ===========================================================================
+// Index + edge blocks (Task 4) — high-water-mark encoded
+// ===========================================================================
+
+/// Build the IndexData block: triangleCount + HWM-encoded indices (u32 each).
+pub(crate) fn build_index_block(triangles: &[u32]) -> Vec<u8> {
+    let mut buf = Vec::with_capacity(4 + triangles.len() * 4);
+    buf.extend_from_slice(&(triangles.len() as u32 / 3).to_le_bytes()); // triangleCount
+    for enc in encode_index_stream(triangles) {
+        buf.extend_from_slice(&enc.to_le_bytes());
+    }
+    buf
+}
+
+/// Build the four EdgeIndices blocks (west, south, east, north), HWM-encoded.
+pub(crate) fn build_edge_indices_block(
+    west: &[u32],
+    south: &[u32],
+    east: &[u32],
+    north: &[u32],
+) -> Vec<u8> {
+    let mut buf = Vec::new();
+    for edge in [west, south, east, north] {
+        buf.extend_from_slice(&(edge.len() as u32).to_le_bytes());
+        for enc in encode_index_stream(edge) {
+            buf.extend_from_slice(&enc.to_le_bytes());
+        }
+    }
+    buf
+}
+
+// ===========================================================================
+// Grid geometry (Task 5) — triangulation, quantization, bounding sphere
+// ===========================================================================
+
+/// Triangulate a regular `width`×`height` grid into a CCW index list.
+/// For each quad (col,row) emit (i0, i2, i1) and (i1, i2, i3) per spec winding.
+pub(crate) fn grid_to_triangles(width: u32, height: u32) -> Vec<u32> {
+    let mut tris = Vec::with_capacity(((width - 1) * (height - 1) * 6) as usize);
+    for row in 0..height - 1 {
+        for col in 0..width - 1 {
+            let i0 = row * width + col;
+            let i1 = i0 + 1;
+            let i2 = (row + 1) * width + col;
+            let i3 = i2 + 1;
+            tris.extend_from_slice(&[i0, i2, i1, i1, i2, i3]);
+        }
+    }
+    tris
+}
+
+/// Quantize a grid coordinate index to the [0, 32767] range.
+pub(crate) fn quantize_uv(idx: u32, dim: u32) -> u16 {
+    if dim <= 1 {
+        0
+    } else {
+        ((idx as f64 / (dim - 1) as f64) * MAX_UV as f64) as u16
+    }
+}
+
+/// Quantize a height into [0, 32767] over [min_h, max_h].
+pub(crate) fn quantize_height(h: f32, min_h: f32, max_h: f32) -> u16 {
+    let range = max_h - min_h;
+    if range <= 0.0 {
+        0
+    } else {
+        ((h - min_h) / range * MAX_UV as f32) as u16
+    }
+}
+
+/// Compute a bounding sphere (centroid + max-distance radius) in ECEF.
+pub(crate) fn bounding_sphere(verts_ecef: &[[f64; 3]]) -> (f64, f64, f64, f64) {
+    let n = verts_ecef.len() as f64;
+    let (mut cx, mut cy, mut cz) = (0.0_f64, 0.0_f64, 0.0_f64);
+    for [x, y, z] in verts_ecef {
+        cx += x;
+        cy += y;
+        cz += z;
+    }
+    cx /= n;
+    cy /= n;
+    cz /= n;
+    let mut r = 0.0_f64;
+    for [x, y, z] in verts_ecef {
+        let d = ((x - cx).powi(2) + (y - cy).powi(2) + (z - cz).powi(2)).sqrt();
+        if d > r {
+            r = d;
+        }
+    }
+    (cx, cy, cz, r)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -190,5 +282,57 @@ mod tests {
         assert_eq!(u16::from_le_bytes([bytes[12], bytes[13]]), 0);
         // Second vertex's u: 32767-0=32767, zigzag(32767) = 65534
         assert_eq!(u16::from_le_bytes([bytes[18], bytes[19]]), 65534);
+    }
+
+    #[test]
+    fn test_index_block_roundtrip() {
+        // Triangulate a 2x2 grid → 2 triangles, indices [0,2,1, 1,2,3].
+        let tris: Vec<u32> = vec![0, 2, 1, 1, 2, 3];
+        let block = build_index_block(&tris);
+        // triangleCount(4) + 6 × u32
+        assert_eq!(block.len(), 4 + 6 * 4);
+        let n = u32::from_le_bytes(block[0..4].try_into().unwrap());
+        assert_eq!(n, 2); // 6 indices / 3 = 2 triangles
+        let encoded: Vec<u32> = block[4..]
+            .chunks_exact(4)
+            .map(|c| u32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+            .collect();
+        assert_eq!(decode_index_stream(&encoded), tris);
+    }
+
+    #[test]
+    fn test_edge_indices_block_order() {
+        // west=2 verts [0,2], south=2 [2,3], east=2 [3,1], north=2 [1,0]
+        let edges = build_edge_indices_block(&[0_u32, 2], &[2, 3], &[3, 1], &[1, 0]);
+        // 4 counts (16 bytes) + 8 indices (32 bytes)
+        assert_eq!(edges.len(), 16 + 8 * 4);
+        let west_cnt = u32::from_le_bytes(edges[0..4].try_into().unwrap());
+        assert_eq!(west_cnt, 2);
+        let north_cnt = u32::from_le_bytes(edges[12..16].try_into().unwrap());
+        assert_eq!(north_cnt, 2);
+    }
+
+    #[test]
+    fn test_grid_to_mesh_2x2() {
+        let tris = grid_to_triangles(2, 2);
+        assert_eq!(tris, vec![0, 2, 1, 1, 2, 3]);
+    }
+
+    #[test]
+    fn test_quantize_to_32767() {
+        assert_eq!(quantize_uv(0, 2), 0);
+        assert_eq!(quantize_uv(1, 2), 32767);
+        let q = quantize_height(50.0, 0.0, 100.0);
+        assert!((16380..=16390).contains(&q), "got {}", q);
+    }
+
+    #[test]
+    fn test_bounding_sphere_contains_all() {
+        let verts_ecef = vec![[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
+        let (cx, cy, cz, r) = bounding_sphere(&verts_ecef);
+        for [x, y, z] in &verts_ecef {
+            let d = ((x - cx).powi(2) + (y - cy).powi(2) + (z - cz).powi(2)).sqrt();
+            assert!(d <= r + 1e-6, "vertex outside sphere: d={}, r={}", d, r);
+        }
     }
 }
