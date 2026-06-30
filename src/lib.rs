@@ -62,7 +62,10 @@ mod mesh_qem_gpu;
 #[cfg(feature = "terrain-edit")]
 mod terrain_edit;
 
-#[cfg(feature = "terrain-edit")]
+// quantized_mesh is gated under geotiff (not terrain-edit) because
+// encode_quantized_mesh_core lives in the geotiff module and delegates here.
+// terrain-edit depends on geotiff, so the module is still visible there.
+#[cfg(feature = "geotiff")]
 mod quantized_mesh;
 
 #[cfg(feature = "webgpu")]
@@ -133,7 +136,7 @@ pub use terrain_edit::{
     rasterize_terrain_mask, supports_terrain_edit, CutMode, TerrainGrid,
 };
 
-#[cfg(feature = "terrain-edit")]
+#[cfg(feature = "geotiff")]
 pub use quantized_mesh::{decode_index_stream, encode_quantized_mesh, zigzag_decode};
 mod ifc_reader;
 mod octree;
