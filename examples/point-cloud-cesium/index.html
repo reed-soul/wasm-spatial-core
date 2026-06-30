@@ -479,7 +479,7 @@ function formatBytes(bytes) {
 
 async function loadWasm() {
   try {
-    const module = await import('https://unpkg.com/wasm-spatial-core@0.2.0/pkg/wasm_spatial_core.js');
+    const module = await import('https://unpkg.com/wasm-spatial-core@0.8.0/pkg/wasm_spatial_core.js');
     await module.default();
     wasm = module;
     try {
