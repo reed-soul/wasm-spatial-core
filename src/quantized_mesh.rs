@@ -370,7 +370,7 @@ mod tests {
         let bytes = build_vertex_data(&u, &v, &h);
         // vertexCount(4) + uVertexCount(4) + vVertexCount(4) = 12 header bytes
         assert_eq!(bytes.len(), 12 + 4 * 6); // 12 + 4 verts * 3 u16
-        // First u delta: prev=0, encoded zigzag(0-0)=0
+                                             // First u delta: prev=0, encoded zigzag(0-0)=0
         assert_eq!(u16::from_le_bytes([bytes[12], bytes[13]]), 0);
         // Second vertex's u: 32767-0=32767, zigzag(32767) = 65534
         assert_eq!(u16::from_le_bytes([bytes[18], bytes[19]]), 65534);
