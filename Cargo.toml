@@ -98,7 +98,7 @@ getrandom = { version = "0.2", features = ["js"] }
 rand = "0.8"
 
 [profile.release]
-opt-level = "s"        # Optimize for size
+opt-level = 3          # Optimize for speed (was "s"/size — cost WASM ~15% on math-heavy loops)
 lto = true             # Link Time Optimization
 codegen-units = 1      # Single codegen unit for max optimization
 strip = true           # Strip debug info
