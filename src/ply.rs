@@ -1,6 +1,9 @@
 //! PLY (Polygon File Format) parser — ASCII and binary_little_endian.
 //!
 //! Extracts vertex positions, colors (RGB), normals, and face count.
+// 3DGS detection + DC color helpers below are wired into the parsers in a
+// later task; allow dead code until then.
+#![allow(dead_code)]
 
 use wasm_bindgen::prelude::*;
 
@@ -277,6 +280,39 @@ fn parse_element_count(line: &str, element_name: &str) -> Result<u32, String> {
 /// Find property index by name (case-insensitive).
 fn find_property(props: &[PlyProperty], name: &str) -> Option<usize> {
     props.iter().position(|p| p.name.eq_ignore_ascii_case(name))
+}
+
+// ===========================================================================
+// 3D Gaussian Splatting detection + color derivation
+// ===========================================================================
+
+/// Detect whether a PLY header describes a 3D Gaussian Splatting file.
+///
+/// 3DGS files carry `f_dc_0` (the SH degree-0 R-channel coefficient) as a
+/// vertex property instead of `red`/`green`/`blue`. This is the reliable
+/// discriminator: every standard 3DGS training output declares it.
+fn is_gaussian_splat_header(header: &PlyHeader) -> bool {
+    header
+        .vertex_properties
+        .iter()
+        .any(|p| p.name.eq_ignore_ascii_case("f_dc_0"))
+}
+
+/// SH degree-0 constant (the canonical 3DGS value).
+const SH_C0: f64 = 0.2820945569;
+
+/// Convert 3DGS spherical-harmonic DC coefficients to an 8-bit RGB triple.
+///
+/// Formula per graphdeco-inria/gaussian-splatting#485:
+///   channel = clamp((0.5 + SH_C0 * f_dc) * 255, 0, 255)
+/// f_dc values are read as f32 from the file and promoted to f64 here for
+/// stable clamping arithmetic.
+fn sh_dc_to_rgb(f_dc_0: f32, f_dc_1: f32, f_dc_2: f32) -> (u8, u8, u8) {
+    let to_byte = |dc: f32| -> u8 {
+        let v = (0.5 + SH_C0 * dc as f64) * 255.0;
+        v.clamp(0.0, 255.0) as u8
+    };
+    (to_byte(f_dc_0), to_byte(f_dc_1), to_byte(f_dc_2))
 }
 
 // ===========================================================================
@@ -961,5 +997,85 @@ mod tests {
         let bytes = make_binary_ply(&pts, None, None);
         let result = parse_ply_core(&bytes).expect("2-point PLY must parse");
         assert_eq!(result.vertex_count, 2);
+    }
+
+    // ── 3DGS helpers ────────────────────────────────────────────
+
+    /// Build a minimal-but-realistic 3DGS binary PLY for tests.
+    /// `f_dc` is the 3 DC coefficients per vertex; the remaining 56 splat
+    /// properties (f_rest_0..44, opacity, scale_0..2, rot_0..3) are written as
+    /// zeros so the per-vertex byte layout (248 bytes) matches a real file.
+    fn make_3dgs_binary_ply(positions: &[(f32, f32, f32)], f_dc: &[(f32, f32, f32)]) -> Vec<u8> {
+        assert_eq!(positions.len(), f_dc.len());
+        let mut header = String::from("ply\nformat binary_little_endian 1.0\n");
+        header.push_str(&format!("element vertex {}\n", positions.len()));
+        header.push_str("property float x\nproperty float y\nproperty float z\n");
+        header.push_str("property float f_dc_0\nproperty float f_dc_1\nproperty float f_dc_2\n");
+        // 45 f_rest + opacity + 3 scale + 4 rot = 53 extra float properties
+        for name in (0..45).map(|i| format!("f_rest_{}", i)) {
+            header.push_str(&format!("property float {}\n", name));
+        }
+        for name in [
+            "opacity", "scale_0", "scale_1", "scale_2", "rot_0", "rot_1", "rot_2", "rot_3",
+        ] {
+            header.push_str(&format!("property float {}\n", name));
+        }
+        header.push_str("end_header\n");
+
+        let mut data = header.into_bytes();
+        for (i, &(x, y, z)) in positions.iter().enumerate() {
+            data.extend_from_slice(&x.to_le_bytes());
+            data.extend_from_slice(&y.to_le_bytes());
+            data.extend_from_slice(&z.to_le_bytes());
+            let (dc0, dc1, dc2) = f_dc[i];
+            data.extend_from_slice(&dc0.to_le_bytes());
+            data.extend_from_slice(&dc1.to_le_bytes());
+            data.extend_from_slice(&dc2.to_le_bytes());
+            // 53 remaining floats, all zero — preserves the real 248-byte stride.
+            for _ in 0..53 {
+                data.extend_from_slice(&0.0f32.to_le_bytes());
+            }
+        }
+        data
+    }
+
+    #[test]
+    fn test_detect_3dgs_header_by_f_dc_0() {
+        let pts = vec![(0.0, 0.0, 0.0)];
+        let fdc = vec![(0.0, 0.0, 0.0)];
+        let bytes = make_3dgs_binary_ply(&pts, &fdc);
+        let header = parse_ply_header(&bytes).expect("3DGS header must parse");
+        assert!(is_gaussian_splat_header(&header), "f_dc_0 present → must detect as 3DGS");
+    }
+
+    #[test]
+    fn test_detect_legacy_ply_not_3dgs() {
+        let pts = vec![(0.0, 0.0, 0.0)];
+        let bytes = make_binary_ply(&pts, Some(&[(255, 0, 0)]), None);
+        let header = parse_ply_header(&bytes).expect("legacy header must parse");
+        assert!(!is_gaussian_splat_header(&header), "red/green/blue PLY is not 3DGS");
+    }
+
+    #[test]
+    fn test_sh_dc_to_rgb_midgray() {
+        // f_dc = 0 → RGB = (0.5 + 0) * 255 = 127.5 → 127 (as-truncating cast)
+        let (r, g, b) = sh_dc_to_rgb(0.0, 0.0, 0.0);
+        assert_eq!((r, g, b), (127, 127, 127));
+    }
+
+    #[test]
+    fn test_sh_dc_to_rgb_clamps() {
+        // Large positive f_dc → 255; large negative → 0.
+        let (r, _, _) = sh_dc_to_rgb(100.0, 0.0, 0.0);
+        assert_eq!(r, 255);
+        let (_, g, _) = sh_dc_to_rgb(0.0, -100.0, 0.0);
+        assert_eq!(g, 0);
+    }
+
+    #[test]
+    fn test_sh_dc_to_rgb_typical_red() {
+        // f_dc_0 = 1.0 → R = (0.5 + 0.2820945569*1.0)*255 = 199.4 → 199
+        let (r, _g, _b) = sh_dc_to_rgb(1.0, 0.0, 0.0);
+        assert_eq!(r, 199);
     }
 }
