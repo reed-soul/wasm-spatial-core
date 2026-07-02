@@ -337,13 +337,35 @@ fn parse_ply_ascii(data: &str, header: &PlyHeader) -> Result<PlyResult, String> 
     let has_colors = r_idx.is_some() && g_idx.is_some() && b_idx.is_some();
     let has_normals = nx_idx.is_some() && ny_idx.is_some() && nz_idx.is_some();
 
+    // 3DGS detection: derive RGB from SH DC coefficients when legacy RGB is absent.
+    let is_splat = is_gaussian_splat_header(header);
+    let fdc0_idx = if is_splat {
+        find_property(&header.vertex_properties, "f_dc_0")
+    } else {
+        None
+    };
+    let fdc1_idx = if is_splat {
+        find_property(&header.vertex_properties, "f_dc_1")
+    } else {
+        None
+    };
+    let fdc2_idx = if is_splat {
+        find_property(&header.vertex_properties, "f_dc_2")
+    } else {
+        None
+    };
+    let derive_splat_colors = is_splat
+        && fdc0_idx.is_some()
+        && fdc1_idx.is_some()
+        && fdc2_idx.is_some();
+
     let vertex_count = validate_vertex_count(header.vertex_count)?;
     let mut positions: Vec<f32> = Vec::with_capacity(
         vertex_count
             .checked_mul(3)
             .ok_or_else(|| "PLY: vertex position capacity overflow".to_string())?,
     );
-    let mut colors: Option<Vec<u8>> = if has_colors {
+    let mut colors: Option<Vec<u8>> = if has_colors || derive_splat_colors {
         Some(Vec::with_capacity(vertex_count.checked_mul(3).ok_or_else(
             || "PLY: vertex color capacity overflow".to_string(),
         )?))
@@ -404,6 +426,22 @@ fn parse_ply_ascii(data: &str, header: &PlyHeader) -> Result<PlyResult, String> 
             let r: u8 = values[r_idx].parse().unwrap_or(0);
             let g: u8 = values[g_idx].parse().unwrap_or(0);
             let b: u8 = values[b_idx].parse().unwrap_or(0);
+            if let Some(ref mut c) = colors {
+                c.push(r);
+                c.push(g);
+                c.push(b);
+            }
+        }
+
+        // Extract 3DGS DC-derived colors
+        if derive_splat_colors {
+            let (Some(fi0), Some(fi1), Some(fi2)) = (fdc0_idx, fdc1_idx, fdc2_idx) else {
+                continue;
+            };
+            let dc0: f32 = values[fi0].parse().unwrap_or(0.0);
+            let dc1: f32 = values[fi1].parse().unwrap_or(0.0);
+            let dc2: f32 = values[fi2].parse().unwrap_or(0.0);
+            let (r, g, b) = sh_dc_to_rgb(dc0, dc1, dc2);
             if let Some(ref mut c) = colors {
                 c.push(r);
                 c.push(g);
@@ -1151,5 +1189,21 @@ mod tests {
         assert_eq!(&c[0..3], &[127, 127, 127]);
         // point 1: f_dc_0=1.0 → R=199; f_dc_1/2=0 → 127
         assert_eq!(&c[3..6], &[199, 127, 127]);
+    }
+
+    #[test]
+    fn test_ascii_3dgs_extracts_dc_colors() {
+        // Minimal ASCII 3DGS PLY: x/y/z + f_dc_0/1/2 only (parser skips unknown columns).
+        let header = "ply\nformat ascii 1.0\nelement vertex 1\n\
+                      property float x\nproperty float y\nproperty float z\n\
+                      property float f_dc_0\nproperty float f_dc_1\nproperty float f_dc_2\n\
+                      end_header\n";
+        // f_dc = (0,0,0) → midgray (127,127,127)
+        let body = "0.0 0.0 0.0 0.0 0.0 0.0\n";
+        let bytes = format!("{}{}", header, body).into_bytes();
+        let result = parse_ply_core(&bytes).expect("ASCII 3DGS must parse");
+        assert_eq!(result.vertex_count, 1);
+        let c = result.colors_core().expect("ASCII 3DGS must derive colors");
+        assert_eq!(c, &[127, 127, 127]);
     }
 }
