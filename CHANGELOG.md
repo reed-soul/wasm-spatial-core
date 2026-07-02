@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.2] - 2026-07-03
+
+### Fixed
+- **npm package contents (critical)** — 0.8.0 and 0.8.1 published broken npm packages: `npm install wasm-spatial-core@0.8.x` produced a 4-file package (README + index.ts + package.json + LICENSE) with **no `.wasm` or `.js`** — the WASM binary and JS bindings were missing entirely, so `import` failed. Root cause: the CI publish job copied `npm/package.json` over wasm-pack's `pkg/package.json` and ran `npm publish` from `pkg/`; npm/package.json's `files` paths (`pkg/wasm_spatial_core.js`) then resolved to `pkg/pkg/wasm_spatial_core.js` (double prefix), excluding the real files. Fix: publish from `pkg/` using wasm-pack's own `package.json` (correct `files`/`main`/`types` relative to cwd), verified locally to produce a 6-file package with the 1.2 MB `.wasm` + 197 KB `.js`. Run `npm view wasm-spatial-core@0.8.2` to confirm.
+
 ## [0.8.1] - 2026-07-02
 
 ### Added

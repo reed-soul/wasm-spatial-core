@@ -306,12 +306,21 @@ jobs:
           node-version: 20
           registry-url: https://registry.npmjs.org
 
-      - name: Copy npm package files
+      - name: Stage npm package into pkg/
+        # The wasm-pkg artifact from download-artifact includes wasm-pack's own
+        # pkg/package.json, which has correct `files`/`main`/`types` paths relative
+        # to pkg/. We publish from pkg/ using THAT package.json — NOT npm/package.json
+        # (whose `pkg/...` paths would double the prefix and omit the .wasm/.js,
+        # producing a broken 4-file package as seen in 0.8.0/0.8.1).
         run: |
-          cp npm/package.json pkg/package.json
           cp npm/tsconfig.json pkg/tsconfig.json 2>/dev/null || true
           cp npm/index.ts pkg/index.ts 2>/dev/null || true
-          cp README.md pkg/README.md
+          cp npm/node.ts pkg/node.ts 2>/dev/null || true
+          cp npm/batch.ts pkg/batch.ts 2>/dev/null || true
+          cp npm/draco.ts pkg/draco.ts 2>/dev/null || true
+          cp npm/webgpu.ts pkg/webgpu.ts 2>/dev/null || true
+          cp npm/abort.ts pkg/abort.ts 2>/dev/null || true
+          cp README.md pkg/README.md 2>/dev/null || true
 
       - name: Install npm dependencies
         working-directory: pkg
@@ -323,9 +332,10 @@ jobs:
 
       - name: Publish to npm
         working-directory: pkg
-        # --ignore-scripts: skip `prepack` (which rebuilds WASM via wasm-pack).
-        # This job consumes the pre-built pkg/ from the download-artifact step
-        # above and has no Rust toolchain, so prepack would fail with exit 127.
+        # Publish from pkg/ using wasm-pack's own package.json (correct files/main).
+        # --ignore-scripts: skip `prepack` (which rebuilds WASM via wasm-pack);
+        # this job consumes the pre-built pkg/ from download-artifact, which has
+        # no Rust toolchain, so prepack would fail with exit 127.
         run: npm publish --provenance --access public --ignore-scripts
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
