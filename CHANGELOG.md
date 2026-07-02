@@ -7,8 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **3DGS PLY ingest (minimal slice)** — `parsePly` now recognizes 3D Gaussian Splatting `.ply` files by their `f_dc_0` property and derives RGB colors from the SH degree-0 coefficients (`RGB = clamp((0.5 + 0.2820945569·f_dc)·255)` per [graphdeco-inria#485](https://github.com/graphdeco-inria/gaussian-splatting/issues/485)). A 3DGS file no longer degrades to a black, uncolored point cloud; the derived RGB flows through `PointCloudChunk` and region selection like any point cloud. The 56 high-order splat attributes (`f_rest_*`, `opacity`, `scale_*`, `rot_*`) are intentionally ignored (faithful splat rendering is future scope).
+
 ### Fixed
 - **W3.6 quantized-mesh compliance** — `encode_quantized_mesh_core` now emits byte-exact Cesium quantized-mesh-1.0 tiles (was a self-invented layout that CesiumTerrainProvider could not load): correct 88-byte header with real f32 heights + bounding sphere + horizon occlusion point, zig-zag delta vertex encoding (MAX_UV=32767), high-water-mark index/edge encoding, `.terrain` extension (was `.cmpt`). New module `src/quantized_mesh.rs` with round-trip test in `tests/quantized_mesh_roundtrip_test.rs`.
+- **`PointCloudChunk::select_points` color stride** — was copying colors with an RGBA (4-byte) stride while every ingest path produces RGB (3-byte); silently corrupted colors on region selection. Now uses the correct 3-byte stride.
+- **`parsePly` input limit** — was the only parser still using the static 100 MB `DEFAULT_MAX_INPUT_SIZE`; now uses the runtime `get_current_input_limit()` so JS `setInputSizeLimit()` applies (large 3DGS scenes no longer hard-rejected).
 
 ## [0.8.0] - 2026-06-27
 
