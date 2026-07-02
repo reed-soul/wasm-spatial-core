@@ -29,9 +29,12 @@ rustup component add rust-src --toolchain nightly
 ```bash
 git clone https://github.com/reed-soul/wasm-spatial-core.git
 cd wasm-spatial-core
+git config core.hooksPath .githooks   # enable auto-fmt pre-commit hook (one-time)
 cargo build
 wasm-pack build --target web --release --out-dir pkg -- --features point-cloud
 ```
+
+The `core.hooksPath` setting enables `.githooks/pre-commit`, which auto-formats staged `.rs` files via `cargo fmt` so you never hit a CI `cargo fmt --check` failure. See [`.githooks/README.md`](./.githooks/README.md).
 
 The `pkg/` directory is listed in `.gitignore` (`/pkg`) and is **not** stored in git. CI builds it on every run; locally you must run `wasm-pack build` before opening browser examples.
 
