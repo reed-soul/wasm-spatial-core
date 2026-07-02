@@ -465,13 +465,35 @@ fn parse_ply_binary_le(bytes: &[u8], header: &PlyHeader) -> Result<PlyResult, St
     let has_colors = r_idx.is_some() && g_idx.is_some() && b_idx.is_some();
     let has_normals = nx_idx.is_some() && ny_idx.is_some() && nz_idx.is_some();
 
+    // 3DGS detection: derive RGB from SH DC coefficients when legacy RGB is absent.
+    let is_splat = is_gaussian_splat_header(header);
+    let fdc0_idx = if is_splat {
+        find_property(&header.vertex_properties, "f_dc_0")
+    } else {
+        None
+    };
+    let fdc1_idx = if is_splat {
+        find_property(&header.vertex_properties, "f_dc_1")
+    } else {
+        None
+    };
+    let fdc2_idx = if is_splat {
+        find_property(&header.vertex_properties, "f_dc_2")
+    } else {
+        None
+    };
+    let derive_splat_colors = is_splat
+        && fdc0_idx.is_some()
+        && fdc1_idx.is_some()
+        && fdc2_idx.is_some();
+
     let vertex_count = validate_vertex_count(header.vertex_count)?;
     let mut positions: Vec<f32> = Vec::with_capacity(
         vertex_count
             .checked_mul(3)
             .ok_or_else(|| "PLY: vertex position capacity overflow".to_string())?,
     );
-    let mut colors: Option<Vec<u8>> = if has_colors {
+    let mut colors: Option<Vec<u8>> = if has_colors || derive_splat_colors {
         Some(Vec::with_capacity(vertex_count.checked_mul(3).ok_or_else(
             || "PLY: vertex color capacity overflow".to_string(),
         )?))
@@ -544,6 +566,34 @@ fn parse_ply_binary_le(bytes: &[u8], header: &PlyHeader) -> Result<PlyResult, St
                 data,
                 vertex_base + property_byte_offset(&header.vertex_properties, b_idx),
             );
+            if let Some(ref mut c) = colors {
+                c.push(r);
+                c.push(g);
+                c.push(b);
+            }
+        }
+
+        if derive_splat_colors {
+            let (Some(fi0), Some(fi1), Some(fi2)) = (fdc0_idx, fdc1_idx, fdc2_idx) else {
+                offset += vertex_size;
+                continue;
+            };
+            let dc0 = read_float_at(
+                data,
+                vertex_base + property_byte_offset(&header.vertex_properties, fi0),
+                &header.vertex_properties[fi0].type_,
+            );
+            let dc1 = read_float_at(
+                data,
+                vertex_base + property_byte_offset(&header.vertex_properties, fi1),
+                &header.vertex_properties[fi1].type_,
+            );
+            let dc2 = read_float_at(
+                data,
+                vertex_base + property_byte_offset(&header.vertex_properties, fi2),
+                &header.vertex_properties[fi2].type_,
+            );
+            let (r, g, b) = sh_dc_to_rgb(dc0, dc1, dc2);
             if let Some(ref mut c) = colors {
                 c.push(r);
                 c.push(g);
@@ -1077,5 +1127,29 @@ mod tests {
         // f_dc_0 = 1.0 → R = (0.5 + 0.2820945569*1.0)*255 = 199.4 → 199
         let (r, _g, _b) = sh_dc_to_rgb(1.0, 0.0, 0.0);
         assert_eq!(r, 199);
+    }
+
+    #[test]
+    fn test_binary_3dgs_extracts_positions_and_dc_colors() {
+        // 2 splats: origin (midgray) and (1,2,3) with a known DC on R.
+        let pts = vec![(0.0, 0.0, 0.0), (1.0, 2.0, 3.0)];
+        // f_dc that yields a recognizable color for point 1.
+        // f_dc = 1.0 on R → R=199; 0 on G/B → 127.
+        let fdc = vec![(0.0, 0.0, 0.0), (1.0, 0.0, 0.0)];
+        let bytes = make_3dgs_binary_ply(&pts, &fdc);
+        let result = parse_ply_core(&bytes).expect("3DGS PLY must parse");
+
+        assert_eq!(result.vertex_count, 2);
+        // positions preserved
+        let p = result.positions_core();
+        assert_eq!(p.len(), 6);
+        assert_eq!(p[3], 1.0); // point 1 x
+        // colors derived from f_dc (not None — the whole point of this feature)
+        let c = result.colors_core().expect("3DGS must derive colors from f_dc");
+        assert_eq!(c.len(), 6, "RGB = 3 bytes * 2 points");
+        // point 0: f_dc all 0 → midgray 127
+        assert_eq!(&c[0..3], &[127, 127, 127]);
+        // point 1: f_dc_0=1.0 → R=199; f_dc_1/2=0 → 127
+        assert_eq!(&c[3..6], &[199, 127, 127]);
     }
 }
