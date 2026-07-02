@@ -4,7 +4,7 @@
 
 use wasm_spatial_core::{
     batch_enu_to_wgs84_core, batch_wgs84_to_enu_core, compute_svd_alignment_core, parse_glb_core,
-    Aabb, ChunkMeta, EnuFrame, MeshChunk, PointCloudChunk, SpatialChunk,
+    parse_ply_core, Aabb, ChunkMeta, EnuFrame, MeshChunk, PointCloudChunk, SpatialChunk,
 };
 
 fn sample_triangle_mesh() -> MeshChunk {
@@ -131,4 +131,52 @@ fn test_svd_alignment_photogrammetry_to_enu() {
 
     assert!((result.transform.scale - scale).abs() < 1e-6);
     assert!(result.rms_error < 1e-6);
+}
+
+#[test]
+fn test_3dgs_colors_survive_region_select() {
+    // Build a 3DGS binary PLY: 2 splats, one inside the region, one outside.
+    // f_dc chosen so the inside splat is a recognizable red.
+    let header = "ply\nformat binary_little_endian 1.0\nelement vertex 2\n\
+                  property float x\nproperty float y\nproperty float z\n\
+                  property float f_dc_0\nproperty float f_dc_1\nproperty float f_dc_2\n\
+                  end_header\n";
+    let mut bytes = header.as_bytes().to_vec();
+    // splat 0 at origin, f_dc=(1.0, 0.0, 0.0) → red-ish (199,127,127)
+    bytes.extend_from_slice(&0.0f32.to_le_bytes());
+    bytes.extend_from_slice(&0.0f32.to_le_bytes());
+    bytes.extend_from_slice(&0.0f32.to_le_bytes());
+    bytes.extend_from_slice(&1.0f32.to_le_bytes()); // f_dc_0
+    bytes.extend_from_slice(&0.0f32.to_le_bytes()); // f_dc_1
+    bytes.extend_from_slice(&0.0f32.to_le_bytes()); // f_dc_2
+    // splat 1 far away, f_dc=(0,0,0) → midgray
+    bytes.extend_from_slice(&100.0f32.to_le_bytes());
+    bytes.extend_from_slice(&100.0f32.to_le_bytes());
+    bytes.extend_from_slice(&100.0f32.to_le_bytes());
+    bytes.extend_from_slice(&0.0f32.to_le_bytes());
+    bytes.extend_from_slice(&0.0f32.to_le_bytes());
+    bytes.extend_from_slice(&0.0f32.to_le_bytes());
+
+    let ply = parse_ply_core(&bytes).expect("3DGS PLY must parse");
+    let positions = ply.positions_core();
+    assert_eq!(positions.len() / 3, 2);
+    let colors = ply.colors_core().expect("3DGS must derive colors");
+    assert_eq!(colors.len(), 6);
+
+    // Flow into IR and select a region containing only splat 0.
+    let mut pc = PointCloudChunk {
+        metadata: ChunkMeta::new("3dgs"),
+        positions: ply.positions_core().to_vec(),
+        colors: Some(colors.to_vec()),
+        normals: None,
+    };
+    pc.refresh_metadata();
+    let region = Aabb {
+        min: [-1.0, -1.0, -1.0],
+        max: [1.0, 1.0, 1.0],
+    };
+    let selected = pc.select_by_aabb(&region).unwrap();
+    assert_eq!(selected.vertex_count(), 1);
+    // The kept color must be splat 0's red-ish triple, not a misaligned slice.
+    assert_eq!(selected.colors.as_deref().unwrap(), &[199, 127, 127]);
 }
