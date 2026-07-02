@@ -261,9 +261,10 @@ impl PointCloudChunk {
             if inside(x, y, z) {
                 positions.extend_from_slice(chunk);
                 if let (Some(src), Some(dst)) = (self.colors.as_ref(), colors.as_mut()) {
-                    let base = i * 4;
-                    if src.len() >= base + 4 {
-                        dst.extend_from_slice(&src[base..base + 4]);
+                    // colors are RGB (3 bytes/point), matching every ingest path (PLY, 3DGS).
+                    let base = i * 3;
+                    if src.len() >= base + 3 {
+                        dst.extend_from_slice(&src[base..base + 3]);
                     }
                 }
                 if let (Some(src), Some(dst)) = (self.normals.as_ref(), normals.as_mut()) {
@@ -839,6 +840,27 @@ mod tests {
         };
         let selected = pc.select_by_aabb(&region).unwrap();
         assert_eq!(selected.vertex_count(), 1);
+    }
+
+    #[test]
+    fn test_point_cloud_select_preserves_rgb_colors() {
+        // 2 points; colors are RGB (3 bytes/point) — the format every ingest path produces.
+        // Point 0 is red (255,0,0) inside the region; point 1 is blue (0,0,255) outside.
+        let mut pc = PointCloudChunk {
+            metadata: ChunkMeta::new("las"),
+            positions: vec![0.0, 0.0, 0.0, 10.0, 10.0, 10.0],
+            colors: Some(vec![255, 0, 0, 0, 0, 255]),
+            normals: None,
+        };
+        pc.refresh_metadata();
+        let region = Aabb {
+            min: [-1.0, -1.0, -1.0],
+            max: [1.0, 1.0, 1.0],
+        };
+        let selected = pc.select_by_aabb(&region).unwrap();
+        assert_eq!(selected.vertex_count(), 1);
+        // The kept point's color must be red (255,0,0), not a misaligned slice.
+        assert_eq!(selected.colors.as_deref().unwrap(), &[255u8, 0, 0]);
     }
 
     #[test]
