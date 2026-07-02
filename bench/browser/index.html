@@ -132,9 +132,9 @@
   <script type="module">
     // ── WASM module loader ───────────────────────────────────────
     import init, {
-      batchWgs84ToGcj02,
-      batchWgs84ToMercator,
-      batchWgs84ToBd09,
+      batchWgs84ToGcj02InPlace,
+      batchWgs84ToMercatorInPlace,
+      batchWgs84ToBd09InPlace,
       parseGeoJsonCoords,
       version,
     } from '../pkg/wasm_spatial_core.js';
@@ -320,7 +320,7 @@
       resultsEl.innerHTML = `<div class="status"><span class="spinner"></span>Benchmarking WGS84 → GCJ-02 (${n.toLocaleString()} points, ${iters} iterations)…</div>`;
       await new Promise(r => setTimeout(r, 20));
 
-      const wasmGcj = timeIt(() => batchWgs84ToGcj02(coords), iters);
+      const wasmGcj = timeIt(() => batchWgs84ToGcj02InPlace(new Float64Array(coords)), iters);
       const jsGcj = timeIt(() => jsWgs84ToGcj02(coords), iters);
       results.push(renderResult(`WGS-84 → GCJ-02 (${n.toLocaleString()} points)`, wasmGcj, jsGcj));
 
@@ -328,7 +328,7 @@
       resultsEl.innerHTML = `<div class="status"><span class="spinner"></span>Benchmarking WGS84 → Web Mercator…</div>`;
       await new Promise(r => setTimeout(r, 20));
 
-      const wasmMerc = timeIt(() => batchWgs84ToMercator(coords), iters);
+      const wasmMerc = timeIt(() => batchWgs84ToMercatorInPlace(new Float64Array(coords)), iters);
       const jsMerc = timeIt(() => jsWgs84ToMercator(coords), iters);
       results.push(renderResult(`WGS-84 → EPSG:3857 (${n.toLocaleString()} points)`, wasmMerc, jsMerc));
 
@@ -336,12 +336,14 @@
       resultsEl.innerHTML = `<div class="status"><span class="spinner"></span>Benchmarking WGS84 → BD-09…</div>`;
       await new Promise(r => setTimeout(r, 20));
 
-      const wasmBd = timeIt(() => batchWgs84ToBd09(coords), iters);
+      const wasmBd = timeIt(() => batchWgs84ToBd09InPlace(new Float64Array(coords)), iters);
       const jsBd = timeIt(() => jsWgs84ToBd09(coords), iters);
       results.push(renderResult(`WGS-84 → BD-09 (${n.toLocaleString()} points)`, wasmBd, jsBd));
 
       // ── Benchmark 4: GeoJSON parsing ──
-      const geojsonN = Math.min(n, 50000); // Cap GeoJSON size to avoid browser hang
+      // Note: GeoJSON is capped at 50,000 features regardless of the data-size selector
+      // (large GeoJSON strings hang the page). The label shows the actual count.
+      const geojsonN = Math.min(n, 50000);
       resultsEl.innerHTML = `<div class="status"><span class="spinner"></span>Generating GeoJSON (${geojsonN.toLocaleString()} features)…</div>`;
       await new Promise(r => setTimeout(r, 20));
 
@@ -352,6 +354,9 @@
       await new Promise(r => setTimeout(r, 20));
 
       const wasmParse = timeIt(() => parseGeoJsonCoords(geojsonStr), iters);
+      // The JS baseline uses V8's native JSON.parse (a C++ builtin), not a hand-written
+      // JS parser — so this comparison measures Rust/WASM's parser vs the browser's
+      // native one, which is inherently fast. Expect JS to win here; this is expected.
       const jsParse = timeIt(() => {
         const fc = JSON.parse(geojsonStr);
         const out = new Float64Array(fc.features.length * 2);
@@ -362,7 +367,7 @@
         }
         return out;
       }, iters);
-      results.push(renderResult(`GeoJSON Parse → Float64Array (${geojsonN.toLocaleString()} features, ${sizeMB} MB)`, wasmParse, jsParse));
+      results.push(renderResult(`GeoJSON Parse (${geojsonN.toLocaleString()} features, ${sizeMB} MB) <span style="font-size:0.75rem;color:var(--text-muted)">— JS uses native JSON.parse</span>`, wasmParse, jsParse));
 
       // ── Render all results ──
       resultsEl.innerHTML = results.join('');
