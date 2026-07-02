@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# pre-commit hook: auto-format Rust files before they enter a commit.
+#
+# Behavior: if any staged file is a .rs, run `cargo fmt --all`. If fmt applied
+# changes, re-stage those files so the commit includes the formatted version.
+# The committer never sees an "fmt failed" error — the hook fixes and proceeds.
+#
+# Install (one-time, per clone):
+#   git config core.hooksPath .githooks
+#
+# Bypass for a single commit (e.g. WIP):
+#   git commit --no-verify
+
+# Only run if cargo is on PATH (skip in environments without Rust).
+if ! command -v cargo >/dev/null 2>&1; then
+  exit 0
+fi
+
+# Collect staged .rs files. `--diff-filter=d` excludes deleted files.
+staged_rs=$(git diff --cached --name-only --diff-filter=d -- '*.rs')
+
+if [ -z "$staged_rs" ]; then
+  # No Rust files in this commit — nothing to format.
+  exit 0
+fi
+
+# Run cargo fmt across the whole crate (fmt is idempotent and crate-aware,
+# so formatting the whole tree is safer than per-file and matches CI).
+cargo fmt --all
+
+# Re-stage any staged .rs that fmt modified. We compare against the working
+# tree (unstaged) state after fmt: if `git diff -- <file>` is non-empty, fmt
+# changed it, so re-add it.
+while IFS= read -r f; do
+  if ! git diff --quiet -- "$f" 2>/dev/null; then
+    git add -- "$f"
+  fi
+done <<< "$staged_rs"
+
+exit 0
