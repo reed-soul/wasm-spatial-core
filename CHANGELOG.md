@@ -5,10 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.8.1] - 2026-07-02
 
 ### Added
+- **W3.6 quantized-mesh encoder (spec-conformant)** — new `src/quantized_mesh.rs` module emitting byte-exact Cesium quantized-mesh-1.0 tiles (88-byte header, zig-zag delta vertex encoding, high-water-mark index/edge encoding, `.terrain` extension). This is the module behind the W3.6 compliance fix listed under Fixed below; round-trip test in `tests/quantized_mesh_roundtrip_test.rs`.
 - **3DGS PLY ingest (minimal slice)** — `parsePly` now recognizes 3D Gaussian Splatting `.ply` files by their `f_dc_0` property and derives RGB colors from the SH degree-0 coefficients (`RGB = clamp((0.5 + 0.2820945569·f_dc)·255)` per [graphdeco-inria#485](https://github.com/graphdeco-inria/gaussian-splatting/issues/485)). A 3DGS file no longer degrades to a black, uncolored point cloud; the derived RGB flows through `PointCloudChunk` and region selection like any point cloud. The 56 high-order splat attributes (`f_rest_*`, `opacity`, `scale_*`, `rot_*`) are intentionally ignored (faithful splat rendering is future scope).
+- **pre-commit hook** — `.githooks/pre-commit` auto-formats staged `.rs` files via `cargo fmt` so a commit never carries unformatted Rust. Opt-in per clone: `git config core.hooksPath .githooks`.
 
 ### Fixed
 - **W3.6 quantized-mesh compliance** — `encode_quantized_mesh_core` now emits byte-exact Cesium quantized-mesh-1.0 tiles (was a self-invented layout that CesiumTerrainProvider could not load): correct 88-byte header with real f32 heights + bounding sphere + horizon occlusion point, zig-zag delta vertex encoding (MAX_UV=32767), high-water-mark index/edge encoding, `.terrain` extension (was `.cmpt`). New module `src/quantized_mesh.rs` with round-trip test in `tests/quantized_mesh_roundtrip_test.rs`.
