@@ -5,7 +5,7 @@
 use wasm_bindgen::prelude::*;
 
 use crate::errors::{SpatialError, SpatialErrorDetail};
-use crate::{DEFAULT_MAX_INPUT_SIZE, MAX_MESH_VERTICES};
+use crate::MAX_MESH_VERTICES;
 
 // ===========================================================================
 // PLY Result — WASM class
@@ -696,11 +696,11 @@ pub fn parse_ply_core(bytes: &[u8]) -> Result<PlyResult, String> {
 /// ```
 #[wasm_bindgen(js_name = "parsePly")]
 pub fn parse_ply(bytes: &[u8]) -> Result<PlyResult, SpatialErrorDetail> {
-    if bytes.len() > DEFAULT_MAX_INPUT_SIZE {
+    let limit = crate::get_current_input_limit();
+    if bytes.len() > limit {
         return Err(SpatialError::InputTooLarge.with_detail(format!(
-            "PLY input is {} bytes, max is {}",
-            bytes.len(),
-            DEFAULT_MAX_INPUT_SIZE
+            "PLY input is {} bytes, max is {} (raise via setInputSizeLimit)",
+            bytes.len(), limit
         )));
     }
     parse_ply_core(bytes).map_err(|e| SpatialError::point_cloud_error(&e))
@@ -949,5 +949,17 @@ mod tests {
         data.push_str("end_header\n");
         let err = parse_ply_core(data.as_bytes()).err().expect("should fail");
         assert!(err.contains("exceeds limit"));
+    }
+
+    #[test]
+    fn test_parse_ply_core_unbounded_contract() {
+        // parse_ply_core imposes NO size limit — the limit lives only in the
+        // WASM parse_ply wrapper (now via get_current_input_limit). A 2-point
+        // PLY must parse regardless. This locks the contract so the dynamic
+        // limit change in parse_ply stays in the wrapper, not the core.
+        let pts = vec![(0.0, 0.0, 0.0), (1.0, 1.0, 1.0)];
+        let bytes = make_binary_ply(&pts, None, None);
+        let result = parse_ply_core(&bytes).expect("2-point PLY must parse");
+        assert_eq!(result.vertex_count, 2);
     }
 }
