@@ -149,7 +149,7 @@ fn test_3dgs_colors_survive_region_select() {
     bytes.extend_from_slice(&1.0f32.to_le_bytes()); // f_dc_0
     bytes.extend_from_slice(&0.0f32.to_le_bytes()); // f_dc_1
     bytes.extend_from_slice(&0.0f32.to_le_bytes()); // f_dc_2
-    // splat 1 far away, f_dc=(0,0,0) → midgray
+                                                    // splat 1 far away, f_dc=(0,0,0) → midgray
     bytes.extend_from_slice(&100.0f32.to_le_bytes());
     bytes.extend_from_slice(&100.0f32.to_le_bytes());
     bytes.extend_from_slice(&100.0f32.to_le_bytes());

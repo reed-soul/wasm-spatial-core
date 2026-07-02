@@ -354,10 +354,8 @@ fn parse_ply_ascii(data: &str, header: &PlyHeader) -> Result<PlyResult, String> 
     } else {
         None
     };
-    let derive_splat_colors = is_splat
-        && fdc0_idx.is_some()
-        && fdc1_idx.is_some()
-        && fdc2_idx.is_some();
+    let derive_splat_colors =
+        is_splat && fdc0_idx.is_some() && fdc1_idx.is_some() && fdc2_idx.is_some();
 
     let vertex_count = validate_vertex_count(header.vertex_count)?;
     let mut positions: Vec<f32> = Vec::with_capacity(
@@ -520,10 +518,8 @@ fn parse_ply_binary_le(bytes: &[u8], header: &PlyHeader) -> Result<PlyResult, St
     } else {
         None
     };
-    let derive_splat_colors = is_splat
-        && fdc0_idx.is_some()
-        && fdc1_idx.is_some()
-        && fdc2_idx.is_some();
+    let derive_splat_colors =
+        is_splat && fdc0_idx.is_some() && fdc1_idx.is_some() && fdc2_idx.is_some();
 
     let vertex_count = validate_vertex_count(header.vertex_count)?;
     let mut positions: Vec<f32> = Vec::with_capacity(
@@ -824,7 +820,8 @@ pub fn parse_ply(bytes: &[u8]) -> Result<PlyResult, SpatialErrorDetail> {
     if bytes.len() > limit {
         return Err(SpatialError::InputTooLarge.with_detail(format!(
             "PLY input is {} bytes, max is {} (raise via setInputSizeLimit)",
-            bytes.len(), limit
+            bytes.len(),
+            limit
         )));
     }
     parse_ply_core(bytes).map_err(|e| SpatialError::point_cloud_error(&e))
@@ -1133,7 +1130,10 @@ mod tests {
         let fdc = vec![(0.0, 0.0, 0.0)];
         let bytes = make_3dgs_binary_ply(&pts, &fdc);
         let header = parse_ply_header(&bytes).expect("3DGS header must parse");
-        assert!(is_gaussian_splat_header(&header), "f_dc_0 present → must detect as 3DGS");
+        assert!(
+            is_gaussian_splat_header(&header),
+            "f_dc_0 present → must detect as 3DGS"
+        );
     }
 
     #[test]
@@ -1141,7 +1141,10 @@ mod tests {
         let pts = vec![(0.0, 0.0, 0.0)];
         let bytes = make_binary_ply(&pts, Some(&[(255, 0, 0)]), None);
         let header = parse_ply_header(&bytes).expect("legacy header must parse");
-        assert!(!is_gaussian_splat_header(&header), "red/green/blue PLY is not 3DGS");
+        assert!(
+            !is_gaussian_splat_header(&header),
+            "red/green/blue PLY is not 3DGS"
+        );
     }
 
     #[test]
@@ -1182,8 +1185,10 @@ mod tests {
         let p = result.positions_core();
         assert_eq!(p.len(), 6);
         assert_eq!(p[3], 1.0); // point 1 x
-        // colors derived from f_dc (not None — the whole point of this feature)
-        let c = result.colors_core().expect("3DGS must derive colors from f_dc");
+                               // colors derived from f_dc (not None — the whole point of this feature)
+        let c = result
+            .colors_core()
+            .expect("3DGS must derive colors from f_dc");
         assert_eq!(c.len(), 6, "RGB = 3 bytes * 2 points");
         // point 0: f_dc all 0 → midgray 127
         assert_eq!(&c[0..3], &[127, 127, 127]);
