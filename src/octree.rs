@@ -118,27 +118,118 @@ fn filter_valid_positions(positions: &mut Vec<f32>, mut colors: Option<&mut Vec<
     }
 }
 
-/// Reorder `[x,y,z,...]` triplets in-place using `reorder_map[final] = original`.
-fn reorder_positions_in_place(positions: &mut [f32], reorder_map: &[usize], num_points: usize) {
+/// Reorder `[x,y,z,...]` triplets in-place using `perm[final] = original`.
+///
+/// Uses cycle-following (O(1) extra memory) instead of a full-buffer scratch copy.
+fn reorder_positions_in_place(positions: &mut [f32], perm: &mut [usize], num_points: usize) {
+    apply_point_permutation_in_place(positions, perm, num_points);
+}
+
+/// Reorder RGB triplets in-place using the same permutation applied to positions.
+fn reorder_colors_in_place(colors: &mut [u8], perm: &mut [usize], num_points: usize) {
+    let mut visited = vec![false; num_points];
+    for start in 0..num_points {
+        if visited[start] {
+            continue;
+        }
+        let mut src = perm[start];
+        if src == start {
+            visited[start] = true;
+            continue;
+        }
+        let hold = [
+            colors[start * 3],
+            colors[start * 3 + 1],
+            colors[start * 3 + 2],
+        ];
+        let mut dest = start;
+        loop {
+            if visited[src] {
+                let d = dest * 3;
+                colors[d] = hold[0];
+                colors[d + 1] = hold[1];
+                colors[d + 2] = hold[2];
+                visited[dest] = true;
+                break;
+            }
+            let s = src * 3;
+            let d = dest * 3;
+            let (r, g, b) = (colors[s], colors[s + 1], colors[s + 2]);
+            colors[d] = r;
+            colors[d + 1] = g;
+            colors[d + 2] = b;
+            visited[dest] = true;
+            dest = src;
+            src = perm[dest];
+            if dest == start {
+                let d = dest * 3;
+                colors[d] = hold[0];
+                colors[d + 1] = hold[1];
+                colors[d + 2] = hold[2];
+                visited[dest] = true;
+                break;
+            }
+        }
+    }
+}
+
+/// In-place permutation of XYZ triplets: `out[dest] = in[perm[dest]]`.
+fn apply_point_permutation_in_place(positions: &mut [f32], perm: &mut [usize], num_points: usize) {
+    let mut visited = vec![false; num_points];
+    for start in 0..num_points {
+        if visited[start] {
+            continue;
+        }
+        let mut src = perm[start];
+        if src == start {
+            visited[start] = true;
+            continue;
+        }
+        let hold = [
+            positions[start * 3],
+            positions[start * 3 + 1],
+            positions[start * 3 + 2],
+        ];
+        let mut dest = start;
+        loop {
+            if visited[src] {
+                let d = dest * 3;
+                positions[d] = hold[0];
+                positions[d + 1] = hold[1];
+                positions[d + 2] = hold[2];
+                visited[dest] = true;
+                break;
+            }
+            let s = src * 3;
+            let d = dest * 3;
+            positions[d] = positions[s];
+            positions[d + 1] = positions[s + 1];
+            positions[d + 2] = positions[s + 2];
+            visited[dest] = true;
+            dest = src;
+            src = perm[dest];
+            if dest == start {
+                let d = dest * 3;
+                positions[d] = hold[0];
+                positions[d + 1] = hold[1];
+                positions[d + 2] = hold[2];
+                visited[dest] = true;
+                break;
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+fn reorder_positions_scratch(positions: &mut [f32], perm: &[usize], num_points: usize) {
     let byte_len = num_points * 3;
     let scratch = positions[..byte_len].to_vec();
-    for (final_idx, &orig_idx) in reorder_map.iter().enumerate() {
+    for (final_idx, &orig_idx) in perm.iter().enumerate() {
         let dst = final_idx * 3;
         let src = orig_idx * 3;
         positions[dst] = scratch[src];
         positions[dst + 1] = scratch[src + 1];
         positions[dst + 2] = scratch[src + 2];
-    }
-}
-
-/// Reorder RGB triplets in-place using the same permutation applied to positions.
-fn reorder_colors_in_place(colors: &mut [u8], reorder_map: &[usize], num_points: usize) {
-    let byte_len = num_points * 3;
-    let scratch = colors[..byte_len].to_vec();
-    for (final_idx, &orig_idx) in reorder_map.iter().enumerate() {
-        let dst = final_idx * 3;
-        let src = orig_idx * 3;
-        colors[dst..dst + 3].copy_from_slice(&scratch[src..src + 3]);
     }
 }
 
@@ -338,9 +429,9 @@ impl Octree {
             should_abort,
         )?;
 
-        reorder_positions_in_place(positions, &reorder_map, num_points);
+        reorder_positions_in_place(positions, &mut reorder_map, num_points);
         if let Some(colors) = colors {
-            reorder_colors_in_place(colors, &reorder_map, num_points);
+            reorder_colors_in_place(colors, &mut reorder_map, num_points);
         }
 
         Ok(Octree {
@@ -602,7 +693,7 @@ impl Octree {
         );
 
         // Reorder pass.
-        reorder_positions_in_place(positions, &reorder_map, num_points);
+        reorder_positions_in_place(positions, &mut reorder_map, num_points);
 
         Octree {
             nodes,
@@ -814,6 +905,212 @@ impl Octree {
         self.leaves().count() as u32
     }
 }
+
+// ===========================================================================
+// Chunked octree builder (streaming ingestion)
+// ===========================================================================
+
+/// Incrementally ingest point chunks, then build one octree in a single pass.
+///
+/// Use when points arrive from COPC/LAS streaming or Worker batches — avoids
+/// holding the full cloud in JS before the first WASM call. Reorder uses
+/// cycle-following (O(1) scratch vs full duplicate buffer).
+#[derive(Debug)]
+pub struct OctreeChunkBuilder {
+    positions: Vec<f32>,
+    colors: Option<Vec<u8>>,
+    max_points_per_node: u32,
+    max_depth: u32,
+}
+
+/// Result of [`OctreeChunkBuilder::finish_with_buffers`].
+#[derive(Debug)]
+pub struct OctreeChunkResult {
+    pub tree: Octree,
+    pub positions: Vec<f32>,
+    pub colors: Option<Vec<u8>>,
+}
+
+impl OctreeChunkBuilder {
+    pub fn new(max_points_per_node: u32, max_depth: u32) -> Self {
+        Self {
+            positions: Vec::new(),
+            colors: None,
+            max_points_per_node,
+            max_depth,
+        }
+    }
+
+    /// Pre-reserve capacity for an estimated total point count.
+    pub fn with_capacity(
+        max_points_per_node: u32,
+        max_depth: u32,
+        estimated_points: usize,
+    ) -> Self {
+        let mut builder = Self::new(max_points_per_node, max_depth);
+        builder
+            .positions
+            .reserve(estimated_points.saturating_mul(3));
+        builder
+    }
+
+    /// Points accumulated so far.
+    pub fn point_count(&self) -> u32 {
+        (self.positions.len() / 3) as u32
+    }
+
+    /// Append a chunk of `[x,y,z,...]` triplets (invalid coords filtered).
+    pub fn push_chunk(&mut self, chunk: &[f32]) -> Result<(), SpatialErrorDetail> {
+        if !chunk.len().is_multiple_of(3) {
+            return Err(SpatialError::invalid_input(
+                "chunk positions length must be a multiple of 3",
+            ));
+        }
+        for triple in chunk.chunks_exact(3) {
+            let (x, y, z) = (triple[0], triple[1], triple[2]);
+            if x.is_finite() && y.is_finite() && z.is_finite() {
+                self.positions.extend_from_slice(triple);
+            }
+        }
+        Ok(())
+    }
+
+    /// Append positions + RGB colors (filtered in lockstep).
+    pub fn push_chunk_with_colors(
+        &mut self,
+        chunk: &[f32],
+        colors: &[u8],
+    ) -> Result<(), SpatialErrorDetail> {
+        if colors.len() != chunk.len() {
+            return Err(SpatialError::invalid_input(
+                "colors length must match positions chunk length",
+            ));
+        }
+        if self.colors.is_none() {
+            let n_pts = self.positions.len() / 3;
+            let mut c = Vec::with_capacity(n_pts * 3);
+            for _ in 0..n_pts {
+                c.extend_from_slice(&[255, 255, 255]);
+            }
+            self.colors = Some(c);
+        }
+        let out_colors = self.colors.as_mut().expect("colors enabled");
+        for i in (0..chunk.len()).step_by(3) {
+            let (x, y, z) = (chunk[i], chunk[i + 1], chunk[i + 2]);
+            if x.is_finite() && y.is_finite() && z.is_finite() {
+                self.positions.push(x);
+                self.positions.push(y);
+                self.positions.push(z);
+                out_colors.push(colors[i]);
+                out_colors.push(colors[i + 1]);
+                out_colors.push(colors[i + 2]);
+            }
+        }
+        Ok(())
+    }
+
+    /// Build the octree from all pushed chunks. Positions are reordered in-place.
+    pub fn finish(self) -> Result<Octree, SpatialErrorDetail> {
+        self.finish_with_buffers().map(|result| result.tree)
+    }
+
+    /// Build octree and return reordered position/color buffers.
+    pub fn finish_with_buffers(mut self) -> Result<OctreeChunkResult, SpatialErrorDetail> {
+        let color_slice = self
+            .colors
+            .as_mut()
+            .filter(|c| c.len() == self.positions.len())
+            .map(|c| c.as_mut_slice());
+        let tree = Octree::build_in_place(
+            &mut self.positions,
+            color_slice,
+            self.max_points_per_node,
+            self.max_depth,
+            &mut None,
+        )?;
+        let n = tree.total_points() as usize * 3;
+        self.positions.truncate(n);
+        if let Some(ref mut c) = self.colors {
+            c.truncate(n);
+        }
+        Ok(OctreeChunkResult {
+            tree,
+            positions: self.positions,
+            colors: self.colors,
+        })
+    }
+}
+
+/// WASM-accessible chunked octree builder.
+#[wasm_bindgen(js_name = "OctreeChunkBuilder")]
+pub struct WasmOctreeChunkBuilder {
+    inner: OctreeChunkBuilder,
+}
+
+#[wasm_bindgen(js_class = "OctreeChunkBuilder")]
+impl WasmOctreeChunkBuilder {
+    #[wasm_bindgen(constructor)]
+    pub fn new(max_points_per_node: Option<u32>, max_depth: Option<u32>) -> Self {
+        Self {
+            inner: OctreeChunkBuilder::new(
+                max_points_per_node.unwrap_or(DEFAULT_MAX_POINTS_PER_NODE),
+                max_depth.unwrap_or(DEFAULT_MAX_DEPTH),
+            ),
+        }
+    }
+
+    #[wasm_bindgen(js_name = "withCapacity")]
+    pub fn with_capacity(
+        max_points_per_node: Option<u32>,
+        max_depth: Option<u32>,
+        estimated_points: u32,
+    ) -> Self {
+        Self {
+            inner: OctreeChunkBuilder::with_capacity(
+                max_points_per_node.unwrap_or(DEFAULT_MAX_POINTS_PER_NODE),
+                max_depth.unwrap_or(DEFAULT_MAX_DEPTH),
+                estimated_points as usize,
+            ),
+        }
+    }
+
+    #[wasm_bindgen(getter, js_name = "pointCount")]
+    pub fn point_count(&self) -> u32 {
+        self.inner.point_count()
+    }
+
+    #[wasm_bindgen(js_name = "pushChunk")]
+    pub fn push_chunk(&mut self, chunk: &[f32]) -> Result<(), JsValue> {
+        self.inner.push_chunk(chunk).map_err(JsValue::from)
+    }
+
+    #[wasm_bindgen(js_name = "pushChunkWithColors")]
+    pub fn push_chunk_with_colors(&mut self, chunk: &[f32], colors: &[u8]) -> Result<(), JsValue> {
+        self.inner
+            .push_chunk_with_colors(chunk, colors)
+            .map_err(JsValue::from)
+    }
+
+    /// Build octree; copies reordered points into `positions` (must be large enough).
+    #[wasm_bindgen]
+    pub fn finish(self, positions: &mut [f32]) -> Result<WasmOctree, JsValue> {
+        let result = self.inner.finish_with_buffers().map_err(JsValue::from)?;
+        let n = result.positions.len();
+        if positions.len() < n {
+            return Err(crate::errors::SpatialError::invalid_input(format!(
+                "positions buffer too small: need {n} floats, got {}",
+                positions.len()
+            ))
+            .into());
+        }
+        positions[..n].copy_from_slice(&result.positions);
+        Ok(WasmOctree { inner: result.tree })
+    }
+}
+
+// ===========================================================================
+// Memory estimation
+// ===========================================================================
 
 /// Estimate the memory usage of an octree structure (in bytes).
 ///
@@ -1506,5 +1803,78 @@ mod tests {
         // by the WASM smoke tests.
         #[cfg(target_arch = "wasm32")]
         let _mt = supports_multi_thread();
+    }
+
+    #[test]
+    fn test_cycle_reorder_matches_scratch() {
+        let triples: Vec<[f32; 3]> = (0..200)
+            .map(|i| [i as f32, (i * 2) as f32, (i * 3) as f32])
+            .collect();
+        let base = make_positions(&triples);
+        let mut perm: Vec<usize> = (0..200).collect();
+        perm.reverse();
+
+        let mut cycle = base.clone();
+        reorder_positions_in_place(&mut cycle, &mut perm.clone(), 200);
+
+        let mut scratch = base;
+        reorder_positions_scratch(&mut scratch, &perm, 200);
+
+        assert_eq!(cycle, scratch);
+    }
+
+    #[test]
+    fn test_chunked_builder_matches_single_build() {
+        let triples: Vec<[f32; 3]> = (0..500)
+            .map(|i| {
+                [
+                    (i % 17) as f32 * 0.5,
+                    ((i / 17) % 13) as f32 * 0.5,
+                    ((i / 221) % 11) as f32 * 0.5,
+                ]
+            })
+            .collect();
+        let mut single = make_positions(&triples);
+        let tree_single = Octree::build(&mut single, 50, 8);
+
+        let mut builder = OctreeChunkBuilder::new(50, 8);
+        for chunk in triples.chunks(37) {
+            let chunk_pos = make_positions(chunk);
+            builder.push_chunk(&chunk_pos).unwrap();
+        }
+        let (tree_chunked, reordered, _) = {
+            let result = builder.finish_with_buffers().unwrap();
+            (result.tree, result.positions, result.colors)
+        };
+
+        assert_eq!(tree_chunked.total_points(), tree_single.total_points());
+        assert_eq!(tree_chunked.node_count(), tree_single.node_count());
+        assert_eq!(tree_chunked.depth(), tree_single.depth());
+        assert_eq!(reordered.len(), single.len());
+        assert_eq!(reordered, single);
+    }
+
+    #[test]
+    fn test_chunked_builder_filters_invalid_coords() {
+        let mut builder = OctreeChunkBuilder::new(10, 5);
+        builder
+            .push_chunk(&[0.0, 0.0, 0.0, f32::NAN, 1.0, 2.0, 3.0, 4.0, 5.0])
+            .unwrap();
+        assert_eq!(builder.point_count(), 2);
+        let tree = builder.finish().unwrap();
+        assert_eq!(tree.total_points(), 2);
+    }
+
+    #[test]
+    fn test_chunked_builder_with_colors_backfill() {
+        let mut builder = OctreeChunkBuilder::new(10, 5);
+        builder.push_chunk(&[0.0, 0.0, 0.0, 1.0, 1.0, 1.0]).unwrap();
+        builder
+            .push_chunk_with_colors(&[2.0, 2.0, 2.0], &[10, 20, 30])
+            .unwrap();
+        let result = builder.finish_with_buffers().unwrap();
+        let colors = result.colors.expect("colors");
+        assert_eq!(&colors[..6], &[255, 255, 255, 255, 255, 255]);
+        assert_eq!(&colors[6..], &[10, 20, 30]);
     }
 }
