@@ -133,13 +133,22 @@ export {
   // ── Octree ────────────────────────────────────────────────
   buildOctree,
   Octree,
+  OctreeChunkBuilder,
   octreeMemoryUsage,
   // ── 3D Tiles Point Cloud (pnts) ──────────────────────────
   encodePntsTile,
   generateTileset,
   generateTilesetWithSpacing,
   estimatePointSpacing,
+  generateTilesetIncremental,
   TilesetResult,
+  // ── Spatial IR (mesh-ingest) ───────────────────────────────
+  pointCloudChunkFromBuffers,
+  PointCloudChunk,
+  exportPointCloudToPnts,
+  parseGlb,
+  createEnuFrame,
+  computeSvdAlignment,
   // ── LOD ───────────────────────────────────────────────────
   computeScreenSpaceError,
   getVisibleTiles,
@@ -188,7 +197,10 @@ export {
   crsInfo,
   getSupportedCrs,
   bestCrsForRegion,
+  suggestCrsHeuristic,
   isInChina,
+  getInputLimits,
+  getInputSizeLimit,
   // ── Topology ──────────────────────────────────────────────
   polygonArea,
   areaWithHoles,

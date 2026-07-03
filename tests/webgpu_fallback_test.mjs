@@ -6,12 +6,14 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-// Prefer repo-root pkg/ (demo/CI build) over stale npm/pkg/
-const pkgDir = existsSync(join(__dirname, "..", "pkg", "wasm_spatial_core.js"))
-  ? resolve(join(__dirname, "..", "pkg"))
-  : existsSync(join(__dirname, "..", "npm", "pkg", "wasm_spatial_core.js"))
-    ? resolve(join(__dirname, "..", "npm", "pkg"))
-    : resolve(join(__dirname, "..", "pkg"));
+const defaultPkg = process.env.WASM_PKG_DIR
+  ? resolve(process.env.WASM_PKG_DIR)
+  : existsSync(join(__dirname, "..", "pkg", "wasm_spatial_core.js"))
+    ? resolve(join(__dirname, "..", "pkg"))
+    : existsSync(join(__dirname, "..", "npm", "pkg", "wasm_spatial_core.js"))
+      ? resolve(join(__dirname, "..", "npm", "pkg"))
+      : resolve(join(__dirname, "..", "pkg-node"));
+const pkgDir = defaultPkg;
 
 async function loadWasm() {
   const mod = await import(pathToFileURL(join(pkgDir, "wasm_spatial_core.js")).href);

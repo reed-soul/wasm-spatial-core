@@ -63,9 +63,44 @@ impl ProcessingContext {
 /// High-level pipeline operation for memory estimation.
 #[derive(Debug, Clone, Copy)]
 pub enum JobOp {
-    LasParse { point_count: u32, has_color: bool },
-    OctreeBuild { point_count: u32 },
-    TilesetGenerate { point_count: u32, leaf_count: u32 },
+    LasParse {
+        point_count: u32,
+        has_color: bool,
+    },
+    OctreeBuild {
+        point_count: u32,
+    },
+    /// Chunked octree build (`OctreeChunkBuilder`); lower peak than one-shot `buildOctree`.
+    OctreeChunkBuild {
+        point_count: u32,
+        has_color: bool,
+    },
+    TilesetGenerate {
+        point_count: u32,
+        leaf_count: u32,
+    },
+    /// Peak memory when tiles are emitted one-by-one (no full `TilesetResult` retention).
+    TilesetIncremental {
+        point_count: u32,
+        max_leaf_points: u32,
+        has_color: bool,
+    },
+    GeotiffParse {
+        pixels: u32,
+    },
+    GeotiffTerrainTileset {
+        pixels: u32,
+    },
+    CopcRegion {
+        point_count: u32,
+        has_color: bool,
+    },
+    /// LAS parse + octree + tileset (worst-case peak estimate).
+    PointCloudPipeline {
+        point_count: u32,
+        leaf_count: u32,
+        has_color: bool,
+    },
 }
 
 /// Estimate peak bytes for a pipeline step (heuristic; typically within 2× actual).
@@ -85,21 +120,90 @@ pub fn estimate_job_bytes(op: JobOp) -> usize {
                 0
             }
         }
-        JobOp::OctreeBuild { point_count } => {
-            // Positions (f32×3) + octree node overhead (~32 B per 8k points heuristic)
-            let pos = point_count as usize * 3 * std::mem::size_of::<f32>();
-            let nodes = (point_count as usize / 8_000 + 1) * 64;
-            pos + nodes
-        }
+        JobOp::OctreeBuild { point_count } => estimate_octree_build_peak_bytes(point_count),
+        JobOp::OctreeChunkBuild {
+            point_count,
+            has_color,
+        } => estimate_octree_chunk_build_bytes(point_count, has_color),
         JobOp::TilesetGenerate {
             point_count,
             leaf_count,
+        } => estimate_tileset_generate_bytes(point_count, leaf_count),
+        JobOp::TilesetIncremental {
+            point_count,
+            max_leaf_points,
+            has_color,
         } => {
-            let pos = point_count as usize * 3 * std::mem::size_of::<f32>();
-            let tiles = leaf_count as usize * 4_096; // ~4 KiB per pnts tile heuristic
-            pos + tiles
+            let positions = point_count as usize * 3 * std::mem::size_of::<f32>();
+            let colors = if has_color {
+                point_count as usize * 3
+            } else {
+                0
+            };
+            let nodes = (point_count as usize / 8_000 + 1) * 64;
+            let octree = nodes;
+            let largest_tile = max_leaf_points as usize * 14 + 4_096;
+            positions + colors + octree + largest_tile
+        }
+        JobOp::GeotiffParse { pixels } => {
+            let p = pixels as usize;
+            p * std::mem::size_of::<f32>() + p / 4 + 65_536
+        }
+        JobOp::GeotiffTerrainTileset { pixels } => {
+            let parse = estimate_job_bytes(JobOp::GeotiffParse { pixels });
+            let pyramid = (pixels as usize) / 2 + 256 * 1024;
+            parse + pyramid
+        }
+        JobOp::CopcRegion {
+            point_count,
+            has_color,
+        } => estimate_job_bytes(JobOp::LasParse {
+            point_count,
+            has_color,
+        }),
+        JobOp::PointCloudPipeline {
+            point_count,
+            leaf_count,
+            has_color,
+        } => {
+            let parse = estimate_job_bytes(JobOp::LasParse {
+                point_count,
+                has_color,
+            });
+            let octree = estimate_job_bytes(JobOp::OctreeBuild { point_count });
+            let tiles = estimate_job_bytes(JobOp::TilesetGenerate {
+                point_count,
+                leaf_count,
+            });
+            parse.max(octree).max(tiles)
         }
     }
+}
+
+/// Peak during one-shot `buildOctree` (includes full-buffer reorder scratch).
+fn estimate_octree_build_peak_bytes(point_count: u32) -> usize {
+    let pos = point_count as usize * 3 * std::mem::size_of::<f32>();
+    let nodes = (point_count as usize / 8_000 + 1) * 64;
+    pos * 2 + nodes
+}
+
+/// Peak during `OctreeChunkBuilder::finish` (cycle reorder, single position buffer).
+fn estimate_octree_chunk_build_bytes(point_count: u32, has_color: bool) -> usize {
+    let pos = point_count as usize * 3 * std::mem::size_of::<f32>();
+    let colors = if has_color {
+        point_count as usize * 3
+    } else {
+        0
+    };
+    let nodes = (point_count as usize / 8_000 + 1) * 64;
+    let reorder_aux = point_count as usize;
+    pos + colors + nodes + reorder_aux
+}
+
+fn estimate_tileset_generate_bytes(point_count: u32, leaf_count: u32) -> usize {
+    let pos = point_count as usize * 3 * std::mem::size_of::<f32>();
+    let tiles = leaf_count as usize * 4_096;
+    pos + tiles
 }
 
 #[cfg(test)]
@@ -123,9 +227,35 @@ mod tests {
             }) > 0
         );
         assert!(
+            estimate_job_bytes(JobOp::OctreeChunkBuild {
+                point_count: 1_000_000,
+                has_color: false,
+            }) < estimate_job_bytes(JobOp::OctreeBuild {
+                point_count: 1_000_000,
+            })
+        );
+        assert!(
             estimate_job_bytes(JobOp::TilesetGenerate {
                 point_count: 1_000_000,
                 leaf_count: 10,
+            }) > 0
+        );
+        assert!(
+            estimate_job_bytes(JobOp::TilesetIncremental {
+                point_count: 1_000_000,
+                max_leaf_points: 50_000,
+                has_color: false,
+            }) < estimate_job_bytes(JobOp::TilesetGenerate {
+                point_count: 1_000_000,
+                leaf_count: 400,
+            })
+        );
+        assert!(estimate_job_bytes(JobOp::GeotiffParse { pixels: 256 * 256 }) > 256 * 256 * 4);
+        assert!(
+            estimate_job_bytes(JobOp::PointCloudPipeline {
+                point_count: 100_000,
+                leaf_count: 20,
+                has_color: false,
             }) > 0
         );
     }
@@ -171,23 +301,52 @@ impl WasmProcessingContext {
     }
 }
 
-/// Estimate job memory in bytes. Pass `op` as `"lasParse"`, `"octreeBuild"`, or `"tilesetGenerate"`.
+/// Estimate job memory in bytes.
+///
+/// `op`: `lasParse` | `octreeBuild` | `octreeChunkBuild` | `tilesetGenerate` |
+/// `tilesetIncremental` | `geotiffParse` | `geotiffTerrainTileset` | `copcRegion` |
+/// `pointCloudPipeline`
+///
+/// `raster_width` / `raster_height` — pixel dimensions for GeoTIFF ops (else 0).
 #[wasm_bindgen(js_name = "estimateJobBytes")]
 pub fn estimate_job_bytes_js(
     op: &str,
     point_count: u32,
     leaf_count: u32,
     has_color: bool,
+    raster_width: u32,
+    raster_height: u32,
 ) -> Result<usize, JsValue> {
+    let pixels = raster_width.saturating_mul(raster_height);
     let job = match op {
         "lasParse" => JobOp::LasParse {
             point_count,
             has_color,
         },
         "octreeBuild" => JobOp::OctreeBuild { point_count },
+        "octreeChunkBuild" => JobOp::OctreeChunkBuild {
+            point_count,
+            has_color,
+        },
         "tilesetGenerate" => JobOp::TilesetGenerate {
             point_count,
             leaf_count,
+        },
+        "tilesetIncremental" => JobOp::TilesetIncremental {
+            point_count,
+            max_leaf_points: leaf_count.max(1),
+            has_color,
+        },
+        "geotiffParse" => JobOp::GeotiffParse { pixels },
+        "geotiffTerrainTileset" => JobOp::GeotiffTerrainTileset { pixels },
+        "copcRegion" => JobOp::CopcRegion {
+            point_count,
+            has_color,
+        },
+        "pointCloudPipeline" => JobOp::PointCloudPipeline {
+            point_count,
+            leaf_count,
+            has_color,
         },
         _ => {
             return Err(
