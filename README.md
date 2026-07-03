@@ -249,10 +249,10 @@ R-Tree / Octree indexing, bounding box / KNN queries, haversine / vincenty dista
 
 | Demo | URL |
 |------|-----|
-| **🏠 Landing Page** | https://reed-soul.github.io/wasm-spatial-core/ |
-| **Point Cloud** (LAS/PLY/OBJ; LAZ in custom builds) | https://reed-soul.github.io/wasm-spatial-core/point-cloud/ |
-| **Cesium 3D Tiles** | https://reed-soul.github.io/wasm-spatial-core/cesium-workflow/ |
-| **Terrain Viewer** (GeoTIFF) | https://reed-soul.github.io/wasm-spatial-core/terrain/ |
+| **🏠 Demo Hub** | https://reed-soul.github.io/wasm-spatial-core/examples/index.html |
+| **Point Cloud** (LAS/PLY/OBJ; LAZ in custom builds) | https://reed-soul.github.io/wasm-spatial-core/examples/point-cloud-demo/ |
+| **Cesium 3D Tiles** | https://reed-soul.github.io/wasm-spatial-core/examples/cesium-workflow/ |
+| **Terrain Viewer** (GeoTIFF) | https://reed-soul.github.io/wasm-spatial-core/examples/terrain-demo/ |
 
 Run locally: `npm run demo`
 
