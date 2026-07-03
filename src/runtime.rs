@@ -70,6 +70,11 @@ pub enum JobOp {
     OctreeBuild {
         point_count: u32,
     },
+    /// Chunked octree build (`OctreeChunkBuilder`); lower peak than one-shot `buildOctree`.
+    OctreeChunkBuild {
+        point_count: u32,
+        has_color: bool,
+    },
     TilesetGenerate {
         point_count: u32,
         leaf_count: u32,
@@ -115,7 +120,11 @@ pub fn estimate_job_bytes(op: JobOp) -> usize {
                 0
             }
         }
-        JobOp::OctreeBuild { point_count } => estimate_octree_build_bytes(point_count),
+        JobOp::OctreeBuild { point_count } => estimate_octree_build_peak_bytes(point_count),
+        JobOp::OctreeChunkBuild {
+            point_count,
+            has_color,
+        } => estimate_octree_chunk_build_bytes(point_count, has_color),
         JobOp::TilesetGenerate {
             point_count,
             leaf_count,
@@ -131,7 +140,8 @@ pub fn estimate_job_bytes(op: JobOp) -> usize {
             } else {
                 0
             };
-            let octree = estimate_octree_build_bytes(point_count) - positions;
+            let nodes = (point_count as usize / 8_000 + 1) * 64;
+            let octree = nodes;
             let largest_tile = max_leaf_points as usize * 14 + 4_096;
             positions + colors + octree + largest_tile
         }
@@ -170,10 +180,24 @@ pub fn estimate_job_bytes(op: JobOp) -> usize {
     }
 }
 
-fn estimate_octree_build_bytes(point_count: u32) -> usize {
+/// Peak during one-shot `buildOctree` (includes full-buffer reorder scratch).
+fn estimate_octree_build_peak_bytes(point_count: u32) -> usize {
     let pos = point_count as usize * 3 * std::mem::size_of::<f32>();
     let nodes = (point_count as usize / 8_000 + 1) * 64;
-    pos + nodes
+    pos * 2 + nodes
+}
+
+/// Peak during `OctreeChunkBuilder::finish` (cycle reorder, single position buffer).
+fn estimate_octree_chunk_build_bytes(point_count: u32, has_color: bool) -> usize {
+    let pos = point_count as usize * 3 * std::mem::size_of::<f32>();
+    let colors = if has_color {
+        point_count as usize * 3
+    } else {
+        0
+    };
+    let nodes = (point_count as usize / 8_000 + 1) * 64;
+    let reorder_aux = point_count as usize;
+    pos + colors + nodes + reorder_aux
 }
 
 fn estimate_tileset_generate_bytes(point_count: u32, leaf_count: u32) -> usize {
@@ -201,6 +225,14 @@ mod tests {
             estimate_job_bytes(JobOp::OctreeBuild {
                 point_count: 1_000_000,
             }) > 0
+        );
+        assert!(
+            estimate_job_bytes(JobOp::OctreeChunkBuild {
+                point_count: 1_000_000,
+                has_color: false,
+            }) < estimate_job_bytes(JobOp::OctreeBuild {
+                point_count: 1_000_000,
+            })
         );
         assert!(
             estimate_job_bytes(JobOp::TilesetGenerate {
@@ -271,8 +303,9 @@ impl WasmProcessingContext {
 
 /// Estimate job memory in bytes.
 ///
-/// `op`: `lasParse` | `octreeBuild` | `tilesetGenerate` | `tilesetIncremental` |
-/// `geotiffParse` | `geotiffTerrainTileset` | `copcRegion` | `pointCloudPipeline`
+/// `op`: `lasParse` | `octreeBuild` | `octreeChunkBuild` | `tilesetGenerate` |
+/// `tilesetIncremental` | `geotiffParse` | `geotiffTerrainTileset` | `copcRegion` |
+/// `pointCloudPipeline`
 ///
 /// `raster_width` / `raster_height` — pixel dimensions for GeoTIFF ops (else 0).
 #[wasm_bindgen(js_name = "estimateJobBytes")]
@@ -291,6 +324,10 @@ pub fn estimate_job_bytes_js(
             has_color,
         },
         "octreeBuild" => JobOp::OctreeBuild { point_count },
+        "octreeChunkBuild" => JobOp::OctreeChunkBuild {
+            point_count,
+            has_color,
+        },
         "tilesetGenerate" => JobOp::TilesetGenerate {
             point_count,
             leaf_count,

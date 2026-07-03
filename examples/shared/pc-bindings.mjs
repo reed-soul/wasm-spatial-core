@@ -82,3 +82,83 @@ export function centerSquarePolygon(bounds, fraction = 0.5) {
 export function memoryUsedBytes(mem) {
   return mem.used;
 }
+
+/**
+ * Try to parse a COPC header. Returns null when the file is plain LAS/LAZ.
+ */
+export function tryParseCopcHeader(wasm, bytes) {
+  if (!wasm?.parseCopcHeader) return null;
+  try {
+    const info = wasm.parseCopcHeader(bytes);
+    const chunkTable = info.chunkTable;
+    if (!chunkTable || chunkTable.length === 0) return null;
+    return info;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Stream COPC chunks into OctreeChunkBuilder, then finish with reordered buffers.
+ *
+ * @param {object} wasm — initialized wasm module
+ * @param {Uint8Array} bytes — full COPC file
+ * @param {object} copcInfo — result of parseCopcHeader
+ * @param {object} [options]
+ * @param {number} [options.maxPointsPerNode=50000]
+ * @param {number} [options.maxDepth=21]
+ * @param {(done: number, total: number) => void} [options.onProgress]
+ * @returns {{ octree, positions: Float32Array, colors: Uint8Array|null, pointCount: number, hasColor: boolean }}
+ */
+export async function streamCopcToOctree(wasm, bytes, copcInfo, options = {}) {
+  const maxPointsPerNode = options.maxPointsPerNode ?? 50_000;
+  const maxDepth = options.maxDepth ?? 21;
+  const onProgress = options.onProgress;
+  const pointCount = Math.min(Number(copcInfo.pointCount) || 0, 0xffffffff);
+  const chunks = copcInfo.chunkTable;
+  const headerBytes = bytes.subarray(0, Math.min(375, bytes.length));
+  const builder = wasm.OctreeChunkBuilder.withCapacity(maxPointsPerNode, maxDepth, pointCount);
+
+  let hasColor = false;
+  const totalChunks = chunks.length;
+
+  for (let i = 0; i < totalChunks; i++) {
+    const entry = chunks[i];
+    const offset = entry.offset;
+    const size = entry.size;
+    const count = entry.count;
+    const chunkCloud = wasm.readCopcChunk(bytes, offset, size, count, headerBytes);
+    const positions = chunkCloud.positions;
+    const colors = chunkCloud.colors;
+    if (colors?.length) {
+      hasColor = true;
+      builder.pushChunkWithColors(positions, colors);
+    } else {
+      builder.pushChunk(positions);
+    }
+    if (typeof chunkCloud.free === 'function') chunkCloud.free();
+    onProgress?.(i + 1, totalChunks);
+    if (i % 4 === 3) await new Promise((r) => setTimeout(r, 0));
+  }
+
+  const n = builder.pointCount;
+  const positions = new Float32Array(n * 3);
+  let octree;
+  let colorsOut = null;
+
+  if (hasColor) {
+    const colors = new Uint8Array(n * 3);
+    octree = builder.finishWithColors(positions, colors);
+    colorsOut = colors;
+  } else {
+    octree = builder.finish(positions);
+  }
+
+  return {
+    octree,
+    positions,
+    colors: colorsOut,
+    pointCount: n,
+    hasColor,
+  };
+}
