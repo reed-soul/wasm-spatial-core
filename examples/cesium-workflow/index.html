@@ -285,6 +285,7 @@
 
       // Initialize WASM
       try {
+        await wasm.default();
         wasm.init();
         const ver = wasm.version();
         log(`WASM initialized — wasm-spatial-core v${ver}`, 'ok');
@@ -430,7 +431,7 @@
           maxZ: header.boundsMaxZ,
         };
         document.getElementById('fmtBounds').textContent =
-          `[${bounds.minX.toFixed(2)}, ${bounds.maxX.toFixed(2)] × [${bounds.minY.toFixed(2)}, ${bounds.maxY.toFixed(2)] × [${bounds.minZ.toFixed(2)}, ${bounds.maxZ.toFixed(2)}]`;
+          `[${bounds.minX.toFixed(2)}, ${bounds.maxX.toFixed(2)}] × [${bounds.minY.toFixed(2)}, ${bounds.maxY.toFixed(2)}] × [${bounds.minZ.toFixed(2)}, ${bounds.maxZ.toFixed(2)}]`;
         document.getElementById('fmtColor').textContent = hasColor ? '✅ Yes' : '❌ No (height color)';
 
         setStepDone('stepParse');

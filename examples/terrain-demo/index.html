@@ -275,6 +275,8 @@
   <script type="module">
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { centerSquarePolygon } from '../shared/pc-bindings.mjs';
+    import { createGpuContext, applyFlattenDeform } from '../shared/terrain-gpu.mjs';
 
     // ── WASM Loading ──
     let wasmLoaded = false;
@@ -287,9 +289,6 @@
     } catch (e) {
       console.warn('[terrain-demo] WASM not available, using fallback:', e.message);
     }
-
-    import { centerSquarePolygon } from '../shared/pc-bindings.mjs';
-    import { createGpuContext, applyFlattenDeform } from '../shared/terrain-gpu.mjs';
 
     let gpuCtx = null;
     try {
