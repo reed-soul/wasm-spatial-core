@@ -188,7 +188,10 @@ export {
   crsInfo,
   getSupportedCrs,
   bestCrsForRegion,
+  suggestCrsHeuristic,
   isInChina,
+  getInputLimits,
+  getInputSizeLimit,
   // ── Topology ──────────────────────────────────────────────
   polygonArea,
   areaWithHoles,

@@ -173,6 +173,9 @@ mod point_cloud_analysis;
 #[cfg(feature = "point-cloud")]
 mod point_cloud_stream;
 
+#[cfg(feature = "laz-support")]
+mod copc_hierarchy;
+
 #[cfg(feature = "e57-support")]
 mod e57;
 
@@ -187,7 +190,8 @@ mod quantization;
 pub use coordinate::{
     batch_bd09_to_gcj02_in_place, batch_bd09_to_wgs84_in_place, batch_gcj02_to_bd09_in_place,
     batch_gcj02_to_wgs84_in_place, batch_mercator_to_wgs84_in_place, batch_wgs84_to_bd09_in_place,
-    batch_wgs84_to_gcj02_in_place, batch_wgs84_to_mercator_in_place,
+    batch_wgs84_to_gcj02_in_place, batch_wgs84_to_mercator_in_place, best_crs_for_region, crs_info,
+    get_supported_crs, suggest_crs_heuristic,
 };
 
 #[cfg(feature = "point-cloud")]
@@ -387,6 +391,38 @@ pub fn set_input_size_limit(bytes: usize) {
 #[wasm_bindgen(js_name = "getInputSizeLimit")]
 pub fn get_input_size_limit() -> usize {
     get_current_input_limit()
+}
+
+/// Runtime capability and size limits as JSON (for honest client-side preflight).
+///
+/// Fields include `maxInputBytes`, `recommendedMaxPoints`, `copcSpatialQuery`,
+/// `geotiffElevationFormats`, and `crsScope`.
+#[wasm_bindgen(js_name = "getInputLimits")]
+pub fn get_input_limits() -> String {
+    let max_input = get_current_input_limit();
+    let copc_spatial = if cfg!(feature = "laz-support") {
+        "hierarchy-bbox"
+    } else {
+        "disabled"
+    };
+    let geotiff_formats = if cfg!(feature = "geotiff") {
+        "float32,uint16,int16,uint8; lzw,deflate,none; strip,tile"
+    } else {
+        "disabled"
+    };
+    format!(
+        r#"{{
+  "maxInputBytes": {max_input},
+  "recommendedMaxPoints": 1000000,
+  "recommendedMaxPointsNote": "Tileset generation above ~10M points typically exceeds browser memory",
+  "copcSpatialQuery": "{copc_spatial}",
+  "copcSpatialQueryNote": "Uses COPC hierarchy when info VLR present; falls back to chunk-table scan",
+  "geotiffElevationFormats": "{geotiff_formats}",
+  "crsScope": "wgs84,web-mercator,utm,gcj02,bd09,cgcs2000-identity",
+  "crsArbitraryEpsg": false,
+  "projRequiredFor": "arbitrary EPSG reprojection, NTv2 grids"
+}}"#
+    )
 }
 
 /// Get the approximate number of allocated bytes in WASM linear memory.
