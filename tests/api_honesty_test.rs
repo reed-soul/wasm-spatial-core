@@ -7,6 +7,7 @@ fn test_get_input_limits_json_fields() {
     assert!(json.contains("\"copcSpatialQuery\""));
     assert!(json.contains("\"geotiffElevationFormats\""));
     assert!(json.contains("\"crsArbitraryEpsg\": false"));
+    assert!(json.contains("\"octreeChunkBuilder\": true"));
 }
 
 #[test]

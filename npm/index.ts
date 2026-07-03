@@ -133,6 +133,7 @@ export {
   // ── Octree ────────────────────────────────────────────────
   buildOctree,
   Octree,
+  OctreeChunkBuilder,
   octreeMemoryUsage,
   // ── 3D Tiles Point Cloud (pnts) ──────────────────────────
   encodePntsTile,

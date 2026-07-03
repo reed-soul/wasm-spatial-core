@@ -149,7 +149,10 @@ mod topology;
 mod utils;
 mod vector_tile;
 
-pub use octree::{Bounds, Octree, OctreeNode, DEFAULT_MAX_DEPTH, DEFAULT_MAX_POINTS_PER_NODE};
+pub use octree::{
+    Bounds, Octree, OctreeChunkBuilder, OctreeChunkResult, OctreeNode, DEFAULT_MAX_DEPTH,
+    DEFAULT_MAX_POINTS_PER_NODE,
+};
 #[cfg(feature = "multi-thread")]
 pub use pnts::generate_tileset_parallel;
 pub use pnts::{
@@ -419,7 +422,9 @@ pub fn get_input_limits() -> String {
   "copcSpatialQueryNote": "Uses COPC hierarchy when info VLR present; falls back to chunk-table scan",
   "geotiffElevationFormats": "{geotiff_formats}",
   "tilesetIncremental": true,
-  "estimateJobOps": "lasParse,octreeBuild,tilesetGenerate,tilesetIncremental,geotiffParse,geotiffTerrainTileset,copcRegion,pointCloudPipeline",
+  "octreeChunkBuilder": true,
+  "octreeChunkBuilderNote": "Stream point batches via OctreeChunkBuilder; cycle-following reorder avoids full buffer copy",
+  "estimateJobOps": "lasParse,octreeBuild,octreeChunkBuild,tilesetGenerate,tilesetIncremental,geotiffParse,geotiffTerrainTileset,copcRegion,pointCloudPipeline",
   "crsScope": "wgs84,web-mercator,utm,gcj02,bd09,cgcs2000-identity",
   "crsArbitraryEpsg": false,
   "projRequiredFor": "arbitrary EPSG reprojection, NTv2 grids"
