@@ -67,6 +67,34 @@ fn test_point_cloud_spatial_chunk() {
 }
 
 #[test]
+fn test_point_cloud_chunk_generate_tileset() {
+    let mut pc = PointCloudChunk {
+        metadata: ChunkMeta::new("copc"),
+        positions: vec![
+            0.0, 0.0, 0.0, //
+            2.0, 0.0, 0.0, //
+            0.0, 3.0, 0.0, //
+            1.0, 1.0, 1.0, //
+        ],
+        colors: Some(vec![255, 0, 0, 0, 255, 0, 0, 0, 255, 128, 128, 128]),
+        normals: None,
+    };
+    pc.refresh_metadata();
+
+    let tileset = pc.generate_tileset(2, 8).expect("tileset from IR chunk");
+    assert!(tileset.tile_count() >= 1);
+    assert!(tileset.total_bytes() > 0);
+}
+
+#[test]
+fn test_point_cloud_chunk_from_buffers() {
+    let chunk =
+        PointCloudChunk::from_buffers(vec![0.0, 0.0, 0.0, 1.0, 2.0, 3.0], None, "las").unwrap();
+    assert_eq!(chunk.vertex_count(), 2);
+    assert_eq!(chunk.metadata.source_format.as_deref(), Some("las"));
+}
+
+#[test]
 fn test_point_cloud_export_to_pnts() {
     let mut pc = PointCloudChunk {
         metadata: ChunkMeta::new("las"),

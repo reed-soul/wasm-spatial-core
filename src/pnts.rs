@@ -1294,6 +1294,60 @@ where
     })
 }
 
+/// Encode leaf tiles one at a time; returns `tileset.json` without retaining all tile blobs.
+pub fn generate_tileset_incremental_abort<E, A>(
+    octree: &Octree,
+    positions: &[f32],
+    colors: Option<&[u8]>,
+    avg_spacing: Option<f64>,
+    spacing_factor: Option<f64>,
+    mut emit_tile: E,
+    mut should_abort: A,
+) -> Result<String, crate::errors::SpatialErrorDetail>
+where
+    E: FnMut(usize, &str, &[u8], Bounds) -> Result<(), crate::errors::SpatialErrorDetail>,
+    A: FnMut() -> bool,
+{
+    let spacing = resolve_point_spacing(positions, avg_spacing);
+    let mut tile_uris = Vec::new();
+    let mut tile_index = 0usize;
+
+    for node in octree.leaves() {
+        if should_abort() {
+            return Err(
+                crate::errors::SpatialError::Cancelled.with_detail("tileset generation cancelled")
+            );
+        }
+        if node.point_count == 0 {
+            continue;
+        }
+
+        let start = node.point_start;
+        let count = node.point_count as usize;
+        let end = start + count;
+        let pos_slice = &positions[start * 3..end * 3];
+        let cx = (node.bounds[0] + node.bounds[3]) * 0.5;
+        let cy = (node.bounds[1] + node.bounds[4]) * 0.5;
+        let cz = (node.bounds[2] + node.bounds[5]) * 0.5;
+        let color_slice = colors.map(|c| &c[start * 3..end * 3]);
+
+        let tile_data = encode_pnts_tile(pos_slice, [cx, cy, cz], color_slice)
+            .map_err(|e| crate::errors::SpatialError::PointCloudError.with_detail(e.to_string()))?;
+
+        let uri = format!("tile_{tile_index}.pnts");
+        emit_tile(tile_index, &uri, &tile_data, node.bounds)?;
+        tile_uris.push(uri);
+        tile_index += 1;
+    }
+
+    Ok(build_tileset_json_with_spacing(
+        octree,
+        &tile_uris,
+        spacing,
+        spacing_factor,
+    ))
+}
+
 /// Build the tileset.json tree from the octree hierarchy.
 #[allow(dead_code)]
 fn build_tileset_json(octree: &Octree, tile_uris: &[String]) -> String {
@@ -1628,6 +1682,56 @@ pub fn generate_tileset_with_abort_js(
     .map_err(JsValue::from)?;
 
     Ok(WasmTilesetResult { inner: result })
+}
+
+/// Generate `tileset.json` while emitting each `.pnts` tile via callback (lower peak memory).
+///
+/// Use after [`crate::octree::build_octree`] — `positions` must match the reordered buffer.
+/// `on_tile(index, uri, tileBytes, bounds)` is called once per leaf; only `tileset.json`
+/// is returned (tile blobs are not retained in WASM).
+#[wasm_bindgen(js_name = "generateTilesetIncremental")]
+pub fn generate_tileset_incremental_js(
+    octree: &crate::octree::WasmOctree,
+    positions: &[f32],
+    colors: Option<Vec<u8>>,
+    on_tile: &js_sys::Function,
+    should_abort: Option<js_sys::Function>,
+) -> Result<String, JsValue> {
+    let this = wasm_bindgen::JsValue::NULL;
+    let mut check_abort = || {
+        should_abort
+            .as_ref()
+            .and_then(|f| f.call0(&this).ok())
+            .is_some_and(|v| v.is_truthy())
+    };
+    let on_tile = on_tile.clone();
+    generate_tileset_incremental_abort(
+        octree.inner(),
+        positions,
+        colors.as_deref(),
+        None,
+        None,
+        |index, uri, bytes, bounds| {
+            let arr = js_sys::Uint8Array::new_with_length(bytes.len() as u32);
+            arr.copy_from(bytes);
+            let bounds_arr = js_sys::Float64Array::from(&bounds[..]);
+            on_tile
+                .call4(
+                    &this,
+                    &JsValue::from(index as u32),
+                    &JsValue::from_str(uri),
+                    &arr.into(),
+                    &bounds_arr.into(),
+                )
+                .map_err(|e| {
+                    crate::errors::SpatialError::PointCloudError
+                        .with_detail(format!("on_tile callback failed: {e:?}"))
+                })?;
+            Ok(())
+        },
+        &mut check_abort,
+    )
+    .map_err(JsValue::from)
 }
 
 // ===========================================================================

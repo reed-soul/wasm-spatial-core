@@ -57,7 +57,7 @@ jobs:
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
       - name: Build WASM package (web target, point-cloud + geotiff)
-        run: wasm-pack build --target web --release --out-dir pkg --features point-cloud,geotiff
+        run: wasm-pack build --target web --release --out-dir pkg --features point-cloud,geotiff,laz-support,mesh-ingest
 
       - name: Verify WASM output
         run: |
@@ -66,13 +66,31 @@ jobs:
           test -f pkg/wasm_spatial_core.js && echo "✅ JS bindings exist"
 
       - name: Build WASM (Node.js target)
-        run: wasm-pack build --target nodejs --release --out-dir pkg-node --features point-cloud,geotiff
+        run: wasm-pack build --target nodejs --release --out-dir pkg-node --features point-cloud,geotiff,laz-support,mesh-ingest
 
       - name: Run WASM smoke tests (Node.js)
         run: WASM_PKG_DIR=pkg-node node tests/wasm_smoke_test.mjs
 
       - name: Run Node.js batch API smoke test
         run: node tests/node_batch_test.mjs
+
+      - name: WebGPU CPU fallback smoke (Node)
+        run: WASM_PKG_DIR=pkg node tests/webgpu_fallback_test.mjs
+
+      - name: Build WASM (webgpu + terrain-edit smoke pkg)
+        run: wasm-pack build --target nodejs --release --out-dir pkg-webgpu-smoke --features point-cloud,geotiff,terrain-edit,webgpu
+
+      - name: Heightfield GPU fallback smoke (Node, skips if unavailable)
+        run: |
+          PKG=pkg-webgpu-smoke node -e "
+          import { readFileSync, existsSync } from 'node:fs';
+          import { pathToFileURL } from 'node:url';
+          const dir = 'pkg-webgpu-smoke';
+          const mod = await import(pathToFileURL(dir + '/wasm_spatial_core.js').href);
+          if (mod.default) await mod.default(readFileSync(dir + '/wasm_spatial_core_bg.wasm'));
+          if (!mod.flattenTerrain) { console.log('SKIP'); process.exit(0); }
+          console.log('flattenTerrain: OK');
+          "
 
       - name: Upload WASM artifacts
         uses: actions/upload-artifact@v4

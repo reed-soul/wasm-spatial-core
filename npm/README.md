@@ -1,6 +1,6 @@
 # wasm-spatial-core
 
-> A Web3D spatial compute engine for the browser — ingest, edit geometry, emit 3D Tiles / glTF. Zero server, zero upload.
+> Browser-side point cloud & terrain preprocessing — ingest, edit geometry, emit 3D Tiles / glTF. Zero server, zero upload. CRS: WGS84, Web Mercator, UTM, China offsets (not arbitrary EPSG).
 
 [![npm](https://img.shields.io/npm/v/wasm-spatial-core)](https://www.npmjs.com/package/wasm-spatial-core)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)

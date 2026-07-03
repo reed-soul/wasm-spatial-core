@@ -102,8 +102,8 @@ pub use svd_align::{
 
 #[cfg(feature = "mesh-ingest")]
 pub use spatial_ir::{
-    Aabb, ChunkMeta, HeightfieldChunk, MeshChunk, PointCloudChunk, PolygonExtrusion, SpatialChunk,
-    WasmMeshChunk,
+    point_cloud_chunk_from_buffers, Aabb, ChunkMeta, HeightfieldChunk, MeshChunk, PointCloudChunk,
+    PolygonExtrusion, SpatialChunk, WasmMeshChunk, WasmPointCloudChunk,
 };
 
 #[cfg(feature = "mesh-edit")]
@@ -149,13 +149,16 @@ mod topology;
 mod utils;
 mod vector_tile;
 
-pub use octree::{Bounds, Octree, OctreeNode, DEFAULT_MAX_DEPTH, DEFAULT_MAX_POINTS_PER_NODE};
+pub use octree::{
+    Bounds, Octree, OctreeChunkBuilder, OctreeChunkResult, OctreeNode, DEFAULT_MAX_DEPTH,
+    DEFAULT_MAX_POINTS_PER_NODE,
+};
 #[cfg(feature = "multi-thread")]
 pub use pnts::generate_tileset_parallel;
 pub use pnts::{
     draco_status_js, encode_pnts_tile, estimate_point_spacing, generate_tileset,
-    generate_tileset_with_spacing_abort, pad_len, parse_pnts_header, supports_draco_js,
-    TilesetResult,
+    generate_tileset_incremental_abort, generate_tileset_with_spacing_abort, pad_len,
+    parse_pnts_header, supports_draco_js, TilesetResult,
 };
 pub use runtime::{estimate_job_bytes, JobOp, ProcessingContext, WasmProcessingContext};
 pub use tile_patch::{apply_patch, apply_tileset_patch_js, TilesetPatch, WasmTilesetPatch};
@@ -173,6 +176,9 @@ mod point_cloud_analysis;
 #[cfg(feature = "point-cloud")]
 mod point_cloud_stream;
 
+#[cfg(feature = "laz-support")]
+mod copc_hierarchy;
+
 #[cfg(feature = "e57-support")]
 mod e57;
 
@@ -187,7 +193,8 @@ mod quantization;
 pub use coordinate::{
     batch_bd09_to_gcj02_in_place, batch_bd09_to_wgs84_in_place, batch_gcj02_to_bd09_in_place,
     batch_gcj02_to_wgs84_in_place, batch_mercator_to_wgs84_in_place, batch_wgs84_to_bd09_in_place,
-    batch_wgs84_to_gcj02_in_place, batch_wgs84_to_mercator_in_place,
+    batch_wgs84_to_gcj02_in_place, batch_wgs84_to_mercator_in_place, best_crs_for_region, crs_info,
+    get_supported_crs, suggest_crs_heuristic,
 };
 
 #[cfg(feature = "point-cloud")]
@@ -387,6 +394,50 @@ pub fn set_input_size_limit(bytes: usize) {
 #[wasm_bindgen(js_name = "getInputSizeLimit")]
 pub fn get_input_size_limit() -> usize {
     get_current_input_limit()
+}
+
+/// Runtime capability and size limits as JSON (for honest client-side preflight).
+///
+/// Fields include `maxInputBytes`, `recommendedMaxPoints`, `copcSpatialQuery`,
+/// `geotiffElevationFormats`, and `crsScope`.
+#[wasm_bindgen(js_name = "getInputLimits")]
+pub fn get_input_limits() -> String {
+    let max_input = get_current_input_limit();
+    let copc_spatial = if cfg!(feature = "laz-support") {
+        "hierarchy-bbox"
+    } else {
+        "disabled"
+    };
+    let geotiff_formats = if cfg!(feature = "geotiff") {
+        "float32,uint16,int16,uint8; lzw,deflate,none; strip,tile"
+    } else {
+        "disabled"
+    };
+    let spatial_ir = if cfg!(feature = "mesh-ingest") {
+        "pointCloudChunk,selectAabb,exportPnts,parseGlb,enuFrame,svdAlignment"
+    } else {
+        "disabled"
+    };
+    format!(
+        r#"{{
+  "maxInputBytes": {max_input},
+  "recommendedMaxPoints": 1000000,
+  "recommendedMaxPointsNote": "Tileset generation above ~10M points typically exceeds browser memory",
+  "copcSpatialQuery": "{copc_spatial}",
+  "copcSpatialQueryNote": "Uses COPC hierarchy when info VLR present; falls back to chunk-table scan",
+  "geotiffElevationFormats": "{geotiff_formats}",
+  "spatialIr": {spatial_ir_enabled},
+  "spatialIrOps": "{spatial_ir}",
+  "tilesetIncremental": true,
+  "octreeChunkBuilder": true,
+  "octreeChunkBuilderNote": "Stream point batches via OctreeChunkBuilder; cycle-following reorder avoids full buffer copy",
+  "estimateJobOps": "lasParse,octreeBuild,octreeChunkBuild,tilesetGenerate,tilesetIncremental,geotiffParse,geotiffTerrainTileset,copcRegion,pointCloudPipeline",
+  "crsScope": "wgs84,web-mercator,utm,gcj02,bd09,cgcs2000-identity",
+  "crsArbitraryEpsg": false,
+  "projRequiredFor": "arbitrary EPSG reprojection, NTv2 grids"
+}}"#,
+        spatial_ir_enabled = cfg!(feature = "mesh-ingest")
+    )
 }
 
 /// Get the approximate number of allocated bytes in WASM linear memory.
