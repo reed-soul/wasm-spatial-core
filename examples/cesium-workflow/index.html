@@ -307,13 +307,16 @@
     // =========================================================================
 
     async function initCesium() {
-      Cesium.Ion.defaultAccessToken = undefined;
-
+      // No Ion token required — use a free raster basemap (Carto/OSM).
+      // Cesium 1.119 ignores the deprecated imageryProvider option; use baseLayer.
       viewer = new Cesium.Viewer('cesiumContainer', {
-        imageryProvider: new Cesium.OpenStreetMapImageryProvider({
-          url: 'https://tile.openstreetmap.org/'
-        }),
-        terrainProvider: undefined,
+        baseLayer: new Cesium.ImageryLayer(
+          new Cesium.UrlTemplateImageryProvider({
+            url: 'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+            maximumLevel: 19,
+            credit: '© OpenStreetMap contributors © CARTO',
+          }),
+        ),
         baseLayerPicker: false,
         geocoder: false,
         homeButton: true,
@@ -329,8 +332,8 @@
       });
 
       viewer.scene.globe.enableLighting = false;
-      viewer.scene.skyBox.show = false;
-      viewer.scene.backgroundColor = Cesium.Color.BLACK;
+      viewer.scene.skyBox.show = true;
+      viewer.scene.backgroundColor = Cesium.Color.fromCssColorString('#0d1117');
 
       log('Cesium viewer initialized (no Ion token)', 'ok');
     }
