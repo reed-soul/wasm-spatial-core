@@ -8,6 +8,8 @@
 
 use wasm_bindgen::prelude::*;
 
+use crate::errors::input_too_large_js;
+
 // ===========================================================================
 // Data Structures
 // ===========================================================================
@@ -687,12 +689,15 @@ fn extract_all_refs_from_line(line: &str) -> Vec<u32> {
 /// console.log(`Extracted ${result.meshCount()} meshes`);
 /// ```
 #[wasm_bindgen(js_name = "parseIfcGeometry")]
-pub fn parse_ifc_geometry(text: &str) -> IfcGeometryResult {
-    // Silently return empty result for oversized input
-    if text.len() > 100 * 1024 * 1024 {
-        return IfcGeometryResult { meshes: Vec::new() };
+pub fn parse_ifc_geometry(text: &str) -> Result<IfcGeometryResult, JsValue> {
+    if text.len() > crate::get_current_input_limit() {
+        return Err(input_too_large_js(format!(
+            "IFC text size {} exceeds limit of {} bytes",
+            text.len(),
+            crate::get_current_input_limit()
+        )));
     }
-    parse_ifc_geometry_core(text)
+    Ok(parse_ifc_geometry_core(text))
 }
 
 // ===========================================================================

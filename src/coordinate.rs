@@ -1164,15 +1164,17 @@ pub fn batch_utm_to_wgs84_inplace(coords: &Float64Array) {
 
 /// Return a JSON array of supported coordinate reference systems.
 ///
-/// Each entry contains `code`, `name`, `description`.
+/// Each entry contains `code`, `name`, `description`, and `capabilities`
+/// (`transform`, `identity`, or `heuristic-only`).
 #[wasm_bindgen(js_name = "getSupportedCrs")]
 pub fn get_supported_crs() -> String {
     r#"[
-  {"code":"EPSG:4326","name":"WGS 84","description":"World Geodetic System 1984 — global GPS standard"},
-  {"code":"EPSG:3857","name":"Web Mercator","description":"Spherical Mercator projection used by most web maps (Google, OSM, Mapbox)"},
-  {"code":"EPSG:4490","name":"CGCS2000","description":"China Geodetic Coordinate System 2000 — national standard"},
-  {"code":"GCJ-02","name":"GCJ-02 (Mars)","description":"Chinese government mandated offset applied by Amap, Tencent Maps"},
-  {"code":"BD-09","name":"BD-09","description":"Baidu's proprietary coordinate system — further offset from GCJ-02"}
+  {"code":"EPSG:4326","name":"WGS 84","description":"World Geodetic System 1984 — global GPS standard","capabilities":["transform"]},
+  {"code":"EPSG:3857","name":"Web Mercator","description":"Spherical Mercator projection used by most web maps (Google, OSM, Mapbox)","capabilities":["transform"]},
+  {"code":"EPSG:4490","name":"CGCS2000","description":"China Geodetic Coordinate System 2000 — ≈WGS84 (<1 cm); batch APIs are identity no-ops","capabilities":["identity"]},
+  {"code":"GCJ-02","name":"GCJ-02 (Mars)","description":"Chinese government mandated offset applied by Amap, Tencent Maps","capabilities":["transform"]},
+  {"code":"BD-09","name":"BD-09","description":"Baidu's proprietary coordinate system — further offset from GCJ-02","capabilities":["transform"]},
+  {"code":"UTM","name":"UTM zones","description":"WGS84 ↔ UTM via zone number (not arbitrary EPSG codes)","capabilities":["transform"]}
 ]"#
     .to_string()
 }
@@ -1191,6 +1193,8 @@ pub fn crs_info(code: &str) -> String {
   "name":"WGS 84",
   "code":"EPSG:4326",
   "description":"World Geodetic System 1984 — global GPS standard",
+  "supported":true,
+  "capabilities":["transform"],
   "bounds":{"minLng":-180.0,"minLat":-90.0,"maxLng":180.0,"maxLat":90.0},
   "unit":"degree"
 }"#
@@ -1199,6 +1203,8 @@ pub fn crs_info(code: &str) -> String {
   "name":"Web Mercator",
   "code":"EPSG:3857",
   "description":"Spherical Mercator projection used by most web maps (Google, OSM, Mapbox)",
+  "supported":true,
+  "capabilities":["transform"],
   "bounds":{"minLng":-180.0,"minLat":-85.05,"maxLng":180.0,"maxLat":85.05},
   "unit":"meter"
 }"#
@@ -1206,7 +1212,9 @@ pub fn crs_info(code: &str) -> String {
         "EPSG:4490" | "CGCS2000" => r#"{
   "name":"CGCS2000",
   "code":"EPSG:4490",
-  "description":"China Geodetic Coordinate System 2000 — national standard",
+  "description":"China Geodetic Coordinate System 2000 — ≈WGS84 (<1 cm); batch APIs are identity no-ops",
+  "supported":true,
+  "capabilities":["identity"],
   "bounds":{"minLng":73.66,"minLat":3.86,"maxLng":135.05,"maxLat":53.55},
   "unit":"degree"
 }"#
@@ -1215,6 +1223,8 @@ pub fn crs_info(code: &str) -> String {
   "name":"GCJ-02 (Mars)",
   "code":"GCJ-02",
   "description":"Chinese government mandated offset applied by Amap, Tencent Maps",
+  "supported":true,
+  "capabilities":["transform"],
   "bounds":{"minLng":73.66,"minLat":3.86,"maxLng":135.05,"maxLat":53.55},
   "unit":"degree"
 }"#
@@ -1223,15 +1233,30 @@ pub fn crs_info(code: &str) -> String {
   "name":"BD-09",
   "code":"BD-09",
   "description":"Baidu's proprietary coordinate system — further offset from GCJ-02",
+  "supported":true,
+  "capabilities":["transform"],
   "bounds":{"minLng":73.66,"minLat":3.86,"maxLng":135.05,"maxLat":53.55},
   "unit":"degree"
+}"#
+        .to_string(),
+        "UTM" => r#"{
+  "name":"UTM",
+  "code":"UTM",
+  "description":"WGS84 ↔ UTM via zone number; use wgs84ToUtm / utmToWgs84 (not arbitrary EPSG codes)",
+  "supported":true,
+  "capabilities":["transform"],
+  "bounds":null,
+  "unit":"meter"
 }"#
         .to_string(),
         _ => format!(
             r#"{{
   "name":"Unknown",
   "code":"{}",
-  "description":"Unsupported coordinate reference system",
+  "description":"Unsupported coordinate reference system — use external PROJ for arbitrary EPSG",
+  "supported":false,
+  "capabilities":[],
+  "fallback":"use-external-PROJ",
   "bounds":null,
   "unit":null
 }}"#,
@@ -1256,15 +1281,28 @@ pub fn is_in_china(lng: f64, lat: f64) -> bool {
     !out_of_china(lng, lat)
 }
 
-/// Recommend the best CRS for a geographic region.
+/// Heuristic CRS suggestion for a geographic bounding box (3 CRS codes only).
+///
+/// Prefer this name over `bestCrsForRegion` — the result is **not** a PROJ-grade
+/// optimal projection recommendation.
 ///
 /// # Arguments
 /// - `min_lng`, `min_lat`, `max_lng`, `max_lat`: Bounding box in degrees.
 ///
 /// # Returns
-/// JSON string with `crs` (recommended CRS code) and `reason`.
+/// JSON string with `crs` and `reason`.
+#[wasm_bindgen(js_name = "suggestCrsHeuristic")]
+pub fn suggest_crs_heuristic(min_lng: f64, min_lat: f64, max_lng: f64, max_lat: f64) -> String {
+    best_crs_for_region_core(min_lng, min_lat, max_lng, max_lat)
+}
+
+/// @deprecated Use `suggestCrsHeuristic` — same heuristic, kept for compatibility.
 #[wasm_bindgen(js_name = "bestCrsForRegion")]
 pub fn best_crs_for_region(min_lng: f64, min_lat: f64, max_lng: f64, max_lat: f64) -> String {
+    best_crs_for_region_core(min_lng, min_lat, max_lng, max_lat)
+}
+
+fn best_crs_for_region_core(min_lng: f64, min_lat: f64, max_lng: f64, max_lat: f64) -> String {
     // China bounding box check
     let china_min_lng = 73.66;
     let china_max_lng = 135.05;

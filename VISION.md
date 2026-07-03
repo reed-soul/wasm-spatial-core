@@ -1,6 +1,6 @@
 # wasm-spatial-core — Product Vision
 
-> **One-liner:** A **Web3D spatial compute engine** for the latest Chrome — ingest, edit geometry, emit 3D Tiles / glTF in the browser. **Core only**; product UIs and IoT live in your application repo.
+> **One-liner:** A **browser-side point cloud & terrain preprocessing engine** for the latest Chrome — ingest, edit geometry, emit 3D Tiles / glTF. **Core only**; product UIs and IoT live in your application repo. Not a PROJ/QGIS replacement.
 
 **Boundary doc:** [docs/ENGINE_BOUNDARY.md](./docs/ENGINE_BOUNDARY.md)
 

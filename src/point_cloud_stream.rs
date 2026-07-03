@@ -17,6 +17,14 @@ use crate::point_cloud::{
 };
 use crate::DEFAULT_MAX_INPUT_SIZE;
 
+#[cfg(feature = "laz-support")]
+use crate::copc_hierarchy::{
+    parse_copc_info_vlr, query_copc_chunks_for_bbox, Bbox3d, CopcInfoVlrData,
+};
+
+#[cfg(feature = "laz-support")]
+use std::io::{Cursor, Read, Seek, SeekFrom};
+
 // ===========================================================================
 // PointCloudStreamer — WASM class
 // ===========================================================================
@@ -400,9 +408,6 @@ pub fn laz_status() -> String {
 // COPC (Cloud Optimized Point Cloud) Support — requires laz-support
 // ===========================================================================
 
-#[cfg(feature = "laz-support")]
-use std::io::{Cursor, Read, Seek, SeekFrom};
-
 /// Information about a COPC file, including chunk table for indexed access.
 ///
 /// Returned by `parseCopcHeader()`. All offsets and sizes are in bytes.
@@ -438,6 +443,8 @@ pub struct CopcInfo {
     /// Chunk table: each entry is (byte_offset, point_count, byte_size)
     /// byte_offset is relative to the start of the point data section
     pub chunk_table: Vec<(u64, u64, u64)>,
+    /// Parsed COPC `info` VLR when present (enables hierarchy spatial queries).
+    pub copc_info: Option<CopcInfoVlrData>,
 }
 
 #[cfg(feature = "laz-support")]
@@ -506,6 +513,13 @@ impl CopcInfo {
             chunks_arr.push(&entry);
         }
         js_sys::Reflect::set(&obj, &"chunkTable".into(), &chunks_arr.into()).ok();
+
+        js_sys::Reflect::set(
+            &obj,
+            &"hasHierarchy".into(),
+            &JsValue::from(self.copc_info.is_some()),
+        )
+        .ok();
 
         obj
     }
@@ -601,6 +615,7 @@ pub fn parse_copc_header_core(bytes: &[u8]) -> Result<CopcInfo, String> {
         .seek(SeekFrom::Start(header_size_val as u64))
         .map_err(|e| e.to_string())?;
     let mut laszip_vlr: Option<laz::LazVlr> = None;
+    let mut copc_info: Option<CopcInfoVlrData> = None;
 
     for _ in 0..num_vlrs {
         let mut _reserved = [0u8; 2];
@@ -627,9 +642,11 @@ pub fn parse_copc_header_core(bytes: &[u8]) -> Result<CopcInfo, String> {
             );
         }
 
-        // COPC VLR (user_id="copc", record_id=1) — store for future use
+        // COPC info VLR (user_id="copc", record_id=1)
         if record_id == COPC_RECORD_ID && uid_str == COPC_USER_ID {
-            let _copc_vlr_data = Some(data);
+            if let Ok(info) = parse_copc_info_vlr(&data) {
+                copc_info = Some(info);
+            }
         }
     }
 
@@ -666,6 +683,7 @@ pub fn parse_copc_header_core(bytes: &[u8]) -> Result<CopcInfo, String> {
         z_offset,
         bounds: (min_x, min_y, min_z, max_x, max_y, max_z),
         chunk_table,
+        copc_info,
     })
 }
 
@@ -909,52 +927,45 @@ pub fn read_copc_region(
 
     let mut all_positions: Vec<f32> = Vec::new();
     let mut all_colors: Option<Vec<u8>> = None;
-
-    // For a proper COPC spatial query, we'd use the hierarchy nodes.
-    // For now, iterate through chunks and filter points.
     let header_bytes = &bytes[..std::cmp::min(375, bytes.len())];
 
-    let mut running_offset = 0u64;
-    for (offset, count, size) in &info.chunk_table {
-        // Quick bounding box check: skip chunks that can't possibly intersect
-        // (This is a rough filter; in a real COPC implementation we'd use
-        //  the hierarchy nodes for precise spatial filtering)
+    let query = Bbox3d {
+        min_x,
+        min_y,
+        min_z,
+        max_x,
+        max_y,
+        max_z,
+    };
 
-        if let Ok(chunk_cloud) =
-            read_copc_chunk_core(bytes, *offset, *size, *count as usize, header_bytes)
-        {
-            // Filter points by bounding box
-            for i in 0..chunk_cloud.point_count as usize {
-                let px = chunk_cloud.positions[i * 3] as f64;
-                let py = chunk_cloud.positions[i * 3 + 1] as f64;
-                let pz = chunk_cloud.positions[i * 3 + 2] as f64;
+    // Prefer COPC hierarchy spatial query when info VLR is available.
+    let hierarchy_chunks = info
+        .copc_info
+        .as_ref()
+        .and_then(|ci| query_copc_chunks_for_bbox(bytes, ci, query).ok())
+        .filter(|chunks| !chunks.is_empty());
 
-                if px >= min_x
-                    && px <= max_x
-                    && py >= min_y
-                    && py <= max_y
-                    && pz >= min_z
-                    && pz <= max_z
-                {
-                    all_positions.push(px as f32);
-                    all_positions.push(py as f32);
-                    all_positions.push(pz as f32);
-
-                    if let Some(ref colors) = chunk_cloud.colors {
-                        if all_colors.is_none() {
-                            all_colors = Some(Vec::new());
-                        }
-                        if let Some(ref mut ac) = all_colors {
-                            ac.push(colors[i * 3]);
-                            ac.push(colors[i * 3 + 1]);
-                            ac.push(colors[i * 3 + 2]);
-                        }
-                    }
-                }
+    if let Some(chunks) = hierarchy_chunks {
+        for chunk in chunks {
+            if let Ok(chunk_cloud) = read_copc_chunk_core(
+                bytes,
+                chunk.offset,
+                chunk.byte_size,
+                chunk.point_count as usize,
+                header_bytes,
+            ) {
+                append_points_in_bbox(&chunk_cloud, query, &mut all_positions, &mut all_colors);
             }
         }
-
-        running_offset += offset;
+    } else {
+        // Fallback: iterate LAZ chunk table and filter points by bbox.
+        for (offset, count, size) in &info.chunk_table {
+            if let Ok(chunk_cloud) =
+                read_copc_chunk_core(bytes, *offset, *size, *count as usize, header_bytes)
+            {
+                append_points_in_bbox(&chunk_cloud, query, &mut all_positions, &mut all_colors);
+            }
+        }
     }
 
     Ok(LasPointCloud {
@@ -962,6 +973,43 @@ pub fn read_copc_region(
         positions: all_positions,
         colors: all_colors,
     })
+}
+
+#[cfg(feature = "laz-support")]
+fn append_points_in_bbox(
+    chunk_cloud: &LasPointCloud,
+    query: Bbox3d,
+    all_positions: &mut Vec<f32>,
+    all_colors: &mut Option<Vec<u8>>,
+) {
+    for i in 0..chunk_cloud.point_count as usize {
+        let px = chunk_cloud.positions[i * 3] as f64;
+        let py = chunk_cloud.positions[i * 3 + 1] as f64;
+        let pz = chunk_cloud.positions[i * 3 + 2] as f64;
+
+        if px >= query.min_x
+            && px <= query.max_x
+            && py >= query.min_y
+            && py <= query.max_y
+            && pz >= query.min_z
+            && pz <= query.max_z
+        {
+            all_positions.push(px as f32);
+            all_positions.push(py as f32);
+            all_positions.push(pz as f32);
+
+            if let Some(ref colors) = chunk_cloud.colors {
+                if all_colors.is_none() {
+                    *all_colors = Some(Vec::new());
+                }
+                if let Some(ref mut ac) = all_colors {
+                    ac.push(colors[i * 3]);
+                    ac.push(colors[i * 3 + 1]);
+                    ac.push(colors[i * 3 + 2]);
+                }
+            }
+        }
+    }
 }
 
 // ===========================================================================

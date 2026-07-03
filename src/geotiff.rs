@@ -7,7 +7,7 @@
 //!
 //! Supports:
 //! - Uncompressed, LZW, and DEFLATE (ZLib) compressed TIFF data
-//! - Float32 elevation grids (SingleBand, SampleFormat=IEEEFP)
+//! - Float32, UInt16, Int16, and UInt8 single-band elevation grids
 //! - Strip-organized and Tile-organized layouts
 //! - GeoKey metadata (CRS, ModelType, etc.)
 //!
@@ -1018,7 +1018,8 @@ fn geotiff_decompress_budget(compressed_len: usize, expected_output: usize) -> u
 /// Decode strip-organized image data into f32 elevation values.
 fn decode_strip_data(info: &GeotiffInternal, bytes: &[u8]) -> Result<Vec<f32>, String> {
     match info.bits_per_sample {
-        32 => decode_strip_f32(info, bytes), // Assume float for 32-bit (common in GeoTIFF elevation)
+        32 => decode_strip_f32(info, bytes),
+        16 if info.sample_format == 2 => decode_strip_i16_to_f32(info, bytes),
         16 => decode_strip_u16_to_f32(info, bytes),
         8 => decode_strip_u8_to_f32(info, bytes),
         _ => Err(format!(
@@ -1078,6 +1079,42 @@ fn decode_strip_f32(info: &GeotiffInternal, bytes: &[u8]) -> Result<Vec<f32>, St
                 decompressed[off + 3],
             ]);
             elevations.push(val);
+        }
+    }
+
+    Ok(elevations)
+}
+
+/// Decode int16 strip data → f32.
+fn decode_strip_i16_to_f32(info: &GeotiffInternal, bytes: &[u8]) -> Result<Vec<f32>, String> {
+    let total_pixels = raster_pixel_count(info.image_width, info.image_length)?;
+    let mut elevations = Vec::with_capacity(total_pixels);
+    let w = info.image_width as usize;
+
+    for strip_idx in 0..info.strip_offsets.len() {
+        let offset = info.strip_offsets[strip_idx] as usize;
+        let byte_count = info.strip_byte_counts[strip_idx] as usize;
+        if offset + byte_count > bytes.len() {
+            return Err("GeoTIFF: strip data extends beyond file".into());
+        }
+
+        let raw_data = &bytes[offset..offset + byte_count];
+        let rows_this_strip = info.rows_this_strip(strip_idx);
+        let pixels_this_strip = rows_this_strip * w;
+        let expected_bytes = pixels_this_strip
+            .checked_mul(2)
+            .ok_or_else(|| "GeoTIFF: strip byte size overflow".to_string())?;
+        let budget = geotiff_decompress_budget(raw_data.len(), expected_bytes);
+        let decompressed = decompress_data(raw_data, info.compression, budget)?;
+
+        if decompressed.len() < expected_bytes {
+            return Err("GeoTIFF: strip decompressed data too small for i16".into());
+        }
+
+        for i in 0..pixels_this_strip {
+            let off = i * 2;
+            let val = i16::from_le_bytes([decompressed[off], decompressed[off + 1]]);
+            elevations.push(val as f32);
         }
     }
 
@@ -1228,6 +1265,10 @@ fn decode_tiled_data(info: &GeotiffInternal, bytes: &[u8]) -> Result<Vec<f32>, S
                                 decompressed[byte_off + 2],
                                 decompressed[byte_off + 3],
                             ]),
+                            16 if info.sample_format == 2 => i16::from_le_bytes([
+                                decompressed[byte_off],
+                                decompressed[byte_off + 1],
+                            ]) as f32,
                             16 => u16::from_le_bytes([
                                 decompressed[byte_off],
                                 decompressed[byte_off + 1],
@@ -2346,6 +2387,93 @@ mod tests {
         assert_eq!(info.elevations[1], 20.0);
         assert_eq!(info.elevations[2], 30.0);
         assert_eq!(info.elevations[3], 40.0);
+    }
+
+    fn build_geotiff_i16_strip(width: u32, height: u32, values: &[i16], signed: bool) -> Vec<u8> {
+        assert_eq!(values.len(), (width * height) as usize);
+        let mut buf = Vec::new();
+        buf.extend_from_slice(b"II");
+        buf.extend_from_slice(&42u16.to_le_bytes());
+        let ifd_offset_pos = buf.len();
+        buf.extend_from_slice(&0u32.to_le_bytes());
+
+        let ifd_start = buf.len();
+        buf[ifd_offset_pos..ifd_offset_pos + 4].copy_from_slice(&(ifd_start as u32).to_le_bytes());
+
+        let num_entries: u16 = 8;
+        buf.extend_from_slice(&num_entries.to_le_bytes());
+        let entries_end = buf.len() + num_entries as usize * 12 + 4;
+        let strip_data_offset = entries_end as u32;
+        let strip_data_size = values.len() * 2;
+
+        buf.extend_from_slice(&256u16.to_le_bytes());
+        buf.extend_from_slice(&4u16.to_le_bytes());
+        buf.extend_from_slice(&1u32.to_le_bytes());
+        buf.extend_from_slice(&width.to_le_bytes());
+
+        buf.extend_from_slice(&257u16.to_le_bytes());
+        buf.extend_from_slice(&4u16.to_le_bytes());
+        buf.extend_from_slice(&1u32.to_le_bytes());
+        buf.extend_from_slice(&height.to_le_bytes());
+
+        buf.extend_from_slice(&258u16.to_le_bytes());
+        buf.extend_from_slice(&3u16.to_le_bytes());
+        buf.extend_from_slice(&1u32.to_le_bytes());
+        buf.extend_from_slice(&16u16.to_le_bytes());
+        buf.extend_from_slice(&0u16.to_le_bytes());
+
+        buf.extend_from_slice(&259u16.to_le_bytes());
+        buf.extend_from_slice(&3u16.to_le_bytes());
+        buf.extend_from_slice(&1u32.to_le_bytes());
+        buf.extend_from_slice(&1u16.to_le_bytes());
+        buf.extend_from_slice(&0u16.to_le_bytes());
+
+        buf.extend_from_slice(&273u16.to_le_bytes());
+        buf.extend_from_slice(&4u16.to_le_bytes());
+        buf.extend_from_slice(&1u32.to_le_bytes());
+        buf.extend_from_slice(&strip_data_offset.to_le_bytes());
+
+        buf.extend_from_slice(&278u16.to_le_bytes());
+        buf.extend_from_slice(&4u16.to_le_bytes());
+        buf.extend_from_slice(&1u32.to_le_bytes());
+        buf.extend_from_slice(&height.to_le_bytes());
+
+        buf.extend_from_slice(&279u16.to_le_bytes());
+        buf.extend_from_slice(&4u16.to_le_bytes());
+        buf.extend_from_slice(&1u32.to_le_bytes());
+        buf.extend_from_slice(&(strip_data_size as u32).to_le_bytes());
+
+        let sample_format: u16 = if signed { 2 } else { 1 };
+        buf.extend_from_slice(&339u16.to_le_bytes());
+        buf.extend_from_slice(&3u16.to_le_bytes());
+        buf.extend_from_slice(&1u32.to_le_bytes());
+        buf.extend_from_slice(&sample_format.to_le_bytes());
+        buf.extend_from_slice(&0u16.to_le_bytes());
+
+        buf.extend_from_slice(&0u32.to_le_bytes());
+        for &val in values {
+            buf.extend_from_slice(&val.to_le_bytes());
+        }
+        buf
+    }
+
+    #[test]
+    fn test_parse_geotiff_uint16_strip() {
+        let values: Vec<i16> = vec![100, 200, 300, 400];
+        let tiff = build_geotiff_i16_strip(2, 2, &values, false);
+        let info = parse_geotiff_core(&tiff).unwrap();
+        assert_eq!(info.inner.bits_per_sample, 16);
+        assert_eq!(info.elevations, vec![100.0, 200.0, 300.0, 400.0]);
+    }
+
+    #[test]
+    fn test_parse_geotiff_int16_strip() {
+        let values: Vec<i16> = vec![-10, 0, 100, 32767];
+        let tiff = build_geotiff_i16_strip(2, 2, &values, true);
+        let info = parse_geotiff_core(&tiff).unwrap();
+        assert_eq!(info.inner.sample_format, 2);
+        assert_eq!(info.elevations[0], -10.0);
+        assert_eq!(info.elevations[3], 32767.0);
     }
 
     #[test]
