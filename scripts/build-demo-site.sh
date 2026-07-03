@@ -54,11 +54,42 @@ cat >"$OUT/index.html" <<'HTML'
 </html>
 HTML
 
+write_demo_redirect() {
+  local slug="$1"
+  local target="$2"
+  mkdir -p "$OUT/$slug"
+  cat >"$OUT/$slug/index.html" <<HTML
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>wasm-spatial-core</title>
+  <meta http-equiv="refresh" content="0; url=$target" />
+  <link rel="canonical" href="$target" />
+  <script>
+    location.replace('$target' + location.search + location.hash);
+  </script>
+</head>
+<body>
+  <p><a href="$target">wasm-spatial-core — open demo</a></p>
+</body>
+</html>
+HTML
+}
+
+# Short URLs used in README / API docs → canonical example pages.
+write_demo_redirect point-cloud ../examples/point-cloud-demo/index.html
+write_demo_redirect cesium-workflow ../examples/cesium-workflow/index.html
+write_demo_redirect terrain ../examples/terrain-demo/index.html
+
 touch "$OUT/.nojekyll"
 
 echo "Demo site ready at $OUT/"
 echo "  Hub:              examples/index.html"
 echo "  Full demo:        examples/demo/index.html"
 echo "  Three.js PCloud:   examples/point-cloud-demo/index.html"
+echo "  Cesium workflow:  examples/cesium-workflow/index.html"
+echo "  Terrain:          examples/terrain-demo/index.html"
 echo "  Cesium PCloud:    examples/point-cloud-cesium/index.html"
 echo "  Benchmark:        bench/browser/index.html"
