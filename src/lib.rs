@@ -154,8 +154,8 @@ pub use octree::{Bounds, Octree, OctreeNode, DEFAULT_MAX_DEPTH, DEFAULT_MAX_POIN
 pub use pnts::generate_tileset_parallel;
 pub use pnts::{
     draco_status_js, encode_pnts_tile, estimate_point_spacing, generate_tileset,
-    generate_tileset_with_spacing_abort, pad_len, parse_pnts_header, supports_draco_js,
-    TilesetResult,
+    generate_tileset_incremental_abort, generate_tileset_with_spacing_abort, pad_len,
+    parse_pnts_header, supports_draco_js, TilesetResult,
 };
 pub use runtime::{estimate_job_bytes, JobOp, ProcessingContext, WasmProcessingContext};
 pub use tile_patch::{apply_patch, apply_tileset_patch_js, TilesetPatch, WasmTilesetPatch};
@@ -418,6 +418,8 @@ pub fn get_input_limits() -> String {
   "copcSpatialQuery": "{copc_spatial}",
   "copcSpatialQueryNote": "Uses COPC hierarchy when info VLR present; falls back to chunk-table scan",
   "geotiffElevationFormats": "{geotiff_formats}",
+  "tilesetIncremental": true,
+  "estimateJobOps": "lasParse,octreeBuild,tilesetGenerate,tilesetIncremental,geotiffParse,geotiffTerrainTileset,copcRegion,pointCloudPipeline",
   "crsScope": "wgs84,web-mercator,utm,gcj02,bd09,cgcs2000-identity",
   "crsArbitraryEpsg": false,
   "projRequiredFor": "arbitrary EPSG reprojection, NTv2 grids"

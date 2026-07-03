@@ -139,6 +139,7 @@ export {
   generateTileset,
   generateTilesetWithSpacing,
   estimatePointSpacing,
+  generateTilesetIncremental,
   TilesetResult,
   // ── LOD ───────────────────────────────────────────────────
   computeScreenSpaceError,

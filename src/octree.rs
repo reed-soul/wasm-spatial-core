@@ -868,6 +868,10 @@ pub struct WasmOctree {
 
 #[wasm_bindgen(js_class = "Octree")]
 impl WasmOctree {
+    pub(crate) fn inner(&self) -> &Octree {
+        &self.inner
+    }
+
     /// Total number of nodes (internal + leaf).
     #[wasm_bindgen(js_name = "nodeCount")]
     pub fn node_count(&self) -> u32 {
