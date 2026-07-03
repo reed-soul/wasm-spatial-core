@@ -445,31 +445,25 @@ import {
 // =========================================================================
 
 let wasm = null;
-const WASM_CDN = 'https://unpkg.com/wasm-spatial-core@0.8.0/pkg/wasm_spatial_core.js';
 
 async function loadWasm() {
   showLoading('Loading WASM module...');
-  try {
-    // Try CDN first
-    const module = await import(WASM_CDN);
-    await module.default();
-    wasm = module;
-    return true;
-  } catch (e) {
-    console.warn('CDN load failed, trying local pkg:', e);
+  const sources = [
+    '../../pkg/wasm_spatial_core.js',
+    'https://esm.run/wasm-spatial-core',
+  ];
+  for (const url of sources) {
+    try {
+      const module = await import(url);
+      await module.default();
+      wasm = module;
+      return true;
+    } catch (e) {
+      console.warn(`WASM load failed (${url}):`, e);
+    }
   }
-
-  try {
-    // Try local pkg
-    const module = await import('../../pkg/wasm_spatial_core.js');
-    await module.default();
-    wasm = module;
-    return true;
-  } catch (e) {
-    console.warn('Local pkg load failed:', e);
-    showError('Failed to load WASM module. Run `wasm-pack build` first.');
-    return false;
-  }
+  showError('Failed to load WASM module. Run `wasm-pack build` first.');
+  return false;
 }
 
 // =========================================================================

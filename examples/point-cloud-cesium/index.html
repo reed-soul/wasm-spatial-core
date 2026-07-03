@@ -478,30 +478,26 @@ function formatBytes(bytes) {
 // =========================================================================
 
 async function loadWasm() {
-  try {
-    const module = await import('https://unpkg.com/wasm-spatial-core@0.8.0/pkg/wasm_spatial_core.js');
-    await module.default();
-    wasm = module;
+  const sources = [
+    '../../pkg/wasm_spatial_core.js',
+    'https://esm.run/wasm-spatial-core',
+  ];
+  for (const url of sources) {
     try {
-      gpuCtx = await createGpuContext();
-    } catch (_) { /* WebGPU optional */ }
-    return true;
-  } catch (e) {
-    console.warn('CDN load failed, trying local:', e);
+      const module = await import(url);
+      await module.default();
+      wasm = module;
+      try {
+        gpuCtx = await createGpuContext();
+      } catch (_) { /* WebGPU optional */ }
+      return true;
+    } catch (e) {
+      console.warn(`WASM load failed (${url}):`, e);
+    }
   }
-  try {
-    const module = await import('../pkg/wasm_spatial_core.js');
-    await module.default();
-    wasm = module;
-    try {
-      gpuCtx = await createGpuContext();
-    } catch (_) { /* WebGPU optional */ }
-    return true;
-  } catch (e) {
-    console.error('Failed to load WASM module:', e);
-    alert('Failed to load WASM module. Run `wasm-pack build` first.');
-    return false;
-  }
+  console.error('Failed to load WASM module');
+  alert('Failed to load WASM module. Run `wasm-pack build` first.');
+  return false;
 }
 
 // =========================================================================
