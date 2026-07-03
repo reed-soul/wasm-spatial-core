@@ -290,6 +290,64 @@ impl PointCloudChunk {
         chunk.refresh_metadata();
         Ok(chunk)
     }
+
+    /// Build a chunk from flat position/color buffers (ingest bridge for LAS/COPC/PLY).
+    pub fn from_buffers(
+        positions: Vec<f32>,
+        colors: Option<Vec<u8>>,
+        source_format: impl Into<String>,
+    ) -> Result<Self, SpatialErrorDetail> {
+        if !positions.len().is_multiple_of(3) {
+            return Err(SpatialError::invalid_input(
+                "positions length must be a multiple of 3",
+            ));
+        }
+        if let Some(ref colors) = colors {
+            if colors.len() != positions.len() {
+                return Err(SpatialError::invalid_input(
+                    "colors length must match positions (3 bytes per point)",
+                ));
+            }
+        }
+        let mut chunk = Self {
+            metadata: ChunkMeta::new(source_format),
+            positions,
+            colors,
+            normals: None,
+        };
+        chunk.refresh_metadata();
+        Ok(chunk)
+    }
+
+    /// Export to a multi-tile pnts tileset via octree (W2.5 ingest → tiles path).
+    #[cfg(feature = "point-cloud")]
+    pub fn generate_tileset(
+        &mut self,
+        max_points_per_node: u32,
+        max_depth: u32,
+    ) -> Result<crate::pnts::TilesetResult, SpatialErrorDetail> {
+        if self.vertex_count() == 0 {
+            return Err(
+                SpatialError::PointCloudError.with_detail("cannot tile empty point cloud chunk")
+            );
+        }
+        let mut colors = self.colors.take();
+        let tree = crate::octree::Octree::build_in_place(
+            &mut self.positions,
+            colors.as_deref_mut(),
+            max_points_per_node,
+            max_depth,
+            &mut None,
+        )?;
+        let n = tree.total_points() as usize * 3;
+        self.positions.truncate(n);
+        if let Some(ref mut c) = colors {
+            c.truncate(n);
+        }
+        self.colors = colors;
+        self.refresh_metadata();
+        crate::pnts::generate_tileset(&tree, &self.positions, self.colors.as_deref())
+    }
 }
 
 /// Indexed mesh spatial chunk (triangles or points).
@@ -727,6 +785,115 @@ impl WasmMeshChunk {
             .map(WasmMeshChunk::from_chunk)
             .map_err(Into::into)
     }
+}
+
+/// WASM-visible point cloud chunk from Spatial IR.
+#[wasm_bindgen(js_name = "PointCloudChunk")]
+pub struct WasmPointCloudChunk {
+    inner: PointCloudChunk,
+}
+
+impl WasmPointCloudChunk {
+    pub(crate) fn from_chunk(chunk: PointCloudChunk) -> Self {
+        Self { inner: chunk }
+    }
+}
+
+#[wasm_bindgen(js_class = "PointCloudChunk")]
+impl WasmPointCloudChunk {
+    #[wasm_bindgen(getter)]
+    pub fn positions(&self) -> js_sys::Float32Array {
+        js_sys::Float32Array::from(&self.inner.positions[..])
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn colors(&self) -> js_sys::Uint8Array {
+        match &self.inner.colors {
+            Some(c) => js_sys::Uint8Array::from(&c[..]),
+            None => js_sys::Uint8Array::new_with_length(0),
+        }
+    }
+
+    #[wasm_bindgen(getter, js_name = "pointCount")]
+    pub fn point_count(&self) -> u32 {
+        self.inner.vertex_count() as u32
+    }
+
+    #[wasm_bindgen(getter, js_name = "sourceFormat")]
+    pub fn source_format(&self) -> Option<String> {
+        self.inner.metadata.source_format.clone()
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn version(&self) -> u64 {
+        self.inner.metadata.version
+    }
+
+    #[wasm_bindgen(getter, js_name = "aabbMin")]
+    pub fn aabb_min(&self) -> js_sys::Float64Array {
+        js_sys::Float64Array::from(&self.inner.metadata.aabb.min[..])
+    }
+
+    #[wasm_bindgen(getter, js_name = "aabbMax")]
+    pub fn aabb_max(&self) -> js_sys::Float64Array {
+        js_sys::Float64Array::from(&self.inner.metadata.aabb.max[..])
+    }
+
+    #[wasm_bindgen(js_name = "selectAabb")]
+    pub fn select_aabb(
+        &self,
+        min: &js_sys::Float64Array,
+        max: &js_sys::Float64Array,
+    ) -> Result<WasmPointCloudChunk, JsValue> {
+        if min.length() != 3 || max.length() != 3 {
+            return Err(SpatialError::InvalidInput
+                .with_detail("AABB min/max must each have 3 elements")
+                .into());
+        }
+        let mut min_arr = [0.0f64; 3];
+        let mut max_arr = [0.0f64; 3];
+        min.copy_to(&mut min_arr);
+        max.copy_to(&mut max_arr);
+        let region = Aabb {
+            min: min_arr,
+            max: max_arr,
+        };
+        self.inner
+            .select_by_aabb(&region)
+            .map(WasmPointCloudChunk::from_chunk)
+            .map_err(Into::into)
+    }
+
+    /// Build a multi-tile pnts tileset from this IR chunk (octree → pnts).
+    #[cfg(feature = "point-cloud")]
+    #[wasm_bindgen(js_name = "generateTileset")]
+    pub fn generate_tileset(
+        &mut self,
+        max_points_per_node: Option<u32>,
+        max_depth: Option<u32>,
+    ) -> Result<crate::pnts::WasmTilesetResult, JsValue> {
+        let max_pts = max_points_per_node.unwrap_or(crate::octree::DEFAULT_MAX_POINTS_PER_NODE);
+        let max_d = max_depth.unwrap_or(crate::octree::DEFAULT_MAX_DEPTH);
+        self.inner
+            .generate_tileset(max_pts, max_d)
+            .map(crate::pnts::WasmTilesetResult::from_inner)
+            .map_err(Into::into)
+    }
+}
+
+/// Ingest flat buffers into a [`PointCloudChunk`] (Spatial IR).
+#[wasm_bindgen(js_name = "pointCloudChunkFromBuffers")]
+pub fn point_cloud_chunk_from_buffers(
+    positions: &js_sys::Float32Array,
+    colors: Option<Vec<u8>>,
+    source_format: Option<String>,
+) -> Result<WasmPointCloudChunk, JsValue> {
+    let mut pos_buf = vec![0.0f32; positions.length() as usize];
+    positions.copy_to(&mut pos_buf);
+    let source = source_format.unwrap_or_else(|| "las".to_string());
+    PointCloudChunk::from_buffers(pos_buf, colors, source)
+        .map(WasmPointCloudChunk::from_chunk)
+        .map_err(Into::into)
 }
 
 #[cfg(test)]

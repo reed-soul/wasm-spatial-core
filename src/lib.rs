@@ -102,8 +102,8 @@ pub use svd_align::{
 
 #[cfg(feature = "mesh-ingest")]
 pub use spatial_ir::{
-    Aabb, ChunkMeta, HeightfieldChunk, MeshChunk, PointCloudChunk, PolygonExtrusion, SpatialChunk,
-    WasmMeshChunk,
+    point_cloud_chunk_from_buffers, Aabb, ChunkMeta, HeightfieldChunk, MeshChunk, PointCloudChunk,
+    PolygonExtrusion, SpatialChunk, WasmMeshChunk, WasmPointCloudChunk,
 };
 
 #[cfg(feature = "mesh-edit")]
@@ -413,6 +413,11 @@ pub fn get_input_limits() -> String {
     } else {
         "disabled"
     };
+    let spatial_ir = if cfg!(feature = "mesh-ingest") {
+        "pointCloudChunk,selectAabb,exportPnts,parseGlb,enuFrame,svdAlignment"
+    } else {
+        "disabled"
+    };
     format!(
         r#"{{
   "maxInputBytes": {max_input},
@@ -421,6 +426,8 @@ pub fn get_input_limits() -> String {
   "copcSpatialQuery": "{copc_spatial}",
   "copcSpatialQueryNote": "Uses COPC hierarchy when info VLR present; falls back to chunk-table scan",
   "geotiffElevationFormats": "{geotiff_formats}",
+  "spatialIr": {spatial_ir_enabled},
+  "spatialIrOps": "{spatial_ir}",
   "tilesetIncremental": true,
   "octreeChunkBuilder": true,
   "octreeChunkBuilderNote": "Stream point batches via OctreeChunkBuilder; cycle-following reorder avoids full buffer copy",
@@ -428,7 +435,8 @@ pub fn get_input_limits() -> String {
   "crsScope": "wgs84,web-mercator,utm,gcj02,bd09,cgcs2000-identity",
   "crsArbitraryEpsg": false,
   "projRequiredFor": "arbitrary EPSG reprojection, NTv2 grids"
-}}"#
+}}"#,
+        spatial_ir_enabled = cfg!(feature = "mesh-ingest")
     )
 }
 

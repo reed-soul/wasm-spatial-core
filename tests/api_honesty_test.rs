@@ -8,6 +8,8 @@ fn test_get_input_limits_json_fields() {
     assert!(json.contains("\"geotiffElevationFormats\""));
     assert!(json.contains("\"crsArbitraryEpsg\": false"));
     assert!(json.contains("\"octreeChunkBuilder\": true"));
+    #[cfg(feature = "mesh-ingest")]
+    assert!(json.contains("\"spatialIr\": true"));
 }
 
 #[test]

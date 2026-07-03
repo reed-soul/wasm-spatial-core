@@ -99,6 +99,61 @@ export function tryParseCopcHeader(wasm, bytes) {
 }
 
 /**
+ * Stream COPC chunks into flat position/color buffers (no octree build).
+ */
+export async function streamCopcPositions(wasm, bytes, copcInfo, options = {}) {
+  const onProgress = options.onProgress;
+  const chunks = copcInfo.chunkTable;
+  const headerBytes = bytes.subarray(0, Math.min(375, bytes.length));
+  const totalChunks = chunks.length;
+
+  const posParts = [];
+  const colorParts = [];
+  let hasColor = false;
+
+  for (let i = 0; i < totalChunks; i++) {
+    const entry = chunks[i];
+    const chunkCloud = wasm.readCopcChunk(
+      bytes,
+      entry.offset,
+      entry.size,
+      entry.count,
+      headerBytes,
+    );
+    const positions = chunkCloud.positions;
+    posParts.push(new Float32Array(positions));
+    const colors = chunkCloud.colors;
+    if (colors?.length) {
+      hasColor = true;
+      colorParts.push(new Uint8Array(colors));
+    }
+    if (typeof chunkCloud.free === 'function') chunkCloud.free();
+    onProgress?.(i + 1, totalChunks);
+    if (i % 4 === 3) await new Promise((r) => setTimeout(r, 0));
+  }
+
+  const pointCount = posParts.reduce((n, p) => n + p.length, 0) / 3;
+  const positions = new Float32Array(pointCount * 3);
+  let offset = 0;
+  for (const part of posParts) {
+    positions.set(part, offset);
+    offset += part.length;
+  }
+
+  let colorsOut = null;
+  if (hasColor) {
+    colorsOut = new Uint8Array(pointCount * 3);
+    offset = 0;
+    for (const part of colorParts) {
+      colorsOut.set(part, offset);
+      offset += part.length;
+    }
+  }
+
+  return { positions, colors: colorsOut, pointCount, hasColor };
+}
+
+/**
  * Stream COPC chunks into OctreeChunkBuilder, then finish with reordered buffers.
  *
  * @param {object} wasm — initialized wasm module
@@ -161,4 +216,24 @@ export async function streamCopcToOctree(wasm, bytes, copcInfo, options = {}) {
     pointCount: n,
     hasColor,
   };
+}
+
+/**
+ * COPC → Spatial IR PointCloudChunk (W2 ingest path).
+ * Returns null when mesh-ingest / pointCloudChunkFromBuffers is unavailable.
+ */
+export async function streamCopcToPointCloudChunk(wasm, bytes, copcInfo, options = {}) {
+  if (!wasm?.pointCloudChunkFromBuffers) return null;
+  const { positions, colors, pointCount, hasColor } = await streamCopcPositions(
+    wasm,
+    bytes,
+    copcInfo,
+    options,
+  );
+  const chunk = wasm.pointCloudChunkFromBuffers(
+    positions,
+    colors,
+    options.sourceFormat ?? 'copc',
+  );
+  return { chunk, positions, colors, pointCount, hasColor };
 }
