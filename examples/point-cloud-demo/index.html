@@ -457,11 +457,13 @@ async function loadWasm() {
       const module = await import(url);
       await module.default();
       wasm = module;
+      hideLoading();
       return true;
     } catch (e) {
       console.warn(`WASM load failed (${url}):`, e);
     }
   }
+  hideLoading();
   showError('Failed to load WASM module. Run `wasm-pack build` first.');
   return false;
 }
