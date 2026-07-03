@@ -419,11 +419,19 @@
   <span>Mode: <span id="processingMode" class="stat-value">—</span></span>
 </footer>
 
-<!-- Three.js from CDN -->
-<script src="https://unpkg.com/three@0.170.0/build/three.min.js"></script>
-<script src="https://unpkg.com/three@0.170.0/examples/js/controls/OrbitControls.js"></script>
+<!-- Three.js (ES modules via import map — legacy unpkg /examples/js/ paths 404) -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
 
 <script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import {
   copyPointCloud,
   copyPlyResult,
@@ -508,7 +516,7 @@ function initThreeJS() {
   renderer.setPixelRatio(window.devicePixelRatio);
   container.appendChild(renderer.domElement);
 
-  controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.05;
 
@@ -1295,9 +1303,9 @@ function setColorMode(mode) {
 // =========================================================================
 
 (async function main() {
+  setupEvents();
   initThreeJS();
   animate();
-  setupEvents();
 
   const ok = await loadWasm();
   if (ok) {
