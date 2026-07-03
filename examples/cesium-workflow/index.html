@@ -119,6 +119,29 @@
     .wasm-status.error { background: rgba(248,81,73,0.2); color: var(--red); }
 
     .cesium-viewer-bottom { display: none !important; }
+
+    .token-input {
+      width: 100%;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-family: monospace;
+      margin-bottom: 8px;
+    }
+    .token-input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .token-note {
+      font-size: 0.65rem;
+      color: var(--muted);
+      line-height: 1.5;
+      margin-top: 6px;
+    }
+    .token-note a { color: var(--accent); }
   </style>
 </head>
 <body>
@@ -126,11 +149,32 @@
     <h1>🌍 WASM Cesium Workflow — Drag → 3D Tiles</h1>
     <span id="wasmBadge" class="wasm-status loading">⚡ WASM loading…</span>
     <span style="color:var(--muted);font-size:0.75rem">
-      wasm-spatial-core · Zero server · Zero token
+      wasm-spatial-core · Ion token optional
     </span>
   </header>
   <div class="main">
     <div class="sidebar">
+      <!-- Optional Cesium Ion token -->
+      <div class="panel">
+        <div class="panel-title">🔑 Cesium Ion Token (optional)</div>
+        <input
+          type="password"
+          id="tokenInput"
+          class="token-input"
+          placeholder="Paste token for Ion imagery + terrain"
+          autocomplete="off"
+        />
+        <button type="button" class="btn btn-primary" id="applyBasemapBtn" style="width:100%">
+          Apply basemap
+        </button>
+        <p class="token-note">
+          Leave empty for free Carto/OSM tiles (no account needed).<br>
+          With a token: Cesium Ion satellite imagery + world terrain.<br>
+          <a href="https://ion.cesium.com/tokens" target="_blank" rel="noopener">Get a free token →</a>
+          Saved in this browser only (localStorage).
+        </p>
+      </div>
+
       <!-- Upload -->
       <div class="panel">
         <div class="panel-title">📂 Upload</div>
@@ -248,6 +292,24 @@
 
     // Blob URL tracking for cleanup
     const blobUrls = [];
+    const ION_TOKEN_KEY = 'wasm-spatial-core.cesium-ion-token';
+
+    function readIonToken() {
+      return document.getElementById('tokenInput').value.trim();
+    }
+
+    function persistIonToken(token) {
+      if (token) localStorage.setItem(ION_TOKEN_KEY, token);
+      else localStorage.removeItem(ION_TOKEN_KEY);
+    }
+
+    function destroyViewer() {
+      if (viewer && !viewer.isDestroyed()) {
+        viewer.destroy();
+      }
+      viewer = null;
+      lastTilesetPrimitives = null;
+    }
 
     function createBlobUrl(data, type = 'application/octet-stream') {
       const blob = new Blob([data], { type });
@@ -306,17 +368,10 @@
     // Init Cesium
     // =========================================================================
 
-    async function initCesium() {
-      // No Ion token required — use a free raster basemap (Carto/OSM).
-      // Cesium 1.119 ignores the deprecated imageryProvider option; use baseLayer.
-      viewer = new Cesium.Viewer('cesiumContainer', {
-        baseLayer: new Cesium.ImageryLayer(
-          new Cesium.UrlTemplateImageryProvider({
-            url: 'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-            maximumLevel: 19,
-            credit: '© OpenStreetMap contributors © CARTO',
-          }),
-        ),
+    async function initCesium(token = readIonToken()) {
+      destroyViewer();
+
+      const viewerOptions = {
         baseLayerPicker: false,
         geocoder: false,
         homeButton: true,
@@ -329,13 +384,34 @@
         infoBox: false,
         selectionIndicator: false,
         creditContainer: document.createElement('div'),
-      });
+      };
+
+      const useIon = token.length > 10;
+      if (useIon) {
+        Cesium.Ion.defaultAccessToken = token;
+        viewerOptions.terrain = Cesium.Terrain.fromWorldTerrain();
+        log('Using Cesium Ion imagery + world terrain', 'ok');
+      } else {
+        // Cesium 1.119 ignores deprecated imageryProvider — set baseLayer explicitly.
+        viewerOptions.baseLayer = new Cesium.ImageryLayer(
+          new Cesium.UrlTemplateImageryProvider({
+            url: 'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+            maximumLevel: 19,
+            credit: '© OpenStreetMap contributors © CARTO',
+          }),
+        );
+        log('Using free Carto/OSM basemap (no Ion token)', 'ok');
+      }
+
+      viewer = new Cesium.Viewer('cesiumContainer', viewerOptions);
 
       viewer.scene.globe.enableLighting = false;
       viewer.scene.skyBox.show = true;
       viewer.scene.backgroundColor = Cesium.Color.fromCssColorString('#0d1117');
 
-      log('Cesium viewer initialized (no Ion token)', 'ok');
+      if (lastProcessedData) {
+        await loadWasmTilesetInCesium(lastProcessedData.tileset, lastProcessedData.bounds);
+      }
     }
 
     // =========================================================================
@@ -930,13 +1006,35 @@
       if (e.target.files.length > 0) processFile(e.target.files[0]);
     });
 
+    document.getElementById('applyBasemapBtn').addEventListener('click', async () => {
+      const token = readIonToken();
+      persistIonToken(token);
+      const hadTileset = !!lastProcessedData;
+      try {
+        await initCesium(token);
+        log(
+          hadTileset ? 'Basemap updated — point cloud tileset restored' : 'Basemap updated',
+          'ok',
+        );
+      } catch (err) {
+        log('Basemap update failed: ' + err.message, 'err');
+      }
+    });
+
+    document.getElementById('tokenInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') document.getElementById('applyBasemapBtn').click();
+    });
+
     // =========================================================================
     // Boot
     // =========================================================================
 
     (async function boot() {
+      const savedToken = localStorage.getItem(ION_TOKEN_KEY);
+      if (savedToken) document.getElementById('tokenInput').value = savedToken;
+
       try {
-        await Promise.all([loadWasm(), initCesium()]);
+        await Promise.all([loadWasm(), initCesium(readIonToken())]);
         log('Ready — drop a LAS file to start (LAZ if laz-support build)');
       } catch (err) {
         log('Boot failed: ' + err.message, 'err');
