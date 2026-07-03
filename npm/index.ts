@@ -142,6 +142,13 @@ export {
   estimatePointSpacing,
   generateTilesetIncremental,
   TilesetResult,
+  // ── Spatial IR (mesh-ingest) ───────────────────────────────
+  pointCloudChunkFromBuffers,
+  PointCloudChunk,
+  exportPointCloudToPnts,
+  parseGlb,
+  createEnuFrame,
+  computeSvdAlignment,
   // ── LOD ───────────────────────────────────────────────────
   computeScreenSpaceError,
   getVisibleTiles,

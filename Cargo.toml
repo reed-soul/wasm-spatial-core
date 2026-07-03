@@ -36,7 +36,7 @@ draco-support = []
 # GeoTIFF terrain support (TIFF parsing + quantized-mesh encoding)
 geotiff = []
 # Spatial IR + GLB/glTF mesh ingest (Wave 2)
-mesh-ingest = []
+mesh-ingest = ["point-cloud"]
 # Mesh geometry edit — OBB split, clip, QEM (Wave 5)
 mesh-edit = ["mesh-ingest"]
 # Terrain deformation on heightfields (Wave 3)
