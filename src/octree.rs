@@ -1106,6 +1106,37 @@ impl WasmOctreeChunkBuilder {
         positions[..n].copy_from_slice(&result.positions);
         Ok(WasmOctree { inner: result.tree })
     }
+
+    /// Build octree; copies reordered positions and RGB colors into caller buffers.
+    #[wasm_bindgen(js_name = "finishWithColors")]
+    pub fn finish_with_colors(
+        self,
+        positions: &mut [f32],
+        colors: &mut [u8],
+    ) -> Result<WasmOctree, JsValue> {
+        let result = self.inner.finish_with_buffers().map_err(JsValue::from)?;
+        let pos_len = result.positions.len();
+        if positions.len() < pos_len {
+            return Err(crate::errors::SpatialError::invalid_input(format!(
+                "positions buffer too small: need {pos_len} floats, got {}",
+                positions.len()
+            ))
+            .into());
+        }
+        positions[..pos_len].copy_from_slice(&result.positions);
+        if let Some(reordered) = result.colors {
+            if colors.len() < reordered.len() {
+                return Err(crate::errors::SpatialError::invalid_input(format!(
+                    "colors buffer too small: need {} bytes, got {}",
+                    reordered.len(),
+                    colors.len()
+                ))
+                .into());
+            }
+            colors[..reordered.len()].copy_from_slice(&reordered);
+        }
+        Ok(WasmOctree { inner: result.tree })
+    }
 }
 
 // ===========================================================================

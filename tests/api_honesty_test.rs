@@ -45,6 +45,14 @@ fn test_estimate_job_bytes_new_ops() {
             has_color: true,
         }) > 0
     );
+    assert!(
+        estimate_job_bytes(JobOp::OctreeChunkBuild {
+            point_count: 50_000,
+            has_color: true,
+        }) < estimate_job_bytes(JobOp::OctreeBuild {
+            point_count: 50_000,
+        })
+    );
 }
 
 #[test]
