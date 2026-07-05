@@ -19,11 +19,17 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
   positions_out[base+2u] = out.z;
 }`;
 
-/** @version 1.0.0 — keep in sync with shaders/heightfield_flatten_v1.wgsl */
+/** @version 1.0.1 — keep in sync with shaders/heightfield_flatten_v1.wgsl
+ *
+ * v1.0.1: renamed `target` → `target_height`. `target` is a reserved keyword
+ * in WGSL (used for @interpolate etc.), so the v1.0.0 shader failed to
+ * compile in real Chrome with "Error while parsing WGSL: 'target' is a
+ * reserved keyword". Caught by tests/webgpu-bench.spec.mjs on M4 macOS.
+ */
 export const HEIGHTFIELD_FLATTEN_WGSL_V1 = `struct FlattenParams {
   width: u32,
   height: u32,
-  target: f32,
+  target_height: f32,
   _pad: u32,
 }
 @group(0) @binding(0) var<uniform> params: FlattenParams;
@@ -35,5 +41,5 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
   let row = gid.y;
   if (col >= params.width || row >= params.height) { return; }
   let idx = row * params.width + col;
-  if (mask[idx] == 1u) { heights[idx] = params.target; }
+  if (mask[idx] == 1u) { heights[idx] = params.target_height; }
 }`;
