@@ -2,7 +2,7 @@
 
 # wasm-spatial-core
 
-**A Web3D spatial compute engine for the browser. Ingest, edit geometry, emit 3D Tiles / glTF — no server, no upload.**
+**A browser-side point cloud & terrain preprocessing engine.** Ingest LAS/GeoTIFF, edit geometry, emit 3D Tiles / glTF — no server, no upload. Not a PROJ/QGIS replacement; CRS coverage is intentionally focused (WGS84, Web Mercator, UTM, China offsets).
 
 [![CI](https://github.com/reed-soul/wasm-spatial-core/actions/workflows/ci.yml/badge.svg)](https://github.com/reed-soul/wasm-spatial-core/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/wasm-spatial-core)](https://www.npmjs.com/package/wasm-spatial-core)
@@ -46,7 +46,7 @@
 ⚡ **WebGPU compute** kernels with WASM fallback (Wave 4)
 🔒 **Zero server, zero upload, zero dependencies**
 
-`wasm-spatial-core` is a Web3D spatial compute engine: all spatial formats converge to one internal **Spatial IR** (`SpatialChunk`) before geometry editing or tile/glTF export. Point clouds, terrain, and meshes — ingest, edit, and emit 3D Tiles or glTF, all at near-native WASM speed with optional WebGPU acceleration.
+`wasm-spatial-core` is a **browser-side preprocessing engine** for point clouds, terrain, and meshes: formats converge to **Spatial IR** (`SpatialChunk`) before geometry editing or tile/glTF export. Near-native WASM speed with optional WebGPU acceleration. For arbitrary EPSG reprojection, pre-transform with external PROJ and feed WGS84/ENU.
 
 ---
 

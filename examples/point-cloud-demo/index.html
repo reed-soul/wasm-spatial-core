@@ -438,6 +438,8 @@ import {
   readLasHeader,
   readTilesetResult,
   memoryUsedBytes,
+  tryParseCopcHeader,
+  streamCopcToOctree,
 } from '../shared/pc-bindings.mjs';
 
 // =========================================================================
@@ -746,13 +748,82 @@ async function processFile(file) {
   }
 }
 
-// ── LAS/LAZ Processing ──────────────────────────────────────────
+// ── LAS/LAZ/COPC Processing ─────────────────────────────────────
+
+async function processCopcStreamFile(file, bytes, copcInfo) {
+  const pointCount = Number(copcInfo.pointCount) || 0;
+  const maxPts = parseInt(document.getElementById('maxPointsPerNode').value, 10) || 50000;
+  const chunkCount = copcInfo.chunkTable?.length ?? 0;
+
+  showLoading(`Streaming COPC (${chunkCount} chunks, ${pointCount.toLocaleString()} points)...`);
+  setProgress(15, 'COPC chunk stream → OctreeChunkBuilder');
+
+  let memEstimate = null;
+  if (typeof wasm.estimateJobBytes === 'function') {
+    try {
+      const estChunk = wasm.estimateJobBytes('octreeChunkBuild', pointCount, 0, true, 0, 0);
+      const estBuild = wasm.estimateJobBytes('octreeBuild', pointCount, 0, false, 0, 0);
+      memEstimate = { estChunk, estBuild };
+    } catch (e) { /* optional */ }
+  }
+
+  const { positions, colors, pointCount: builtCount, hasColor, octree } = await streamCopcToOctree(
+    wasm,
+    bytes,
+    copcInfo,
+    {
+      maxPointsPerNode: maxPts,
+      maxDepth: 21,
+      onProgress: (done, total) => {
+        const pct = 15 + Math.floor((done / total) * 55);
+        setProgress(pct, `COPC chunk ${done} / ${total}`);
+      },
+    },
+  );
+
+  octree.free();
+
+  const positionsArray = Array.from(positions);
+  const rgbBytes = colors ? Array.from(colors) : null;
+
+  currentPositions = positionsArray;
+  currentRgbBytes = rgbBytes;
+  currentHeader = {
+    numPoints: builtCount,
+    versionMajor: Number.parseInt(String(copcInfo.version).split('.')[0], 10) || 1,
+    versionMinor: Number.parseInt(String(copcInfo.version).split('.')[1], 10) || 4,
+    pointFormatId: copcInfo.pointFormatId ?? 7,
+  };
+
+  const extra = [
+    copcInfo.hasHierarchy ? 'hierarchy spatial index' : 'chunk-table scan',
+    memEstimate
+      ? `est. peak ${formatBytes(memEstimate.estChunk)} (chunk) vs ${formatBytes(memEstimate.estBuild)} (buildOctree)`
+      : null,
+  ].filter(Boolean).join(' · ');
+
+  showFileInfoAndRender(file.name, file.size, positionsArray, rgbBytes, {
+    numPoints: builtCount,
+    version: String(copcInfo.version ?? '1.4'),
+    format: hasColor ? 'COPC+RGB' : 'COPC',
+    extra,
+  });
+}
 
 async function processLasFile(file) {
   showLoading('Reading file...');
   setProgress(0, 'Reading file...');
 
   const bytes = new Uint8Array(await file.arrayBuffer());
+
+  if (wasm.supportsLaz?.()) {
+    const copcInfo = tryParseCopcHeader(wasm, bytes);
+    if (copcInfo) {
+      await processCopcStreamFile(file, bytes, copcInfo);
+      return;
+    }
+  }
+
   const headerBytes = bytes.slice(0, 230);
 
   showLoading('Parsing LAS header...');
