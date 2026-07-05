@@ -33,11 +33,16 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
   positions_out[base+2u] = out.z;
 }`;
 
-/** @version 1.0.0 — keep in sync with shaders/heightfield_flatten_v1.wgsl */
+/** @version 1.0.1 — keep in sync with shaders/heightfield_flatten_v1.wgsl
+ *
+ * v1.0.1: renamed `target` → `target_height`. `target` is a reserved WGSL
+ * keyword, so v1.0.0 failed to compile in Chrome. Caught by
+ * tests/webgpu-bench.spec.mjs.
+ */
 export const HEIGHTFIELD_FLATTEN_WGSL_V1 = `struct FlattenParams {
   width: u32,
   height: u32,
-  target: f32,
+  target_height: f32,
   _pad: u32,
 }
 @group(0) @binding(0) var<uniform> params: FlattenParams;
@@ -49,7 +54,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
   let row = gid.y;
   if (col >= params.width || row >= params.height) { return; }
   let idx = row * params.width + col;
-  if (mask[idx] == 1u) { heights[idx] = params.target; }
+  if (mask[idx] == 1u) { heights[idx] = params.target_height; }
 }`;
 
 /** @version 1.1.0 — keep in sync with shaders/mesh_quadrics_v1.wgsl */

@@ -19,10 +19,11 @@ const PORT = process.env.TERRAIN_TEST_PORT || 8090;
 
 export default defineConfig({
   testDir: './tests',
-  testMatch: /cesium-terrain\.spec\.mjs$/,
+  testMatch: /(cesium-terrain|webgpu-bench)\.spec\.mjs$/,
   // Headless Cesium + WebGL init + tile fetch is slow; give one test plenty
-  // of headroom. The per-step waits inside the spec are tighter.
-  timeout: 90_000,
+  // of headroom. The per-step waits inside the spec are tighter. The webgpu
+  // bench needs even more (10M-point transform + GPU shader compile).
+  timeout: 180_000,
   expect: { timeout: 30_000 },
   fullyParallel: false,
   workers: 1,
@@ -33,6 +34,17 @@ export default defineConfig({
     // Cesium's CDN script needs to load; don't fail the run on transient
     // network blips — the spec retries via waitForFunction instead.
     ignoreHTTPSErrors: true,
+    // WebGPU in headless Chromium needs these flags. On macOS the Metal
+    // adapter is picked up automatically; on Linux CI you also need a real
+    // GPU + Vulkan. The webgpu-bench test self-skips when no adapter.
+    launchOptions: {
+      args: [
+        '--enable-unsafe-webgpu',
+        '--enable-features=Vulkan,UseSkiaRenderer',
+        '--disable-gpu-sandbox',
+        '--use-angle=metal',
+      ],
+    },
   },
   webServer: {
     command: `node tests/terrain_tms_server.mjs`,

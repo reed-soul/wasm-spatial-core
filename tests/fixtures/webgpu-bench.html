@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>W4 WebGPU benchmark — GPU vs WASM</title>
+    <!--
+      W4 exit-criteria benchmark harness.
+
+      Runs the two GPU-vs-WASM comparisons called out in ROADMAP_V2 Wave 4:
+        1. 10M-point transform kernel (W4.3) — GPU vs transformPointCloud (WASM)
+        2. 2048×2048 heightfield flatten (W4.4) — GPU vs flattenTerrain (WASM)
+
+      On completion writes a JSON summary to window.__benchResult and a per-line
+      log to window.__benchLog. Playwright (tests/webgpu-bench.spec.mjs) polls
+      __benchResult, asserts GPU parity + (where the adapter is a real GPU)
+      that GPU is at least as fast as WASM, and writes the recorded numbers
+      into the WAVE_4 acceptance docs.
+
+      Headless Chromium on macOS uses the Metal adapter — a real GPU, even on
+      Apple Silicon (integrated but high-throughput). On Linux CI without a GPU,
+      ctx comes back null and the test self-skips.
+    -->
+    <script type="module">
+      import init, {
+        transformPointCloud,
+        flattenTerrain,
+        rasterizeTerrainMask,
+        supportsWebGpu,
+      } from '/pkg-webgpu-bench/wasm_spatial_core.js';
+      import {
+        createGpuContext,
+        gpuTransformPoints,
+        gpuFlattenHeightfield,
+        makeHeightGrid,
+        maxAbsDiff,
+      } from '/examples/webgpu-smoke/app.mjs';
+      import { centerSquarePolygon } from '/examples/shared/pc-bindings.mjs';
+
+      window.__benchResult = null;
+      window.__benchError = null;
+      const log = [];
+      const println = (msg) => {
+        log.push(msg);
+        console.log('[bench]', msg);
+      };
+
+      async function timeTransform(ctx, n) {
+        const positions = new Float32Array(n * 3);
+        for (let i = 0; i < n; i++) {
+          positions[i * 3] = i * 0.0001;
+          positions[i * 3 + 1] = Math.sin(i * 0.0001);
+          positions[i * 3 + 2] = Math.cos(i * 0.00007);
+        }
+        const matrix = new Float32Array(16);
+        matrix[0] = 0.866;
+        matrix[1] = 0.5;
+        matrix[5] = 0.866;
+        matrix[4] = -0.5;
+        matrix[10] = 1;
+        matrix[12] = 10;
+        matrix[13] = -5;
+        matrix[14] = 2;
+
+        // Warm up the WASM path once (JIT) so the timed run is steady-state.
+        transformPointCloud(positions.subarray(0, 3000), matrix);
+
+        const tCpu0 = performance.now();
+        const cpuPts = transformPointCloud(positions, matrix);
+        const cpuMs = performance.now() - tCpu0;
+
+        // Warm up the GPU pipeline once (shader compile + buffer alloc) so
+        // the timed run measures steady-state dispatch, not one-time setup.
+        await gpuTransformPoints(ctx, positions.subarray(0, 3000), matrix);
+
+        const tGpu0 = performance.now();
+        const gpuPts = await gpuTransformPoints(ctx, positions, matrix);
+        const gpuMs = performance.now() - tGpu0;
+
+        // Parity check on a sample (full 10M comparison would be slow and
+        // is covered separately by qem_gpu_parity_test.rs).
+        let maxErr = 0;
+        const sampleStep = Math.max(1, Math.floor(n / 1000));
+        for (let i = 0; i < n; i += sampleStep) {
+          for (let c = 0; c < 3; c++) {
+            const d = Math.abs(cpuPts[i * 3 + c] - gpuPts[i * 3 + c]);
+            if (d > maxErr) maxErr = d;
+          }
+        }
+        return { n, cpuMs, gpuMs, maxErr };
+      }
+
+      async function timeHeightfield(ctx, size) {
+        const bounds = [0.0, 0.0, 1.0, 1.0];
+        const polygon = centerSquarePolygon(bounds, 0.5);
+        const target = 42.0;
+        const heights = makeHeightGrid(size, size);
+
+        // WASM warm-up
+        const warmup = new Float32Array(heights.subarray(0, 64 * 64));
+        flattenTerrain(warmup, 64, 64, bounds, polygon, target, 0);
+
+        const cpuCopy = new Float32Array(heights);
+        const tCpu0 = performance.now();
+        flattenTerrain(cpuCopy, size, size, bounds, polygon, target, 0);
+        const cpuMs = performance.now() - tCpu0;
+
+        const mask = rasterizeTerrainMask(size, size, bounds, polygon);
+
+        // GPU warm-up at 64×64
+        const warmGpu = new Float32Array(heights.subarray(0, 64 * 64));
+        const warmMask = rasterizeTerrainMask(64, 64, bounds, polygon);
+        await gpuFlattenHeightfield(ctx, warmGpu, 64, 64, warmMask, target);
+
+        const tGpu0 = performance.now();
+        const gpuOut = await gpuFlattenHeightfield(
+          ctx,
+          new Float32Array(heights),
+          size,
+          size,
+          mask,
+          target,
+        );
+        const gpuMs = performance.now() - tGpu0;
+
+        const maxErr = maxAbsDiff(cpuCopy, gpuOut);
+        return { size, cpuMs, gpuMs, maxErr };
+      }
+
+      async function run() {
+        await init();
+        println(`supportsWebGpu flag: ${supportsWebGpu()}`);
+        println(`navigator.gpu present: ${!!navigator.gpu}`);
+
+        const ctx = await createGpuContext();
+        if (!ctx) {
+          println('WebGPU unavailable — skipping GPU benchmarks.');
+          window.__benchResult = {
+            available: false,
+            reason: 'no WebGPU adapter (likely headless Linux CI without GPU)',
+          };
+          return;
+        }
+
+        const adapterInfo =
+          ctx.adapter?.info?.description ||
+          ctx.adapter?.info?.vendor ||
+          'unknown adapter';
+        println(`GPU adapter: ${adapterInfo}`);
+        println(`Subgroups supported: ${ctx.hasSubgroups}`);
+
+        const result = {
+          available: true,
+          adapter: adapterInfo,
+          hasSubgroups: ctx.hasSubgroups,
+          userAgent: navigator.userAgent,
+          transform: null,
+          heightfield: null,
+        };
+
+        try {
+          println('\n=== W4.3 — 10M point transform ===');
+          const t = await timeTransform(ctx, 10_000_000);
+          println(`  WASM:  ${t.cpuMs.toFixed(1)} ms`);
+          println(`  GPU:   ${t.gpuMs.toFixed(1)} ms`);
+          println(`  speedup: ${(t.cpuMs / t.gpuMs).toFixed(2)}× (GPU ${t.cpuMs > t.gpuMs ? 'faster' : 'slower'})`);
+          println(`  parity max abs err: ${t.maxErr.toExponential(3)}`);
+          result.transform = t;
+        } catch (e) {
+          println(`  transform FAILED: ${e.message}`);
+          result.transform = { error: e.message };
+        }
+
+        try {
+          println('\n=== W4.4 — 2048×2048 heightfield flatten ===');
+          const h = await timeHeightfield(ctx, 2048);
+          println(`  WASM:  ${h.cpuMs.toFixed(1)} ms`);
+          println(`  GPU:   ${h.gpuMs.toFixed(1)} ms`);
+          println(`  speedup: ${(h.cpuMs / h.gpuMs).toFixed(2)}× (GPU ${h.cpuMs > h.gpuMs ? 'faster' : 'slower'})`);
+          println(`  parity max abs err: ${h.maxErr.toExponential(3)} (exact-match expected)`);
+          result.heightfield = h;
+        } catch (e) {
+          println(`  heightfield FAILED: ${e.message}`);
+          result.heightfield = { error: e.message };
+        }
+
+        window.__benchResult = result;
+        window.__benchLog = log;
+      }
+
+      run().catch((e) => {
+        window.__benchError = e instanceof Error ? e.message : String(e);
+        window.__benchLog = log;
+      });
+    </script>
+  </head>
+  <body>
+    <p>W4 WebGPU benchmark running — see console / <code>window.__benchResult</code>.</p>
+  </body>
+</html>

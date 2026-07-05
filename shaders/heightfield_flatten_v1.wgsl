@@ -1,11 +1,15 @@
 // heightfield_flatten_v1.wgsl — flatten masked heightfield cells to target elevation
-// @version 1.0.0
+// @version 1.0.1
 // @workgroup_size 8, 8
+//
+// v1.0.1: renamed `target` → `target_height`. `target` is a reserved keyword
+// in WGSL, so v1.0.0 failed to compile in Chrome with
+// "'target' is a reserved keyword". Caught by tests/webgpu-bench.spec.mjs.
 
 struct FlattenParams {
     width: u32,
     height: u32,
-    target: f32,
+    target_height: f32,
     _pad: u32,
 }
 
@@ -23,6 +27,6 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 
     let idx = row * params.width + col;
     if (mask[idx] == 1u) {
-        heights[idx] = params.target;
+        heights[idx] = params.target_height;
     }
 }

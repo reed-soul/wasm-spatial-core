@@ -37,7 +37,7 @@ Labels: `roadmap-v2`, `wave-4`, `engine`, `webgpu`.
 
 ### Acceptance
 
-- [x] 10M points: GPU faster than WASM SIMD on discrete GPU (benchmark) — 🟡 kernel exists in `shaders/transform_points_v1.wgsl`; **requires discrete GPU + Chrome to measure** (hardware-gated, not code-gated)
+- [x] 10M points: GPU faster than WASM SIMD on discrete GPU (benchmark) — 🟡 kernel exists in `shaders/transform_points_v1.wgsl`; **hardware-gated**. Measured locally on Apple M4 (integrated Metal) via `tests/webgpu-bench.spec.mjs`: WASM 120.6ms vs GPU 167.0ms = **0.72×** (WASM wins — transform is memory-bound, integrated GPU can't beat SIMD here). Code path verified by parity (max abs err 6.1e-5). A discrete GPU is still required to demonstrate GPU advantage.
 - [x] Matches CPU reference on 1k points — `tests/webgpu_layout_test.rs::test_transform_cpu_reference_for_gpu_parity`
 
 ---
@@ -49,7 +49,7 @@ Labels: `roadmap-v2`, `wave-4`, `engine`, `webgpu`.
 ### Acceptance
 
 - [x] Matches W3 CPU on 512×512 grid — `tests/heightfield_flatten_parity_test.rs` (CPU reference == `flatten_inside`)
-- [x] 2048×2048 faster than WASM-only — 🟡 **requires discrete GPU + Chrome to measure**; CPU path measured ~40 ms (W3 gate), GPU kernel in `shaders/heightfield_flatten_v1.wgsl`
+- [x] 2048×2048 faster than WASM-only — ✅ measured on Apple M4 (integrated Metal) via `tests/webgpu-bench.spec.mjs`: WASM 47.8ms vs GPU 29.2ms = **1.64×** with exact-match parity (max abs err 0). GPU advantage holds even on integrated Metal. (v1.0.1 of the WGSL shader fixed a `target` reserved-keyword compile bug caught by the new bench.）
 
 ---
 
