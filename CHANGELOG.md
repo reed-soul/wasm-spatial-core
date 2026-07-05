@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — W4 WebGPU benchmark + W3.6 acceptance test
+
+- **W4 GPU-vs-WASM benchmark** (`tests/webgpu-bench.spec.mjs` +
+  `tests/fixtures/webgpu-bench.html`) — drives headless Chromium on the real
+  Metal adapter to measure the two hardware-gated W4 exit criteria:
+  - W4.3 transform (10M points): WASM 120.6ms vs GPU 167.0ms = 0.72× on Apple
+    M4 integrated GPU (WASM wins — memory-bound; a discrete GPU is still
+    required to demonstrate the GPU advantage). Parity max abs err 6.1e-5.
+  - W4.4 heightfield flatten (2048×2048): WASM 47.8ms vs GPU 29.2ms = **1.64×**
+    on the same M4 (GPU wins even integrated). Exact-match parity (max abs
+    err 0). Promoted W4.4 from 🟡→✅ in ROADMAP_V2.
+  The test self-skips on environments without a WebGPU adapter (headless Linux
+  CI without GPU). Parity is a hard gate; speedup numbers are reported but not
+  gated (hardware-dependent).
+
+### Fixed
+
+- **WGSL reserved-keyword compile bug in `heightfield_flatten_v1.wgsl`** — the
+  shader used `target` as a struct field name, but `target` is a reserved
+  keyword in WGSL, so Chrome rejected it with "Error while parsing WGSL:
+  'target' is a reserved keyword". The heightfield flatten kernel never
+  compiled in a real browser. Renamed to `target_height` in all three sync
+  points (`shaders/heightfield_flatten_v1.wgsl`, `examples/shared/webgpu-kernels.mjs`,
+  `npm/webgpu.ts`). Caught by the new `webgpu-bench.spec.mjs` — without the
+  bench, this bug had no automated coverage.
+
 ### Added — W3.6 acceptance test (quantized-mesh spec compliance)
 
 - **Headless Cesium `CesiumTerrainProvider` load test** — the load-bearing gap
