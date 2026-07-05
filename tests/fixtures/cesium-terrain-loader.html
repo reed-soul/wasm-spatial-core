@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>W3.6 — CesiumTerrainProvider acceptance harness</title>
+    <!--
+      W3.6 acceptance harness — single-purpose page, NOT a user-facing demo.
+
+      On DOMContentLoaded it:
+        1. Boots a headless Cesium Viewer (no Ion token, no base imagery).
+        2. Calls CesiumTerrainProvider.fromUrl('/terrain-tms/') on the pyramid
+           generated at test-start by terrain_tms_generate.mjs. The URL is the
+           layer *root directory* — Cesium appends `layer.json` itself (passing
+           the layer.json URL directly causes a `<url>/layer.json` 404 and a
+           silent fall back to a heightmap provider with no availability,
+           which would defeat the test).
+        3. Attaches the provider to the globe via the modern Terrain API.
+        4. Runs `Cesium.sampleTerrainMostDetailed(provider, [...])` at the
+           layer bounds center — the load-bearing assertion. If our
+           quantized-mesh bytes are malformed, this Promise rejects and we
+           surface the error.
+
+      Playwright polls `window.__terrainReady` / `window.__terrainError` to
+      decide pass/fail. The polling logic lives in tests/cesium-terrain.spec.mjs.
+    -->
+    <script src="https://cdn.jsdelivr.net/npm/cesium@1.119/Build/Cesium/Cesium.js"></script>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/cesium@1.119/Build/Cesium/Widgets/widgets.css"
+    />
+    <style>
+      html,
+      body,
+      #cesiumContainer {
+        margin: 0;
+        padding: 0;
+        width: 100vw;
+        height: 100vh;
+        background: #000;
+      }
+      #status {
+        position: fixed;
+        top: 8px;
+        left: 8px;
+        z-index: 10;
+        font: 12px/1.4 monospace;
+        color: #eee;
+        background: rgba(0, 0, 0, 0.6);
+        padding: 6px 8px;
+        pointer-events: none;
+        max-width: 60vw;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="cesiumContainer"></div>
+    <div id="status">booting…</div>
+    <script>
+      // ---- Signals polled by Playwright ----
+      window.__providerAccepted = false;
+      window.__terrainReady = false;
+      window.__terrainError = null;
+      window.__sampledHeight = null;
+      window.__tileFetchCount = 0;
+
+      const statusEl = document.getElementById('status');
+      const setStatus = (msg) => {
+        statusEl.textContent = msg;
+        // eslint-disable-next-line no-console
+        console.log('[terrain-loader]', msg);
+      };
+
+      // Capture any uncaught error so the test never silently hangs.
+      window.addEventListener('error', (e) => {
+        if (!window.__terrainError) {
+          window.__terrainError = `window error: ${e.message}`;
+          setStatus(`ERROR: ${window.__terrainError}`);
+        }
+      });
+      window.addEventListener('unhandledrejection', (e) => {
+        if (!window.__terrainError) {
+          const reason = e.reason instanceof Error ? e.reason.message : String(e.reason);
+          window.__terrainError = `unhandled rejection: ${reason}`;
+          setStatus(`ERROR: ${window.__terrainError}`);
+        }
+      });
+
+      // Count quantized-mesh tile fetches via PerformanceObserver so the spec
+      // can assert Cesium actually requested tiles (not just that the provider
+      // constructed). PerformanceObserver catches both XHR and fetch —
+      // Cesium 1.119's Resource layer uses XHR, so a fetch-only patch would
+      // miss everything.
+      const tileObserver = new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          if (entry.name.includes('.terrain')) {
+            window.__tileFetchCount++;
+          }
+        }
+      });
+      try {
+        tileObserver.observe({ type: 'resource', buffered: true });
+      } catch {
+        /* PerformanceObserver may be unavailable in some environments. */
+      }
+
+      async function run() {
+        if (typeof Cesium === 'undefined') {
+          throw new Error('Cesium failed to load from CDN');
+        }
+        setStatus('Cesium loaded, building viewer…');
+
+        // Read the layer bounds so we know where to sample. We trust the
+        // generator to have produced a layer.json with a top-level `bounds`.
+        setStatus('Fetching layer.json…');
+        const layerResp = await fetch('/terrain-tms/layer.json');
+        if (!layerResp.ok) {
+          throw new Error(`layer.json fetch failed: HTTP ${layerResp.status}`);
+        }
+        const layer = await layerResp.json();
+        const bounds = layer.bounds || [0, 0, 1, 1];
+        const centerLng = (bounds[0] + bounds[2]) / 2;
+        const centerLat = (bounds[1] + bounds[3]) / 2;
+        setStatus(`layer.json ok (bounds=${bounds.join(',')}). Constructing provider…`);
+
+        // The load-bearing step: ask Cesium to build a terrain provider from
+        // our layer.json. The URL is the layer *root directory* — see the
+        // header comment for why. fromUrl resolves once the layer.json parses
+        // AND availability metadata is computed.
+        const provider = await Cesium.CesiumTerrainProvider.fromUrl('/terrain-tms/', {
+          requestVertexNormals: false,
+          requestWaterMask: false,
+        });
+        setStatus('CesiumTerrainProvider.fromUrl resolved ✓');
+        // Constructing the provider without error is itself a meaningful
+        // signal: it confirms the layer.json parsed, availability was built
+        // from our `available` array, and tiling scheme is geographic.
+        window.__providerAccepted = true;
+
+        // Build a headless-friendly Viewer and attach the terrain via the
+        // modern (1.107+) Terrain API. We pass the already-resolved provider
+        // so no second network fetch is needed. baseLayer:false avoids any
+        // Ion/CDN imagery dependency.
+        const terrain = new Cesium.Terrain(provider);
+        const viewer = new Cesium.Viewer('cesiumContainer', {
+          baseLayer: false,
+          baseLayerPicker: false,
+          geocoder: false,
+          homeButton: false,
+          sceneModePicker: false,
+          navigationHelpButton: false,
+          animation: false,
+          timeline: false,
+          fullscreenButton: false,
+          infoBox: false,
+          selectionIndicator: false,
+          terrain,
+        });
+        viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString('#222');
+
+        // Force the provider to actually fetch + decode tiles by sampling at
+        // the layer center. sampleTerrainMostDetailed resolves only after the
+        // relevant tile(s) have been fetched and the heightfield reconstructed
+        // from our quantized-mesh bytes — malformed bytes reject here.
+        //
+        // NOTE: first arg is the *provider* (not the viewer) — Cesium reads
+        // `provider.availability.computeMaximumLevelAtPosition` internally.
+        setStatus('Sampling terrain (this decodes the tiles)…');
+        const carto = Cesium.Cartographic.fromDegrees(centerLng, centerLat);
+        const sampled = await Cesium.sampleTerrainMostDetailed(provider, [carto]);
+        if (!sampled || sampled.length < 1) {
+          throw new Error('sampleTerrainMostDetailed returned no samples');
+        }
+        window.__sampledHeight = sampled[0].height;
+        setStatus(
+          `terrain ready ✓ (height=${window.__sampledHeight.toFixed(2)}, ` +
+            `tileFetches=${window.__tileFetchCount})`,
+        );
+        window.__terrainReady = true;
+      }
+
+      document.addEventListener('DOMContentLoaded', () => {
+        run().catch((err) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          window.__terrainError = msg;
+          setStatus(`ERROR: ${msg}`);
+        });
+      });
+    </script>
+  </body>
+</html>

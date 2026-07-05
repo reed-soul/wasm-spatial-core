@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added — W3.6 acceptance test (quantized-mesh spec compliance)
+
+- **Headless Cesium `CesiumTerrainProvider` load test** — the load-bearing gap
+  in W3.6 is now closed. The existing `quantized_mesh_roundtrip_test.rs` only
+  proved our encoded bytes decode against our OWN decoder; `tests/cesium-terrain.spec.mjs`
+  drives a headless Chromium + Cesium 1.119 to fetch a `layer.json` + `{z}/{x}/{y}.terrain`
+  pyramid we generate, construct a `CesiumTerrainProvider`, and run
+  `sampleTerrainMostDetailed` — which only resolves if Cesium successfully
+  decoded our quantized-mesh bytes. CI job `browser-test` (`.github/workflows/ci.yml`).
+- **`encodeTerrainTmsPyramid` WASM API** (`src/terrain_tms.rs`, gated under
+  `geotiff`) — emits a TMS-layout quantized-mesh pyramid (`layer.json` +
+  `0/0/0.terrain` + `1/{0,1}/{0,1}.terrain`) consumable by `CesiumTerrainProvider`.
+  Distinct from `geotiff::encode_terrain_tileset_core`, which emits a 3D-Tiles
+  `tileset.json` consumed by `Cesium3DTileset` (which does NOT natively render
+  quantized-mesh). The new path targets the real terrain consumer.
+- **Playwright infrastructure** — first browser test in the repo. Adds
+  `@playwright/test` devDependency, `playwright.config.mjs`, custom
+  `tests/terrain_tms_server.mjs` (regenerates artifacts at boot + serves repo
+  root + `/terrain-tms/*`), `tests/terrain_tms_generate.mjs` (CLI + library
+  `generateAll()`), `tests/fixtures/cesium-terrain-loader.html` (test page).
+  `npm run test:browser` runs the suite locally.
+
+### Changed
+
+- W3.6 (`ROADMAP_V2.md`) promoted 🟡→✅ with the new acceptance test as the
+  verification basis.
+
 ## [0.8.2] - 2026-07-03
 
 ### Fixed

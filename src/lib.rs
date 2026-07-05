@@ -68,6 +68,13 @@ mod terrain_edit;
 #[cfg(feature = "geotiff")]
 mod quantized_mesh;
 
+// TMS-layout quantized-mesh pyramid + layer.json generator. Gated under geotiff
+// (the same gate as quantized_mesh itself) — consumed by the W3.6 headless
+// CesiumTerrainProvider acceptance test. Distinct from geotiff's 3D-Tiles
+// tileset emitter, which targets Cesium3DTileset, not the terrain globe.
+#[cfg(feature = "geotiff")]
+mod terrain_tms;
+
 #[cfg(feature = "webgpu")]
 mod webgpu;
 
@@ -231,6 +238,9 @@ pub use geotiff::{
     encode_terrain_tileset_core, hillshade_core, parse_geotiff_core, ColorRamp, GeotiffInfo,
     QuantizedMeshResult, TerrainTilesetResult,
 };
+
+#[cfg(feature = "geotiff")]
+pub use terrain_tms::{encode_terrain_tms_pyramid, TmsPyramidResult, TmsTile};
 
 #[cfg(not(feature = "geotiff"))]
 mod geotiff_disabled {

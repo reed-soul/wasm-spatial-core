@@ -5,6 +5,13 @@
 /_site
 # NOTE: docs/pkg/ is intentionally NOT ignored — GitHub Pages serves these WASM files
 
+# W3.6 headless Cesium test — TMS terrain pyramid is regenerated at test time
+# from the current WASM build (tests/terrain_tms_generate.mjs). Never commit.
+/tests/fixtures/terrain-tms/
+# Playwright test artifacts (screenshots, traces, error-context on failure).
+/test-results/
+/playwright-report/
+
 # Node / npm
 node_modules/
 dist/

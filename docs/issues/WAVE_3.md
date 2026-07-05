@@ -80,6 +80,7 @@ Labels: `roadmap-v2`, `wave-3`, `engine`, `geotiff`.
 - [x] Cesium workflow demo optional toggle — `examples/point-cloud-cesium/` (loads `encodeDeformedTerrainTileset` output into Cesium); `examples/terrain-demo/` renders deformed grids via Three.js
 - [x] Quantized-mesh bytes conform to CesiumGS/quantized-mesh-1.0 spec — 88-byte header (real f32 heights, bounding sphere, horizon point), zig-zag delta vertex encoding, high-water-mark index encoding; round-trip test in `tests/quantized_mesh_roundtrip_test.rs`
 - [x] Tile URIs use `.terrain` extension (was `.cmpt`)
+- [x] Headless CesiumTerrainProvider load test passes in CI (2026-07-05) — `tests/cesium-terrain.spec.mjs` drives headless Chromium + Cesium 1.119 against a TMS pyramid + `layer.json` produced by the new `encodeTerrainTmsPyramid` WASM API; `sampleTerrainMostDetailed` resolves with a finite height, proving the bytes decode in the real consumer (not just our own decoder). CI job: `browser-test` in `.github/workflows/ci.yml`.
 
 ---
 
