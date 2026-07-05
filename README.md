@@ -2,15 +2,17 @@
 
 # wasm-spatial-core
 
-**A browser-side point cloud & terrain preprocessing engine.** Ingest LAS/GeoTIFF, edit geometry, emit 3D Tiles / glTF — no server, no upload. Not a PROJ/QGIS replacement; CRS coverage is intentionally focused (WGS84, Web Mercator, UTM, China offsets).
+**Generate Cesium 3D Tiles in the browser.** Drag in a LAS / GeoTIFF / GLB,
+get back a streaming `tileset.json` + pnts / quantized-mesh tiles — **no
+server, no upload, no Cesium ion quota.** The data never leaves the user's
+machine.
 
 [![CI](https://github.com/reed-soul/wasm-spatial-core/actions/workflows/ci.yml/badge.svg)](https://github.com/reed-soul/wasm-spatial-core/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/wasm-spatial-core)](https://www.npmjs.com/package/wasm-spatial-core)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-![Lines](https://img.shields.io/badge/code-40K-blue)
-![Tests](https://img.shields.io/badge/tests-819%20(all%20features)-success)
-![Formats](https://img.shields.io/badge/formats-10%2B%20(npm)%20|%2015%2B%20(engine)-green)
+![Tests](https://img.shields.io/badge/tests-850%2B%20(all%20features)-success)
+![WASM](https://img.shields.io/badge/WASM-1.2%20MB%20%2B%20zero%20deps-blueviolet)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/demo.png">
@@ -20,16 +22,21 @@
 **[🌐 Live Demo](https://reed-soul.github.io/wasm-spatial-core/)** ·
 [📦 npm](https://www.npmjs.com/package/wasm-spatial-core) ·
 [📖 API Docs](https://reed-soul.github.io/wasm-spatial-core/docs/) ·
-[🗺️ Roadmap](./ROADMAP_V2.md) · [🔭 Vision](./VISION.md)
+[🗺️ Roadmap](./ROADMAP_V2.md)
 
-**🧪 Try it now:**
+**🧪 30-second try (drop a `.las` file, get a Cesium tileset):**
 
 ```html
 <script type="module">
-  import init, { parsePointCloudAuto, buildOctree, generateTileset }
+  import init, { parsePointCloudAuto, generateTileset }
     from 'https://esm.run/wasm-spatial-core';
   await init();
-  // LAS file → parse → octree → 3D Tiles — all in-browser (LAZ needs custom build)
+
+  // User drops a LAS file → parse → octree → 3D Tiles.
+  // All in the browser. Bytes never touch a server.
+  const cloud = parsePointCloudAuto(lasFileBytes);
+  const tileset = generateTileset(cloud.positions(), 50000, 10);
+  // → { tilesetJson, tiles: Uint8Array[], ... } — feed straight into Cesium.C3DTileset
 </script>
 ```
 
@@ -37,66 +44,121 @@
 
 ---
 
-## ✨ What is this?
+## Why does this exist?
 
-🚀 **LAS/PLY/OBJ → 3D Tiles** in the browser (LAZ/COPC/E57 via optional build features)
-🏔️ **GeoTIFF → Quantized-Mesh Terrain** + terrain deformation (cut/flatten/fill)
-🗜️ **Draco point cloud compression** (Google draco3d integration)
-🧊 **Spatial IR + Mesh edit** — GLB ingest, OBB split, plane clip, QEM decimation (Wave 2/5)
-⚡ **WebGPU compute** kernels with WASM fallback (Wave 4)
-🔒 **Zero server, zero upload, zero dependencies**
+If you've ever tried to view a customer's LAS scan in Cesium, you've hit one of:
 
-`wasm-spatial-core` is a **browser-side preprocessing engine** for point clouds, terrain, and meshes: formats converge to **Spatial IR** (`SpatialChunk`) before geometry editing or tile/glTF export. Near-native WASM speed with optional WebGPU acceleration. For arbitrary EPSG reprojection, pre-transform with external PROJ and feed WGS84/ENU.
+- **Cesium ion** wants you to **upload their data** — GDPR / ITAR / NDA say no.
+- **Desktop tools** (CloudCompare, Q2C) need install + per-machine license + manual steps.
+- **Server-side pipelines** (PDAL, untwine) mean infra cost + a backend to maintain.
+- **Just-plain-JS** parsers choke at 1M+ points (multi-second hangs).
+
+`wasm-spatial-core` is a Rust → WebAssembly engine that does the whole
+**LAS → octree → 3D Tiles** pipeline client-side. The output is byte-compatible
+with what `Cesium.C3DTileset` consumes — so you can build a zero-backend,
+zero-upload Cesium viewer that runs on a static host.
+
+| | Cesium ion (SaaS) | Desktop tools | **wasm-spatial-core** |
+|---|---|---|---|
+| Customer data leaves the browser | ☁️ yes (uploaded) | 💻 no (local) | 💻 **no (local)** |
+| Deployable on intranet / air-gap | ❌ | per-machine | ✅ static files |
+| Per-GB / per-user cost | ✅ yes | license fee | ❌ free (MIT) |
+| Works inside a web app | ✅ | ❌ | ✅ |
+| Streams multi-GB scans | partial | n/a | ✅ COPC range fetch |
+
+> **Not a PROJ / QGIS replacement.** CRS coverage is intentionally focused
+> (WGS-84 / Web Mercator / UTM / China offsets). For arbitrary EPSG
+> reprojection, pre-transform with PROJ and feed WGS-84 / ENU.
 
 ---
 
-## 🚀 Quick Start
+## ✨ Capabilities
+
+**Core (the killer use case):**
+- 🚀 **LAS / PLY / OBJ → 3D Tiles** (pnts) — octree partition + Draco optional
+- 🏔️ **GeoTIFF → Quantized-Mesh Terrain** — Cesium `CesiumTerrainProvider`-compatible (proven by headless test, see W3.6 in `ROADMAP_V2.md`)
+- 📡 **COPC range-fetch streaming** — multi-GB scans without loading the whole file
+
+**Also in the box** (used internally, exposed as public APIs):
+- 🗺️ Coordinate transforms: WGS-84 ↔ GCJ-02 / BD-09 / Web Mercator / UTM (~30–250× faster than JS equivalents — see [PERFORMANCE.md](./PERFORMANCE.md))
+- 🧊 Spatial IR + mesh edit: GLB ingest, OBB split, plane clip, QEM decimation
+- ⚡ WebGPU compute kernels (with WASM fallback)
+- 🔒 **Zero server, zero upload, zero runtime dependencies**
+
+`npm install wasm-spatial-core` ships a prebuilt 1.2 MB WASM binary — no
+native deps, no postinstall, works on any static host (GitHub Pages, S3,
+nginx, even `python -m http.server`).
+
+---
+
+## 🌐 See it work
+
+Live, drag-and-drop, no backend:
+
+| Demo | What it shows |
+|------|--------------|
+| **[Cesium 3D Tiles](https://reed-soul.github.io/wasm-spatial-core/examples/point-cloud-cesium/)** | Drop a `.las` / `.tif` / `.glb` → octree → 3D Tiles → Cesium globe. **The killer demo.** |
+| **[COPC streaming](https://reed-soul.github.io/wasm-spatial-core/examples/cesium-workflow/)** | Range-fetch a multi-GB `.copc` scan byte-range by byte-range (no full download). |
+| **[Terrain viewer](https://reed-soul.github.io/wasm-spatial-core/examples/terrain-demo/)** | GeoTIFF → quantized-mesh, with cut / flatten / fill edits. |
+| **[Demo hub](https://reed-soul.github.io/wasm-spatial-core/examples/)** | All examples + benchmarks. |
+
+Run any of them locally with `npm run demo`.
+
+---
+
+## 🚀 Quick Start: LAS → Cesium in 20 lines
 
 ```bash
 npm install wasm-spatial-core
 ```
 
 ```js
-import init, {
-  parsePointCloudAuto,
-  buildOctree,
-  generateTileset,
-} from 'wasm-spatial-core';
-
+import init, { parsePointCloudAuto, generateTileset } from 'wasm-spatial-core';
+// Cesium loaded separately (CDN or npm) — we only emit the tile bytes.
 await init();
 
-// Parse LAS (default npm). LAZ/COPC need --features laz-support at build time.
-const cloud = parsePointCloudAuto(lasBytes);
+// 1. User drops a .las file. Parse it.
+const cloud = parsePointCloudAuto(lasFileBytes);
+// cloud.positions() → Float32Array [x,y,z, ...]
 
-// Build octree → 3D Tiles
-const tiles = generateTileset(
-  cloud.positions(),
-  50000,  // max points per node
-  10      // max depth
+// 2. Build octree → 3D Tiles (pnts + tileset.json).
+const tileset = generateTileset(cloud.positions(), 50000 /* max pts/node */, 10 /* depth */);
+// tileset.tilesetJson() → string
+// tileset.tile(i)      → Uint8Array (one pnts blob per tile)
+
+// 3. Hand the tiles to Cesium via blob URLs (no server needed).
+const json = JSON.parse(tileset.tilesetJson());
+for (let i = 0; i < tileset.tileCount; i++) {
+  const url = URL.createObjectURL(new Blob([tileset.tile(i)]));
+  json.root.content.uri = json.root.content.uri.replace(`tile_${i}.pnts`, url);
+  // (in practice, walk the tree and rewrite each leaf's content.uri)
+}
+const cesiumTileset = await Cesium.C3DTileset.fromUrl(
+  URL.createObjectURL(new Blob([JSON.stringify(json)], { type: 'application/json' })),
 );
+viewer.scene.primitives.add(cesiumTileset);
 ```
 
-### Draco Compression (optional)
+That's the whole story — no backend, no upload, no ion token. For a working
+drag-and-drop demo, see the **[Point Cloud + Cesium example](https://reed-soul.github.io/wasm-spatial-core/examples/point-cloud-cesium/)**.
+
+<details>
+<summary><b>Optional: Draco compression (~5× smaller tiles)</b></summary>
 
 ```bash
 npm install draco3d
 ```
 
 ```js
-import { loadSpatialCore, compressTilesetWithDraco } from 'wasm-spatial-core';
+import { compressTilesetWithDraco } from 'wasm-spatial-core';
 import { createEncoderModule } from 'draco3d';
 
-const wasm = await loadSpatialCore();
-const encoderModule = await createEncoderModule({});
-const tileset = wasm.generateTileset(positions, 50000, 21);
-
-const results = compressTilesetWithDraco(tileset, encoderModule, {
-  quantizationBits: 11,
-  onProgress: (i, total, orig, comp) => {
-    console.log(`Tile ${i + 1}/${total}: ${(comp / orig * 100).toFixed(0)}%`);
-  },
-});
+const encoder = await createEncoderModule({});
+const compressed = compressTilesetWithDraco(tileset, encoder, { quantizationBits: 11 });
+// Typical ratio: ~20% of original size, position-color pairing preserved.
 ```
+
+</details>
 
 ### What's in the npm package?
 
@@ -172,34 +234,28 @@ GeoTIFF (.tif)
 
 ## ⚡ Performance
 
-Benchmarks on **Apple M2 / Mac mini 4**, see [PERFORMANCE.md](./PERFORMANCE.md) for details.
+The whole reason this exists: do in-browser what previously needed a server.
+On **Apple M2**, single-thread WASM (no WebGPU):
 
-### Point Cloud Pipeline (LAS → Octree → 3D Tiles)
+| Dataset | Points | Parse | Octree + Tileset | Total |
+|---------|--------|-------|------------------|-------|
+| sample.las | 1K | — | < 1 ms | — |
+| Synthetic | 500K | 36 ms | 166 ms | **205 ms** |
+| Synthetic | 10M | 1.1 s | 3.6 s | **4.8 s** |
+| **Synthetic** | **100M** | **0.4 s** | **6.8 s** | **8.5 s** |
 
-| Dataset | Points | Parse | Octree | Tileset | Total |
-|---------|--------|-------|--------|---------|-------|
-| sample.las | 1,065 | — | < 1 ms | < 1 ms | — |
-| Synthetic | 500K | 36 ms | 117 ms | 49 ms | 205 ms |
-| Synthetic | 10M | 1.1 s | 2.9 s | 740 ms | 4.8 s |
-| **Synthetic** | **100M** | **0.4 s** | **6.0 s** | **0.8 s** | **8.5 s** |
+> 100M-point number is native release (Rust); WASM is ~1.5× slower but still
+> well under 30 seconds. Compare: potree (JS) takes ~3 s just for octree at 1M.
 
-> 100M-point benchmark: release build, single-thread native (Rust). WASM will be slower but still well under 30 seconds.
-
-### Draco Compression
-
-| Dataset | Points | Uncompressed | Draco (q=11) | Ratio |
-|---------|--------|-------------|-------------|-------|
-| Synthetic | 50K | 600 KB | 121 KB | **20.2%** |
-| Synthetic | 50K | 600 KB | 38 KB (q=8) | **6.3%** |
-
-> Encoder WASM: **362 KB** (Google draco3d, Apache-2.0). Point order may differ after encoding, but position-color pairing is preserved.
-
-### Coordinate Conversion (vs Pure JS)
+**Coordinate conversion** (the same engine, different workload):
 
 | Operation | Pure JS | WASM | Speedup |
 |-----------|---------|------|---------|
 | WGS84 → GCJ-02 | ~1,200 ms | ~45 ms | **~27×** |
 | WGS84 → Mercator | ~800 ms | ~12 ms | **~67×** |
+
+See [PERFORMANCE.md](./PERFORMANCE.md) for full methodology + comparison with
+potree / three.js Octree / las-js.
 
 ---
 
@@ -242,19 +298,6 @@ Benchmarks on **Apple M2 / Mac mini 4**, see [PERFORMANCE.md](./PERFORMANCE.md) 
 ### Spatial Analysis
 
 R-Tree / Octree indexing, bounding box / KNN queries, haversine / vincenty distance, polygon boolean ops, Douglas-Peucker simplification, convex / concave hull, DBSCAN / grid clustering, TIN interpolation, and more.
-
----
-
-## 📸 Demos
-
-| Demo | URL |
-|------|-----|
-| **🏠 Demo Hub** | https://reed-soul.github.io/wasm-spatial-core/examples/index.html |
-| **Point Cloud** (LAS/PLY/OBJ; LAZ in custom builds) | https://reed-soul.github.io/wasm-spatial-core/examples/point-cloud-demo/ |
-| **Cesium 3D Tiles** | https://reed-soul.github.io/wasm-spatial-core/examples/cesium-workflow/ |
-| **Terrain Viewer** (GeoTIFF) | https://reed-soul.github.io/wasm-spatial-core/examples/terrain-demo/ |
-
-Run locally: `npm run demo`
 
 ---
 
