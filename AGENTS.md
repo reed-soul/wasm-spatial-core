@@ -31,6 +31,7 @@ rustup component add clippy rustfmt
 | WASM smoke | `WASM_PKG_DIR=pkg-node node tests/wasm_smoke_test.mjs` |
 | Node batch | `node tests/node_batch_test.mjs` |
 | WASM bindgen tests | `wasm-pack test --node --release -- --test web` |
+| Headless Cesium (W3.6) | `npm run test:browser` (after `npm install` + `npx playwright install chromium`; needs `pkg-node` for the generator) |
 
 CI runs tests with `--test-threads=2` and `RAYON_NUM_THREADS=1` to keep flake-free; local runs may omit those flags.
 

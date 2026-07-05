@@ -99,6 +99,58 @@ jobs:
           path: pkg/
 
   # ------------------------------------------------------------------
+  # 1b. Headless browser test — W3.6 CesiumTerrainProvider acceptance
+  # ------------------------------------------------------------------
+  # Proves our quantized-mesh-1.0 byte stream is loadable by the *real*
+  # consumer (Cesium's CesiumTerrainProvider), not just our own decoder.
+  # The Rust-side `quantized_mesh_roundtrip_test.rs` only checks the bytes
+  # against our own decoder; this job drives a headless Chromium to load
+  # layer.json + .terrain tiles via Playwright + Cesium 1.119.
+  # See tests/cesium-terrain.spec.mjs, tests/terrain_tms_server.mjs.
+  browser-test:
+    name: Headless Cesium terrain (W3.6)
+    needs: rust
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download WASM artifact (web target)
+        uses: actions/download-artifact@v4
+        with:
+          name: wasm-pkg
+          path: pkg/
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # The TMS pyramid generator (tests/terrain_tms_generate.mjs) loads the
+      # WASM via Node — it needs the nodejs target build, which the artifact
+      # above (web target) cannot provide. Rebuild pkg-node locally; this is
+      # cheap (~15s) because the heavy Rust compilation already happened in
+      # the `rust` job's cache.
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Install Rust toolchain (for wasm-pack nodejs build)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Build WASM (Node.js target for the generator)
+        run: wasm-pack build --target nodejs --release --out-dir pkg-node --features point-cloud,geotiff
+
+      - name: Install npm dependencies (Playwright)
+        run: npm install
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run headless Cesium test
+        run: npx playwright test --reporter=list
+
+  # ------------------------------------------------------------------
   # 2. Deploy Demo — GitHub Pages on push to master
   # ------------------------------------------------------------------
   demo:

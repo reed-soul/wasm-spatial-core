@@ -9,6 +9,11 @@
     "demo:dev": "npm run build:pkg && npx --yes http-server . -p 8080 -c-1",
     "test:wasm": "wasm-pack test --node --release -- --test web",
     "check": "cargo fmt --all -- --check && cargo clippy --all-targets --all-features -- -D warnings && cargo test",
-    "test:webgpu-fallback": "node tests/webgpu_fallback_test.mjs && node tests/heightfield_gpu_fallback_test.mjs"
+    "test:webgpu-fallback": "node tests/webgpu_fallback_test.mjs && node tests/heightfield_gpu_fallback_test.mjs",
+    "test:browser": "playwright test",
+    "test:browser:gen": "node tests/terrain_tms_generate.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0"
   }
 }
