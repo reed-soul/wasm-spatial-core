@@ -514,7 +514,7 @@ async function loadWasm() {
 // Cesium Initialization
 // =========================================================================
 
-function initCesium(token) {
+async function initCesium(token) {
   if (token && token.length > 10) {
     Cesium.Ion.defaultAccessToken = token;
   }
@@ -533,9 +533,21 @@ function initCesium(token) {
     },
   };
 
-  // Only enable terrain with real token
+  // Enable Cesium ion world terrain only when a real token is provided.
+  // NOTE: Cesium 1.119 removed the synchronous `createWorldTerrain()` — the
+  // only API is `createWorldTerrainAsync()`. Catch any environment where the
+  // function is missing entirely (older CDN, blocked request) and just skip
+  // world terrain rather than crashing init.
   if (token && token.length > 10) {
-    opts.terrainProvider = Cesium.createWorldTerrain();
+    try {
+      if (typeof Cesium.createWorldTerrainAsync === 'function') {
+        opts.terrainProvider = await Cesium.createWorldTerrainAsync();
+      } else {
+        console.warn('Cesium.createWorldTerrainAsync not available — skipping world terrain.');
+      }
+    } catch (e) {
+      console.warn('World terrain load failed (token may be invalid or offline):', e.message);
+    }
   }
 
   viewer = new Cesium.Viewer('cesiumContainer', opts);
@@ -1115,7 +1127,14 @@ document.getElementById('initCesiumBtn').addEventListener('click', async () => {
   const token = document.getElementById('tokenInput').value.trim();
   const ok = await loadWasm();
   if (!ok) return;
-  initCesium(token);
+  // initCesium is async as of the Cesium 1.119 fix (createWorldTerrainAsync).
+  // Await so any terrain-load error surfaces in this handler's try/catch.
+  try {
+    await initCesium(token);
+  } catch (e) {
+    console.error('initCesium failed:', e);
+    setStatus('Cesium init failed: ' + e.message);
+  }
 });
 
 // Allow Enter key to initialize
