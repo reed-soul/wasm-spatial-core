@@ -469,6 +469,27 @@ export class Octree {
 }
 
 /**
+ * WASM-accessible chunked octree builder.
+ */
+export class OctreeChunkBuilder {
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * Build octree; copies reordered points into `positions` (must be large enough).
+     */
+    finish(positions: Float32Array): Octree;
+    /**
+     * Build octree; copies reordered positions and RGB colors into caller buffers.
+     */
+    finishWithColors(positions: Float32Array, colors: Uint8Array): Octree;
+    constructor(max_points_per_node?: number | null, max_depth?: number | null);
+    pushChunk(chunk: Float32Array): void;
+    pushChunkWithColors(chunk: Float32Array, colors: Uint8Array): void;
+    static withCapacity(max_points_per_node: number | null | undefined, max_depth: number | null | undefined, estimated_points: number): OctreeChunkBuilder;
+    readonly pointCount: number;
+}
+
+/**
  * Parsed PCD point cloud data — reuses the same public layout as LasPointCloud.
  */
 export class PcdPointCloud {
@@ -525,6 +546,27 @@ export class PlyResult {
      * Number of vertices.
      */
     readonly vertexCount: number;
+}
+
+/**
+ * WASM-visible point cloud chunk from Spatial IR.
+ */
+export class PointCloudChunk {
+    private constructor();
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * Build a multi-tile pnts tileset from this IR chunk (octree → pnts).
+     */
+    generateTileset(max_points_per_node?: number | null, max_depth?: number | null): TilesetResult;
+    selectAabb(min: Float64Array, max: Float64Array): PointCloudChunk;
+    readonly aabbMax: Float64Array;
+    readonly aabbMin: Float64Array;
+    readonly colors: Uint8Array;
+    readonly pointCount: number;
+    readonly positions: Float32Array;
+    readonly sourceFormat: string | undefined;
+    readonly version: bigint;
 }
 
 /**
@@ -985,6 +1027,167 @@ export class VectorTileOptions {
 }
 
 /**
+ * WASM result of `computeSvdAlignment`.
+ */
+export class WasmAlignmentResult {
+    private constructor();
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * Number of inliers used for the final fit.
+     */
+    readonly inlierCount: number;
+    /**
+     * Indices of inliers used for the final fit.
+     */
+    readonly inlierIndices: Uint32Array;
+    /**
+     * Column-major 4×4 matrix for `transformPointCloud` (f32).
+     */
+    readonly matrix: Float32Array;
+    /**
+     * Largest per-point residual.
+     */
+    readonly maxResidual: number;
+    /**
+     * Number of outliers (points excluded from the final fit).
+     */
+    readonly outlierCount: number;
+    /**
+     * Per-point Euclidean residuals (all control points, same input order).
+     */
+    readonly residuals: Float64Array;
+    /**
+     * RMS residual in target coordinate units.
+     */
+    readonly rmsError: number;
+    /**
+     * Row-major 3×3 rotation (f64).
+     */
+    readonly rotation: Float64Array;
+    /**
+     * Uniform scale factor.
+     */
+    readonly scale: number;
+    /**
+     * Translation vector `[tx, ty, tz]` (f64).
+     */
+    readonly translation: Float64Array;
+}
+
+/**
+ * WASM handle for a local ENU coordinate frame.
+ */
+export class WasmEnuFrame {
+    private constructor();
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * Convert flat ENU `[e, n, u, ...]` to WGS84 `[lng, lat, alt, ...]` (f64).
+     */
+    enuToWgs84(coords: Float64Array): Float64Array;
+    /**
+     * Convert flat WGS84 `[lng, lat, alt, ...]` to ENU `[e, n, u, ...]` (f64).
+     */
+    wgs84ToEnu(coords: Float64Array): Float64Array;
+    /**
+     * Convert flat WGS84 to ENU f32 rendering offsets `[e, n, u, ...]`.
+     */
+    wgs84ToEnuF32(coords: Float64Array): Float32Array;
+    readonly anchorAlt: number;
+    readonly anchorLat: number;
+    readonly anchorLng: number;
+}
+
+/**
+ * WASM-visible mesh chunk from Spatial IR.
+ */
+export class WasmMeshChunk {
+    private constructor();
+    free(): void;
+    [Symbol.dispose](): void;
+    hasNormals(): boolean;
+    hasTexcoords(): boolean;
+    /**
+     * Select geometry inside an axis-aligned box.
+     *
+     * `min` and `max` are `[x, y, z]` corners in the chunk's coordinate frame.
+     */
+    selectAabb(min: Float64Array, max: Float64Array): WasmMeshChunk;
+    /**
+     * Select geometry inside a vertically extruded polygon (XY ring + Z range).
+     *
+     * `ring` is a flat `[x0, y0, x1, y1, …]` array with at least three vertices.
+     */
+    selectPolygon(ring: Float64Array, z_min: number, z_max: number): WasmMeshChunk;
+    /**
+     * Export as GLB bytes.
+     */
+    toGlb(): Uint8Array;
+    /**
+     * AABB max corner [x, y, z].
+     */
+    readonly aabbMax: Float64Array;
+    /**
+     * AABB min corner [x, y, z].
+     */
+    readonly aabbMin: Float64Array;
+    readonly indexCount: number;
+    readonly indices: Uint32Array;
+    readonly mode: number;
+    readonly normals: Float32Array;
+    readonly positions: Float32Array;
+    readonly texcoords: Float32Array;
+    readonly version: bigint;
+    readonly vertexCount: number;
+}
+
+/**
+ * WASM result of exporting a point cloud to pnts + tileset.json.
+ */
+export class WasmPointCloudTileExport {
+    private constructor();
+    free(): void;
+    [Symbol.dispose](): void;
+    readonly bounds: Float64Array;
+    readonly center: Float64Array;
+    readonly pnts: Uint8Array;
+    readonly tilesetJson: string;
+}
+
+/**
+ * WASM-facing wrapper around `TmsPyramidResult`.
+ *
+ * JS accessors mirror `TerrainTilesetResult`: `layerJson`, `tileCount`,
+ * `tilePath(i)`, `tile(i)`, `totalBytes`.
+ */
+export class WasmTmsPyramid {
+    private constructor();
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * Spec-conformant quantized-mesh-1.0 bytes of the tile at `index`.
+     */
+    tile(index: number): Uint8Array;
+    /**
+     * Relative TMS path (`{z}/{x}/{y}.terrain`) of the tile at `index`.
+     */
+    tilePath(index: number): string;
+    /**
+     * The `layer.json` contents, ready to write to disk verbatim.
+     */
+    readonly layerJson: string;
+    /**
+     * Number of tiles in the pyramid (1 + 4 = 5 for the default zoom 0–1 layout).
+     */
+    readonly tileCount: number;
+    /**
+     * Total bytes across all tiles (debug/info accessor).
+     */
+    readonly totalBytes: number;
+}
+
+/**
  * A handle to a point cloud processing Web Worker.
  *
  * Create via `createPointCloudWorker(wasmUrl)`. The Worker loads the WASM
@@ -1374,13 +1577,7 @@ export function batchWgs84ToUtmInPlace(coords: Float64Array): void;
 export function bearing(lng1: number, lat1: number, lng2: number, lat2: number): number;
 
 /**
- * Recommend the best CRS for a geographic region.
- *
- * # Arguments
- * - `min_lng`, `min_lat`, `max_lng`, `max_lat`: Bounding box in degrees.
- *
- * # Returns
- * JSON string with `crs` (recommended CRS code) and `reason`.
+ * @deprecated Use `suggestCrsHeuristic` — same heuristic, kept for compatibility.
  */
 export function bestCrsForRegion(min_lng: number, min_lat: number, max_lng: number, max_lat: number): string;
 
@@ -1662,6 +1859,32 @@ export function computeRegionByteRange(point_offset: number, point_record_length
 export function computeScreenSpaceError(geometric_error: number, distance: number, fov: number, screen_height: number): number;
 
 /**
+ * Estimate a similarity transform aligning `source` control points to `target`.
+ *
+ * Both arrays are flat `[x,y,z,...]` with equal length (≥ 9 elements).
+ * Set `allow_scale` false for a rigid (Kabsch) solve.
+ */
+export function computeSvdAlignment(source: Float64Array, target: Float64Array, allow_scale: boolean): WasmAlignmentResult;
+
+/**
+ * RANSAC robust alignment with outlier rejection and inlier refit.
+ *
+ * `max_iterations = 0` uses an adaptive default. `seed = 0` derives a
+ * deterministic seed from coordinates (reproducible for the same inputs).
+ */
+export function computeSvdAlignmentRansac(source: Float64Array, target: Float64Array, allow_scale: boolean, inlier_threshold: number, max_iterations: number, seed: bigint): WasmAlignmentResult;
+
+/**
+ * RANSAC alignment with optional per-point weights applied during inlier refit.
+ */
+export function computeSvdAlignmentRansacWeighted(source: Float64Array, target: Float64Array, allow_scale: boolean, inlier_threshold: number, max_iterations: number, seed: bigint, weights: Float64Array): WasmAlignmentResult;
+
+/**
+ * Weighted alignment — `weights[i]` is relative precision for pair `i`.
+ */
+export function computeSvdAlignmentWeighted(source: Float64Array, target: Float64Array, allow_scale: boolean, weights: Float64Array): WasmAlignmentResult;
+
+/**
  * Compute an approximate concave hull using alpha shape (simplified).
  *
  * # Arguments
@@ -1713,6 +1936,37 @@ export function contourLines(heights: Float32Array, width: number, height: numbe
 export function convexHull(coords: Float64Array): Float64Array;
 
 /**
+ * Estimate the total download size needed to fetch COPC chunks intersecting
+ * a given bounding box.
+ *
+ * Returns the sum of all chunk byte sizes (in bytes) plus the header size.
+ * This is an upper bound since we include all chunks (COPC chunk tables
+ * don't have per-chunk bounding boxes).
+ */
+export function copcEstimateDownloadSize(copc_info_json: string): number;
+
+/**
+ * Compute HTTP Range headers needed to fetch COPC chunks that may intersect
+ * a given bounding box.
+ *
+ * Since COPC chunk table entries don't include per-chunk bounding boxes,
+ * this function returns Range headers for ALL chunks. The caller can then
+ * decompress each chunk and filter points by bbox on the client side.
+ *
+ * For a more refined approach, callers should use the COPC hierarchy nodes
+ * (available in the COPC EVLR) to pre-filter which chunks intersect the bbox.
+ *
+ * # Arguments
+ * * `copc_info_json` — JSON string from `parseCopcHeader()`, containing
+ *   `pointDataOffset`, `chunkTable`, and `fileSize` fields.
+ * * `min_x, min_y, min_z, max_x, max_y, max_z` — Query bounding box.
+ *
+ * # Returns
+ * JSON string: `{"ranges": ["bytes=START-END", ...], "totalBytes": N}`
+ */
+export function copcQueryRanges(copc_info_json: string, min_x: number, min_y: number, min_z: number, max_x: number, max_y: number, max_z: number): string;
+
+/**
  * Count GeoJSON features by property value (COUNT ... GROUP BY).
  *
  * Returns a JSON object mapping property values to their counts.
@@ -1734,6 +1988,8 @@ export function countGeoJsonByProperty(input: string, key: string): string;
  * Useful for progress reporting before parsing a very large file.
  */
 export function countGeoJsonFeatures(input: string): number;
+
+export function createEnuFrame(anchor: Float64Array): WasmEnuFrame;
 
 /**
  * Return JSON info for a specific CRS code.
@@ -1957,9 +2213,29 @@ export function encodeQuantizedMesh(heights: Float32Array, width: number, height
 export function encodeTerrainTileset(heights: Float32Array, width: number, height: number, bounds: Float64Array, center: Float64Array, max_zoom: number): TerrainTilesetResult;
 
 /**
- * Estimate job memory in bytes. Pass `op` as `"lasParse"`, `"octreeBuild"`, or `"tilesetGenerate"`.
+ * JS entry point — build a TMS quantized-mesh terrain pyramid.
+ *
+ * # Arguments (JS)
+ * * `heights: Float32Array` — row-major elevation grid.
+ * * `width: u32`, `height: u32` — grid dimensions in samples.
+ * * `bounds: Float64Array | number[]` — `[min_lng, min_lat, max_lng, max_lat]`.
+ *   Accepts a `Float64Array` view or a plain JS array (length 4).
+ * * `center: Float64Array | number[]` — ECEF `[x, y, z]`. Pass an empty array
+ *   (or any length != 3) to auto-derive from bounds + mean height.
+ * * `maxZoom: u32` — clamped to 1 (deeper pyramids not generated here).
  */
-export function estimateJobBytes(op: string, point_count: number, leaf_count: number, has_color: boolean): number;
+export function encodeTerrainTmsPyramid(heights: Float32Array, width: number, height: number, bounds: Float64Array, center: Float64Array, max_zoom: number): WasmTmsPyramid;
+
+/**
+ * Estimate job memory in bytes.
+ *
+ * `op`: `lasParse` | `octreeBuild` | `octreeChunkBuild` | `tilesetGenerate` |
+ * `tilesetIncremental` | `geotiffParse` | `geotiffTerrainTileset` | `copcRegion` |
+ * `pointCloudPipeline`
+ *
+ * `raster_width` / `raster_height` — pixel dimensions for GeoTIFF ops (else 0).
+ */
+export function estimateJobBytes(op: string, point_count: number, leaf_count: number, has_color: boolean, raster_width: number, raster_height: number): number;
 
 /**
  * Estimate memory usage for a point cloud with the given parameters.
@@ -2020,6 +2296,14 @@ export function estimateOctreeMemory(num_points: number): number;
  * WASM export: estimate average point spacing.
  */
 export function estimatePointSpacing(positions: Float32Array, sample_size?: number | null): number;
+
+/**
+ * Export point cloud positions to a single pnts tile + minimal tileset.json.
+ *
+ * `positions`: flat `[x, y, z, ...]` Float32Array.
+ * `colors`: optional RGB (`3×N`) or RGBA (`4×N`) bytes.
+ */
+export function exportPointCloudToPnts(positions: Float32Array, colors?: Uint8Array | null, tile_uri?: string | null): WasmPointCloudTileExport;
 
 /**
  * Filter point cloud by axis-aligned bounding box.
@@ -2134,6 +2418,15 @@ export function generateInterleavedVertexBuffer(positions: Float32Array, colors:
 export function generateTileset(positions: Float32Array, max_points_per_node?: number | null, max_depth?: number | null, colors?: Uint8Array | null): TilesetResult;
 
 /**
+ * Generate `tileset.json` while emitting each `.pnts` tile via callback (lower peak memory).
+ *
+ * Use after [`crate::octree::build_octree`] — `positions` must match the reordered buffer.
+ * `on_tile(index, uri, tileBytes, bounds)` is called once per leaf; only `tileset.json`
+ * is returned (tile blobs are not retained in WASM).
+ */
+export function generateTilesetIncremental(octree: Octree, positions: Float32Array, colors: Uint8Array | null | undefined, on_tile: Function, should_abort?: Function | null): string;
+
+/**
  * Generate tileset with abort callback checked between leaf encodes.
  */
 export function generateTilesetWithAbort(positions: Float32Array, max_points_per_node: number | null | undefined, max_depth: number | null | undefined, colors: Uint8Array | null | undefined, should_abort: Function): TilesetResult;
@@ -2228,6 +2521,14 @@ export function geotiffStatus(): string;
 export function getAllocatedBytes(): number;
 
 /**
+ * Runtime capability and size limits as JSON (for honest client-side preflight).
+ *
+ * Fields include `maxInputBytes`, `recommendedMaxPoints`, `copcSpatialQuery`,
+ * `geotiffElevationFormats`, and `crsScope`.
+ */
+export function getInputLimits(): string;
+
+/**
  * Get the current input size limit in bytes.
  *
  * Returns 100 MB (104,857,600) if not changed.
@@ -2244,7 +2545,8 @@ export function getMaxWasmMemory(): number;
 /**
  * Return a JSON array of supported coordinate reference systems.
  *
- * Each entry contains `code`, `name`, `description`.
+ * Each entry contains `code`, `name`, `description`, and `capabilities`
+ * (`transform`, `identity`, or `heuristic-only`).
  */
 export function getSupportedCrs(): string;
 
@@ -2468,6 +2770,11 @@ export function normalizeCoords(coords: Float64Array, target_bounds: Float64Arra
 export function octreeMemoryUsage(node_count: number, internal_count: number, point_count: number): number;
 
 /**
+ * WASM binding: Parse COPC header and return info as JSON object.
+ */
+export function parseCopcHeader(bytes: Uint8Array): object;
+
+/**
  * Parse a GeoJSON string and return **all** coordinate pairs as a flat
  * `Float64Array` — `[lng0, lat0, lng1, lat1, …]`.
  *
@@ -2603,6 +2910,11 @@ export function parseGeotiff(bytes: Uint8Array): GeotiffInfo;
 export function parseGeotiffTile(bytes: Uint8Array, tile_index: number): Float32Array;
 
 /**
+ * Parse a GLB file into a [`WasmMeshChunk`].
+ */
+export function parseGlb(bytes: Uint8Array): WasmMeshChunk;
+
+/**
  * Parse GPX and return all trackpoint coordinates as a flat `Float64Array`.
  */
 export function parseGpx(input: string): Float64Array;
@@ -2694,6 +3006,21 @@ export function parseLasPointsWithProgress(bytes: Uint8Array, on_progress: Funct
  * Parse LAS with progress and abort callback. `shouldAbort` returns true to cancel.
  */
 export function parseLasPointsWithProgressAndAbort(bytes: Uint8Array, on_progress: Function, should_abort: Function): LasPointCloud;
+
+/**
+ * WASM binding for LAZ point parsing.
+ */
+export function parseLazPoints(bytes: Uint8Array): LasPointCloud;
+
+/**
+ * Parse LAZ points with a JS progress callback. Reports every 10,000 points.
+ */
+export function parseLazPointsStream(bytes: Uint8Array, on_progress: Function): LasPointCloud;
+
+/**
+ * Parse LAZ points with progress and abort callbacks. Reports every 10,000 points.
+ */
+export function parseLazPointsStreamWithAbort(bytes: Uint8Array, on_progress: Function, should_abort: Function): LasPointCloud;
 
 /**
  * Extract vertex positions from an OBJ file.
@@ -2825,6 +3152,11 @@ export function pointCloudBounds(positions: Float32Array): Float64Array;
 export function pointCloudCentroid(positions: Float32Array): Float64Array;
 
 /**
+ * Ingest flat buffers into a [`PointCloudChunk`] (Spatial IR).
+ */
+export function pointCloudChunkFromBuffers(positions: Float32Array, colors?: Uint8Array | null, source_format?: string | null): PointCloudChunk;
+
+/**
  * Compute comprehensive statistics for a point cloud.
  *
  * Returns a JSON string with:
@@ -2950,6 +3282,19 @@ export function processChunkedWithAbort(positions: Float32Array, colors: Uint8Ar
  * An object with `quantized` (Uint16Array) and `bounds` (QuantBounds).
  */
 export function quantizePositions(positions: Float32Array, bits?: number | null): QuantizeResult;
+
+/**
+ * WASM binding: Read a single COPC chunk.
+ */
+export function readCopcChunk(bytes: Uint8Array, chunk_offset: number, chunk_size: number, expected_points: number, header_bytes: Uint8Array): LasPointCloud;
+
+/**
+ * WASM binding: Read COPC points from a bounding box region.
+ *
+ * Iterates through all chunks, decompresses each one, and filters
+ * points that fall within the specified bounding box.
+ */
+export function readCopcRegion(bytes: Uint8Array, min_x: number, min_y: number, min_z: number, max_x: number, max_y: number, max_z: number): LasPointCloud;
 
 /**
  * Remove a property key from all features of a GeoJSON FeatureCollection.
@@ -3101,6 +3446,20 @@ export function sortCoordsByLat(coords: Float64Array): Float64Array;
 export function sortCoordsByLng(coords: Float64Array): Float64Array;
 
 /**
+ * Heuristic CRS suggestion for a geographic bounding box (3 CRS codes only).
+ *
+ * Prefer this name over `bestCrsForRegion` — the result is **not** a PROJ-grade
+ * optimal projection recommendation.
+ *
+ * # Arguments
+ * - `min_lng`, `min_lat`, `max_lng`, `max_lat`: Bounding box in degrees.
+ *
+ * # Returns
+ * JSON string with `crs` and `reason`.
+ */
+export function suggestCrsHeuristic(min_lng: number, min_lat: number, max_lng: number, max_lat: number): string;
+
+/**
  * Returns whether Draco compression is supported at runtime.
  *
  * Draco is NOT currently supported in WASM builds because `draco-oxide`
@@ -3127,6 +3486,11 @@ export function supportsGeotiff(): boolean;
  * Check if LAZ (compressed LAS) is supported.
  */
 export function supportsLaz(): boolean;
+
+/**
+ * Whether mesh ingest (Spatial IR + GLB read) is available.
+ */
+export function supportsMeshIngest(): boolean;
 
 /**
  * Check if multi-threaded WASM is supported at runtime.
@@ -3334,7 +3698,9 @@ export interface InitOutput {
     readonly __wbg_mvtfeature_free: (a: number, b: number) => void;
     readonly __wbg_mvtlayer_free: (a: number, b: number) => void;
     readonly __wbg_octree_free: (a: number, b: number) => void;
+    readonly __wbg_octreechunkbuilder_free: (a: number, b: number) => void;
     readonly __wbg_plyresult_free: (a: number, b: number) => void;
+    readonly __wbg_pointcloudchunk_free: (a: number, b: number) => void;
     readonly __wbg_pointcloudstats_free: (a: number, b: number) => void;
     readonly __wbg_pointdata_free: (a: number, b: number) => void;
     readonly __wbg_processingcontext_free: (a: number, b: number) => void;
@@ -3357,6 +3723,11 @@ export interface InitOutput {
     readonly __wbg_validationresult_free: (a: number, b: number) => void;
     readonly __wbg_vectortileengine_free: (a: number, b: number) => void;
     readonly __wbg_vectortileoptions_free: (a: number, b: number) => void;
+    readonly __wbg_wasmalignmentresult_free: (a: number, b: number) => void;
+    readonly __wbg_wasmenuframe_free: (a: number, b: number) => void;
+    readonly __wbg_wasmmeshchunk_free: (a: number, b: number) => void;
+    readonly __wbg_wasmpointcloudtileexport_free: (a: number, b: number) => void;
+    readonly __wbg_wasmtmspyramid_free: (a: number, b: number) => void;
     readonly __wbg_workerhandle_free: (a: number, b: number) => void;
     readonly __wbg_workeroptions_free: (a: number, b: number) => void;
     readonly addProperty: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
@@ -3422,12 +3793,19 @@ export interface InitOutput {
     readonly computeLasPointOffset: (a: number, b: number, c: number) => number;
     readonly computeRegionByteRange: (a: number, b: number, c: number, d: number) => number;
     readonly computeScreenSpaceError: (a: number, b: number, c: number, d: number) => number;
+    readonly computeSvdAlignment: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
+    readonly computeSvdAlignmentRansac: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: bigint) => void;
+    readonly computeSvdAlignmentRansacWeighted: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: bigint, j: number, k: number) => void;
+    readonly computeSvdAlignmentWeighted: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
     readonly concaveHull: (a: number, b: number) => number;
     readonly contains: (a: number, b: number, c: number) => number;
     readonly contourLines: (a: number, b: number, c: number, d: number, e: number) => number;
     readonly convexHull: (a: number) => number;
+    readonly copcEstimateDownloadSize: (a: number, b: number, c: number) => void;
+    readonly copcQueryRanges: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => void;
     readonly countGeoJsonByProperty: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly countGeoJsonFeatures: (a: number, b: number, c: number) => void;
+    readonly createEnuFrame: (a: number, b: number) => void;
     readonly crsInfo: (a: number, b: number, c: number) => void;
     readonly decimateRandom: (a: number, b: number, c: number) => number;
     readonly decimateVoxelGrid: (a: number, b: number, c: number) => number;
@@ -3449,11 +3827,13 @@ export interface InitOutput {
     readonly encodePntsTileWithNormals: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => void;
     readonly encodeQuantizedMesh: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => void;
     readonly encodeTerrainTileset: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => void;
-    readonly estimateJobBytes: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
+    readonly encodeTerrainTmsPyramid: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => void;
+    readonly estimateJobBytes: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
     readonly estimateMemoryForPoints: (a: number, b: number, c: number) => number;
     readonly estimateNormals: (a: number, b: number) => number;
     readonly estimateOctreeMemory: (a: number) => number;
     readonly estimatePointSpacing: (a: number, b: number, c: number) => number;
+    readonly exportPointCloudToPnts: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly filterByBounds: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => number;
     readonly filterByClassification: (a: number, b: number, c: number, d: number) => number;
     readonly filterGeoJsonByBBox: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
@@ -3467,6 +3847,7 @@ export interface InitOutput {
     readonly generateIndexedGeometry: (a: number) => number;
     readonly generateInterleavedVertexBuffer: (a: number, b: number, c: number) => number;
     readonly generateTileset: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
+    readonly generateTilesetIncremental: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
     readonly generateTilesetWithAbort: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => void;
     readonly generateTilesetWithSpacing: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => void;
     readonly geoJsonFeatureCollection: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
@@ -3489,6 +3870,7 @@ export interface InitOutput {
     readonly geotiffinfo_tile_count: (a: number) => number;
     readonly geotiffinfo_width: (a: number) => number;
     readonly getAllocatedBytes: () => number;
+    readonly getInputLimits: (a: number) => void;
     readonly getInputSizeLimit: () => number;
     readonly getSupportedCrs: (a: number) => void;
     readonly getVisibleTiles: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number) => number;
@@ -3564,6 +3946,14 @@ export interface InitOutput {
     readonly octree_nodePointCount: (a: number, b: number) => number;
     readonly octree_rootBounds: (a: number) => number;
     readonly octree_total_points: (a: number) => number;
+    readonly octreechunkbuilder_finish: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly octreechunkbuilder_finishWithColors: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
+    readonly octreechunkbuilder_new: (a: number, b: number) => number;
+    readonly octreechunkbuilder_pointCount: (a: number) => number;
+    readonly octreechunkbuilder_pushChunk: (a: number, b: number, c: number, d: number) => void;
+    readonly octreechunkbuilder_pushChunkWithColors: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
+    readonly octreechunkbuilder_withCapacity: (a: number, b: number, c: number) => number;
+    readonly parseCopcHeader: (a: number, b: number, c: number) => void;
     readonly parseGeoJsonCoords: (a: number, b: number, c: number) => void;
     readonly parseGeoJsonFeatures: (a: number, b: number, c: number) => void;
     readonly parseGeoJsonLazy: (a: number, b: number, c: number) => void;
@@ -3572,15 +3962,19 @@ export interface InitOutput {
     readonly parseGeoJsonStream: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly parseGeotiff: (a: number, b: number, c: number) => void;
     readonly parseGeotiffTile: (a: number, b: number, c: number, d: number) => void;
+    readonly parseGlb: (a: number, b: number, c: number) => void;
     readonly parseGpx: (a: number, b: number, c: number) => void;
     readonly parseGpxWithElevation: (a: number, b: number, c: number) => void;
-    readonly parseIfcGeometry: (a: number, b: number) => number;
+    readonly parseIfcGeometry: (a: number, b: number, c: number) => void;
     readonly parseLasHeader: (a: number, b: number, c: number) => void;
     readonly parseLasHeaderOnly: (a: number, b: number, c: number) => void;
     readonly parseLasPointAt: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly parseLasPoints: (a: number, b: number, c: number) => void;
     readonly parseLasPointsWithProgress: (a: number, b: number, c: number, d: number) => void;
     readonly parseLasPointsWithProgressAndAbort: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly parseLazPoints: (a: number, b: number, c: number) => void;
+    readonly parseLazPointsStream: (a: number, b: number, c: number, d: number) => void;
+    readonly parseLazPointsStreamWithAbort: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly parseObjVertices: (a: number, b: number) => number;
     readonly parseObjWithNormals: (a: number, b: number, c: number) => void;
     readonly parsePcdAscii: (a: number, b: number, c: number) => void;
@@ -3600,8 +3994,18 @@ export interface InitOutput {
     readonly pointCloudAnalysis: (a: number, b: number, c: number) => void;
     readonly pointCloudBounds: (a: number) => number;
     readonly pointCloudCentroid: (a: number) => number;
+    readonly pointCloudChunkFromBuffers: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly pointCloudStats: (a: number, b: number) => void;
     readonly pointCloudToGlb: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly pointcloudchunk_aabbMax: (a: number) => number;
+    readonly pointcloudchunk_aabbMin: (a: number) => number;
+    readonly pointcloudchunk_colors: (a: number) => number;
+    readonly pointcloudchunk_generateTileset: (a: number, b: number, c: number, d: number) => void;
+    readonly pointcloudchunk_pointCount: (a: number) => number;
+    readonly pointcloudchunk_positions: (a: number) => number;
+    readonly pointcloudchunk_selectAabb: (a: number, b: number, c: number, d: number) => void;
+    readonly pointcloudchunk_sourceFormat: (a: number, b: number) => void;
+    readonly pointcloudchunk_version: (a: number) => bigint;
     readonly pointcloudstats_colorMeanB: (a: number) => number;
     readonly pointcloudstats_colorMeanG: (a: number) => number;
     readonly pointcloudstats_colorMeanR: (a: number) => number;
@@ -3634,6 +4038,8 @@ export interface InitOutput {
     readonly quantizedmeshresult_data: (a: number) => number;
     readonly quantizeresult_bounds: (a: number) => number;
     readonly quantizeresult_quantized: (a: number) => number;
+    readonly readCopcChunk: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
+    readonly readCopcRegion: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => void;
     readonly removeProperty: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly renameProperty: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
     readonly rhumbBearing: (a: number, b: number, c: number, d: number) => number;
@@ -3687,12 +4093,46 @@ export interface InitOutput {
     readonly vectortileoptions_new: () => number;
     readonly version: (a: number) => void;
     readonly vincentyDistance: (a: number, b: number, c: number, d: number) => number;
+    readonly wasmalignmentresult_inlierCount: (a: number) => number;
+    readonly wasmalignmentresult_inlierIndices: (a: number) => number;
+    readonly wasmalignmentresult_matrix: (a: number) => number;
+    readonly wasmalignmentresult_outlierCount: (a: number) => number;
+    readonly wasmalignmentresult_residuals: (a: number) => number;
+    readonly wasmalignmentresult_rmsError: (a: number) => number;
+    readonly wasmalignmentresult_rotation: (a: number) => number;
+    readonly wasmalignmentresult_scale: (a: number) => number;
+    readonly wasmalignmentresult_translation: (a: number) => number;
+    readonly wasmenuframe_enuToWgs84: (a: number, b: number, c: number, d: number) => void;
+    readonly wasmenuframe_wgs84ToEnu: (a: number, b: number, c: number, d: number) => void;
+    readonly wasmenuframe_wgs84ToEnuF32: (a: number, b: number, c: number, d: number) => void;
+    readonly wasmmeshchunk_aabbMax: (a: number) => number;
+    readonly wasmmeshchunk_aabbMin: (a: number) => number;
+    readonly wasmmeshchunk_hasNormals: (a: number) => number;
+    readonly wasmmeshchunk_hasTexcoords: (a: number) => number;
+    readonly wasmmeshchunk_indexCount: (a: number) => number;
+    readonly wasmmeshchunk_indices: (a: number) => number;
+    readonly wasmmeshchunk_mode: (a: number) => number;
+    readonly wasmmeshchunk_normals: (a: number) => number;
+    readonly wasmmeshchunk_positions: (a: number) => number;
+    readonly wasmmeshchunk_selectAabb: (a: number, b: number, c: number, d: number) => void;
+    readonly wasmmeshchunk_selectPolygon: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly wasmmeshchunk_texcoords: (a: number) => number;
+    readonly wasmmeshchunk_toGlb: (a: number) => number;
+    readonly wasmpointcloudtileexport_bounds: (a: number) => number;
+    readonly wasmpointcloudtileexport_center: (a: number) => number;
+    readonly wasmpointcloudtileexport_pnts: (a: number) => number;
+    readonly wasmpointcloudtileexport_tilesetJson: (a: number, b: number) => void;
     readonly wasmquantbounds_maxX: (a: number) => number;
     readonly wasmquantbounds_maxY: (a: number) => number;
     readonly wasmquantbounds_maxZ: (a: number) => number;
     readonly wasmquantbounds_minX: (a: number) => number;
     readonly wasmquantbounds_minY: (a: number) => number;
     readonly wasmquantbounds_minZ: (a: number) => number;
+    readonly wasmtmspyramid_layerJson: (a: number, b: number) => void;
+    readonly wasmtmspyramid_tile: (a: number, b: number) => number;
+    readonly wasmtmspyramid_tileCount: (a: number) => number;
+    readonly wasmtmspyramid_tilePath: (a: number, b: number, c: number) => void;
+    readonly wasmtmspyramid_totalBytes: (a: number) => number;
     readonly wgs84ToUtm: (a: number, b: number) => number;
     readonly workerhandle_cancel: (a: number, b: number) => void;
     readonly workerhandle_createPointCloudWorker: (a: number, b: number, c: number) => void;
@@ -3712,6 +4152,7 @@ export interface InitOutput {
     readonly getMaxWasmMemory: () => number;
     readonly __wbg_laspointcloud_free: (a: number, b: number) => void;
     readonly __wbg_pcdpointcloud_free: (a: number, b: number) => void;
+    readonly suggestCrsHeuristic: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly setInputSizeLimit: (a: number) => void;
     readonly setMaxWasmMemory: (a: number) => void;
     readonly lasheaderinfo_xOffset: (a: number) => number;
@@ -3743,6 +4184,11 @@ export interface InitOutput {
     readonly spatialindex_size: (a: number) => number;
     readonly validationresult_invalid_count: (a: number) => number;
     readonly validationresult_valid_count: (a: number) => number;
+    readonly wasmalignmentresult_maxResidual: (a: number) => number;
+    readonly wasmenuframe_anchorAlt: (a: number) => number;
+    readonly wasmenuframe_anchorLat: (a: number) => number;
+    readonly wasmenuframe_anchorLng: (a: number) => number;
+    readonly wasmmeshchunk_version: (a: number) => bigint;
     readonly workeroptions_maxDepth: (a: number) => number;
     readonly workeroptions_maxPointsPerNode: (a: number) => number;
     readonly __wbg_ifcmesh_free: (a: number, b: number) => void;
@@ -3750,10 +4196,12 @@ export interface InitOutput {
     readonly supportsDraco: () => number;
     readonly supportsGeotiff: () => number;
     readonly supportsLaz: () => number;
+    readonly supportsMeshIngest: () => number;
     readonly supportsMultiThread: () => number;
     readonly threadCount: () => number;
     readonly tinresult_triangleCount: (a: number) => number;
     readonly tinresult_vertexCount: (a: number) => number;
+    readonly wasmmeshchunk_vertexCount: (a: number) => number;
     readonly __wbg_pointcloudstreamer_free: (a: number, b: number) => void;
     readonly ifcmesh_indices: (a: number) => number;
     readonly ifcmesh_positions: (a: number) => number;
@@ -3764,9 +4212,9 @@ export interface InitOutput {
     readonly buildOctreeParallel: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly laspointcloud_colors: (a: number) => number;
     readonly pcdpointcloud_colors: (a: number) => number;
-    readonly __wasm_bindgen_func_elem_1969: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_1971: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_219: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_2412: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_2414: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_332: (a: number, b: number, c: number) => void;
     readonly __wbindgen_export: (a: number, b: number) => number;
     readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_export3: (a: number) => void;

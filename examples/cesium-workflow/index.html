@@ -180,8 +180,8 @@
         <div class="panel-title">📂 Upload</div>
         <div class="drop-zone" id="dropZone">
           <div class="icon">🗺️</div>
-          <p>Drop a LAS file here (LAZ if built with laz-support)</p>
-          <p style="font-size:0.65rem">WASM-accelerated parsing → Octree → 3D Tiles</p>
+          <p>Drop a LAS / COPC file here (LAZ/COPC with laz-support build)</p>
+          <p style="font-size:0.65rem">COPC streams via Spatial IR → Octree → 3D Tiles</p>
         </div>
         <input type="file" id="fileInput" accept=".las,.laz" style="display:none">
       </div>
@@ -279,6 +279,11 @@
   </div>
 
   <script type="module">
+    import {
+      tryParseCopcHeader,
+      streamCopcToPointCloudChunk,
+    } from '../shared/pc-bindings.mjs';
+
     // =========================================================================
     // WASM-Powered Cesium Workflow
     // All core processing: parse → octree → 3D tiles, driven by WASM
@@ -435,6 +440,119 @@
     // Main Pipeline
     // =========================================================================
 
+    async function processCopcFile(file, bytes, copcInfo, startTime) {
+      const pointCount = Number(copcInfo.pointCount) || 0;
+      const chunkCount = copcInfo.chunkTable?.length ?? 0;
+      const boundsArr = copcInfo.bounds;
+      const bounds = {
+        minX: boundsArr[0],
+        minY: boundsArr[1],
+        minZ: boundsArr[2],
+        maxX: boundsArr[3],
+        maxY: boundsArr[4],
+        maxZ: boundsArr[5],
+      };
+
+      document.getElementById('fmtType').innerHTML =
+        '<span class="format-badge">COPC</span> Cloud Optimized Point Cloud';
+      document.getElementById('fmtPoints').textContent = pointCount.toLocaleString();
+      document.getElementById('fmtVersion').textContent = String(copcInfo.version ?? '1.4');
+      document.getElementById('fmtBounds').textContent =
+        `[${bounds.minX.toFixed(2)}, ${bounds.maxX.toFixed(2)}] × [${bounds.minY.toFixed(2)}, ${bounds.maxY.toFixed(2)}] × [${bounds.minZ.toFixed(2)}, ${bounds.maxZ.toFixed(2)}]`;
+      log(`COPC: ${chunkCount} chunks, hierarchy=${copcInfo.hasHierarchy ? 'yes' : 'no'}`, 'ok');
+
+      // ---- Step 1+2: Stream COPC → Spatial IR chunk ----
+      setStepActive('stepParse');
+      showProgress();
+      updateProgress(0);
+      const t0 = performance.now();
+
+      const irResult = await streamCopcToPointCloudChunk(wasm, bytes, copcInfo, {
+        onProgress: (done, total) => {
+          const pct = Math.round((done / total) * 70);
+          updateProgress(pct);
+          if (done === total || done % Math.max(1, Math.floor(total / 10)) === 0) {
+            log(`COPC chunk ${done} / ${total}`);
+          }
+        },
+      });
+
+      if (!irResult) {
+        throw new Error('Spatial IR unavailable — rebuild WASM with mesh-ingest + laz-support');
+      }
+
+      const { chunk, positions, colors, pointCount: builtCount, hasColor } = irResult;
+      const parseTime = ((performance.now() - t0) / 1000).toFixed(2);
+      document.getElementById('resParseTime').textContent = parseTime + 's';
+      document.getElementById('fmtColor').textContent = hasColor ? '✅ Yes' : '❌ No (height color)';
+
+      setStepDone('stepParse');
+      log(
+        `Spatial IR ingest: ${builtCount.toLocaleString()} points (source=${chunk.sourceFormat}, v${chunk.version})`,
+        'ok',
+      );
+
+      let tileColors = colors;
+      if (!hasColor) {
+        log('No color data — generating height-based colors');
+        tileColors = generateHeightColors(positions, builtCount, bounds);
+      }
+
+      // ---- Step 2: Octree + tiles from IR chunk ----
+      setStepActive('stepOctree');
+      await yieldToUI();
+      const t1 = performance.now();
+
+      setStepActive('stepEncode');
+      let tileset;
+      let nodeCount = '—';
+      let depth = '—';
+
+      if (typeof chunk.generateTileset === 'function') {
+        tileset = chunk.generateTileset(50000, 21);
+        log('3D Tiles via PointCloudChunk.generateTileset (Spatial IR)', 'ok');
+      } else {
+        tileset = wasm.generateTileset(positions, 50000, 21, tileColors);
+        log('3D Tiles via generateTileset fallback', 'warn');
+      }
+
+      const octreeTime = ((performance.now() - t1) / 1000).toFixed(2);
+      const tileCount = tileset.tileCount;
+      const totalBytes = tileset.totalBytes;
+      const tileTime = octreeTime;
+
+      setStepDone('stepOctree');
+      setStepDone('stepEncode');
+      log(`3D Tiles: ${tileCount} tiles, ${formatBytes(totalBytes)} in ${tileTime}s`, 'ok');
+
+      updateProgress(100);
+      hideProgress();
+
+      chunk.free();
+
+      // ---- Step 4: Load in Cesium ----
+      setStepActive('stepLoad');
+      await loadWasmTilesetInCesium(tileset, bounds);
+      setStepDone('stepLoad');
+
+      const elapsed = ((performance.now() - startTime) / 1000).toFixed(1);
+      showPanel('resultPanel');
+      showPanel('exportPanel');
+
+      document.getElementById('resPoints').textContent = builtCount.toLocaleString();
+      document.getElementById('resNodes').textContent = nodeCount;
+      document.getElementById('resDepth').textContent = depth;
+      document.getElementById('resTiles').textContent = tileCount;
+      document.getElementById('resSize').textContent = formatBytes(totalBytes);
+      document.getElementById('resTime').textContent = elapsed + 's';
+
+      log(`✅ COPC pipeline complete (${parseTime}s stream + ${tileTime}s tiles)`, 'ok');
+
+      lastProcessedData = { tileset, bounds, pointCount: builtCount, fmt: 'COPC' };
+      document.getElementById('exportZip').disabled = false;
+      document.getElementById('copyLink').disabled = false;
+    }
+
     async function processFile(file) {
       if (!wasmReady) {
         log('WASM not loaded yet, please wait...', 'err');
@@ -455,12 +573,21 @@
         const fmt = detectFormat(bytes);
 
         if (fmt.format !== 'LAS' && fmt.format !== 'LAZ') {
-          throw new Error(`Unsupported format: ${fmt.format}. Only LAS/LAZ files are supported in this WASM demo.`);
+          throw new Error(`Unsupported format: ${fmt.format}. Only LAS/LAZ/COPC files are supported in this WASM demo.`);
+        }
+
+        document.getElementById('fmtSize').textContent = formatBytes(file.size);
+        log(`Detected: ${fmt.format}`, 'ok');
+
+        if (wasm.supportsLaz?.() && typeof wasm.parseCopcHeader === 'function') {
+          const copcInfo = tryParseCopcHeader(wasm, bytes);
+          if (copcInfo) {
+            await processCopcFile(file, bytes, copcInfo, startTime);
+            return;
+          }
         }
 
         document.getElementById('fmtType').innerHTML = `<span class="format-badge">${fmt.format}</span> ${fmt.description}`;
-        document.getElementById('fmtSize').textContent = formatBytes(file.size);
-        log(`Detected: ${fmt.format}`, 'ok');
 
         // ---- Step 1: Parse with WASM ----
         setStepActive('stepParse');

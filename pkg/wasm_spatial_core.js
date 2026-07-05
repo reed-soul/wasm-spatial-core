@@ -1242,6 +1242,144 @@ export class Octree {
 if (Symbol.dispose) Octree.prototype[Symbol.dispose] = Octree.prototype.free;
 
 /**
+ * WASM-accessible chunked octree builder.
+ */
+export class OctreeChunkBuilder {
+    static __wrap(ptr) {
+        const obj = Object.create(OctreeChunkBuilder.prototype);
+        obj.__wbg_ptr = ptr;
+        OctreeChunkBuilderFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        OctreeChunkBuilderFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_octreechunkbuilder_free(ptr, 0);
+    }
+    /**
+     * Build octree; copies reordered points into `positions` (must be large enough).
+     * @param {Float32Array} positions
+     * @returns {Octree}
+     */
+    finish(positions) {
+        try {
+            const ptr = this.__destroy_into_raw();
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            var ptr0 = passArrayF32ToWasm0(positions, wasm.__wbindgen_export);
+            var len0 = WASM_VECTOR_LEN;
+            wasm.octreechunkbuilder_finish(retptr, ptr, ptr0, len0, addHeapObject(positions));
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+            if (r2) {
+                throw takeObject(r1);
+            }
+            return Octree.__wrap(r0);
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
+    }
+    /**
+     * Build octree; copies reordered positions and RGB colors into caller buffers.
+     * @param {Float32Array} positions
+     * @param {Uint8Array} colors
+     * @returns {Octree}
+     */
+    finishWithColors(positions, colors) {
+        try {
+            const ptr = this.__destroy_into_raw();
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            var ptr0 = passArrayF32ToWasm0(positions, wasm.__wbindgen_export);
+            var len0 = WASM_VECTOR_LEN;
+            var ptr1 = passArray8ToWasm0(colors, wasm.__wbindgen_export);
+            var len1 = WASM_VECTOR_LEN;
+            wasm.octreechunkbuilder_finishWithColors(retptr, ptr, ptr0, len0, addHeapObject(positions), ptr1, len1, addHeapObject(colors));
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+            if (r2) {
+                throw takeObject(r1);
+            }
+            return Octree.__wrap(r0);
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
+    }
+    /**
+     * @param {number | null} [max_points_per_node]
+     * @param {number | null} [max_depth]
+     */
+    constructor(max_points_per_node, max_depth) {
+        const ret = wasm.octreechunkbuilder_new(isLikeNone(max_points_per_node) ? Number.MAX_SAFE_INTEGER : (max_points_per_node) >>> 0, isLikeNone(max_depth) ? Number.MAX_SAFE_INTEGER : (max_depth) >>> 0);
+        this.__wbg_ptr = ret;
+        OctreeChunkBuilderFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * @returns {number}
+     */
+    get pointCount() {
+        const ret = wasm.octreechunkbuilder_pointCount(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @param {Float32Array} chunk
+     */
+    pushChunk(chunk) {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            const ptr0 = passArrayF32ToWasm0(chunk, wasm.__wbindgen_export);
+            const len0 = WASM_VECTOR_LEN;
+            wasm.octreechunkbuilder_pushChunk(retptr, this.__wbg_ptr, ptr0, len0);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            if (r1) {
+                throw takeObject(r0);
+            }
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
+    }
+    /**
+     * @param {Float32Array} chunk
+     * @param {Uint8Array} colors
+     */
+    pushChunkWithColors(chunk, colors) {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            const ptr0 = passArrayF32ToWasm0(chunk, wasm.__wbindgen_export);
+            const len0 = WASM_VECTOR_LEN;
+            const ptr1 = passArray8ToWasm0(colors, wasm.__wbindgen_export);
+            const len1 = WASM_VECTOR_LEN;
+            wasm.octreechunkbuilder_pushChunkWithColors(retptr, this.__wbg_ptr, ptr0, len0, ptr1, len1);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            if (r1) {
+                throw takeObject(r0);
+            }
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
+    }
+    /**
+     * @param {number | null | undefined} max_points_per_node
+     * @param {number | null | undefined} max_depth
+     * @param {number} estimated_points
+     * @returns {OctreeChunkBuilder}
+     */
+    static withCapacity(max_points_per_node, max_depth, estimated_points) {
+        const ret = wasm.octreechunkbuilder_withCapacity(isLikeNone(max_points_per_node) ? Number.MAX_SAFE_INTEGER : (max_points_per_node) >>> 0, isLikeNone(max_depth) ? Number.MAX_SAFE_INTEGER : (max_depth) >>> 0, estimated_points);
+        return OctreeChunkBuilder.__wrap(ret);
+    }
+}
+if (Symbol.dispose) OctreeChunkBuilder.prototype[Symbol.dispose] = OctreeChunkBuilder.prototype.free;
+
+/**
  * Parsed PCD point cloud data — reuses the same public layout as LasPointCloud.
  */
 export class PcdPointCloud {
@@ -1367,6 +1505,133 @@ export class PlyResult {
     }
 }
 if (Symbol.dispose) PlyResult.prototype[Symbol.dispose] = PlyResult.prototype.free;
+
+/**
+ * WASM-visible point cloud chunk from Spatial IR.
+ */
+export class PointCloudChunk {
+    static __wrap(ptr) {
+        const obj = Object.create(PointCloudChunk.prototype);
+        obj.__wbg_ptr = ptr;
+        PointCloudChunkFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        PointCloudChunkFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_pointcloudchunk_free(ptr, 0);
+    }
+    /**
+     * @returns {Float64Array}
+     */
+    get aabbMax() {
+        const ret = wasm.pointcloudchunk_aabbMax(this.__wbg_ptr);
+        return takeObject(ret);
+    }
+    /**
+     * @returns {Float64Array}
+     */
+    get aabbMin() {
+        const ret = wasm.pointcloudchunk_aabbMin(this.__wbg_ptr);
+        return takeObject(ret);
+    }
+    /**
+     * @returns {Uint8Array}
+     */
+    get colors() {
+        const ret = wasm.pointcloudchunk_colors(this.__wbg_ptr);
+        return takeObject(ret);
+    }
+    /**
+     * Build a multi-tile pnts tileset from this IR chunk (octree → pnts).
+     * @param {number | null} [max_points_per_node]
+     * @param {number | null} [max_depth]
+     * @returns {TilesetResult}
+     */
+    generateTileset(max_points_per_node, max_depth) {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.pointcloudchunk_generateTileset(retptr, this.__wbg_ptr, isLikeNone(max_points_per_node) ? Number.MAX_SAFE_INTEGER : (max_points_per_node) >>> 0, isLikeNone(max_depth) ? Number.MAX_SAFE_INTEGER : (max_depth) >>> 0);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+            if (r2) {
+                throw takeObject(r1);
+            }
+            return TilesetResult.__wrap(r0);
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
+    }
+    /**
+     * @returns {number}
+     */
+    get pointCount() {
+        const ret = wasm.pointcloudchunk_pointCount(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @returns {Float32Array}
+     */
+    get positions() {
+        const ret = wasm.pointcloudchunk_positions(this.__wbg_ptr);
+        return takeObject(ret);
+    }
+    /**
+     * @param {Float64Array} min
+     * @param {Float64Array} max
+     * @returns {PointCloudChunk}
+     */
+    selectAabb(min, max) {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.pointcloudchunk_selectAabb(retptr, this.__wbg_ptr, addBorrowedObject(min), addBorrowedObject(max));
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+            if (r2) {
+                throw takeObject(r1);
+            }
+            return PointCloudChunk.__wrap(r0);
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+            heap[stack_pointer++] = undefined;
+            heap[stack_pointer++] = undefined;
+        }
+    }
+    /**
+     * @returns {string | undefined}
+     */
+    get sourceFormat() {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.pointcloudchunk_sourceFormat(retptr, this.__wbg_ptr);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            let v1;
+            if (r0 !== 0) {
+                v1 = getStringFromWasm0(r0, r1).slice();
+                wasm.__wbindgen_export4(r0, r1 * 1, 1);
+            }
+            return v1;
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
+    }
+    /**
+     * @returns {bigint}
+     */
+    get version() {
+        const ret = wasm.pointcloudchunk_version(this.__wbg_ptr);
+        return BigInt.asUintN(64, ret);
+    }
+}
+if (Symbol.dispose) PointCloudChunk.prototype[Symbol.dispose] = PointCloudChunk.prototype.free;
 
 /**
  * Comprehensive point cloud statistics.
@@ -2726,6 +2991,541 @@ export class VectorTileOptions {
 if (Symbol.dispose) VectorTileOptions.prototype[Symbol.dispose] = VectorTileOptions.prototype.free;
 
 /**
+ * WASM result of `computeSvdAlignment`.
+ */
+export class WasmAlignmentResult {
+    static __wrap(ptr) {
+        const obj = Object.create(WasmAlignmentResult.prototype);
+        obj.__wbg_ptr = ptr;
+        WasmAlignmentResultFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        WasmAlignmentResultFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_wasmalignmentresult_free(ptr, 0);
+    }
+    /**
+     * Number of inliers used for the final fit.
+     * @returns {number}
+     */
+    get inlierCount() {
+        const ret = wasm.wasmalignmentresult_inlierCount(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * Indices of inliers used for the final fit.
+     * @returns {Uint32Array}
+     */
+    get inlierIndices() {
+        const ret = wasm.wasmalignmentresult_inlierIndices(this.__wbg_ptr);
+        return takeObject(ret);
+    }
+    /**
+     * Column-major 4×4 matrix for `transformPointCloud` (f32).
+     * @returns {Float32Array}
+     */
+    get matrix() {
+        const ret = wasm.wasmalignmentresult_matrix(this.__wbg_ptr);
+        return takeObject(ret);
+    }
+    /**
+     * Largest per-point residual.
+     * @returns {number}
+     */
+    get maxResidual() {
+        const ret = wasm.wasmalignmentresult_maxResidual(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * Number of outliers (points excluded from the final fit).
+     * @returns {number}
+     */
+    get outlierCount() {
+        const ret = wasm.wasmalignmentresult_outlierCount(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * Per-point Euclidean residuals (all control points, same input order).
+     * @returns {Float64Array}
+     */
+    get residuals() {
+        const ret = wasm.wasmalignmentresult_residuals(this.__wbg_ptr);
+        return takeObject(ret);
+    }
+    /**
+     * RMS residual in target coordinate units.
+     * @returns {number}
+     */
+    get rmsError() {
+        const ret = wasm.wasmalignmentresult_rmsError(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * Row-major 3×3 rotation (f64).
+     * @returns {Float64Array}
+     */
+    get rotation() {
+        const ret = wasm.wasmalignmentresult_rotation(this.__wbg_ptr);
+        return takeObject(ret);
+    }
+    /**
+     * Uniform scale factor.
+     * @returns {number}
+     */
+    get scale() {
+        const ret = wasm.wasmalignmentresult_scale(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * Translation vector `[tx, ty, tz]` (f64).
+     * @returns {Float64Array}
+     */
+    get translation() {
+        const ret = wasm.wasmalignmentresult_translation(this.__wbg_ptr);
+        return takeObject(ret);
+    }
+}
+if (Symbol.dispose) WasmAlignmentResult.prototype[Symbol.dispose] = WasmAlignmentResult.prototype.free;
+
+/**
+ * WASM handle for a local ENU coordinate frame.
+ */
+export class WasmEnuFrame {
+    static __wrap(ptr) {
+        const obj = Object.create(WasmEnuFrame.prototype);
+        obj.__wbg_ptr = ptr;
+        WasmEnuFrameFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        WasmEnuFrameFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_wasmenuframe_free(ptr, 0);
+    }
+    /**
+     * @returns {number}
+     */
+    get anchorAlt() {
+        const ret = wasm.wasmenuframe_anchorAlt(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {number}
+     */
+    get anchorLat() {
+        const ret = wasm.wasmenuframe_anchorLat(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {number}
+     */
+    get anchorLng() {
+        const ret = wasm.wasmenuframe_anchorLng(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * Convert flat ENU `[e, n, u, ...]` to WGS84 `[lng, lat, alt, ...]` (f64).
+     * @param {Float64Array} coords
+     * @returns {Float64Array}
+     */
+    enuToWgs84(coords) {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            const ptr0 = passArrayF64ToWasm0(coords, wasm.__wbindgen_export);
+            const len0 = WASM_VECTOR_LEN;
+            wasm.wasmenuframe_enuToWgs84(retptr, this.__wbg_ptr, ptr0, len0);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+            if (r2) {
+                throw takeObject(r1);
+            }
+            return takeObject(r0);
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
+    }
+    /**
+     * Convert flat WGS84 `[lng, lat, alt, ...]` to ENU `[e, n, u, ...]` (f64).
+     * @param {Float64Array} coords
+     * @returns {Float64Array}
+     */
+    wgs84ToEnu(coords) {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            const ptr0 = passArrayF64ToWasm0(coords, wasm.__wbindgen_export);
+            const len0 = WASM_VECTOR_LEN;
+            wasm.wasmenuframe_wgs84ToEnu(retptr, this.__wbg_ptr, ptr0, len0);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+            if (r2) {
+                throw takeObject(r1);
+            }
+            return takeObject(r0);
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
+    }
+    /**
+     * Convert flat WGS84 to ENU f32 rendering offsets `[e, n, u, ...]`.
+     * @param {Float64Array} coords
+     * @returns {Float32Array}
+     */
+    wgs84ToEnuF32(coords) {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            const ptr0 = passArrayF64ToWasm0(coords, wasm.__wbindgen_export);
+            const len0 = WASM_VECTOR_LEN;
+            wasm.wasmenuframe_wgs84ToEnuF32(retptr, this.__wbg_ptr, ptr0, len0);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+            if (r2) {
+                throw takeObject(r1);
+            }
+            return takeObject(r0);
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
+    }
+}
+if (Symbol.dispose) WasmEnuFrame.prototype[Symbol.dispose] = WasmEnuFrame.prototype.free;
+
+/**
+ * WASM-visible mesh chunk from Spatial IR.
+ */
+export class WasmMeshChunk {
+    static __wrap(ptr) {
+        const obj = Object.create(WasmMeshChunk.prototype);
+        obj.__wbg_ptr = ptr;
+        WasmMeshChunkFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        WasmMeshChunkFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_wasmmeshchunk_free(ptr, 0);
+    }
+    /**
+     * AABB max corner [x, y, z].
+     * @returns {Float64Array}
+     */
+    get aabbMax() {
+        const ret = wasm.wasmmeshchunk_aabbMax(this.__wbg_ptr);
+        return takeObject(ret);
+    }
+    /**
+     * AABB min corner [x, y, z].
+     * @returns {Float64Array}
+     */
+    get aabbMin() {
+        const ret = wasm.wasmmeshchunk_aabbMin(this.__wbg_ptr);
+        return takeObject(ret);
+    }
+    /**
+     * @returns {boolean}
+     */
+    hasNormals() {
+        const ret = wasm.wasmmeshchunk_hasNormals(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * @returns {boolean}
+     */
+    hasTexcoords() {
+        const ret = wasm.wasmmeshchunk_hasTexcoords(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * @returns {number}
+     */
+    get indexCount() {
+        const ret = wasm.wasmmeshchunk_indexCount(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @returns {Uint32Array}
+     */
+    get indices() {
+        const ret = wasm.wasmmeshchunk_indices(this.__wbg_ptr);
+        return takeObject(ret);
+    }
+    /**
+     * @returns {number}
+     */
+    get mode() {
+        const ret = wasm.wasmmeshchunk_mode(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @returns {Float32Array}
+     */
+    get normals() {
+        const ret = wasm.wasmmeshchunk_normals(this.__wbg_ptr);
+        return takeObject(ret);
+    }
+    /**
+     * @returns {Float32Array}
+     */
+    get positions() {
+        const ret = wasm.wasmmeshchunk_positions(this.__wbg_ptr);
+        return takeObject(ret);
+    }
+    /**
+     * Select geometry inside an axis-aligned box.
+     *
+     * `min` and `max` are `[x, y, z]` corners in the chunk's coordinate frame.
+     * @param {Float64Array} min
+     * @param {Float64Array} max
+     * @returns {WasmMeshChunk}
+     */
+    selectAabb(min, max) {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.wasmmeshchunk_selectAabb(retptr, this.__wbg_ptr, addBorrowedObject(min), addBorrowedObject(max));
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+            if (r2) {
+                throw takeObject(r1);
+            }
+            return WasmMeshChunk.__wrap(r0);
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+            heap[stack_pointer++] = undefined;
+            heap[stack_pointer++] = undefined;
+        }
+    }
+    /**
+     * Select geometry inside a vertically extruded polygon (XY ring + Z range).
+     *
+     * `ring` is a flat `[x0, y0, x1, y1, …]` array with at least three vertices.
+     * @param {Float64Array} ring
+     * @param {number} z_min
+     * @param {number} z_max
+     * @returns {WasmMeshChunk}
+     */
+    selectPolygon(ring, z_min, z_max) {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.wasmmeshchunk_selectPolygon(retptr, this.__wbg_ptr, addBorrowedObject(ring), z_min, z_max);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+            if (r2) {
+                throw takeObject(r1);
+            }
+            return WasmMeshChunk.__wrap(r0);
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+            heap[stack_pointer++] = undefined;
+        }
+    }
+    /**
+     * @returns {Float32Array}
+     */
+    get texcoords() {
+        const ret = wasm.wasmmeshchunk_texcoords(this.__wbg_ptr);
+        return takeObject(ret);
+    }
+    /**
+     * Export as GLB bytes.
+     * @returns {Uint8Array}
+     */
+    toGlb() {
+        const ret = wasm.wasmmeshchunk_toGlb(this.__wbg_ptr);
+        return takeObject(ret);
+    }
+    /**
+     * @returns {bigint}
+     */
+    get version() {
+        const ret = wasm.wasmmeshchunk_version(this.__wbg_ptr);
+        return BigInt.asUintN(64, ret);
+    }
+    /**
+     * @returns {number}
+     */
+    get vertexCount() {
+        const ret = wasm.wasmmeshchunk_vertexCount(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+}
+if (Symbol.dispose) WasmMeshChunk.prototype[Symbol.dispose] = WasmMeshChunk.prototype.free;
+
+/**
+ * WASM result of exporting a point cloud to pnts + tileset.json.
+ */
+export class WasmPointCloudTileExport {
+    static __wrap(ptr) {
+        const obj = Object.create(WasmPointCloudTileExport.prototype);
+        obj.__wbg_ptr = ptr;
+        WasmPointCloudTileExportFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        WasmPointCloudTileExportFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_wasmpointcloudtileexport_free(ptr, 0);
+    }
+    /**
+     * @returns {Float64Array}
+     */
+    get bounds() {
+        const ret = wasm.wasmpointcloudtileexport_bounds(this.__wbg_ptr);
+        return takeObject(ret);
+    }
+    /**
+     * @returns {Float64Array}
+     */
+    get center() {
+        const ret = wasm.wasmpointcloudtileexport_center(this.__wbg_ptr);
+        return takeObject(ret);
+    }
+    /**
+     * @returns {Uint8Array}
+     */
+    get pnts() {
+        const ret = wasm.wasmpointcloudtileexport_pnts(this.__wbg_ptr);
+        return takeObject(ret);
+    }
+    /**
+     * @returns {string}
+     */
+    get tilesetJson() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.wasmpointcloudtileexport_tilesetJson(retptr, this.__wbg_ptr);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            deferred1_0 = r0;
+            deferred1_1 = r1;
+            return getStringFromWasm0(r0, r1);
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+            wasm.__wbindgen_export4(deferred1_0, deferred1_1, 1);
+        }
+    }
+}
+if (Symbol.dispose) WasmPointCloudTileExport.prototype[Symbol.dispose] = WasmPointCloudTileExport.prototype.free;
+
+/**
+ * WASM-facing wrapper around `TmsPyramidResult`.
+ *
+ * JS accessors mirror `TerrainTilesetResult`: `layerJson`, `tileCount`,
+ * `tilePath(i)`, `tile(i)`, `totalBytes`.
+ */
+export class WasmTmsPyramid {
+    static __wrap(ptr) {
+        const obj = Object.create(WasmTmsPyramid.prototype);
+        obj.__wbg_ptr = ptr;
+        WasmTmsPyramidFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        WasmTmsPyramidFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_wasmtmspyramid_free(ptr, 0);
+    }
+    /**
+     * The `layer.json` contents, ready to write to disk verbatim.
+     * @returns {string}
+     */
+    get layerJson() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.wasmtmspyramid_layerJson(retptr, this.__wbg_ptr);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            deferred1_0 = r0;
+            deferred1_1 = r1;
+            return getStringFromWasm0(r0, r1);
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+            wasm.__wbindgen_export4(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * Spec-conformant quantized-mesh-1.0 bytes of the tile at `index`.
+     * @param {number} index
+     * @returns {Uint8Array}
+     */
+    tile(index) {
+        const ret = wasm.wasmtmspyramid_tile(this.__wbg_ptr, index);
+        return takeObject(ret);
+    }
+    /**
+     * Number of tiles in the pyramid (1 + 4 = 5 for the default zoom 0–1 layout).
+     * @returns {number}
+     */
+    get tileCount() {
+        const ret = wasm.wasmtmspyramid_tileCount(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * Relative TMS path (`{z}/{x}/{y}.terrain`) of the tile at `index`.
+     * @param {number} index
+     * @returns {string}
+     */
+    tilePath(index) {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.wasmtmspyramid_tilePath(retptr, this.__wbg_ptr, index);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            deferred1_0 = r0;
+            deferred1_1 = r1;
+            return getStringFromWasm0(r0, r1);
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+            wasm.__wbindgen_export4(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * Total bytes across all tiles (debug/info accessor).
+     * @returns {number}
+     */
+    get totalBytes() {
+        const ret = wasm.wasmtmspyramid_totalBytes(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+}
+if (Symbol.dispose) WasmTmsPyramid.prototype[Symbol.dispose] = WasmTmsPyramid.prototype.free;
+
+/**
  * A handle to a point cloud processing Web Worker.
  *
  * Create via `createPointCloudWorker(wasmUrl)`. The Worker loads the WASM
@@ -3580,13 +4380,7 @@ export function bearing(lng1, lat1, lng2, lat2) {
 }
 
 /**
- * Recommend the best CRS for a geographic region.
- *
- * # Arguments
- * - `min_lng`, `min_lat`, `max_lng`, `max_lat`: Bounding box in degrees.
- *
- * # Returns
- * JSON string with `crs` (recommended CRS code) and `reason`.
+ * @deprecated Use `suggestCrsHeuristic` — same heuristic, kept for compatibility.
  * @param {number} min_lng
  * @param {number} min_lat
  * @param {number} max_lng
@@ -4183,6 +4977,132 @@ export function computeScreenSpaceError(geometric_error, distance, fov, screen_h
 }
 
 /**
+ * Estimate a similarity transform aligning `source` control points to `target`.
+ *
+ * Both arrays are flat `[x,y,z,...]` with equal length (≥ 9 elements).
+ * Set `allow_scale` false for a rigid (Kabsch) solve.
+ * @param {Float64Array} source
+ * @param {Float64Array} target
+ * @param {boolean} allow_scale
+ * @returns {WasmAlignmentResult}
+ */
+export function computeSvdAlignment(source, target, allow_scale) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArrayF64ToWasm0(source, wasm.__wbindgen_export);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passArrayF64ToWasm0(target, wasm.__wbindgen_export);
+        const len1 = WASM_VECTOR_LEN;
+        wasm.computeSvdAlignment(retptr, ptr0, len0, ptr1, len1, allow_scale);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return WasmAlignmentResult.__wrap(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
+}
+
+/**
+ * RANSAC robust alignment with outlier rejection and inlier refit.
+ *
+ * `max_iterations = 0` uses an adaptive default. `seed = 0` derives a
+ * deterministic seed from coordinates (reproducible for the same inputs).
+ * @param {Float64Array} source
+ * @param {Float64Array} target
+ * @param {boolean} allow_scale
+ * @param {number} inlier_threshold
+ * @param {number} max_iterations
+ * @param {bigint} seed
+ * @returns {WasmAlignmentResult}
+ */
+export function computeSvdAlignmentRansac(source, target, allow_scale, inlier_threshold, max_iterations, seed) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArrayF64ToWasm0(source, wasm.__wbindgen_export);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passArrayF64ToWasm0(target, wasm.__wbindgen_export);
+        const len1 = WASM_VECTOR_LEN;
+        wasm.computeSvdAlignmentRansac(retptr, ptr0, len0, ptr1, len1, allow_scale, inlier_threshold, max_iterations, seed);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return WasmAlignmentResult.__wrap(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
+}
+
+/**
+ * RANSAC alignment with optional per-point weights applied during inlier refit.
+ * @param {Float64Array} source
+ * @param {Float64Array} target
+ * @param {boolean} allow_scale
+ * @param {number} inlier_threshold
+ * @param {number} max_iterations
+ * @param {bigint} seed
+ * @param {Float64Array} weights
+ * @returns {WasmAlignmentResult}
+ */
+export function computeSvdAlignmentRansacWeighted(source, target, allow_scale, inlier_threshold, max_iterations, seed, weights) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArrayF64ToWasm0(source, wasm.__wbindgen_export);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passArrayF64ToWasm0(target, wasm.__wbindgen_export);
+        const len1 = WASM_VECTOR_LEN;
+        const ptr2 = passArrayF64ToWasm0(weights, wasm.__wbindgen_export);
+        const len2 = WASM_VECTOR_LEN;
+        wasm.computeSvdAlignmentRansacWeighted(retptr, ptr0, len0, ptr1, len1, allow_scale, inlier_threshold, max_iterations, seed, ptr2, len2);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return WasmAlignmentResult.__wrap(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
+}
+
+/**
+ * Weighted alignment — `weights[i]` is relative precision for pair `i`.
+ * @param {Float64Array} source
+ * @param {Float64Array} target
+ * @param {boolean} allow_scale
+ * @param {Float64Array} weights
+ * @returns {WasmAlignmentResult}
+ */
+export function computeSvdAlignmentWeighted(source, target, allow_scale, weights) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArrayF64ToWasm0(source, wasm.__wbindgen_export);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passArrayF64ToWasm0(target, wasm.__wbindgen_export);
+        const len1 = WASM_VECTOR_LEN;
+        const ptr2 = passArrayF64ToWasm0(weights, wasm.__wbindgen_export);
+        const len2 = WASM_VECTOR_LEN;
+        wasm.computeSvdAlignmentWeighted(retptr, ptr0, len0, ptr1, len1, allow_scale, ptr2, len2);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return WasmAlignmentResult.__wrap(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
+}
+
+/**
  * Compute an approximate concave hull using alpha shape (simplified).
  *
  * # Arguments
@@ -4274,6 +5194,88 @@ export function convexHull(coords) {
 }
 
 /**
+ * Estimate the total download size needed to fetch COPC chunks intersecting
+ * a given bounding box.
+ *
+ * Returns the sum of all chunk byte sizes (in bytes) plus the header size.
+ * This is an upper bound since we include all chunks (COPC chunk tables
+ * don't have per-chunk bounding boxes).
+ * @param {string} copc_info_json
+ * @returns {number}
+ */
+export function copcEstimateDownloadSize(copc_info_json) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passStringToWasm0(copc_info_json, wasm.__wbindgen_export, wasm.__wbindgen_export2);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.copcEstimateDownloadSize(retptr, ptr0, len0);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return r0 >>> 0;
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
+}
+
+/**
+ * Compute HTTP Range headers needed to fetch COPC chunks that may intersect
+ * a given bounding box.
+ *
+ * Since COPC chunk table entries don't include per-chunk bounding boxes,
+ * this function returns Range headers for ALL chunks. The caller can then
+ * decompress each chunk and filter points by bbox on the client side.
+ *
+ * For a more refined approach, callers should use the COPC hierarchy nodes
+ * (available in the COPC EVLR) to pre-filter which chunks intersect the bbox.
+ *
+ * # Arguments
+ * * `copc_info_json` — JSON string from `parseCopcHeader()`, containing
+ *   `pointDataOffset`, `chunkTable`, and `fileSize` fields.
+ * * `min_x, min_y, min_z, max_x, max_y, max_z` — Query bounding box.
+ *
+ * # Returns
+ * JSON string: `{"ranges": ["bytes=START-END", ...], "totalBytes": N}`
+ * @param {string} copc_info_json
+ * @param {number} min_x
+ * @param {number} min_y
+ * @param {number} min_z
+ * @param {number} max_x
+ * @param {number} max_y
+ * @param {number} max_z
+ * @returns {string}
+ */
+export function copcQueryRanges(copc_info_json, min_x, min_y, min_z, max_x, max_y, max_z) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passStringToWasm0(copc_info_json, wasm.__wbindgen_export, wasm.__wbindgen_export2);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.copcQueryRanges(retptr, ptr0, len0, min_x, min_y, min_z, max_x, max_y, max_z);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        var r3 = getDataViewMemory0().getInt32(retptr + 4 * 3, true);
+        var ptr2 = r0;
+        var len2 = r1;
+        if (r3) {
+            ptr2 = 0; len2 = 0;
+            throw takeObject(r2);
+        }
+        deferred3_0 = ptr2;
+        deferred3_1 = len2;
+        return getStringFromWasm0(ptr2, len2);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        wasm.__wbindgen_export4(deferred3_0, deferred3_1, 1);
+    }
+}
+
+/**
  * Count GeoJSON features by property value (COUNT ... GROUP BY).
  *
  * Returns a JSON object mapping property values to their counts.
@@ -4341,6 +5343,27 @@ export function countGeoJsonFeatures(input) {
         return r0 >>> 0;
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
+    }
+}
+
+/**
+ * @param {Float64Array} anchor
+ * @returns {WasmEnuFrame}
+ */
+export function createEnuFrame(anchor) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        wasm.createEnuFrame(retptr, addBorrowedObject(anchor));
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return WasmEnuFrame.__wrap(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        heap[stack_pointer++] = undefined;
     }
 }
 
@@ -4901,19 +5924,68 @@ export function encodeTerrainTileset(heights, width, height, bounds, center, max
 }
 
 /**
- * Estimate job memory in bytes. Pass `op` as `"lasParse"`, `"octreeBuild"`, or `"tilesetGenerate"`.
+ * JS entry point — build a TMS quantized-mesh terrain pyramid.
+ *
+ * # Arguments (JS)
+ * * `heights: Float32Array` — row-major elevation grid.
+ * * `width: u32`, `height: u32` — grid dimensions in samples.
+ * * `bounds: Float64Array | number[]` — `[min_lng, min_lat, max_lng, max_lat]`.
+ *   Accepts a `Float64Array` view or a plain JS array (length 4).
+ * * `center: Float64Array | number[]` — ECEF `[x, y, z]`. Pass an empty array
+ *   (or any length != 3) to auto-derive from bounds + mean height.
+ * * `maxZoom: u32` — clamped to 1 (deeper pyramids not generated here).
+ * @param {Float32Array} heights
+ * @param {number} width
+ * @param {number} height
+ * @param {Float64Array} bounds
+ * @param {Float64Array} center
+ * @param {number} max_zoom
+ * @returns {WasmTmsPyramid}
+ */
+export function encodeTerrainTmsPyramid(heights, width, height, bounds, center, max_zoom) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArrayF32ToWasm0(heights, wasm.__wbindgen_export);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passArrayF64ToWasm0(bounds, wasm.__wbindgen_export);
+        const len1 = WASM_VECTOR_LEN;
+        const ptr2 = passArrayF64ToWasm0(center, wasm.__wbindgen_export);
+        const len2 = WASM_VECTOR_LEN;
+        wasm.encodeTerrainTmsPyramid(retptr, ptr0, len0, width, height, ptr1, len1, ptr2, len2, max_zoom);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return WasmTmsPyramid.__wrap(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
+}
+
+/**
+ * Estimate job memory in bytes.
+ *
+ * `op`: `lasParse` | `octreeBuild` | `octreeChunkBuild` | `tilesetGenerate` |
+ * `tilesetIncremental` | `geotiffParse` | `geotiffTerrainTileset` | `copcRegion` |
+ * `pointCloudPipeline`
+ *
+ * `raster_width` / `raster_height` — pixel dimensions for GeoTIFF ops (else 0).
  * @param {string} op
  * @param {number} point_count
  * @param {number} leaf_count
  * @param {boolean} has_color
+ * @param {number} raster_width
+ * @param {number} raster_height
  * @returns {number}
  */
-export function estimateJobBytes(op, point_count, leaf_count, has_color) {
+export function estimateJobBytes(op, point_count, leaf_count, has_color, raster_width, raster_height) {
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
         const ptr0 = passStringToWasm0(op, wasm.__wbindgen_export, wasm.__wbindgen_export2);
         const len0 = WASM_VECTOR_LEN;
-        wasm.estimateJobBytes(retptr, ptr0, len0, point_count, leaf_count, has_color);
+        wasm.estimateJobBytes(retptr, ptr0, len0, point_count, leaf_count, has_color, raster_width, raster_height);
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
         var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
         var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
@@ -5014,6 +6086,37 @@ export function estimatePointSpacing(positions, sample_size) {
     const len0 = WASM_VECTOR_LEN;
     const ret = wasm.estimatePointSpacing(ptr0, len0, isLikeNone(sample_size) ? Number.MAX_SAFE_INTEGER : (sample_size) >>> 0);
     return ret;
+}
+
+/**
+ * Export point cloud positions to a single pnts tile + minimal tileset.json.
+ *
+ * `positions`: flat `[x, y, z, ...]` Float32Array.
+ * `colors`: optional RGB (`3×N`) or RGBA (`4×N`) bytes.
+ * @param {Float32Array} positions
+ * @param {Uint8Array | null} [colors]
+ * @param {string | null} [tile_uri]
+ * @returns {WasmPointCloudTileExport}
+ */
+export function exportPointCloudToPnts(positions, colors, tile_uri) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        var ptr0 = isLikeNone(colors) ? 0 : passArray8ToWasm0(colors, wasm.__wbindgen_export);
+        var len0 = WASM_VECTOR_LEN;
+        var ptr1 = isLikeNone(tile_uri) ? 0 : passStringToWasm0(tile_uri, wasm.__wbindgen_export, wasm.__wbindgen_export2);
+        var len1 = WASM_VECTOR_LEN;
+        wasm.exportPointCloudToPnts(retptr, addBorrowedObject(positions), ptr0, len0, ptr1, len1);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return WasmPointCloudTileExport.__wrap(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        heap[stack_pointer++] = undefined;
+    }
 }
 
 /**
@@ -5321,6 +6424,50 @@ export function generateTileset(positions, max_points_per_node, max_depth, color
 }
 
 /**
+ * Generate `tileset.json` while emitting each `.pnts` tile via callback (lower peak memory).
+ *
+ * Use after [`crate::octree::build_octree`] — `positions` must match the reordered buffer.
+ * `on_tile(index, uri, tileBytes, bounds)` is called once per leaf; only `tileset.json`
+ * is returned (tile blobs are not retained in WASM).
+ * @param {Octree} octree
+ * @param {Float32Array} positions
+ * @param {Uint8Array | null | undefined} colors
+ * @param {Function} on_tile
+ * @param {Function | null} [should_abort]
+ * @returns {string}
+ */
+export function generateTilesetIncremental(octree, positions, colors, on_tile, should_abort) {
+    let deferred4_0;
+    let deferred4_1;
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        _assertClass(octree, Octree);
+        const ptr0 = passArrayF32ToWasm0(positions, wasm.__wbindgen_export);
+        const len0 = WASM_VECTOR_LEN;
+        var ptr1 = isLikeNone(colors) ? 0 : passArray8ToWasm0(colors, wasm.__wbindgen_export);
+        var len1 = WASM_VECTOR_LEN;
+        wasm.generateTilesetIncremental(retptr, octree.__wbg_ptr, ptr0, len0, ptr1, len1, addBorrowedObject(on_tile), isLikeNone(should_abort) ? 0 : addHeapObject(should_abort));
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        var r3 = getDataViewMemory0().getInt32(retptr + 4 * 3, true);
+        var ptr3 = r0;
+        var len3 = r1;
+        if (r3) {
+            ptr3 = 0; len3 = 0;
+            throw takeObject(r2);
+        }
+        deferred4_0 = ptr3;
+        deferred4_1 = len3;
+        return getStringFromWasm0(ptr3, len3);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        heap[stack_pointer++] = undefined;
+        wasm.__wbindgen_export4(deferred4_0, deferred4_1, 1);
+    }
+}
+
+/**
  * Generate tileset with abort callback checked between leaf encodes.
  * @param {Float32Array} positions
  * @param {number | null | undefined} max_points_per_node
@@ -5579,6 +6726,30 @@ export function getAllocatedBytes() {
 }
 
 /**
+ * Runtime capability and size limits as JSON (for honest client-side preflight).
+ *
+ * Fields include `maxInputBytes`, `recommendedMaxPoints`, `copcSpatialQuery`,
+ * `geotiffElevationFormats`, and `crsScope`.
+ * @returns {string}
+ */
+export function getInputLimits() {
+    let deferred1_0;
+    let deferred1_1;
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        wasm.getInputLimits(retptr);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        deferred1_0 = r0;
+        deferred1_1 = r1;
+        return getStringFromWasm0(r0, r1);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        wasm.__wbindgen_export4(deferred1_0, deferred1_1, 1);
+    }
+}
+
+/**
  * Get the current input size limit in bytes.
  *
  * Returns 100 MB (104,857,600) if not changed.
@@ -5603,7 +6774,8 @@ export function getMaxWasmMemory() {
 /**
  * Return a JSON array of supported coordinate reference systems.
  *
- * Each entry contains `code`, `name`, `description`.
+ * Each entry contains `code`, `name`, `description`, and `capabilities`
+ * (`transform`, `identity`, or `heuristic-only`).
  * @returns {string}
  */
 export function getSupportedCrs() {
@@ -6067,6 +7239,29 @@ export function octreeMemoryUsage(node_count, internal_count, point_count) {
 }
 
 /**
+ * WASM binding: Parse COPC header and return info as JSON object.
+ * @param {Uint8Array} bytes
+ * @returns {object}
+ */
+export function parseCopcHeader(bytes) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArray8ToWasm0(bytes, wasm.__wbindgen_export);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.parseCopcHeader(retptr, ptr0, len0);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return takeObject(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
+}
+
+/**
  * Parse a GeoJSON string and return **all** coordinate pairs as a flat
  * `Float64Array` — `[lng0, lat0, lng1, lat1, …]`.
  *
@@ -6359,6 +7554,29 @@ export function parseGeotiffTile(bytes, tile_index) {
 }
 
 /**
+ * Parse a GLB file into a [`WasmMeshChunk`].
+ * @param {Uint8Array} bytes
+ * @returns {WasmMeshChunk}
+ */
+export function parseGlb(bytes) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArray8ToWasm0(bytes, wasm.__wbindgen_export);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.parseGlb(retptr, ptr0, len0);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return WasmMeshChunk.__wrap(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
+}
+
+/**
  * Parse GPX and return all trackpoint coordinates as a flat `Float64Array`.
  * @param {string} input
  * @returns {Float64Array}
@@ -6428,10 +7646,21 @@ export function parseGpxWithElevation(input) {
  * @returns {IfcGeometryResult}
  */
 export function parseIfcGeometry(text) {
-    const ptr0 = passStringToWasm0(text, wasm.__wbindgen_export, wasm.__wbindgen_export2);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.parseIfcGeometry(ptr0, len0);
-    return IfcGeometryResult.__wrap(ret);
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passStringToWasm0(text, wasm.__wbindgen_export, wasm.__wbindgen_export2);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.parseIfcGeometry(retptr, ptr0, len0);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return IfcGeometryResult.__wrap(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
 }
 
 /**
@@ -6596,6 +7825,81 @@ export function parseLasPointsWithProgressAndAbort(bytes, on_progress, should_ab
         const ptr0 = passArray8ToWasm0(bytes, wasm.__wbindgen_export);
         const len0 = WASM_VECTOR_LEN;
         wasm.parseLasPointsWithProgressAndAbort(retptr, ptr0, len0, addBorrowedObject(on_progress), addBorrowedObject(should_abort));
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return LasPointCloud.__wrap(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        heap[stack_pointer++] = undefined;
+        heap[stack_pointer++] = undefined;
+    }
+}
+
+/**
+ * WASM binding for LAZ point parsing.
+ * @param {Uint8Array} bytes
+ * @returns {LasPointCloud}
+ */
+export function parseLazPoints(bytes) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArray8ToWasm0(bytes, wasm.__wbindgen_export);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.parseLazPoints(retptr, ptr0, len0);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return LasPointCloud.__wrap(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
+}
+
+/**
+ * Parse LAZ points with a JS progress callback. Reports every 10,000 points.
+ * @param {Uint8Array} bytes
+ * @param {Function} on_progress
+ * @returns {LasPointCloud}
+ */
+export function parseLazPointsStream(bytes, on_progress) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArray8ToWasm0(bytes, wasm.__wbindgen_export);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.parseLazPointsStream(retptr, ptr0, len0, addBorrowedObject(on_progress));
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return LasPointCloud.__wrap(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        heap[stack_pointer++] = undefined;
+    }
+}
+
+/**
+ * Parse LAZ points with progress and abort callbacks. Reports every 10,000 points.
+ * @param {Uint8Array} bytes
+ * @param {Function} on_progress
+ * @param {Function} should_abort
+ * @returns {LasPointCloud}
+ */
+export function parseLazPointsStreamWithAbort(bytes, on_progress, should_abort) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArray8ToWasm0(bytes, wasm.__wbindgen_export);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.parseLazPointsStreamWithAbort(retptr, ptr0, len0, addBorrowedObject(on_progress), addBorrowedObject(should_abort));
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
         var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
         var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
@@ -6926,6 +8230,34 @@ export function pointCloudCentroid(positions) {
 }
 
 /**
+ * Ingest flat buffers into a [`PointCloudChunk`] (Spatial IR).
+ * @param {Float32Array} positions
+ * @param {Uint8Array | null} [colors]
+ * @param {string | null} [source_format]
+ * @returns {PointCloudChunk}
+ */
+export function pointCloudChunkFromBuffers(positions, colors, source_format) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        var ptr0 = isLikeNone(colors) ? 0 : passArray8ToWasm0(colors, wasm.__wbindgen_export);
+        var len0 = WASM_VECTOR_LEN;
+        var ptr1 = isLikeNone(source_format) ? 0 : passStringToWasm0(source_format, wasm.__wbindgen_export, wasm.__wbindgen_export2);
+        var len1 = WASM_VECTOR_LEN;
+        wasm.pointCloudChunkFromBuffers(retptr, addBorrowedObject(positions), ptr0, len0, ptr1, len1);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return PointCloudChunk.__wrap(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        heap[stack_pointer++] = undefined;
+    }
+}
+
+/**
  * Compute comprehensive statistics for a point cloud.
  *
  * Returns a JSON string with:
@@ -7208,6 +8540,67 @@ export function quantizePositions(positions, bits) {
     const len0 = WASM_VECTOR_LEN;
     const ret = wasm.quantizePositions(ptr0, len0, isLikeNone(bits) ? Number.MAX_SAFE_INTEGER : (bits) >>> 0);
     return QuantizeResult.__wrap(ret);
+}
+
+/**
+ * WASM binding: Read a single COPC chunk.
+ * @param {Uint8Array} bytes
+ * @param {number} chunk_offset
+ * @param {number} chunk_size
+ * @param {number} expected_points
+ * @param {Uint8Array} header_bytes
+ * @returns {LasPointCloud}
+ */
+export function readCopcChunk(bytes, chunk_offset, chunk_size, expected_points, header_bytes) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArray8ToWasm0(bytes, wasm.__wbindgen_export);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passArray8ToWasm0(header_bytes, wasm.__wbindgen_export);
+        const len1 = WASM_VECTOR_LEN;
+        wasm.readCopcChunk(retptr, ptr0, len0, chunk_offset, chunk_size, expected_points, ptr1, len1);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return LasPointCloud.__wrap(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
+}
+
+/**
+ * WASM binding: Read COPC points from a bounding box region.
+ *
+ * Iterates through all chunks, decompresses each one, and filters
+ * points that fall within the specified bounding box.
+ * @param {Uint8Array} bytes
+ * @param {number} min_x
+ * @param {number} min_y
+ * @param {number} min_z
+ * @param {number} max_x
+ * @param {number} max_y
+ * @param {number} max_z
+ * @returns {LasPointCloud}
+ */
+export function readCopcRegion(bytes, min_x, min_y, min_z, max_x, max_y, max_z) {
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArray8ToWasm0(bytes, wasm.__wbindgen_export);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.readCopcRegion(retptr, ptr0, len0, min_x, min_y, min_z, max_x, max_y, max_z);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return LasPointCloud.__wrap(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
 }
 
 /**
@@ -7497,6 +8890,40 @@ export function sortCoordsByLng(coords) {
 }
 
 /**
+ * Heuristic CRS suggestion for a geographic bounding box (3 CRS codes only).
+ *
+ * Prefer this name over `bestCrsForRegion` — the result is **not** a PROJ-grade
+ * optimal projection recommendation.
+ *
+ * # Arguments
+ * - `min_lng`, `min_lat`, `max_lng`, `max_lat`: Bounding box in degrees.
+ *
+ * # Returns
+ * JSON string with `crs` and `reason`.
+ * @param {number} min_lng
+ * @param {number} min_lat
+ * @param {number} max_lng
+ * @param {number} max_lat
+ * @returns {string}
+ */
+export function suggestCrsHeuristic(min_lng, min_lat, max_lng, max_lat) {
+    let deferred1_0;
+    let deferred1_1;
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        wasm.suggestCrsHeuristic(retptr, min_lng, min_lat, max_lng, max_lat);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        deferred1_0 = r0;
+        deferred1_1 = r1;
+        return getStringFromWasm0(r0, r1);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        wasm.__wbindgen_export4(deferred1_0, deferred1_1, 1);
+    }
+}
+
+/**
  * Returns whether Draco compression is supported at runtime.
  *
  * Draco is NOT currently supported in WASM builds because `draco-oxide`
@@ -7537,6 +8964,15 @@ export function supportsGeotiff() {
  */
 export function supportsLaz() {
     const ret = wasm.supportsLaz();
+    return ret !== 0;
+}
+
+/**
+ * Whether mesh ingest (Spatial IR + GLB read) is available.
+ * @returns {boolean}
+ */
+export function supportsMeshIngest() {
+    const ret = wasm.supportsMeshIngest();
     return ret !== 0;
 }
 
@@ -7973,6 +9409,10 @@ function __wbg_get_imports() {
         __wbg__wbg_cb_unref_158e43e869788cdc: function(arg0) {
             getObject(arg0)._wbg_cb_unref();
         },
+        __wbg_call_330a13e9abecff0b: function() { return handleError(function (arg0, arg1, arg2, arg3, arg4, arg5) {
+            const ret = getObject(arg0).call(getObject(arg1), getObject(arg2), getObject(arg3), getObject(arg4), getObject(arg5));
+            return addHeapObject(ret);
+        }, arguments); },
         __wbg_call_761cb61423a6f121: function() { return handleError(function (arg0, arg1, arg2, arg3, arg4) {
             const ret = getObject(arg0).call(getObject(arg1), getObject(arg2), getObject(arg3), getObject(arg4));
             return addHeapObject(ret);
@@ -8023,6 +9463,10 @@ function __wbg_get_imports() {
             const ret = getObject(arg0)[arg1 >>> 0];
             return addHeapObject(ret);
         },
+        __wbg_get_index_70e2d2cd00aa9df2: function(arg0, arg1) {
+            const ret = getObject(arg0)[arg1 >>> 0];
+            return ret;
+        },
         __wbg_ifcmesh_new: function(arg0) {
             const ret = IfcMesh.__wrap(arg0);
             return addHeapObject(ret);
@@ -8069,6 +9513,10 @@ function __wbg_get_imports() {
             const ret = new Object();
             return addHeapObject(ret);
         },
+        __wbg_new_3baa8d9866155c79: function() {
+            const ret = new Array();
+            return addHeapObject(ret);
+        },
         __wbg_new_9e1e0aabf3119786: function() { return handleError(function (arg0, arg1) {
             const ret = new Worker(getStringFromWasm0(arg0, arg1));
             return addHeapObject(ret);
@@ -8089,6 +9537,10 @@ function __wbg_get_imports() {
             const ret = new Uint8Array(getArrayU8FromWasm0(arg0, arg1));
             return addHeapObject(ret);
         },
+        __wbg_new_from_slice_823acd363b3844cf: function(arg0, arg1) {
+            const ret = new Uint32Array(getArrayU32FromWasm0(arg0, arg1));
+            return addHeapObject(ret);
+        },
         __wbg_new_typed_1137602701dc87d4: function(arg0, arg1) {
             try {
                 var state0 = {a: arg0, b: arg1};
@@ -8096,7 +9548,7 @@ function __wbg_get_imports() {
                     const a = state0.a;
                     state0.a = 0;
                     try {
-                        return __wasm_bindgen_func_elem_1971(a, state0.b, arg0, arg1);
+                        return __wasm_bindgen_func_elem_2414(a, state0.b, arg0, arg1);
                     } finally {
                         state0.a = a;
                     }
@@ -8149,6 +9601,10 @@ function __wbg_get_imports() {
         },
         __wbg_prototypesetcall_fd4050e806e1d519: function(arg0, arg1, arg2) {
             Uint8Array.prototype.set.call(getArrayU8FromWasm0(arg0, arg1), getObject(arg2));
+        },
+        __wbg_push_60a5366c0bb22a7d: function(arg0, arg1) {
+            const ret = getObject(arg0).push(getObject(arg1));
+            return ret;
         },
         __wbg_queueMicrotask_40ac6ffc2848ba77: function(arg0) {
             queueMicrotask(getObject(arg0));
@@ -8233,13 +9689,13 @@ function __wbg_get_imports() {
             return addHeapObject(ret);
         },
         __wbindgen_cast_0000000000000001: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 209, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
-            const ret = makeMutClosure(arg0, arg1, __wasm_bindgen_func_elem_1969);
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 12, ret: Unit, inner_ret: Some(Unit) }, mutable: false }) -> Externref`.
+            const ret = makeClosure(arg0, arg1, __wasm_bindgen_func_elem_332);
             return addHeapObject(ret);
         },
         __wbindgen_cast_0000000000000002: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 9, ret: Unit, inner_ret: Some(Unit) }, mutable: false }) -> Externref`.
-            const ret = makeClosure(arg0, arg1, __wasm_bindgen_func_elem_219);
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 324, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
+            const ret = makeMutClosure(arg0, arg1, __wasm_bindgen_func_elem_2412);
             return addHeapObject(ret);
         },
         __wbindgen_cast_0000000000000003: function(arg0) {
@@ -8266,14 +9722,14 @@ function __wbg_get_imports() {
     };
 }
 
-function __wasm_bindgen_func_elem_219(arg0, arg1, arg2) {
-    wasm.__wasm_bindgen_func_elem_219(arg0, arg1, addHeapObject(arg2));
+function __wasm_bindgen_func_elem_332(arg0, arg1, arg2) {
+    wasm.__wasm_bindgen_func_elem_332(arg0, arg1, addHeapObject(arg2));
 }
 
-function __wasm_bindgen_func_elem_1969(arg0, arg1, arg2) {
+function __wasm_bindgen_func_elem_2412(arg0, arg1, arg2) {
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-        wasm.__wasm_bindgen_func_elem_1969(retptr, arg0, arg1, addHeapObject(arg2));
+        wasm.__wasm_bindgen_func_elem_2412(retptr, arg0, arg1, addHeapObject(arg2));
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
         var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
         if (r1) {
@@ -8284,8 +9740,8 @@ function __wasm_bindgen_func_elem_1969(arg0, arg1, arg2) {
     }
 }
 
-function __wasm_bindgen_func_elem_1971(arg0, arg1, arg2, arg3) {
-    wasm.__wasm_bindgen_func_elem_1971(arg0, arg1, addHeapObject(arg2), addHeapObject(arg3));
+function __wasm_bindgen_func_elem_2414(arg0, arg1, arg2, arg3) {
+    wasm.__wasm_bindgen_func_elem_2414(arg0, arg1, addHeapObject(arg2), addHeapObject(arg3));
 }
 
 const Cesium3DTileFinalization = (typeof FinalizationRegistry === 'undefined')
@@ -8375,9 +9831,27 @@ const VectorTileEngineFinalization = (typeof FinalizationRegistry === 'undefined
 const VectorTileOptionsFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_vectortileoptions_free(ptr, 1));
+const WasmAlignmentResultFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_wasmalignmentresult_free(ptr, 1));
+const WasmEnuFrameFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_wasmenuframe_free(ptr, 1));
+const WasmMeshChunkFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_wasmmeshchunk_free(ptr, 1));
 const OctreeFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_octree_free(ptr, 1));
+const OctreeChunkBuilderFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_octreechunkbuilder_free(ptr, 1));
+const PointCloudChunkFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_pointcloudchunk_free(ptr, 1));
+const WasmPointCloudTileExportFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_wasmpointcloudtileexport_free(ptr, 1));
 const ProcessingContextFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_processingcontext_free(ptr, 1));
@@ -8390,6 +9864,9 @@ const TilesetPatchFinalization = (typeof FinalizationRegistry === 'undefined')
 const TilesetResultFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_tilesetresult_free(ptr, 1));
+const WasmTmsPyramidFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_wasmtmspyramid_free(ptr, 1));
 const WorkerHandleFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_workerhandle_free(ptr, 1));
