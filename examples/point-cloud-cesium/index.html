@@ -336,6 +336,16 @@
     <!-- Terrain deformation (GeoTIFF → quantized-mesh) -->
     <div id="terrainDeformPanel" class="panel hidden">
       <div class="panel-title">🏔️ Terrain Deform (W3)</div>
+      <div class="note" style="margin:6px 0;font-size:0.72rem;line-height:1.4">
+        ⚠️ This demo encodes quantized-mesh <code>.terrain</code> bytes and loads them
+        via <code>Cesium3DTileset</code>, which does <strong>not</strong> render them as
+        globe terrain (3D Tiles content is b3dm/i3dm/pnts/glTF). The encode pipeline
+        runs and the artifacts are produced, but you won't see the deformed heightfield
+        on the globe from this code path. To render the tiles as real terrain, they must
+        be served over HTTP and consumed by <code>CesiumTerrainProvider</code> — see
+        <code>tests/cesium-terrain.spec.mjs</code> (W3.6 acceptance test) for the working
+        <code>encodeTerrainTmsPyramid() → layer.json + {z}/{x}/{y}.terrain</code> path.
+      </div>
       <label style="display:flex;align-items:center;gap:8px;font-size:0.8rem;margin-bottom:8px">
         <input type="checkbox" id="terrainDeformEnable" checked>
         Apply polygon mask edit before tile encode
@@ -818,6 +828,20 @@ async function processGeoTiffFile(file, bytes) {
   const tilesetJson = bindTerrainTilesetUrls(tilesetResult);
 
   setProgress(85, 'Loading into Cesium...');
+  // ⚠️ Semantic note: the tileset below is loaded via Cesium3DTileset, which
+  // does NOT natively render quantized-mesh `.terrain` bytes as globe terrain
+  // (3D Tiles content is b3dm/i3dm/pnts/glTF, not quantized-mesh). The load
+  // succeeds and exposes the produced tile artifacts, but you will not see
+  // the deformed heightfield on the globe surface from this code path.
+  //
+  // To actually render the quantized-mesh tiles as terrain, the bytes must be
+  // served over HTTP and consumed by CesiumTerrainProvider — see
+  // tests/cesium-terrain.spec.mjs (W3.6 acceptance test) for the working
+  // path: encodeTerrainTmsPyramid() → layer.json + {z}/{x}/{y}.terrain →
+  // CesiumTerrainProvider.fromUrl('/terrain-tms/'). That path can't run
+  // purely client-side in this drag-and-drop demo because
+  // CesiumTerrainProvider requires URL-addressable tiles (blob URLs don't
+  // satisfy the {z}/{x}/{y}.terrain URL template resolution).
   await loadTilesetFromJson(tilesetJson);
 
   setProgress(100, 'Done!');
@@ -829,6 +853,10 @@ async function processGeoTiffFile(file, bytes) {
     deform: deformOn ? `${document.getElementById('terrainDeformMode').value} (${polygonSource})` : 'none',
   });
   updateLodInfo(tileCount, totalBytes);
+  // Surface the limitation in the status bar so users aren't confused by an
+  // empty-looking globe after a "Tileset loaded ✓" message. The permanent
+  // caveat in #terrainDeformPanel explains why in detail.
+  setStatus(`Terrain tiles encoded (${tileCount} tiles, ${(totalBytes / 1024).toFixed(0)} KB) — not rendered on globe (see panel note)`);
 }
 
 // =========================================================================
