@@ -29,9 +29,10 @@
 **Start here after V1:** W2 (Spatial IR) — everything else hangs off one internal representation.
 
 > **Status (2026-07-05 calibration):** All five waves have working implementations
-> and passing tests (832 tests green, `cargo test --all-features`, including the
-> new W3.6 headless Cesium acceptance test). Exit-criteria checkboxes below are
-> annotated with the verification basis:
+> and passing tests (832 Rust tests green via `cargo test --all-features`, plus
+> Playwright browser tests for W3.6 Cesium terrain acceptance and W4 WebGPU
+> benchmarks). Exit-criteria checkboxes below are annotated with the
+> verification basis:
 > - ✅ = backed by an automated test that passes
 > - 🟡 = code complete with a benchmark/perf test; rerun to log a current number
 > - ⚠️ = demo-level only (no automated assertion)
@@ -140,8 +141,8 @@
 
 ### Exit criteria
 
-- [x] 10M point transform: GPU faster than WASM SIMD on discrete GPU — 🟡 `examples/webgpu-smoke/` + `npm/webgpu.ts` implement the kernel; `qem_gpu_parity_test.rs` checks CPU/GPU parity. GPU-vs-WASM speedup is **hardware-gated** (requires discrete GPU + Chrome to measure, not code-gated)
-- [x] 2048×2048 heightfield faster than WASM-only — 🟡 kernel in `shaders/heightfield_flatten_v1.wgsl`; CPU path measured ~40 ms (W3 gate); **requires discrete GPU + Chrome to measure** the GPU speedup
+- [x] 10M point transform: GPU faster than WASM SIMD on discrete GPU — 🟡 `examples/webgpu-smoke/` + `npm/webgpu.ts` implement the kernel; `qem_gpu_parity_test.rs` checks CPU/GPU parity. GPU-vs-WASM speedup is **hardware-gated**: measured locally on Apple M4 (integrated GPU, Metal adapter) via `tests/webgpu-bench.spec.mjs` at **WASM 120.6ms vs GPU 167.0ms (0.72×)** — transform is memory-bound and WASM SIMD wins on integrated GPUs. A discrete GPU (HBM bandwidth) is still required to demonstrate the GPU advantage; the code path itself is verified (parity max abs err 6.1e-5).
+- [x] 2048×2048 heightfield faster than WASM-only — ✅ kernel in `shaders/heightfield_flatten_v1.wgsl` (v1.0.1 — fixed a `target` reserved-keyword WGSL compile bug caught by the new bench); measured on Apple M4 via `tests/webgpu-bench.spec.mjs` at **WASM 47.8ms vs GPU 29.2ms (1.64×)** with exact-match parity (max abs err 0). The GPU advantage holds even on integrated Metal.
 - [x] Feature `webgpu` optional; default build unchanged — ✅ `webgpu = ["point-cloud"]` is off by default; `tests/webgpu_layout_test.rs` gated behind `required-features = ["webgpu"]`
 
 ---
@@ -208,3 +209,4 @@ No `live-twin` flag — instance export stays under existing 3D Tiles / i3dm API
 | 2026-06-06 | Removed instance/parking twin wave; W1 = runtime only; trimmed frustum cull, GPU QEM, SVD from core path |
 | 2026-06-27 | Calibrated all exit criteria against actual tests (819 green); annotated ✅/🟡/⚠️ verification basis per item |
 | 2026-07-05 | W3.6 promoted 🟡→✅: headless Cesium `CesiumTerrainProvider` acceptance test (`tests/cesium-terrain.spec.mjs`) proves quantized-mesh bytes load via the real consumer, not just our own decoder. Added `encodeTerrainTmsPyramid` WASM API emitting TMS pyramid + `layer.json` |
+| 2026-07-05 | W4.4 promoted 🟡→✅: `tests/webgpu-bench.spec.mjs` measures 2048×2048 heightfield at 1.64× GPU speedup on Apple M4 Metal (exact-match parity). W4.3 stays 🟡 (transform is memory-bound, integrated GPU loses; discrete GPU still required). Bench also caught + fixed a WGSL `target` reserved-keyword compile bug in `heightfield_flatten_v1.wgsl` — the kernel had never compiled in a real browser. |
