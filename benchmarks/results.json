@@ -1,0 +1,74 @@
+{
+  "generated_at": "2026-07-08T18:21:19.006Z",
+  "rows": [
+    {
+      "timestamp": "2026-07-08T18:21:18.961Z",
+      "hardware": {
+        "node": "v24.18.0",
+        "platform": "linux",
+        "arch": "x64",
+        "cpus": 4,
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "total_mem_mb": 15990
+      },
+      "engine": "loaders.gl",
+      "engine_version": "not-installed",
+      "input": "bench/head-to-head/fixtures/canonical_500k.las",
+      "error": "@loaders.gl/las not installed: Cannot find package '@math.gl/types' imported from /home/runner/work/wasm-spatial-core/wasm-spatial-core/node_modules/@loaders.gl/schema-utils/dist/lib/table/batch-builder/columnar-table-batch-aggregator.js",
+      "notes": "@loaders.gl not installed in this environment. Documented capability gap: @loaders.gl is a reader framework with no shipped LAS→pnts/3D-Tiles writer."
+    },
+    {
+      "timestamp": "2026-07-08T18:21:18Z",
+      "hardware": {
+        "python": "3.12.13",
+        "platform": "linux",
+        "arch": "x86_64",
+        "cpus": 4
+      },
+      "engine": "py3dtiles",
+      "engine_version": "12.1.1",
+      "input": "bench/head-to-head/fixtures/canonical_500k.las",
+      "input_digest_sha256_12": "7948d11316ef",
+      "input_size_mb": 14,
+      "point_count": -1,
+      "output_bytes": 7943205,
+      "tile_count": 40,
+      "wall_ms": {
+        "total": 3786.3,
+        "min": 3775.5,
+        "max": 3792.3,
+        "runs": 5
+      },
+      "peak_rss_mb": 244,
+      "notes": "py3dtiles convert, no reprojection (matches wasm no-op). point_count=-1 means not readable from tileset.json; byte-count parity is the verification axis. RSS is child-process max across all runs (coarse)."
+    },
+    {
+      "timestamp": "2026-07-08T18:20:48.091Z",
+      "hardware": {
+        "node": "v24.18.0",
+        "platform": "linux",
+        "arch": "x64",
+        "cpus": 4,
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "total_mem_mb": 15990
+      },
+      "engine": "wasm-spatial-core",
+      "engine_version": "0.8.2",
+      "input": "bench/head-to-head/fixtures/canonical_500k.las",
+      "input_digest_sha256_12": "7948d11316ef",
+      "input_size_mb": 14,
+      "point_count": 500000,
+      "output_bytes": 6020200,
+      "tile_count": 64,
+      "wall_ms": {
+        "total": 74.4,
+        "parse_ms": 11,
+        "min": 73.4,
+        "max": 75.2,
+        "runs": 5
+      },
+      "peak_rss_mb": 192,
+      "notes": "parsePointCloudAuto → generateTileset (octree + pnts encode in one call)"
+    }
+  ]
+}
