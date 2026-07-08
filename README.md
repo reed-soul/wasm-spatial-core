@@ -22,6 +22,7 @@ machine.
 **[🌐 Live Demo](https://reed-soul.github.io/wasm-spatial-core/)** ·
 [📦 npm](https://www.npmjs.com/package/wasm-spatial-core) ·
 [📖 API Docs](https://reed-soul.github.io/wasm-spatial-core/docs/) ·
+[📊 Head-to-head vs py3dtiles](./benchmarks/index.md) ·
 [🗺️ Roadmap](./ROADMAP_V2.md)
 
 **🧪 30-second try (drop a `.las` file, get a Cesium tileset):**

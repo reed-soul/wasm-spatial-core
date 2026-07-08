@@ -1,0 +1,4 @@
+# Local Python venv for py3dtiles
+.venv/
+# Generated result files (reproduced in CI; not committed)
+results-*.jsonl
