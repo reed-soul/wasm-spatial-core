@@ -22,6 +22,7 @@ machine.
 **[🌐 Live Demo](https://reed-soul.github.io/wasm-spatial-core/)** ·
 [📦 npm](https://www.npmjs.com/package/wasm-spatial-core) ·
 [📖 API Docs](https://reed-soul.github.io/wasm-spatial-core/docs/) ·
+[📊 Head-to-head vs py3dtiles](./benchmarks/index.md) ·
 [🗺️ Roadmap](./ROADMAP_V2.md)
 
 **🧪 30-second try (drop a `.las` file, get a Cesium tileset):**
@@ -178,7 +179,7 @@ const compressed = compressTilesetWithDraco(tileset, encoder, { quantizationBits
 
 Runtime checks: `supportsLaz()`, `supportsGeotiff()`, `lazStatus()`.
 
-CI runs **`cargo test --all-features`** — **819 tests** green across the full feature matrix.
+CI runs **`cargo test --all-features`** — **857 tests pass** (plus 34 `#[ignore]`d performance benchmarks) across the full feature matrix. The live count is printed by CI on every run; see the latest `rust` job log for the current number.
 
 ---
 
