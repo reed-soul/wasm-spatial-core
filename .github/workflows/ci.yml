@@ -453,3 +453,77 @@ jobs:
           name: benchmark-results
           path: benchmark-results.jsonl
           retention-days: 90
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Head-to-head: wasm-spatial-core vs py3dtiles vs loaders.gl
+  # Produces the public comparison page at <gh-pages>/benchmarks/index.md
+  # ─────────────────────────────────────────────────────────────────────
+  head-to-head-bench:
+    name: Head-to-head Benchmark (vs py3dtiles)
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    needs: rust
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        run: |
+          curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install py3dtiles (with LAS support)
+        run: pip install "py3dtiles[las]"
+
+      - name: Install loaders.gl (optional; runner degrades gracefully if it fails)
+        run: npm install --no-save @loaders.gl/las
+        continue-on-error: true
+
+      - name: Build WASM (nodejs target, point-cloud feature)
+        run: wasm-pack build --target nodejs --release --out-dir pkg-node -- --features point-cloud
+
+      - name: Run wasm-spatial-core benchmark
+        run: |
+          WASM_PKG_DIR=pkg-node node bench/head-to-head/run-wasm.mjs \
+            bench/head-to-head/fixtures/canonical_500k.las \
+            > bench/head-to-head/results-wasm.jsonl
+
+      - name: Run py3dtiles benchmark
+        run: |
+          python3 bench/head-to-head/run-py3dtiles.py \
+            bench/head-to-head/fixtures/canonical_500k.las \
+            > bench/head-to-head/results-py3dtiles.jsonl
+
+      - name: Run loaders.gl benchmark (best-effort; documents capability gap)
+        run: |
+          node bench/head-to-head/run-loaders-gl.mjs \
+            bench/head-to-head/fixtures/canonical_500k.las \
+            > bench/head-to-head/results-loaders-gl.jsonl 2>/dev/null || true
+
+      - name: Aggregate results
+        run: node bench/head-to-head/aggregate.mjs
+
+      - name: Publish comparison to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: benchmarks
+          publish_branch: gh-pages
+          destination_dir: benchmarks
+          keep_files: true
+          commit_message: "deploy: head-to-head benchmark from CI"

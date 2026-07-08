@@ -79,7 +79,9 @@
   </div>
 
   <script type="module">
-    import init, { buildOctree, version } from '../pkg/wasm_spatial_core.js';
+    // Absolute path so the page works on GitHub Pages (pkg/ is at the site root)
+    // and when served locally from the repo root.
+    import init, { buildOctree, version } from '/pkg/wasm_spatial_core.js';
 
     let wasmReady = false;
     async function initWasm() {
