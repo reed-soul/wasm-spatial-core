@@ -178,7 +178,7 @@ const compressed = compressTilesetWithDraco(tileset, encoder, { quantizationBits
 
 Runtime checks: `supportsLaz()`, `supportsGeotiff()`, `lazStatus()`.
 
-CI runs **`cargo test --all-features`** — **819 tests** green across the full feature matrix.
+CI runs **`cargo test --all-features`** — **857 tests pass** (plus 34 `#[ignore]`d performance benchmarks) across the full feature matrix. The live count is printed by CI on every run; see the latest `rust` job log for the current number.
 
 ---
 
