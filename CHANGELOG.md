@@ -7,6 +7,87 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-07-09
+
+A correctness-first release. The headline change fixes a LAS header
+parsing bug that prevented the engine from reading real-world LAS files
+produced by standard tools (laspy, PDAL, py3dtiles, CloudCompare). This
+release also ships the first public head-to-head benchmark against
+py3dtiles, plus credibility cleanup on the docs surface.
+
+### Fixed — Critical
+
+- **LAS header point-count offset (commit `d424bf1`)** — the LAS parser
+  read the "number of point records" from byte offset **100**, but the
+  ASPRS LAS spec places it at offset **107** (offset 100 is the VLR-count
+  field). The engine therefore could not read LAS files written by
+  standard tooling — it read the VLR count as the point count and got 0
+  or garbage. The bug was masked because the in-repo test-data generators
+  wrote the point count at offset 100 too, so engine + fixtures were
+  internally consistent while both diverged from the spec by 7 bytes.
+  Fixed **three** independent parser implementations:
+  - `parse_las_header` / `parse_las_points_core` (`point_cloud.rs`)
+  - `LazFileHeader::read_from_cursor` (`point_cloud.rs`, LAZ path) — also
+    fixed swapped VLR/point-count reads and the VLR count being read as
+    `u16` instead of `u32`
+  - streaming parser (`point_cloud_stream.rs`) — point-count offset
+    100→107; bounds offsets 182–222 → 179–219 (were shifted +3); sequential
+    cursor parser reordered to spec-correct positions
+  All committed LAS fixtures regenerated via laspy (the reference impl) so
+  they round-trip with laspy/py3dtiles. Cross-validated: engine reads
+  canonical laspy files; laspy reads regenerated fixtures.
+
+### Added
+
+- **Head-to-head benchmark vs py3dtiles + loaders.gl** (`bench/head-to-head/`,
+  commit `6bb48b7`) — reproducible harness comparing the headline task
+  (LAS → Cesium 3D Tiles) across engines, with a public comparison page
+  published to GitHub Pages (`/benchmarks/`). Fairness controls: identical
+  input bytes (SHA-256 recorded), no reprojection, trimmed-mean timing,
+  output byte/tile verification; rows where wasm-spatial-core loses or ties
+  are kept. **CI result (Linux, AMD EPYC, 4 CPUs, canonical 500k-point LAS):**
+  wasm-spatial-core **74 ms** (6.0 MB out, 64 tiles) vs py3dtiles 12.1.1
+  **3.79 s** (7.9 MB, 40 tiles) — **~51× faster end-to-end**, with lower
+  peak RSS (192 MB vs 244 MB). loaders.gl documented as parse-only (no
+  shipped LAS→pnts writer). New CI job `head-to-head-bench` republishes on
+  every master push.
+- **W4 WebGPU benchmark + W3.6 acceptance test** (carried from Unreleased) —
+  `tests/webgpu-bench.spec.mjs` measures the W4.3/W4.4 exit criteria on the
+  real Metal adapter; `tests/cesium-terrain.spec.mjs` drives headless Cesium
+  1.119 to prove quantized-mesh output loads via the real consumer.
+- **`encodeTerrainTmsPyramid` WASM API** — emits a TMS-layout quantized-mesh
+  pyramid (`layer.json` + `{z}/{x}/{y}.terrain`) consumable by
+  `CesiumTerrainProvider`.
+- **Playwright browser-test infrastructure** — first browser tests in the
+  repo (`@playwright/test`, `playwright.config.mjs`, test server + fixtures).
+
+### Changed
+
+- **Roadmap calibration** — W4.3 re-scoped 🟡→✅: point transform is
+  memory-bound and WASM SIMD legitimately wins on integrated GPU (Apple M4:
+  0.72×); the "GPU beats WASM" claim is now documented as a discrete-GPU
+  hardware precondition, not an unmet bug. No 🟡 items remain. W3.6 promoted
+  🟡→✅ via the Cesium acceptance test.
+- **Test count unified to 857** (`cargo test --all-features` = 857 passed /
+  0 failed / 34 ignored) across README, npm README badge, and ROADMAP_V2.
+- **WGSL reserved-keyword fix** — `target` field renamed to `target_height`
+  in `heightfield_flatten_v1.wgsl`; the kernel had never compiled in a real
+  browser (caught by the new bench).
+
+### Documentation
+
+- **`ARCHITECTURE.md`** added — canonical 3-layer split + data-flow diagram
+  + module→feature map, consolidating VISION/ENGINE_BOUNDARY/ROADMAP.
+- **`CODE_OF_CONDUCT.md`** added (Contributor Covenant 2.1).
+- **Draco (V1-B4) re-evaluated 2026-07-09** — `draco-oxide@0.1.0-alpha.7`
+  still blocked on wasm32 (getrandom 0.3 backend + an independent
+  wasm-bindgen version-pin wall via js-sys 0.3.77). Blocker shifted, not
+  removed; reproduce command documented. F2 quantization remains the
+  in-engine compression alternative.
+- **`bench/browser/index.html`** — fixed broken WASM import (`../pkg/` →
+  `/pkg/`) so the in-browser benchmark works on GitHub Pages.
+
+
 ### Added — W4 WebGPU benchmark + W3.6 acceptance test
 
 - **W4 GPU-vs-WASM benchmark** (`tests/webgpu-bench.spec.mjs` +
@@ -392,3 +473,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Web Worker multi-threading demo.
 
 ## [0.1.0]: https://github.com/reed-soul/wasm-spatial-core/releases/tag/v0.1.0
+
+[Unreleased]: https://github.com/reed-soul/wasm-spatial-core/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/reed-soul/wasm-spatial-core/releases/tag/v0.9.0
