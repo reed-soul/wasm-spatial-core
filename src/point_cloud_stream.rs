@@ -112,7 +112,7 @@ impl PointCloudStreamer {
             ));
         }
 
-        self.num_points = read_u32_le(bytes, 100);
+        self.num_points = read_u32_le(bytes, 107);
         self.point_offset = read_u32_le(bytes, 96);
         self.point_format_id = bytes[104];
         self.point_record_length = read_u16_le(bytes, 105);
@@ -135,12 +135,12 @@ impl PointCloudStreamer {
             self.x_offset,
             self.y_offset,
             self.z_offset,
-            read_f64_le(bytes, 182), // bounds_max_x
-            read_f64_le(bytes, 190),
-            read_f64_le(bytes, 198),
-            read_f64_le(bytes, 206), // bounds_min_x
-            read_f64_le(bytes, 214),
-            read_f64_le(bytes, 222),
+            read_f64_le(bytes, 179), // bounds_max_x
+            read_f64_le(bytes, 187),
+            read_f64_le(bytes, 195),
+            read_f64_le(bytes, 203), // bounds_min_x
+            read_f64_le(bytes, 211),
+            read_f64_le(bytes, 219),
             bytes.len() as u32,
         ))
     }
@@ -558,17 +558,23 @@ pub fn parse_copc_header_core(bytes: &[u8]) -> Result<CopcInfo, String> {
     let version_major = bytes[24];
     let version_minor = bytes[25];
 
-    // Read key header fields (LAS 1.4 sequential reads)
+    // Read key header fields. ASPRS LAS spec offsets:
+    //   94:  header size (u16)
+    //   96:  offset to point data (u32)
+    //   100: number of VLRs (u32)
+    //   104: point data record format (u8)
+    //   105: point data record length (u16)
+    //   107: legacy number of point records (u32)
     let mut cursor = Cursor::new(bytes);
     cursor
         .seek(SeekFrom::Start(94))
         .map_err(|e| e.to_string())?;
     let _header_size = read_u16_from_cursor(&mut cursor)?;
     let point_data_offset = read_u32_from_cursor(&mut cursor)? as u64;
-    let _num_points_legacy = read_u32_from_cursor(&mut cursor)?; // legacy num points at offset 100
+    let num_vlrs = read_u32_from_cursor(&mut cursor)? as u64; // VLR count at offset 100
     let point_format_id = read_u8_from_cursor(&mut cursor)?;
     let _point_record_length = read_u16_from_cursor(&mut cursor)?;
-    let num_vlrs = read_u16_from_cursor(&mut cursor)? as u64; // VLR count at offset 107
+    let _legacy_point_count = read_u32_from_cursor(&mut cursor)? as u64; // legacy num points at offset 107
 
     // LAS 1.4 uses 64-bit point count at offset 247
     let point_count: u64 = if version_major == 1 && version_minor == 4 {
@@ -577,8 +583,9 @@ pub fn parse_copc_header_core(bytes: &[u8]) -> Result<CopcInfo, String> {
             .map_err(|e| e.to_string())?;
         read_u64_from_cursor(&mut cursor)?
     } else {
+        // LAS 1.2/1.3: legacy point count lives at offset 107 (u32).
         cursor
-            .seek(SeekFrom::Start(100))
+            .seek(SeekFrom::Start(107))
             .map_err(|e| e.to_string())?;
         read_u32_from_cursor(&mut cursor)? as u64
     };
@@ -1389,11 +1396,11 @@ mod tests {
         buf[25] = 4; // version minor
         buf[94..96].copy_from_slice(&(header_size as u16).to_le_bytes());
         buf[96..100].copy_from_slice(&point_offset.to_le_bytes());
-        buf[100..104].copy_from_slice(&num_points.to_le_bytes()); // legacy num points
+        buf[100..104].copy_from_slice(&1u32.to_le_bytes()); // number of VLRs = 1
         buf[104] = point_format;
         buf[105..107].copy_from_slice(&point_size.to_le_bytes());
-        buf[107..109].copy_from_slice(&1u16.to_le_bytes()); // num VLRs = 1
-                                                            // 64-bit point count at offset 247
+        buf[107..111].copy_from_slice(&num_points.to_le_bytes()); // legacy num points (ASPRS offset 107)
+                                                                  // 64-bit point count at offset 247
         buf[247..255].copy_from_slice(&(num_points as u64).to_le_bytes());
         buf[131..139].copy_from_slice(&1.0_f64.to_le_bytes()); // x scale
         buf[139..147].copy_from_slice(&1.0_f64.to_le_bytes()); // y scale

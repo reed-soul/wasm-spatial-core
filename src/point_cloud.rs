@@ -222,7 +222,7 @@ pub fn parse_las_header_core(bytes: &[u8]) -> Result<LasHeader, String> {
         version_minor: bytes[25],
         point_format_id: bytes[104],
         point_data_record_length: read_u16_le(bytes, 105),
-        num_points: read_u32_le(bytes, 100),
+        num_points: read_u32_le(bytes, 107),
         bounds_max_x: read_f64_le(bytes, 179),
         bounds_max_y: read_f64_le(bytes, 187),
         bounds_max_z: read_f64_le(bytes, 195),
@@ -296,7 +296,7 @@ pub fn parse_las_points_core(bytes: &[u8]) -> Result<LasPointCloud, String> {
         ));
     }
 
-    let declared_points = read_u32_le(bytes, 100);
+    let declared_points = read_u32_le(bytes, 107);
     let point_offset = read_u32_le(bytes, 96) as usize;
     let point_format = bytes[104];
     let point_record_len = read_u16_le(bytes, 105) as usize;
@@ -787,9 +787,14 @@ impl LazFileHeader {
         cursor.read_exact(&mut buf4).map_err(|e| e.to_string())?;
         let offset_to_points = u32::from_le_bytes(buf4);
 
+        // ASPRS LAS spec sequential layout after offset-to-point-data (@96):
+        //   @100: number of VLRs (u32)
+        //   @104: point data record format (u8)
+        //   @105: point data record length (u16)
+        //   @107: legacy number of point records (u32)
         let mut buf4 = [0u8; 4];
         cursor.read_exact(&mut buf4).map_err(|e| e.to_string())?;
-        let num_points = u32::from_le_bytes(buf4);
+        let num_vlrs = u32::from_le_bytes(buf4);
 
         let mut buf1 = [0u8; 1];
         cursor.read_exact(&mut buf1).map_err(|e| e.to_string())?;
@@ -799,9 +804,9 @@ impl LazFileHeader {
         cursor.read_exact(&mut buf2).map_err(|e| e.to_string())?;
         let point_record_length = u16::from_le_bytes(buf2);
 
-        let mut buf2 = [0u8; 2];
-        cursor.read_exact(&mut buf2).map_err(|e| e.to_string())?;
-        let num_vlrs = u16::from_le_bytes(buf2) as u32;
+        let mut buf4 = [0u8; 4];
+        cursor.read_exact(&mut buf4).map_err(|e| e.to_string())?;
+        let num_points = u32::from_le_bytes(buf4);
 
         // Scale/offset
         cursor
@@ -1801,7 +1806,7 @@ where
         ));
     }
 
-    let declared_points = read_u32_le(bytes, 100);
+    let declared_points = read_u32_le(bytes, 107);
     let point_offset = read_u32_le(bytes, 96) as usize;
     let point_format = bytes[104];
     let point_record_len = read_u16_le(bytes, 105) as usize;
@@ -2298,7 +2303,7 @@ pub fn parse_las_header_only(bytes: &[u8]) -> Result<LasHeaderInfo, SpatialError
     }
 
     Ok(LasHeaderInfo {
-        num_points: read_u32_le(bytes, 100),
+        num_points: read_u32_le(bytes, 107),
         point_offset: read_u32_le(bytes, 96),
         point_format_id: bytes[104],
         point_record_length: read_u16_le(bytes, 105),
@@ -3857,7 +3862,7 @@ DATA ascii
         let blob = build_test_las_blob(&points, false);
 
         // parse_las_header_only is the WASM function, but we can test the core logic
-        let num_points = read_u32_le(&blob, 100);
+        let num_points = read_u32_le(&blob, 107);
         let point_offset = read_u32_le(&blob, 96);
         let point_format = blob[104];
         let point_record_length = read_u16_le(&blob, 105);
@@ -4065,10 +4070,10 @@ DATA ascii
         buf[25] = 2; // version minor
         buf[94..96].copy_from_slice(&(header_size as u16).to_le_bytes());
         buf[96..100].copy_from_slice(&point_offset.to_le_bytes());
-        buf[100..104].copy_from_slice(&num_points.to_le_bytes()); // num points
+        buf[100..104].copy_from_slice(&1u32.to_le_bytes()); // number of VLRs = 1 (LASZIP)
         buf[104] = point_format;
         buf[105..107].copy_from_slice(&point_size.to_le_bytes());
-        buf[107..109].copy_from_slice(&1u16.to_le_bytes()); // num VLRs = 1 (LASZIP)
+        buf[107..111].copy_from_slice(&num_points.to_le_bytes()); // num points (ASPRS offset 107)
         buf[131..139].copy_from_slice(&1.0_f64.to_le_bytes()); // x_scale
         buf[139..147].copy_from_slice(&1.0_f64.to_le_bytes()); // y_scale
         buf[147..155].copy_from_slice(&1.0_f64.to_le_bytes()); // z_scale
@@ -4798,9 +4803,12 @@ pub mod test_helpers {
         buf[24] = 1;
         buf[25] = 2;
         buf[96..100].copy_from_slice(&point_offset.to_le_bytes());
-        buf[100..104].copy_from_slice(&num_points.to_le_bytes());
+        // ASPRS LAS spec: number of VLRs at offset 100 (u32, here 0);
+        // point count lives at offset 107 (u32).
+        buf[100..104].copy_from_slice(&0u32.to_le_bytes()); // number of VLRs
         buf[104] = point_format;
         buf[105..107].copy_from_slice(&record_len.to_le_bytes());
+        buf[107..111].copy_from_slice(&num_points.to_le_bytes());
         buf[131..139].copy_from_slice(&1.0_f64.to_le_bytes());
         buf[139..147].copy_from_slice(&1.0_f64.to_le_bytes());
         buf[147..155].copy_from_slice(&1.0_f64.to_le_bytes());
