@@ -261,11 +261,16 @@ Byte Length | Description
 - pnts encoding in worker, chunked large file processing
 - Status: implemented, single-thread WASM sufficient for most use cases (workers optional)
 
-### B4: Draco 压压（可选） ❌ BLOCKED
-- `draco-oxide` (pure Rust, v0.1.0-alpha.5) compiles on native but NOT on wasm32
-- Root cause: transitive dep `ahash@0.8` → `getrandom@0.3` requires `wasm_js` config flag
-- Workaround: use Google's Draco WASM decoder on JS side; encode on server/build pipeline
-- Status: `supportsDraco()` and `dracoStatus()` stubs added
+### B4: Draco 压缩（可选） ❌ STILL BLOCKED（re-evaluated 2026-07-09）
+- `draco-oxide` (pure Rust, now **v0.1.0-alpha.7**, still alpha) compiles on native but NOT on wasm32.
+- **Original root cause** (still present): transitive dep `ahash@0.8.12` → `getrandom@0.3.4` requires backend selection for `wasm32-unknown-unknown`.
+- **2026-07-09 re-evaluation** (empirically reproduced):
+  - Bare build (`cargo build --target wasm32-unknown-unknown`) fails in `getrandom 0.3.4` with `error[E0425]: cannot find function inner_u64 in backends` — the wasm32 backend is not auto-selected.
+  - Documented fix `getrandom = { version = "0.3", features = ["wasm_js"] }` **does not resolve cleanly**: it pulls `js-sys@0.3.77`, which pins `wasm-bindgen = "=0.2.100"`, conflicting with the resolver-selected `wasm-bindgen@0.2.126`. A second, independent version-resolution wall.
+  - Reproduce: `cargo new draco-probe && cd draco-probe && cargo add draco-oxide && cargo build --target wasm32-unknown-unknown`.
+- **Conclusion:** blocker has *shifted* (getrandom 0.3 backend + a wasm-bindgen version pin), not been removed. `draco-oxide` is still alpha. Not worth forcing into core.
+- **In-engine alternative (DONE):** F2 quantization (Float32→Uint16, ~50% size reduction) ships as the core compression path. Draco remains a *decode-on-JS* concern via Google's `draco3d` (optional npm peer dep `wasm-spatial-core/draco`).
+- **Status:** `supportsDraco()` and `dracoStatus()` remain honest status stubs. Re-evaluate when `draco-oxide` hits stable AND `getrandom@0.3` wasm32 backend stabilizes without the wasm-bindgen pin conflict.
 
 ---
 
