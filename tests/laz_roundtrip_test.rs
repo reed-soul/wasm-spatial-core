@@ -103,10 +103,10 @@ fn build_laz_blob(points: &[(f64, f64, f64)], colors: Option<&[(u8, u8, u8)]>) -
     buf[25] = 2;
     buf[94..96].copy_from_slice(&(header_size as u16).to_le_bytes());
     buf[96..100].copy_from_slice(&point_offset.to_le_bytes());
-    buf[100..104].copy_from_slice(&num_points.to_le_bytes());
+    buf[100..104].copy_from_slice(&1u32.to_le_bytes()); // number of VLRs = 1 (LASZIP)
     buf[104] = point_format;
     buf[105..107].copy_from_slice(&point_size.to_le_bytes());
-    buf[107..109].copy_from_slice(&1u16.to_le_bytes()); // num VLRs = 1
+    buf[107..111].copy_from_slice(&num_points.to_le_bytes()); // num points (ASPRS offset 107)
     buf[131..139].copy_from_slice(&1.0_f64.to_le_bytes()); // x_scale
     buf[139..147].copy_from_slice(&1.0_f64.to_le_bytes()); // y_scale
     buf[147..155].copy_from_slice(&1.0_f64.to_le_bytes()); // z_scale
@@ -400,10 +400,10 @@ fn test_roundtrip_large_coordinates() {
         buf[25] = 2;
         buf[94..96].copy_from_slice(&(header_size as u16).to_le_bytes());
         buf[96..100].copy_from_slice(&point_offset.to_le_bytes());
-        buf[100..104].copy_from_slice(&num.to_le_bytes());
+        buf[100..104].copy_from_slice(&1u32.to_le_bytes()); // number of VLRs = 1 (LASZIP)
         buf[104] = point_format;
         buf[105..107].copy_from_slice(&point_size.to_le_bytes());
-        buf[107..109].copy_from_slice(&1u16.to_le_bytes()); // num VLRs = 1
+        buf[107..111].copy_from_slice(&num.to_le_bytes()); // num points (ASPRS offset 107)
         buf[131..139].copy_from_slice(&scale.to_le_bytes());
         buf[139..147].copy_from_slice(&scale.to_le_bytes());
         buf[147..155].copy_from_slice(&scale.to_le_bytes());
@@ -620,9 +620,10 @@ fn test_laz_las_consistency() {
         buf[24] = 1;
         buf[25] = 2;
         buf[96..100].copy_from_slice(&230u32.to_le_bytes());
-        buf[100..104].copy_from_slice(&num.to_le_bytes());
+        buf[100..104].copy_from_slice(&0u32.to_le_bytes()); // number of VLRs (0)
         buf[104] = 0; // format 0, no compression bit
         buf[105..107].copy_from_slice(&20u16.to_le_bytes());
+        buf[107..111].copy_from_slice(&num.to_le_bytes()); // num points (ASPRS offset 107)
         buf[131..139].copy_from_slice(&1.0_f64.to_le_bytes()); // x_scale
         buf[139..147].copy_from_slice(&1.0_f64.to_le_bytes()); // y_scale
         buf[147..155].copy_from_slice(&1.0_f64.to_le_bytes()); // z_scale
@@ -677,9 +678,10 @@ fn test_reject_uncompressed_las_as_laz() {
         buf[24] = 1;
         buf[25] = 2;
         buf[96..100].copy_from_slice(&230u32.to_le_bytes());
-        buf[100..104].copy_from_slice(&1u32.to_le_bytes()); // 1 point
+        buf[100..104].copy_from_slice(&0u32.to_le_bytes()); // number of VLRs (0)
         buf[104] = 0; // no compression bit
         buf[105..107].copy_from_slice(&20u16.to_le_bytes());
+        buf[107..111].copy_from_slice(&1u32.to_le_bytes()); // 1 point (ASPRS offset 107)
         buf.resize(buf.len() + 20, 0);
         buf[230..234].copy_from_slice(&(1i32).to_le_bytes());
         buf[234..238].copy_from_slice(&(2i32).to_le_bytes());

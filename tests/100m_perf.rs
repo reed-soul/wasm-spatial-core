@@ -35,9 +35,10 @@ fn build_las(n: usize) -> Vec<u8> {
     hdr[25] = 2; // version 1.2
     hdr[94..96].copy_from_slice(&227u16.to_le_bytes()); // header size
     hdr[96..100].copy_from_slice(&227u32.to_le_bytes()); // point offset
-    hdr[100..104].copy_from_slice(&(n as u32).to_le_bytes()); // num points
+    hdr[100..104].copy_from_slice(&0u32.to_le_bytes()); // number of VLRs (0)
     hdr[104] = 0; // point format 0
     hdr[105..107].copy_from_slice(&20u16.to_le_bytes()); // record length
+    hdr[107..111].copy_from_slice(&(n as u32).to_le_bytes()); // num points (ASPRS offset 107)
     hdr[131..139].copy_from_slice(&1.0f64.to_le_bytes()); // x scale
     hdr[139..147].copy_from_slice(&1.0f64.to_le_bytes()); // y scale
     hdr[147..155].copy_from_slice(&1.0f64.to_le_bytes()); // z scale

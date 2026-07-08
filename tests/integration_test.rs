@@ -277,9 +277,10 @@ fn test_pipeline_las_header_range_access() {
     let mut buf = vec![0u8; header_size as usize];
     buf[0..4].copy_from_slice(b"LASF");
     buf[96..100].copy_from_slice(&header_size.to_le_bytes()); // point offset = header_size
-    buf[100..104].copy_from_slice(&num_points.to_le_bytes()); // num points
+    buf[100..104].copy_from_slice(&0u32.to_le_bytes()); // number of VLRs (0)
     buf[104] = point_format;
     buf[105..107].copy_from_slice(&record_len.to_le_bytes());
+    buf[107..111].copy_from_slice(&num_points.to_le_bytes()); // num points (ASPRS offset 107)
     buf[131..139].copy_from_slice(&1.0f64.to_le_bytes());
     buf[139..147].copy_from_slice(&1.0f64.to_le_bytes());
     buf[147..155].copy_from_slice(&1.0f64.to_le_bytes());
