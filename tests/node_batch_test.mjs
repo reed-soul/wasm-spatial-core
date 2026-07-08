@@ -60,9 +60,12 @@ async function main() {
     const view = new DataView(buf.buffer);
     buf.set([0x4c, 0x41, 0x53, 0x46], 0); // LASF
     view.setUint32(96, headerSize, true);
-    view.setUint32(100, points.length, true);
+    // ASPRS LAS spec: number of VLRs at offset 100 (u32, here 0);
+    // point count lives at offset 107 (u32).
+    view.setUint32(100, 0, true); // number of VLRs
     buf[104] = 0; // format 0
     view.setUint16(105, recordLen, true);
+    view.setUint32(107, points.length, true); // num points (ASPRS offset 107)
     view.setFloat64(131, 1.0, true);
     view.setFloat64(139, 1.0, true);
     view.setFloat64(147, 1.0, true);
