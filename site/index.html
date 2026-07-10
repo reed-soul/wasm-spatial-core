@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en" data-home="./">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>wasm-spatial-core — The fastest spatial engine in the browser</title>
+  <meta name="description" content="A Rust → WebAssembly spatial engine. Generate Cesium 3D Tiles, parse point clouds, terrain, and vector data purely in the browser. No backend, no upload, 78.7× faster than py3dtiles." />
+  <meta name="author" content="wasm-spatial-core contributors" />
+  <meta name="keywords" content="WebAssembly, spatial, GIS, 3D Tiles, point cloud, LAS, Cesium, Rust, GeoTIFF, WebGL" />
+
+  <!-- Open Graph / social -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="wasm-spatial-core — The fastest spatial engine in the browser" />
+  <meta property="og:description" content="Generate Cesium 3D Tiles in the browser. No backend, no upload. 78.7× faster than py3dtiles." />
+  <meta property="og:image" content="./shared/brand/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="wasm-spatial-core — The fastest spatial engine in the browser" />
+  <meta name="twitter:image" content="./shared/brand/og-image.png" />
+
+  <link rel="icon" type="image/svg+xml" href="./shared/brand/favicon.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./shared/brand/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="180x180" href="./shared/brand/favicon-180.png" />
+  <link rel="apple-touch-icon" href="./shared/brand/favicon-180.png" />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="./site.css" />
+
+  <!-- AI-friendly structured data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "wasm-spatial-core",
+    "applicationCategory": "Geospatial / GIS Engine",
+    "operatingSystem": "Web Browser (WebAssembly), Node.js",
+    "programmingLanguage": "Rust → WebAssembly",
+    "runtimePlatform": "WebAssembly",
+    "version": "0.9.0",
+    "license": "https://opensource.org/licenses/MIT",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "url": "https://reed-soul.github.io/wasm-spatial-core/site/",
+    "downloadUrl": "https://www.npmjs.com/package/wasm-spatial-core",
+    "softwareRequirements": "Any modern browser with WebAssembly support.",
+    "description": "A Rust → WebAssembly spatial engine that generates Cesium 3D Tiles, parses point clouds (LAS/LAZ/COPC/PLY/OBJ/PCD/E57), terrain (GeoTIFF → quantized-mesh), and vector data (GeoJSON/MVT/WKT) purely in the browser — no backend, no upload.",
+    "featureList": [
+      "Browser-only 3D Tiles generation (pnts, b3dm, i3dm)",
+      "Point cloud: LAS 1.2–1.4, LAZ, COPC streaming, PLY, OBJ, PCD, E57",
+      "Terrain: GeoTIFF, quantized-mesh, TMS pyramid, terrain editing",
+      "Vector: GeoJSON streaming, MVT, WKT/WKB, TopoJSON, GPX",
+      "Coordinate transforms: WGS84, GCJ-02, BD-09, Web Mercator, CGCS2000, UTM",
+      "WebGPU compute kernels with WASM fallback",
+      "Cancellable long jobs and incremental tileset patching",
+      "78.7× faster than py3dtiles; 27–67× faster than JS coordinate libs"
+    ],
+    "aggregateRating": { "@type": "AggregateRating", "ratingValue": "5", "ratingCount": "1" }
+  }
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <main id="main">
+    <!-- ═══════════════════════════ HERO ═══════════════════════════ -->
+    <header class="hero">
+      <canvas class="hero-canvas" aria-hidden="true"></canvas>
+      <div class="hero-grid-bg" aria-hidden="true"></div>
+      <div class="hero-inner">
+        <div class="hero-meta">
+          <span class="badge badge-green">v0.9.0</span>
+          <span class="badge">Rust + WebAssembly</span>
+          <span class="badge">1.2 MB · zero deps</span>
+          <span class="badge">MIT</span>
+        </div>
+        <h1>The fastest spatial engine<br><span class="grad-text">in the browser.</span></h1>
+        <p class="hero-sub">
+          Generate <strong>Cesium 3D Tiles</strong>, parse point clouds, terrain &amp; vector data —
+          entirely in the browser. <strong>No backend. No upload.</strong>
+          <strong>78.7× faster</strong> than py3dtiles.
+        </p>
+        <div class="hero-cta">
+          <a class="btn btn-primary" href="#playground">Try the playground
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </a>
+          <button class="btn btn-ghost" id="copy-install" data-cmd="npm i wasm-spatial-core">
+            <span class="install-text">$ npm i wasm-spatial-core</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+          </button>
+        </div>
+
+        <!-- Inline benchmark -->
+        <div class="bench" id="hero-bench" style="max-width:680px">
+          <div class="bench-title">
+            <h3>LAS → 3D Tiles · head-to-head</h3>
+            <span class="bench-meta">Apple M4 · single-thread WASM · 500K pts</span>
+          </div>
+          <div class="bench-row">
+            <span class="bench-label fast">wasm-spatial-core</span>
+            <div class="bench-track"><div class="bench-fill fast" data-w="1.3"></div></div>
+            <span class="bench-value fast">36 ms</span>
+          </div>
+          <div class="bench-row">
+            <span class="bench-label slow">py3dtiles 12.1.1</span>
+            <div class="bench-track"><div class="bench-fill slow" data-w="100"></div></div>
+            <span class="bench-value slow">2.86 s</span>
+          </div>
+          <div style="margin-top:1rem;font-size:0.82rem;color:var(--text-dim);font-family:var(--font-mono)">
+            wasm-spatial-core is <strong style="color:var(--green)">78.7× faster</strong> · loaders.gl: capability gap (no pnts writer).
+            <a href="https://reed-soul.github.io/wasm-spatial-core/benchmarks/" target="_blank" rel="noopener">Full methodology ↗</a>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- ═══════════════════════════ CAPABILITIES ═══════════════════════════ -->
+    <section class="section" id="capabilities" aria-labelledby="cap-h">
+      <div class="container">
+        <div class="section-head">
+          <span class="eyebrow">Capabilities</span>
+          <h2 id="cap-h">One engine. Five spatial domains.</h2>
+          <p>Point clouds, terrain, vector, coordinate systems, and GPU compute — unified in a single WebAssembly module that runs anywhere a browser does.</p>
+        </div>
+
+        <!-- 01 Point cloud -->
+        <div class="cap" style="margin-bottom:5rem">
+          <div class="cap-text">
+            <span class="cap-num">01 / Point Cloud → 3D Tiles</span>
+            <h2>Drop a LAS file. Get Cesium tiles.</h2>
+            <p class="cap-desc">Parse LAS/LAZ/COPC/PLY/OBJ/PCD/E57, build an octree, and emit <code>pnts</code> tiles — all in the browser. No server round-trip, no ion quota.</p>
+            <ul class="cap-list">
+              <li><span><strong>Auto-format detection</strong> via <code>parsePointCloudAuto</code></span></li>
+              <li><span><strong>COPC range-fetch streaming</strong> — view multi-GB scans by spatial bbox</span></li>
+              <li><span><strong>Cancellable</strong> long jobs (<code>...WithAbort</code>)</span></li>
+              <li><span><strong>Incremental tile patching</strong> — edit one tile, ship the diff</span></li>
+              <li><span>Optional <strong>Draco compression</strong> (~5× smaller)</span></li>
+            </ul>
+            <a class="cap-link" href="#demos">Open full point-cloud demos →</a>
+          </div>
+          <div class="cap-demo" id="demo-pointcloud"><div class="demo-hint">loading point cloud…</div></div>
+        </div>
+
+        <!-- 02 Terrain -->
+        <div class="cap reverse" style="margin-bottom:5rem">
+          <div class="cap-text">
+            <span class="cap-num">02 / Terrain · GeoTIFF → quantized-mesh</span>
+            <h2>GeoTIFF in. Cesium terrain out.</h2>
+            <p class="cap-desc">Decode GeoTIFF heightfields, encode Cesium-compatible quantized-mesh tiles and TMS pyramids, and edit terrain by cut / flatten / fill — replacing desktop GIS for common tasks.</p>
+            <ul class="cap-list">
+              <li><span><strong>GeoTIFF</strong> reader (Float32/16/8, DEFLATE/LZW, up to 64 MP)</span></li>
+              <li><span><strong>quantized-mesh</strong> + <strong>TMS pyramid</strong> + <code>layer.json</code></span></li>
+              <li><span>Terrain editing: <strong>excavate / flatten / fill / feather</strong></span></li>
+              <li><span>Hillshade, contour lines, color ramps</span></li>
+              <li><span>Proven against real <strong>Cesium 1.119</strong> (headless test)</span></li>
+            </ul>
+            <a class="cap-link" href="#demos">Open terrain demo →</a>
+          </div>
+          <div class="cap-demo" id="demo-terrain"><div class="demo-hint">generating terrain mesh…</div></div>
+        </div>
+
+        <!-- 03 Vector -->
+        <div class="cap" style="margin-bottom:5rem">
+          <div class="cap-text">
+            <span class="cap-num">03 / Vector · GeoJSON / MVT / WKT</span>
+            <h2>Streaming vector at scale.</h2>
+            <p class="cap-desc">A lazy, streaming GeoJSON parser, MVT decode/slice, WKT/WKB round-trip — backed by an R-tree for bbox and kNN queries across millions of features.</p>
+            <ul class="cap-list">
+              <li><span><strong>Streaming GeoJSON</strong> — lazy per-feature iterator, no full buffer</span></li>
+              <li><span><strong>MVT</strong> decode + <code>VectorTileEngine</code> slicing</span></li>
+              <li><span><strong>R-tree</strong> (<code>SpatialIndex</code>) — bbox + kNN queries</span></li>
+              <li><span>Convex/concave hulls, buffer, boolean ops, simplification</span></li>
+              <li><span>DBSCAN &amp; grid clustering, TIN interpolation, geohash</span></li>
+            </ul>
+            <a class="cap-link" href="#demos">Open GIS demo →</a>
+          </div>
+          <div class="cap-demo" id="demo-vector"><div class="demo-hint">indexing points…</div></div>
+        </div>
+
+        <!-- 04 CRS -->
+        <div class="cap reverse" style="margin-bottom:5rem">
+          <div class="cap-text">
+            <span class="cap-num">04 / Coordinate Transforms · CRS</span>
+            <h2>27–67× faster than JavaScript.</h2>
+            <p class="cap-desc">Batch WGS-84 ↔ GCJ-02 / BD-09 / Web Mercator / CGCS2000 / UTM with zero-copy in-place variants. Honest scope: a fast transform toolkit, not a PROJ replacement.</p>
+            <ul class="cap-list">
+              <li><span><strong>WGS84→GCJ-02 ~27×</strong>, <strong>→Mercator ~67×</strong> vs JS libs</span></li>
+              <li><span>Full <strong>UTM</strong> forward + inverse</span></li>
+              <li><span><strong>Zero-copy in-place</strong> variants for every transform</span></li>
+              <li><span><strong>ENU local frame</strong> for site-scale precision</span></li>
+              <li><span>Capability introspection: <code>crsInfo</code>, <code>getSupportedCrs</code></span></li>
+            </ul>
+          </div>
+          <div class="cap-demo" id="demo-crs">
+            <div style="padding:1.25rem;font-family:var(--font-mono);font-size:0.85rem;height:100%;display:flex;flex-direction:column;gap:0.6rem">
+              <label style="display:flex;gap:0.5rem;align-items:center">
+                <span style="color:var(--text-muted);width:90px">WGS84 lng,lat</span>
+                <input id="crs-input" value="116.404, 39.915" style="flex:1;background:var(--bg-1);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:0.35rem 0.5rem;font-family:var(--font-mono);font-size:0.8rem" />
+              </label>
+              <div id="crs-out" style="font-size:0.78rem;line-height:1.8;color:var(--text-muted);flex:1"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 05 WebGPU -->
+        <div class="cap">
+          <div class="cap-text">
+            <span class="cap-num">05 / WebGPU Compute</span>
+            <h2>GPU kernels. Automatic WASM fallback.</h2>
+            <p class="cap-desc">WGSL shaders for point transform, heightfield flatten, and mesh quadric accumulation — with automatic degradation to WASM when no GPU is available.</p>
+            <ul class="cap-list">
+              <li><span><strong>Point transform</strong> — Mat4 × vec3 on GPU</span></li>
+              <li><span><strong>Heightfield flatten</strong> — 2048² in ~29 ms (GPU) vs 48 ms (WASM)</span></li>
+              <li><span><strong>Mesh quadric</strong> accumulation + edge costs</span></li>
+              <li><span><code>supportsWebGpu()</code> runtime probe, zero-config fallback</span></li>
+              <li><span>Honest benchmarks — WASM wins on integrated GPU</span></li>
+            </ul>
+          </div>
+          <div class="cap-demo" id="demo-webgpu">
+            <div style="padding:1.25rem;font-family:var(--font-mono);font-size:0.8rem;height:100%;display:flex;flex-direction:column;gap:0.75rem;justify-content:center">
+              <div id="gpu-status" style="color:var(--text-muted)">probing GPU…</div>
+              <div id="gpu-result" style="font-size:0.78rem;color:var(--text-muted);line-height:1.7"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <hr class="divider" />
+
+    <!-- ═══════════════════════════ QUICK START ═══════════════════════════ -->
+    <section class="section" id="playground" aria-labelledby="qs-h">
+      <div class="container">
+        <div class="section-head">
+          <span class="eyebrow">Quick start</span>
+          <h2 id="qs-h">3D Tiles in 4 lines.</h2>
+          <p>One npm install, one <code>init()</code>, and you're generating Cesium tiles in the browser.</p>
+        </div>
+
+        <div class="code-tabs" role="tablist" aria-label="Install method">
+          <button class="code-tab active" role="tab" aria-selected="true" data-tab="npm">npm</button>
+          <button class="code-tab" role="tab" aria-selected="false" data-tab="pnpm">pnpm</button>
+          <button class="code-tab" role="tab" aria-selected="false" data-tab="yarn">yarn</button>
+          <button class="code-tab" role="tab" aria-selected="false" data-tab="cdn">CDN / ESM</button>
+          <button class="code-tab" role="tab" aria-selected="false" data-tab="bun">bun</button>
+        </div>
+
+        <div class="code-block" data-lang="js">
+          <button class="copy-btn" data-copy-target="qs-code">Copy</button>
+          <pre id="qs-code"><span class="com">// 1. install:  npm i wasm-spatial-core   (or pnpm / yarn / bun)</span>
+<span class="kw">import</span> init, { parsePointCloudAuto, generateTileset } <span class="kw">from</span> <span class="str">'wasm-spatial-core'</span>;
+
+<span class="kw">await</span> init();                              <span class="com">// load the WASM module</span>
+<span class="kw">const</span> cloud = parsePointCloudAuto(lasBytes);  <span class="com">// auto-detect LAS/LAZ/PLY/OBJ/PCD</span>
+<span class="kw">const</span> result = generateTileset(cloud.positions, <span class="num">10000</span>, <span class="num">8</span>); <span class="com">// octree → pnts tiles</span>
+<span class="com">// → result.tilesetJson + result.tile(i) feed into Cesium3DTileset</span></pre>
+        </div>
+        <div id="qs-alt" style="display:none">
+          <div data-alt="pnpm"><div class="code-block" data-lang="sh"><pre><span class="com"># pnpm</span>
+pnpm add wasm-spatial-core</pre></div></div>
+          <div data-alt="yarn"><div class="code-block" data-lang="sh"><pre><span class="com"># yarn</span>
+yarn add wasm-spatial-core</pre></div></div>
+          <div data-alt="cdn"><div class="code-block" data-lang="html"><pre><span class="com">&lt;!-- no install, import from CDN --&gt;</span>
+&lt;<span class="kw">script</span> <span class="fn">type</span>=<span class="str">"module"</span>&gt;
+  <span class="kw">import</span> init, * <span class="kw">as</span> wsc <span class="kw">from</span> <span class="str">'https://esm.run/wasm-spatial-core'</span>;
+  <span class="kw">await</span> init();
+&lt;/<span class="kw">script</span>&gt;</pre></div></div>
+          <div data-alt="bun"><div class="code-block" data-lang="sh"><pre><span class="com"># bun</span>
+bun add wasm-spatial-core</pre></div></div>
+        </div>
+      </div>
+    </section>
+
+    <hr class="divider" />
+
+    <!-- ═══════════════════════════ DEMO GALLERY ═══════════════════════════ -->
+    <section class="section" id="demos" aria-labelledby="gal-h">
+      <div class="container">
+        <div class="section-head">
+          <span class="eyebrow">Live demos</span>
+          <h2 id="gal-h">See it run. In your browser.</h2>
+          <p>Every demo below runs entirely client-side — drop your own files and watch the engine work. No data leaves your machine.</p>
+        </div>
+
+        <div class="gallery">
+          <a class="demo-card" href="../examples/point-cloud-demo/index.html">
+            <div class="demo-thumb" data-thumb="pointcloud"></div>
+            <div class="demo-body">
+              <h3>Point Cloud Workbench</h3>
+              <p>Three.js viewer. Drop LAS/LAZ/PLY/OBJ/E57, build an octree, render with 5 color modes. FPS + level-of-detail.</p>
+              <div class="demo-apis"><span class="api-tag">parsePointCloudAuto</span><span class="api-tag">generateTileset</span><span class="api-tag">OctreeChunkBuilder</span></div>
+              <span class="demo-go">Open demo →</span>
+            </div>
+          </a>
+          <a class="demo-card" href="../examples/point-cloud-cesium/index.html">
+            <div class="demo-thumb" data-thumb="cesium"></div>
+            <div class="demo-body">
+              <h3>Cesium 3D Tiles · Offline</h3>
+              <p>Drop LAS → pnts tiles on a Cesium globe. No ion token needed. Compare to the Cesium ion SaaS upload pipeline.</p>
+              <div class="demo-apis"><span class="api-tag">generateTileset</span><span class="api-tag">streamCopcToOctree</span><span class="api-tag">encodeB3dmTile</span></div>
+              <span class="demo-go">Open demo →</span>
+            </div>
+          </a>
+          <a class="demo-card" href="../examples/terrain-demo/index.html">
+            <div class="demo-thumb" data-thumb="terrain"></div>
+            <div class="demo-body">
+              <h3>Terrain · GeoTIFF → 3D</h3>
+              <p>Three.js terrain mesh from GeoTIFF heightfields. Height-scale, normals, grayscale modes + terrain deform.</p>
+              <div class="demo-apis"><span class="api-tag">parseGeotiff</span><span class="api-tag">flattenTerrain</span><span class="api-tag">excavateTerrain</span></div>
+              <span class="demo-go">Open demo →</span>
+            </div>
+          </a>
+          <a class="demo-card" href="../examples/cesium-workflow/index.html">
+            <div class="demo-thumb" data-thumb="workflow"></div>
+            <div class="demo-body">
+              <h3>COPC Streaming Pipeline</h3>
+              <p>Step-by-step LAS/COPC → octree → 3D Tiles → Cesium. Range-fetch multi-GB scans by spatial bbox.</p>
+              <div class="demo-apis"><span class="api-tag">parseCopcHeader</span><span class="api-tag">buildOctree</span><span class="api-tag">generateTileset</span></div>
+              <span class="demo-go">Open demo →</span>
+            </div>
+          </a>
+          <a class="demo-card" href="../examples/webgl-pointcloud/index.html">
+            <div class="demo-thumb" data-thumb="webgl"></div>
+            <div class="demo-body">
+              <h3>WebGL Point Cloud</h3>
+              <p>Zero-dependency WebGL viewer. LAS/PLY drag-drop with height/original color modes.</p>
+              <div class="demo-apis"><span class="api-tag">parseLasPoints</span><span class="api-tag">parsePly</span></div>
+              <span class="demo-go">Open demo →</span>
+            </div>
+          </a>
+          <a class="demo-card" href="../examples/worker-demo/index.html">
+            <div class="demo-thumb" data-thumb="worker"></div>
+            <div class="demo-body">
+              <h3>Multi-thread · Rayon</h3>
+              <p>Single-thread vs multi-thread WASM (SharedArrayBuffer) coordinate-conversion benchmark. Requires COOP/COEP.</p>
+              <div class="demo-apis"><span class="api-tag">wasm-bindgen-rayon</span><span class="api-tag">batchWgs84ToGcj02</span></div>
+              <span class="demo-go">Open demo →</span>
+            </div>
+          </a>
+          <a class="demo-card" href="../examples/demo/index.html">
+            <div class="demo-thumb" data-thumb="gis"></div>
+            <div class="demo-body">
+              <h3>Interactive GIS</h3>
+              <p>Chinese city datasets + coordinate transforms + R-tree bbox &amp; kNN queries on a 2D canvas map.</p>
+              <div class="demo-apis"><span class="api-tag">SpatialIndex</span><span class="api-tag">parseGeoJsonCoords</span><span class="api-tag">batchWgs84ToGcj02</span></div>
+              <span class="demo-go">Open demo →</span>
+            </div>
+          </a>
+          <a class="demo-card" href="../bench/browser/index.html">
+            <div class="demo-thumb" data-thumb="bench"></div>
+            <div class="demo-body">
+              <h3>Browser Benchmark</h3>
+              <p>WASM vs JS round-robin with live bar charts. Coordinate transforms, octree build, point spacing.</p>
+              <div class="demo-apis"><span class="api-tag">buildOctree</span><span class="api-tag">estimatePointSpacing</span></div>
+              <span class="demo-go">Open benchmark →</span>
+            </div>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <hr class="divider" />
+
+    <!-- ═══════════════════════════ AI-FRIENDLY CAPABILITY MAP ═══════════════════════════ -->
+    <section class="section" aria-labelledby="ai-h">
+      <div class="container">
+        <div class="section-head">
+          <span class="eyebrow">For developers &amp; AI agents</span>
+          <h2 id="ai-h">Full capability map.</h2>
+          <p>Machine-readable format support, API surface, and runtime probes. Also available as <a href="./llms.txt">llms.txt</a> for AI agents.</p>
+        </div>
+
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:0.88rem">
+            <caption class="sr-only">Supported spatial formats</caption>
+            <thead>
+              <tr style="border-bottom:1px solid var(--border);text-align:left">
+                <th scope="col" style="padding:0.7rem 1rem;color:var(--text-muted);font-weight:600">Category</th>
+                <th scope="col" style="padding:0.7rem 1rem;color:var(--text-muted);font-weight:600">Format</th>
+                <th scope="col" style="padding:0.7rem 1rem;color:var(--text-muted);font-weight:600">Read</th>
+                <th scope="col" style="padding:0.7rem 1rem;color:var(--text-muted);font-weight:600">Write</th>
+                <th scope="col" style="padding:0.7rem 1rem;color:var(--text-muted);font-weight:600">Feature flag</th>
+              </tr>
+            </thead>
+            <tbody id="fmt-table">
+              <!-- populated by JS from a single source of truth -->
+            </tbody>
+          </table>
+        </div>
+
+        <div class="grid grid-3" style="margin-top:2.5rem">
+          <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem">
+            <h3 style="color:var(--accent);margin-bottom:0.5rem">Runtime control</h3>
+            <dl style="font-size:0.82rem;color:var(--text-muted);line-height:1.8">
+              <dt style="font-family:var(--font-mono);color:var(--text)">Cancellable jobs</dt><dd style="margin-bottom:0.4rem"><code>...WithAbort</code>, <code>SpatialError::Cancelled</code></dd>
+              <dt style="font-family:var(--font-mono);color:var(--text)">Incremental tiles</dt><dd style="margin-bottom:0.4rem"><code>TilesetPatch</code> / <code>applyTilesetPatch</code></dd>
+              <dt style="font-family:var(--font-mono);color:var(--text)">Memory budget</dt><dd style="margin-bottom:0.4rem"><code>setInputSizeLimit</code>, <code>estimateJobBytes</code></dd>
+              <dt style="font-family:var(--font-mono);color:var(--text)">Web Workers</dt><dd><code>WorkerHandle</code>, <code>processChunked</code></dd>
+            </dl>
+          </div>
+          <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem">
+            <h3 style="color:var(--accent);margin-bottom:0.5rem">Capability probes</h3>
+            <dl style="font-size:0.82rem;color:var(--text-muted);line-height:1.8">
+              <dt style="font-family:var(--font-mono);color:var(--text)"><code>supportsLaz()</code></dt><dd style="margin-bottom:0.4rem">LAZ/COPC decompression</dd>
+              <dt style="font-family:var(--font-mono);color:var(--text)"><code>supportsE57()</code></dt><dd style="margin-bottom:0.4rem">E57 industrial scans</dd>
+              <dt style="font-family:var(--font-mono);color:var(--text)"><code>supportsWebGpu()</code></dt><dd style="margin-bottom:0.4rem">GPU compute availability</dd>
+              <dt style="font-family:var(--font-mono);color:var(--text)"><code>getInputLimits()</code></dt><dd>Honest preflight JSON</dd>
+            </dl>
+          </div>
+          <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem">
+            <h3 style="color:var(--accent);margin-bottom:0.5rem">Spatial IR &amp; mesh</h3>
+            <dl style="font-size:0.82rem;color:var(--text-muted);line-height:1.8">
+              <dt style="font-family:var(--font-mono);color:var(--text)">Unified IR</dt><dd style="margin-bottom:0.4rem"><code>SpatialChunk</code> (point / mesh / heightfield)</dd>
+              <dt style="font-family:var(--font-mono);color:var(--text)">Mesh edit</dt><dd style="margin-bottom:0.4rem">OBB split, plane clip + cap, <strong>QEM decimation</strong></dd>
+              <dt style="font-family:var(--font-mono);color:var(--text)">Registration</dt><dd style="margin-bottom:0.4rem">SVD / Umeyama / RANSAC alignment</dd>
+              <dt style="font-family:var(--font-mono);color:var(--text)">GLB I/O</dt><dd><code>parseGlb</code> → edit → <code>toGlb</code></dd>
+            </dl>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ═══════════════════════════ SCRIPTS ═══════════════════════════ -->
+  <script type="module">
+    import { mountNav } from './shared/site-nav.mjs';
+    import { mountFooter } from './shared/site-footer.mjs';
+    import { startHeroParticles } from './shared/hero-particles.mjs';
+    import { renderThumbs } from './shared/demo-thumbs.mjs';
+
+    mountNav();
+    mountFooter();
+    startHeroParticles(document.querySelector('.hero-canvas'));
+    renderThumbs();
+
+    // ── Benchmark bars: animate fill width on scroll into view ──
+    const benchBars = document.querySelectorAll('.bench-fill');
+    const benchIO = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (e.isIntersecting) {
+          const w = parseFloat(e.target.dataset.w);
+          e.target.style.width = Math.min(100, w) + '%';
+          benchIO.unobserve(e.target);
+        }
+      }
+    }, { threshold: 0.4 });
+    benchBars.forEach(b => benchIO.observe(b));
+
+    // ── Copy install command ──
+    const copyBtn = document.getElementById('copy-install');
+    copyBtn.addEventListener('click', async () => {
+      const cmd = copyBtn.dataset.cmd;
+      try {
+        await navigator.clipboard.writeText(cmd);
+        const txt = copyBtn.querySelector('.install-text');
+        const orig = txt.textContent;
+        txt.textContent = '✓ copied';
+        setTimeout(() => txt.textContent = orig, 1500);
+      } catch {}
+    });
+
+    // ── Code tabs ──
+    const tabs = document.querySelectorAll('.code-tab');
+    const qsBlock = document.querySelector('.code-block');
+    const qsAlt = document.getElementById('qs-alt');
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        tabs.forEach(t => { t.classList.remove('active'); t.setAttribute('aria-selected', 'false'); });
+        tab.classList.add('active'); tab.setAttribute('aria-selected', 'true');
+        const which = tab.dataset.tab;
+        if (which === 'npm') {
+          qsBlock.style.display = '';
+          qsAlt.style.display = 'none';
+        } else {
+          qsBlock.style.display = 'none';
+          qsAlt.style.display = '';
+          qsAlt.querySelectorAll('[data-alt]').forEach(d => d.style.display = d.dataset.alt === which ? '' : 'none');
+        }
+      });
+    });
+
+    // ── Copy buttons ──
+    document.querySelectorAll('.copy-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const sel = btn.dataset.copyTarget;
+        const el = sel ? document.getElementById(sel) : btn.nextElementSibling;
+        const text = el ? el.innerText : '';
+        try {
+          await navigator.clipboard.writeText(text);
+          btn.classList.add('copied'); btn.textContent = '✓ Copied';
+          setTimeout(() => { btn.classList.remove('copied'); btn.textContent = 'Copy'; }, 1500);
+        } catch {}
+      });
+    });
+
+    // ── Format support table (single source of truth) ──
+    const formats = [
+      ['Point cloud', 'LAS 1.2–1.4 (F0–6)', '✓', '—', 'point-cloud'],
+      ['Point cloud', 'LAZ', '✓', '—', 'laz-support'],
+      ['Point cloud', 'COPC (stream)', '✓', '—', 'laz-support'],
+      ['Point cloud', 'PLY (ASCII + binary)', '✓', '—', 'point-cloud'],
+      ['Point cloud', 'OBJ / PCD', '✓', '—', 'point-cloud'],
+      ['Point cloud', 'E57', '✓', '—', 'e57-support'],
+      ['Terrain', 'GeoTIFF', '✓', '—', 'geotiff'],
+      ['Terrain', 'quantized-mesh', '—', '✓', 'geotiff'],
+      ['Terrain', 'TMS pyramid + layer.json', '—', '✓', 'geotiff'],
+      ['Vector', 'GeoJSON (streaming)', '✓', '✓', 'default'],
+      ['Vector', 'MVT', '✓', '✓', 'default'],
+      ['Vector', 'WKT / WKB', '✓', '✓', 'default'],
+      ['Vector', 'TopoJSON / GPX', '✓', '—', 'default'],
+      ['Mesh', 'GLB / glTF', '✓', '✓', 'mesh-ingest'],
+      ['3D Tiles', 'pnts / b3dm / i3dm', 'partial', '✓', 'point-cloud'],
+    ];
+    const tbody = document.getElementById('fmt-table');
+    tbody.innerHTML = formats.map(f => `<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:0.6rem 1rem;color:var(--text-muted)">${f[0]}</td>
+      <td style="padding:0.6rem 1rem;color:var(--text);font-weight:500">${f[1]}</td>
+      <td style="padding:0.6rem 1rem;color:${f[2]==='✓'?'var(--green)':'var(--text-dim)'}">${f[2]}</td>
+      <td style="padding:0.6rem 1rem;color:${f[3]==='✓'?'var(--green)':'var(--text-dim)'}">${f[3]}</td>
+      <td style="padding:0.6rem 1rem;font-family:var(--font-mono);font-size:0.78rem;color:var(--text-muted)">${f[4]}</td>
+    </tr>`).join('');
+
+    // ── Lazy-load WASM + mini-demos only when capabilities section nears viewport ──
+    const capSection = document.getElementById('capabilities');
+    const wasmIO = new IntersectionObserver(async (entries) => {
+      for (const e of entries) {
+        if (e.isIntersecting) {
+          wasmIO.disconnect();
+          try {
+            const wasmMod = await import('../pkg/wasm_spatial_core.js');
+            // The default export is the async WASM loader (__wbg_init);
+            // named `init` only sets the panic hook after the module is fetched.
+            const loader = wasmMod.default;
+            if (typeof loader === 'function') {
+              await loader();
+            }
+            window.__wsc = wasmMod;
+            // load each mini-demo module (they consume window.__wsc)
+            const mods = ['./shared/mini-demos/pointcloud-mini.mjs', './shared/mini-demos/terrain-mini.mjs', './shared/mini-demos/vector-mini.mjs', './shared/mini-demos/crs-mini.mjs', './shared/mini-demos/webgpu-mini.mjs'];
+            for (const m of mods) {
+              try { (await import(m)).run(); } catch (err) { console.warn('mini-demo failed', m, err); }
+            }
+          } catch (err) {
+            console.warn('WASM or mini-demo load failed; static hints remain.', err);
+          }
+        }
+      }
+    }, { rootMargin: '200px' });
+    wasmIO.observe(capSection);
+  </script>
+</body>
+</html>
