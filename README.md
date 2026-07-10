@@ -45,6 +45,17 @@ machine.
 
 ---
 
+## 👥 Adopters
+
+Building something with wasm-spatial-core? Add your project here — open an
+issue using the [feature request template](.github/ISSUE_TEMPLATE/feature_request.md)
+or edit this section directly.
+
+*(No production adopters listed yet — be the first. This section grows as the
+project gets real-world use.)*
+
+---
+
 ## Why does this exist?
 
 If you've ever tried to view a customer's LAS scan in Cesium, you've hit one of:
