@@ -1,8 +1,8 @@
 {
-  "generated_at": "2026-07-10T18:52:23.180Z",
+  "generated_at": "2026-07-10T18:58:26.291Z",
   "rows": [
     {
-      "timestamp": "2026-07-10T18:52:23.133Z",
+      "timestamp": "2026-07-10T18:58:26.244Z",
       "hardware": {
         "node": "v24.18.0",
         "platform": "linux",
@@ -18,7 +18,7 @@
       "notes": "@loaders.gl not installed in this environment. Documented capability gap: @loaders.gl is a reader framework with no shipped LAS→pnts/3D-Tiles writer."
     },
     {
-      "timestamp": "2026-07-10T18:52:22Z",
+      "timestamp": "2026-07-10T18:58:26Z",
       "hardware": {
         "python": "3.12.13",
         "platform": "linux",
@@ -34,16 +34,16 @@
       "output_bytes": 7943205,
       "tile_count": 40,
       "wall_ms": {
-        "total": 3752,
-        "min": 3746.8,
-        "max": 3755.7,
+        "total": 3722.4,
+        "min": 3718.8,
+        "max": 3725.4,
         "runs": 5
       },
-      "peak_rss_mb": 244,
+      "peak_rss_mb": 245,
       "notes": "py3dtiles convert, no reprojection (matches wasm no-op). point_count=-1 means not readable from tileset.json; byte-count parity is the verification axis. RSS is child-process max across all runs (coarse)."
     },
     {
-      "timestamp": "2026-07-10T18:51:52.323Z",
+      "timestamp": "2026-07-10T18:57:55.839Z",
       "hardware": {
         "node": "v24.18.0",
         "platform": "linux",
@@ -61,13 +61,13 @@
       "output_bytes": 6020200,
       "tile_count": 64,
       "wall_ms": {
-        "total": 72.1,
-        "parse_ms": 10.7,
-        "min": 71.4,
-        "max": 72.5,
+        "total": 71.9,
+        "parse_ms": 10.9,
+        "min": 71.2,
+        "max": 72.4,
         "runs": 5
       },
-      "peak_rss_mb": 194,
+      "peak_rss_mb": 191,
       "notes": "parsePointCloudAuto → generateTileset (octree + pnts encode in one call)"
     }
   ]
