@@ -4212,9 +4212,9 @@ export interface InitOutput {
     readonly buildOctreeParallel: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly laspointcloud_colors: (a: number) => number;
     readonly pcdpointcloud_colors: (a: number) => number;
-    readonly __wasm_bindgen_func_elem_2412: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_2414: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_332: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_2404: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_2418: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_432: (a: number, b: number, c: number) => void;
     readonly __wbindgen_export: (a: number, b: number) => number;
     readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_export3: (a: number) => void;
