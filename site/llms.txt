@@ -1,0 +1,94 @@
+# wasm-spatial-core
+
+> wasm-spatial-core is a Rust → WebAssembly spatial preprocessing engine that runs entirely in the browser (or Node.js). It generates Cesium 3D Tiles, parses point clouds (LAS/LAZ/COPC/PLY/OBJ/PCD/E57), terrain (GeoTIFF → quantized-mesh), and vector data (GeoJSON/MVT/WKT) with no backend and no data upload. Version 0.9.0, MIT licensed.
+
+This file is intended for AI agents and developers who want a compact, machine-readable summary of the project's capabilities, API surface, and quick-start. See https://llmstxt.org for the standard.
+
+## TL;DR
+- A single npm package: `npm i wasm-spatial-core` (~1.2 MB wasm, zero runtime deps).
+- Core thesis: **generate Cesium 3D Tiles in the browser — no server, no upload, no ion quota.**
+- Performance: 78.7× faster than py3dtiles on LAS→3D-Tiles (36 ms vs 2.86 s, Apple M4); 27–67× faster than JS coordinate libs.
+- 850+ tests pass. Headless Cesium 1.119 acceptance test for quantized-mesh.
+
+## Quick start
+```js
+import init, { parsePointCloudAuto, generateTileset } from 'wasm-spatial-core';
+await init();
+const cloud = parsePointCloudAuto(lasBytes);          // auto-detect LAS/LAZ/PLY/OBJ/PCD
+const { tileset, tiles } = generateTileset(cloud, 8); // octree depth 8 → pnts tiles
+```
+CDN: `import init, * as wsc from 'https://esm.run/wasm-spatial-core';`
+
+## Capability categories
+
+### A. Point cloud → 3D Tiles (the killer use case)
+Parsers: LAS 1.2–1.4 (point formats 0–6), LAZ, COPC, PLY, OBJ, PCD, E57. Auto-detect via `parsePointCloudAuto`. Octree build (sequential/parallel/abortable). Outputs pnts/b3dm/i3dm + tileset.json. Optional Draco compression (~5×). COPC range-fetch streaming by spatial bbox.
+
+Key APIs: `parsePointCloudAuto`, `parseLasHeader`, `parseLasPointsWithProgress`, `parseLasPointsWithProgressAndAbort`, `parseLazPointsStream`, `parsePly`, `parseObjVertices`, `parsePcdAscii`, `parsePcdBinary`, `parseE57`, `buildOctree`, `buildOctreeParallel`, `OctreeChunkBuilder`, `generateTileset`, `generateTilesetWithAbort`, `encodePntsTile`, `encodeB3dmTile`, `encodeI3dmTile`, `parseCopcHeader`, `copcQueryRanges`, `readCopcRegion`, `pointCloudToGlb`, `estimatePointSpacing`.
+
+### B. Terrain / GeoTIFF
+GeoTIFF reader (Float32/16/8, strip/tile, DEFLATE/LZW, up to 64 MP). Quantized-mesh encoding (CesiumTerrainProvider-compatible, 88-byte header). TMS pyramid + layer.json. Terrain editing: cut/excavate/flatten/fill/feather.
+
+Key APIs: `parseGeotiff`, `encodeQuantizedMesh`, `encodeTerrainTileset`, `encodeTerrainTmsPyramid`, `hillshade`, `contourLines`, `applyColorRamp`, `terrainToGlb`, `flattenTerrain`, `excavateTerrain`, `fillTerrain`, `featherBlend`, `encodeDeformedTerrainTileset`.
+
+### C. Spatial IR + mesh edit
+Unified `SpatialChunk` (PointCloudChunk / MeshChunk / HeightfieldChunk) with CRS/AABB/version. GLB ingest. Region select (AABB/polygon → GLB). ENU local frame. SVD/Umeyama/RANSAC alignment. Mesh edit: OBB split, plane clip + cap, QEM decimation.
+
+Key APIs: `parseGlb`, `MeshChunk.toGlb/selectAabb/selectPolygon`, `PointCloudChunk.selectAabb`, `exportPointCloudToPnts`, `createEnuFrame`, `batchWgs84ToEnu`, `computeSvdAlignment`, `computeSvdAlignmentRansac`, `splitMeshByObb`, `clipMeshByPlane`, `clipAndCapMesh`, `simplifyMeshQem`, `meshToGlb`, `GltfBuilder`.
+
+### D. WebGPU compute
+WGSL kernels: point transform, heightfield flatten, mesh quadric accumulation. Automatic WASM fallback when no GPU.
+
+Key APIs: `transformPointCloud`, `flattenTerrain`, `supportsWebGpu`, `webGpuStatus`.
+
+### E. Coordinate transforms / CRS
+WGS-84 ↔ GCJ-02 / BD-09 / Web Mercator (EPSG:3857) / CGCS2000 / UTM (full fwd+inv). Zero-copy in-place variants. Honest scope: NOT a PROJ/QGIS replacement (no arbitrary EPSG or NTv2 grids).
+
+Key APIs: `batchWgs84ToGcj02`, `batchGcj02ToWgs84`, `batchWgs84ToBd09`, `batchWgs84ToMercator`, `batchWgs84ToCgcs2000`, `wgs84ToUtm`, `utmToWgs84`, `batchWgs84ToUtm`, `batchWgs84ToCartesian3`, `crsInfo`, `getSupportedCrs`, `bestCrsForRegion` (+ `...InPlace` variants).
+
+### F. Vector / geometry
+Streaming GeoJSON parser, lazy per-feature iterator, property edit/filter. MVT read + decode + VectorTileEngine slicing. WKT/WKB round-trip. TopoJSON, GPX (with elevation). IFC (experimental).
+
+Key APIs: `parseGeoJsonCoords`, `parseGeoJsonStream`, `parseGeoJsonLazy`, `countGeoJsonFeatures`, `addProperty`, `renameProperty`, `removeProperty`, `decodeMvt`, `decodeMvtToGeoJson`, `VectorTileEngine`, `parseWkt`, `parseWkb`, `toWkt`, `toWkb`, `parseTopojson`, `parseGpx`, `parseGpxWithElevation`, `parseIfcGeometry`.
+
+### G. Spatial analysis & indexing
+R-tree + octree indexing (bbox + kNN). Distance (haversine/vincenty/rhumb), bearing, destination, midpoint. Hulls, buffer, centroid, bbox. Polygon boolean ops, Douglas-Peucker simplification, area. DBSCAN/grid clustering, TIN interpolation, geohash.
+
+Key APIs: `SpatialIndex`, `SpatialEdgeIndex`, `searchBBox`, `haversineDistance`, `vincentyDistance`, `rhumbDistance`, `bearing`, `destination`, `midpoint`, `convexHull`, `concaveHull`, `bufferPoint`, `bufferLineString`, `centroid`, `boundingBox`, `polygonArea`, `polygonUnion`, `polygonIntersection`, `polygonIntersects`, `contains`, `simplifyDouglasPeucker`, `clusterByDensity`, `clusterByGrid`, `buildTin`, `tinInterpolate`, `geohashEncode`, `geohashDecode`.
+
+### H. Runtime / memory / workers
+Cancellable long jobs (AbortSignal-style). Incremental tileset patching (edit one tile, ship diff). Memory budgeting + preflight. Web Workers API with onProgress/onError/onCancelled.
+
+Key APIs: `TilesetPatch`, `applyTilesetPatch`, `ProcessingContext`, `estimateJobBytes`, `WorkerHandle`, `createPointCloudWorker`, `processChunked`, `processChunkedWithAbort`, `processTerrain`, `setInputSizeLimit`, `setMaxWasmMemory`, `checkMemoryAvailable`, `estimateOctreeMemory`, `getInputLimits`, `memoryInfo`, `getAllocatedBytes`. Capability probes: `supportsLaz`, `supportsE57`, `supportsGeotiff`, `supportsDraco`, `supportsWorker`, `supportsMultiThread`, `supportsMeshIngest`, `supportsMeshEdit`, `supportsTerrainEdit`, `supportsWebGpu`, `version`.
+
+## Format support matrix
+| Category | Format | Read | Write | Feature flag |
+|---|---|---|---|---|
+| Point cloud | LAS 1.2–1.4 (F0–6) | yes | — | point-cloud |
+| Point cloud | LAZ | yes | — | laz-support |
+| Point cloud | COPC (stream) | yes | — | laz-support |
+| Point cloud | PLY (ASCII+binary) | yes | — | point-cloud |
+| Point cloud | OBJ / PCD | yes | — | point-cloud |
+| Point cloud | E57 | yes | — | e57-support |
+| Terrain | GeoTIFF | yes | — | geotiff |
+| Terrain | quantized-mesh | — | yes | geotiff |
+| Terrain | TMS pyramid + layer.json | — | yes | geotiff |
+| Vector | GeoJSON (streaming) | yes | yes | default |
+| Vector | MVT | yes | yes | default |
+| Vector | WKT / WKB | yes | yes | default |
+| Vector | TopoJSON / GPX | yes | — | default |
+| Mesh | GLB / glTF | yes | yes | mesh-ingest |
+| 3D Tiles | pnts / b3dm / i3dm | partial | yes | point-cloud |
+
+## Key links
+- Repo: https://github.com/reed-soul/wasm-spatial-core
+- npm: https://www.npmjs.com/package/wasm-spatial-core
+- Live site: https://reed-soul.github.io/wasm-spatial-core/site/
+- API docs: https://reed-soul.github.io/wasm-spatial-core/docs/
+- Benchmarks: https://reed-soul.github.io/wasm-spatial-core/benchmarks/
+- License: MIT
+
+## Honest scope notes (important)
+- Coordinate transforms are a fast toolkit, NOT a PROJ replacement — no arbitrary EPSG or NTv2 grid shifts.
+- WebGPU wins require a discrete GPU; on integrated GPU, WASM may be faster (honestly benchmarked).
+- quantized-mesh tiles are terrain content, not renderable as globe base terrain via Cesium3DTileset.
