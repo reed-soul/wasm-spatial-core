@@ -1,0 +1,65 @@
+# Dependabot dependency updates.
+# Keeps Rust crates, npm packages, and GitHub Actions versions current.
+# Schedule is weekly (Monday) to avoid noisy daily PRs; CI parity must pass
+# before merge (see AGENTS.md#ci-parity).
+
+version: 2
+
+updates:
+  # Rust dependencies (Cargo.toml / Cargo.lock)
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    labels:
+      - "dependencies"
+      - "rust"
+
+  # npm dev dependencies (root package.json — Playwright etc.)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    labels:
+      - "dependencies"
+      - "npm"
+    # The published package lives in npm/package.json; track it separately.
+    groups:
+      playwright:
+        patterns:
+          - "@playwright/*"
+          - "playwright"
+
+  # npm published-package dependencies (npm/package.json — draco3d peer dep etc.)
+  - package-ecosystem: "npm"
+    directory: "/npm"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore(deps)"
+    labels:
+      - "dependencies"
+      - "npm"
+
+  # GitHub Actions versions (.github/workflows/*.yml)
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(ci)"
+    labels:
+      - "dependencies"
+      - "ci"

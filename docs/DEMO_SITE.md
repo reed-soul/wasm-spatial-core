@@ -1,5 +1,7 @@
 # 在线演示站（Demo Site）
 
+> **English:** [DEMO_SITE.en.md](./DEMO_SITE.en.md)
+
 让用户在浏览器里直接试用 **wasm-spatial-core**，无需本地安装 Rust。
 
 ## 已有内容
