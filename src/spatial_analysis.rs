@@ -546,7 +546,7 @@ pub fn cluster_by_grid(
 
     // Compute centroids for valid cells
     let mut centers: Vec<(f64, f64)> = Vec::new();
-    for (_key, points) in cells.iter() {
+    for points in cells.values() {
         if (points.len() as u32) < min_points {
             continue;
         }
@@ -1176,7 +1176,7 @@ mod tests {
         }
 
         let mut centers = Vec::new();
-        for (_key, points) in cells.iter() {
+        for points in cells.values() {
             if (points.len() as u32) < min_points {
                 continue;
             }
