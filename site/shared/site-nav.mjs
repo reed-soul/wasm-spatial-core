@@ -10,8 +10,11 @@
 const HOME = '/site/';
 const GITHUB = 'https://github.com/reed-soul/wasm-spatial-core';
 const NPM = 'https://www.npmjs.com/package/wasm-spatial-core';
-const DOCS = 'https://reed-soul.github.io/wasm-spatial-core/docs/';
-const BENCH = 'https://reed-soul.github.io/wasm-spatial-core/benchmarks/';
+// Docs + Benchmarks are site-relative so they work on both the local dev
+// server and the deployed gh-pages site. Docs (typedoc) lives at /docs/ on
+// gh-pages; the in-repo browser benchmark is at /bench/browser/index.html.
+const DOCS = '../docs/';
+const BENCH = '../bench/browser/index.html';
 
 const LOGO_SVG = `<svg viewBox="0 0 64 64" role="img" aria-label="wasm-spatial-core">
   <defs><linearGradient id="nav-grad" x1="0" y1="0" x2="1" y2="1">
@@ -54,11 +57,11 @@ export function mountNav(opts = {}) {
       <div class="nav-links">
         ${showBack ? `<a class="nav-back" href="${home}index.html#demos">← Back to site</a>` : ''}
         <a href="${home}index.html#demos">Demos</a>
-        <a href="${BENCH}" target="_blank" rel="noopener">Benchmarks</a>
-        <a href="${DOCS}" target="_blank" rel="noopener">Docs</a>
-        <a href="${home}llms.txt" target="_blank" rel="noopener" title="Project summary for AI agents (llms.txt)">llms.txt</a>
-        <a href="${GITHUB}" target="_blank" rel="noopener">GitHub</a>
-        <a class="nav-cta" href="${NPM}" target="_blank" rel="noopener">npm</a>
+        <a href="${BENCH}">Benchmarks</a>
+        <a href="${DOCS}">Docs</a>
+        <a href="${home}llms.txt" title="Project summary for AI agents (llms.txt)">llms.txt</a>
+        <a href="${GITHUB}">GitHub</a>
+        <a class="nav-cta" href="${NPM}">npm</a>
       </div>
     </div>`;
   document.body.prepend(nav);

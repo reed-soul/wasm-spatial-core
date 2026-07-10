@@ -51,6 +51,13 @@ else
 fi
 
 cp -r examples "$OUT/examples"
+# Copy hand-written docs/ (the typedoc API docs are generated separately by CI
+# into gh-pages/docs/; this ships the manual overview + demo card page so the
+# nav "Docs" link resolves locally and on the deployed site).
+if [[ -d docs ]]; then
+  mkdir -p "$OUT/docs"
+  cp -r docs/. "$OUT/docs/"
+fi
 mkdir -p "$OUT/bench"
 if [[ -d bench/browser ]]; then
   cp -r bench/browser "$OUT/bench/browser"
