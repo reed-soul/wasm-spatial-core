@@ -90,12 +90,12 @@ wasm-bindgen-test = "0.3"
 # Native-only: Criterion/Rayon do not build for wasm32-unknown-unknown.
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
-rand = "0.8"
+rand = "0.10"
 
 # Browser `wasm-pack test` harness.
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 getrandom = { version = "0.2", features = ["js"] }
-rand = "0.8"
+rand = "0.10"
 
 [profile.release]
 opt-level = 3          # Optimize for speed (was "s"/size — cost WASM ~15% on math-heavy loops)
