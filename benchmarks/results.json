@@ -1,15 +1,15 @@
 {
-  "generated_at": "2026-07-10T16:52:33.971Z",
+  "generated_at": "2026-07-10T18:52:23.180Z",
   "rows": [
     {
-      "timestamp": "2026-07-10T16:52:33.935Z",
+      "timestamp": "2026-07-10T18:52:23.133Z",
       "hardware": {
         "node": "v24.18.0",
         "platform": "linux",
         "arch": "x64",
         "cpus": 4,
-        "cpu_model": "Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz",
-        "total_mem_mb": 15989
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "total_mem_mb": 15990
       },
       "engine": "loaders.gl",
       "engine_version": "not-installed",
@@ -18,7 +18,7 @@
       "notes": "@loaders.gl not installed in this environment. Documented capability gap: @loaders.gl is a reader framework with no shipped LAS→pnts/3D-Tiles writer."
     },
     {
-      "timestamp": "2026-07-10T16:52:33Z",
+      "timestamp": "2026-07-10T18:52:22Z",
       "hardware": {
         "python": "3.12.13",
         "platform": "linux",
@@ -34,23 +34,23 @@
       "output_bytes": 7943205,
       "tile_count": 40,
       "wall_ms": {
-        "total": 3687.3,
-        "min": 3686.4,
-        "max": 3688.9,
+        "total": 3752,
+        "min": 3746.8,
+        "max": 3755.7,
         "runs": 5
       },
-      "peak_rss_mb": 242,
+      "peak_rss_mb": 244,
       "notes": "py3dtiles convert, no reprojection (matches wasm no-op). point_count=-1 means not readable from tileset.json; byte-count parity is the verification axis. RSS is child-process max across all runs (coarse)."
     },
     {
-      "timestamp": "2026-07-10T16:52:04.745Z",
+      "timestamp": "2026-07-10T18:51:52.323Z",
       "hardware": {
         "node": "v24.18.0",
         "platform": "linux",
         "arch": "x64",
         "cpus": 4,
-        "cpu_model": "Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz",
-        "total_mem_mb": 15989
+        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "total_mem_mb": 15990
       },
       "engine": "wasm-spatial-core",
       "engine_version": "0.9.0",
@@ -61,13 +61,13 @@
       "output_bytes": 6020200,
       "tile_count": 64,
       "wall_ms": {
-        "total": 69.2,
-        "parse_ms": 12.1,
-        "min": 68.7,
-        "max": 69.9,
+        "total": 72.1,
+        "parse_ms": 10.7,
+        "min": 71.4,
+        "max": 72.5,
         "runs": 5
       },
-      "peak_rss_mb": 192,
+      "peak_rss_mb": 194,
       "notes": "parsePointCloudAuto → generateTileset (octree + pnts encode in one call)"
     }
   ]
