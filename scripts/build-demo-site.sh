@@ -1,13 +1,27 @@
 #!/usr/bin/env bash
 # Assemble static files for GitHub Pages / Vercel (demo site).
+#
+# Output layout:
+#   _site/
+#   ├── index.html            → redirects to site/index.html (brand showcase)
+#   ├── site/                 ← NEW: brand landing page + shared brand assets
+#   ├── examples/             ← standalone demos (unified shell)
+#   ├── pkg/                  ← WASM module
+#   ├── bench/                ← browser benchmark
+#   ├── point-cloud/          → short redirect to examples/point-cloud-demo
+#   ├── cesium-workflow/      → short redirect
+#   ├── terrain/              → short redirect
+#   └── demos/                → short redirect to examples/index.html (demo hub)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+FEATURES="${SITE_FEATURES:-point-cloud,geotiff,laz-support,mesh-ingest}"
+
 if [[ "${SKIP_WASM_BUILD:-0}" != "1" ]]; then
-  echo "Building WASM package → pkg/"
-  wasm-pack build --target web --release --out-dir pkg -- --features point-cloud,geotiff
+  echo "Building WASM package → pkg/  (features: $FEATURES)"
+  wasm-pack build --target web --release --out-dir pkg -- --features "$FEATURES"
 fi
 
 if [[ ! -f pkg/wasm_spatial_core.js ]]; then
@@ -27,6 +41,15 @@ if [[ ! -f "$OUT/pkg/wasm_spatial_core_bg.wasm" ]]; then
   exit 1
 fi
 echo "WASM size: $(du -h "$OUT/pkg/wasm_spatial_core_bg.wasm" | cut -f1)"
+
+# Brand showcase site (landing page + shared brand/mini-demo assets)
+if [[ -d site ]]; then
+  cp -r site "$OUT/site"
+  echo "Site: copied site/ → $OUT/site/"
+else
+  echo "⚠️ site/ not found — brand showcase will be missing" >&2
+fi
+
 cp -r examples "$OUT/examples"
 mkdir -p "$OUT/bench"
 if [[ -d bench/browser ]]; then
@@ -35,21 +58,22 @@ else
   echo "⚠️ bench/browser/ not found — skipping benchmark page"
 fi
 
+# Root index → brand showcase (site/index.html)
 cat >"$OUT/index.html" <<'HTML'
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>wasm-spatial-core</title>
-  <meta http-equiv="refresh" content="0; url=examples/index.html" />
-  <link rel="canonical" href="examples/index.html" />
+  <title>wasm-spatial-core — The fastest spatial engine in the browser</title>
+  <meta http-equiv="refresh" content="0; url=site/index.html" />
+  <link rel="canonical" href="site/index.html" />
   <script>
-    location.replace('examples/index.html' + location.search + location.hash);
+    location.replace('site/index.html' + location.search + location.hash);
   </script>
 </head>
 <body>
-  <p><a href="examples/index.html">wasm-spatial-core — open interactive demos</a></p>
+  <p><a href="site/index.html">wasm-spatial-core — open the showcase</a></p>
 </body>
 </html>
 HTML
@@ -79,17 +103,18 @@ HTML
 }
 
 # Short URLs used in README / API docs → canonical example pages.
-write_demo_redirect point-cloud ../examples/point-cloud-demo/index.html
-write_demo_redirect cesium-workflow ../examples/cesium-workflow/index.html
-write_demo_redirect terrain ../examples/terrain-demo/index.html
+write_demo_redirect demos            ../examples/index.html
+write_demo_redirect point-cloud      ../examples/point-cloud-demo/index.html
+write_demo_redirect cesium-workflow  ../examples/cesium-workflow/index.html
+write_demo_redirect terrain          ../examples/terrain-demo/index.html
 
 touch "$OUT/.nojekyll"
 
-echo "Demo site ready at $OUT/"
-echo "  Hub:              examples/index.html"
-echo "  Full demo:        examples/demo/index.html"
-echo "  Three.js PCloud:   examples/point-cloud-demo/index.html"
-echo "  Cesium workflow:  examples/cesium-workflow/index.html"
-echo "  Terrain:          examples/terrain-demo/index.html"
-echo "  Cesium PCloud:    examples/point-cloud-cesium/index.html"
-echo "  Benchmark:        bench/browser/index.html"
+echo "Site ready at $OUT/"
+echo "  Brand showcase:  site/index.html   (root / redirects here)"
+echo "  Demo hub:        examples/index.html   (/demos)"
+echo "  Three.js PCloud: examples/point-cloud-demo/index.html"
+echo "  Cesium PCloud:   examples/point-cloud-cesium/index.html"
+echo "  Cesium workflow: examples/cesium-workflow/index.html"
+echo "  Terrain:         examples/terrain-demo/index.html"
+echo "  Benchmark:       bench/browser/index.html"

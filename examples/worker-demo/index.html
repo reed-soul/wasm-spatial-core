@@ -508,5 +508,9 @@
             log('✓ SharedArrayBuffer is available. Ready to benchmark.');
         }
     </script>
+  <script type="module">
+    import { mountDemoShell } from '../shared/site-shell.mjs';
+    mountDemoShell({ title: 'Multi-thread · Rayon Benchmark' });
+  </script>
 </body>
 </html>
