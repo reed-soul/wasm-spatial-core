@@ -12,7 +12,7 @@
 // It is non-destructive: the demo's own markup and page-specific CSS stay
 // intact. Only the shared nav + token refresh are added.
 
-const NAV_HTML = (home) => `
+const NAV_HTML = (home, root) => `
   <div class="nav-inner">
     <a class="nav-brand" href="${home}index.html" aria-label="wasm-spatial-core home">
       <svg viewBox="0 0 64 64" width="28" height="28" role="img" aria-label="logo">
@@ -32,11 +32,11 @@ const NAV_HTML = (home) => `
     <div class="nav-links">
       <a class="nav-back" href="${home}index.html#demos">← Back to site</a>
       <a href="${home}index.html#demos">Demos</a>
-      <a href="https://reed-soul.github.io/wasm-spatial-core/benchmarks/" target="_blank" rel="noopener">Benchmarks</a>
-      <a href="https://reed-soul.github.io/wasm-spatial-core/docs/" target="_blank" rel="noopener">Docs</a>
-      <a href="${home}llms.txt" target="_blank" rel="noopener" title="Project summary for AI agents (llms.txt)">llms.txt</a>
-      <a href="https://github.com/reed-soul/wasm-spatial-core" target="_blank" rel="noopener">GitHub</a>
-      <a class="nav-cta" href="https://www.npmjs.com/package/wasm-spatial-core" target="_blank" rel="noopener">npm</a>
+      <a href="${root}bench/browser/index.html">Benchmarks</a>
+      <a href="${root}docs/">Docs</a>
+      <a href="${home}llms.txt" title="Project summary for AI agents (llms.txt)">llms.txt</a>
+      <a href="https://github.com/reed-soul/wasm-spatial-core">GitHub</a>
+      <a class="nav-cta" href="https://www.npmjs.com/package/wasm-spatial-core">npm</a>
     </div>
   </div>`;
 
@@ -52,6 +52,8 @@ export function mountDemoShell(opts = {}) {
   } else {
     home = '/site/';
   }
+  // Site root is one level above home (home = <root>site/, root = <root>)
+  const root = home.replace(/site\/$/, '');
 
   // 1. Inject the global stylesheet (this refreshes tokens + brings .nav styles).
   //    Loaded last so it can override legacy :root values.
@@ -66,7 +68,7 @@ export function mountDemoShell(opts = {}) {
   const nav = document.createElement('nav');
   nav.className = 'nav';
   nav.setAttribute('aria-label', 'Primary');
-  nav.innerHTML = NAV_HTML(home);
+  nav.innerHTML = NAV_HTML(home, root);
   document.body.prepend(nav);
 
   // Scrolled state + title handling
