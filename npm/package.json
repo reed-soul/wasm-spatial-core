@@ -111,7 +111,7 @@
     "pack:dry-run": "npm pack --dry-run"
   },
   "devDependencies": {
-    "typescript": "^5.4.0"
+    "typescript": "^7.0.2"
   },
   "publishConfig": {
     "access": "public"
