@@ -45,12 +45,13 @@ pub fn wgs84_to_cartesian3_single(lng: f64, lat: f64, height: f64) -> (f64, f64,
 
 /// Batch convert a flat array of `[lng, lat, ...]` into `[x, y, z, ...]`.
 #[wasm_bindgen(js_name = "batchWgs84ToCartesian3")]
-pub fn batch_wgs84_to_cartesian3(coords: &[f64]) -> js_sys::Float64Array {
-    assert!(
-        coords.len().is_multiple_of(2),
-        "Coordinates length must be even (pairs of lng/lat), got {}",
-        coords.len()
-    );
+pub fn batch_wgs84_to_cartesian3(coords: &[f64]) -> Result<js_sys::Float64Array, JsValue> {
+    if !coords.len().is_multiple_of(2) {
+        return Err(crate::errors::invalid_input_js(format!(
+            "Coordinates length must be even (pairs of lng/lat), got {}",
+            coords.len()
+        )));
+    }
     let point_count = coords.len() / 2;
     let mut out = vec![0.0; point_count * 3];
 
@@ -83,7 +84,7 @@ pub fn batch_wgs84_to_cartesian3(coords: &[f64]) -> js_sys::Float64Array {
     // Zero-copy view into Wasm memory, then duplicated into JS Float64Array
     let arr = js_sys::Float64Array::new_with_length((point_count * 3) as u32);
     arr.copy_from(&out);
-    arr
+    Ok(arr)
 }
 
 /// Contains triangulated mesh data ready for Cesium.Geometry
@@ -91,6 +92,10 @@ pub fn batch_wgs84_to_cartesian3(coords: &[f64]) -> js_sys::Float64Array {
 pub struct CesiumMeshGeometry {
     positions: Vec<f64>,
     indices: Vec<u32>,
+    /// Number of source features (FeatureCollection entries / standalone
+    /// features / 1 for a bare Geometry). Used downstream to size the b3dm
+    /// batch table so its per-batch arrays match BATCH_LENGTH.
+    feature_count: u32,
 }
 
 #[wasm_bindgen]
@@ -138,8 +143,12 @@ pub fn generate_cesium_geometry(
         let mut altitudes: Vec<f64> = Vec::new();
         let mut hole_indices: Vec<usize> = Vec::new();
 
-        // Push outer ring
+        // Push outer ring. Skip malformed coordinates (fewer than 2 values)
+        // instead of panicking on index-out-of-bounds on adversarial GeoJSON.
         for pt in &polygon[0] {
+            if pt.len() < 2 {
+                continue;
+            }
             flat_vertices.push(pt[0]);
             flat_vertices.push(pt[1]);
             altitudes.push(if pt.len() >= 3 { pt[2] } else { feature_height });
@@ -149,6 +158,9 @@ pub fn generate_cesium_geometry(
         for hole in polygon.iter().skip(1) {
             hole_indices.push(flat_vertices.len() / 2);
             for pt in hole {
+                if pt.len() < 2 {
+                    continue;
+                }
                 flat_vertices.push(pt[0]);
                 flat_vertices.push(pt[1]);
                 altitudes.push(if pt.len() >= 3 { pt[2] } else { feature_height });
@@ -195,8 +207,14 @@ pub fn generate_cesium_geometry(
             0.0
         };
 
+    // Count source features so the b3dm batch table can be sized to match
+    // BATCH_LENGTH (each per-batch property array needs exactly BATCH_LENGTH
+    // entries, or Cesium fails to load the tile). Every match arm assigns it.
+    let feature_count: u32;
+
     match geojson {
         GeoJson::FeatureCollection(fc) => {
+            feature_count = fc.features.len() as u32;
             for feature in fc.features {
                 let feature_height = extract_height(&feature.properties, &height_property);
                 if let Some(geom) = feature.geometry {
@@ -227,6 +245,7 @@ pub fn generate_cesium_geometry(
             }
         }
         GeoJson::Feature(feature) => {
+            feature_count = 1;
             let feature_height = extract_height(&feature.properties, &height_property);
             if let Some(geom) = feature.geometry {
                 match geom.value {
@@ -254,18 +273,10 @@ pub fn generate_cesium_geometry(
                 }
             }
         }
-        GeoJson::Geometry(geom) => match geom.value {
-            Value::Polygon(poly) => {
-                process_polygon(
-                    &poly,
-                    0.0,
-                    &mut all_positions,
-                    &mut all_indices,
-                    &mut current_vertex_offset,
-                );
-            }
-            Value::MultiPolygon(multipoly) => {
-                for poly in multipoly {
+        GeoJson::Geometry(geom) => {
+            feature_count = 1;
+            match geom.value {
+                Value::Polygon(poly) => {
                     process_polygon(
                         &poly,
                         0.0,
@@ -274,14 +285,28 @@ pub fn generate_cesium_geometry(
                         &mut current_vertex_offset,
                     );
                 }
+                Value::MultiPolygon(multipoly) => {
+                    for poly in multipoly {
+                        process_polygon(
+                            &poly,
+                            0.0,
+                            &mut all_positions,
+                            &mut all_indices,
+                            &mut current_vertex_offset,
+                        );
+                    }
+                }
+                _ => {}
             }
-            _ => {}
-        },
+        }
     }
 
+    // Guard: if nothing produced geometry, feature_count still reflects the
+    // number of source features for batch-table sizing.
     Ok(CesiumMeshGeometry {
         positions: all_positions,
         indices: all_indices,
+        feature_count: feature_count.max(1),
     })
 }
 
@@ -317,16 +342,19 @@ impl Cesium3DTile {
     /// - batchTableBinaryByteLength (u32)
     #[wasm_bindgen(js_name = "toBytes")]
     pub fn to_bytes(&self) -> js_sys::Uint8Array {
-        // ── Body: positions (f64) + indices (u32) ────────────────────
-        // Convert positions to f32 for the body (standard b3dm uses float32)
+        // ── Body: positions (f32) + indices (u32) ────────────────────
+        // Positions are f32 (standard b3dm). Indices are kept as u32
+        // (componentType 5125 / UNSIGNED_INT) so large meshes with > 65535
+        // vertices do not silently truncate. See 3D Tiles b3dm Feature Table.
         let positions_f32: Vec<f32> = self.positions.iter().map(|&v| v as f32).collect();
-        let indices_u16: Vec<u16> = self.indices.iter().map(|&v| v as u16).collect();
+        let indices_u32: &[u32] = &self.indices;
 
-        let body_byte_len = positions_f32.len() * std::mem::size_of::<f32>()
-            + indices_u16.len() * std::mem::size_of::<u16>();
+        let body_byte_len =
+            std::mem::size_of_val(positions_f32.as_slice()) + std::mem::size_of_val(indices_u32);
 
         // ── FeatureTable JSON ──────────────────────────────────────────
-        // Minimal feature table with BATCH_LENGTH and positions/indices references.
+        // Per 3D Tiles b3dm spec: positions are VEC3 (x,y,z), indices are
+        // SCALAR with UNSIGNED_INT (5125) so index values can exceed 65535.
         let batch_length = self.feature_batch_ids.len() as u32;
         let feature_table_json = serde_json::json!({
             "BATCH_LENGTH": batch_length,
@@ -334,12 +362,12 @@ impl Cesium3DTile {
                 "byteOffset": 0,
                 "componentType": 5126,  // FLOAT
                 "count": positions_f32.len() / 3,
-                "type": "SCALAR"
+                "type": "VEC3"
             },
             "indices": {
                 "byteOffset": positions_f32.len() * 4,
-                "componentType": 5123,  // UNSIGNED_SHORT
-                "count": indices_u16.len(),
+                "componentType": 5125,  // UNSIGNED_INT
+                "count": indices_u32.len(),
                 "type": "SCALAR"
             }
         })
@@ -376,22 +404,23 @@ impl Cesium3DTile {
         buf.extend_from_slice(&bt_json_padded_len.to_le_bytes());
         buf.extend_from_slice(&bt_bin_padded_len.to_le_bytes());
 
-        // ── FeatureTable JSON (padded) ────────────────────────────────
+        // ── FeatureTable JSON (padded, space byte per 3D Tiles JSON rule) ─
         buf.extend_from_slice(&ft_json_bytes);
-        pad4_relative(&mut buf);
+        pad4_relative(&mut buf, b' ');
 
-        // ── FeatureTable Binary (= body: positions f32 + indices u16, padded) ─
+        // ── FeatureTable Binary (= body: positions f32 + indices u32, padded) ─
+        // Binary sections must be padded with zero bytes (0x00), not spaces.
         for val in &positions_f32 {
             buf.extend_from_slice(&val.to_le_bytes());
         }
-        for val in &indices_u16 {
+        for val in indices_u32 {
             buf.extend_from_slice(&val.to_le_bytes());
         }
-        pad4_relative(&mut buf);
+        pad4_relative(&mut buf, 0u8);
 
-        // ── BatchTable JSON (padded) ───────────────────────────────────
+        // ── BatchTable JSON (padded, space byte per JSON rule) ─────────
         buf.extend_from_slice(&bt_json_bytes);
-        pad4_relative(&mut buf);
+        pad4_relative(&mut buf, b' ');
 
         let arr = js_sys::Uint8Array::new_with_length(buf.len() as u32);
         arr.copy_from(&buf);
@@ -403,8 +432,7 @@ impl Cesium3DTile {
         self.batch_table_json.clone()
     }
 
-    #[wasm_bindgen(js_name = "featureBatchIds")]
-    #[wasm_bindgen(getter)]
+    #[wasm_bindgen(js_name = "featureBatchIds", getter)]
     pub fn feature_batch_ids(&self) -> js_sys::Uint32Array {
         let arr = js_sys::Uint32Array::new_with_length(self.feature_batch_ids.len() as u32);
         arr.copy_from(&self.feature_batch_ids);
@@ -417,11 +445,14 @@ fn align4(n: usize) -> usize {
     (n + 3) & !3
 }
 
-/// Pad `buf` with space bytes so its length is a multiple of 4.
-fn pad4_relative(buf: &mut Vec<u8>) {
+/// Pad `buf` with `pad_byte` so its length is a multiple of 4.
+///
+/// Per the 3D Tiles spec: JSON sections use space padding (`b' '`),
+/// while binary sections (Feature/Batch Table Binary) must use zero (`0u8`).
+fn pad4_relative(buf: &mut Vec<u8>, pad_byte: u8) {
     let aligned = align4(buf.len());
     while buf.len() < aligned {
-        buf.push(b' ');
+        buf.push(pad_byte);
     }
 }
 
@@ -437,14 +468,18 @@ pub fn generate_3d_tile(
 ) -> Result<Cesium3DTile, JsValue> {
     let geometry = generate_cesium_geometry(geojson_str, height_property)?;
 
-    let feature_count = estimate_feature_count(geojson_str);
+    // feature_count comes from the parsed GeoJSON (see CesiumMeshGeometry),
+    // not a fragile string-scan heuristic: the batch table's per-batch arrays
+    // must have exactly BATCH_LENGTH elements or Cesium rejects the tile.
+    let feature_count = geometry.feature_count.max(1);
     let feature_batch_ids: Vec<u32> = (0..feature_count).collect();
 
+    // Per-batch arrays sized to BATCH_LENGTH so each batch has an entry.
+    let ids: Vec<String> = (0..feature_count).map(|i| i.to_string()).collect();
+    let names = vec!["wasm-spatial-core tile"; feature_count as usize];
     let batch_table = serde_json::json!({
-        "id": ["0"],
-        "properties": {
-            "name": "wasm-spatial-core tile"
-        }
+        "id": ids,
+        "name": names,
     })
     .to_string();
 
@@ -454,25 +489,6 @@ pub fn generate_3d_tile(
         positions: geometry.positions,
         indices: geometry.indices,
     })
-}
-
-/// Rough estimate of feature count from the JSON string.
-fn estimate_feature_count(geojson_str: &str) -> u32 {
-    // Count occurrences of "type":"Feature" as a heuristic.
-    // This is fast and avoids full parse just for counting.
-    let needle = "\"type\":\"Feature\"";
-    let count = geojson_str.matches(needle).count();
-    if count > 0 {
-        return count as u32;
-    }
-    // Also try with spaces
-    let needle2 = "\"type\": \"Feature\"";
-    let count2 = geojson_str.matches(needle2).count();
-    if count2 > 0 {
-        return count2 as u32;
-    }
-    // Single feature / geometry
-    1
 }
 
 #[cfg(test)]
@@ -570,11 +586,12 @@ mod tests_b3dm {
 
     /// Helper: extract raw bytes from a Cesium3DTile without JS interop.
     fn tile_to_vec(tile: &Cesium3DTile) -> Vec<u8> {
-        // Simulate to_bytes without js_sys by directly building the bytes.
+        // Mirror the production `to_bytes`: u32 indices (UNSIGNED_INT), VEC3
+        // positions, JSON sections padded with space, binary with zero.
         let positions_f32: Vec<f32> = tile.positions.iter().map(|&v| v as f32).collect();
-        let indices_u16: Vec<u16> = tile.indices.iter().map(|&v| v as u16).collect();
+        let indices_u32: Vec<u32> = tile.indices.clone();
 
-        let body_byte_len = positions_f32.len() * 4 + indices_u16.len() * 2;
+        let body_byte_len = positions_f32.len() * 4 + indices_u32.len() * 4;
 
         let batch_length = tile.feature_batch_ids.len() as u32;
         let feature_table_json = serde_json::json!({
@@ -583,12 +600,12 @@ mod tests_b3dm {
                 "byteOffset": 0,
                 "componentType": 5126,
                 "count": positions_f32.len() / 3,
-                "type": "SCALAR"
+                "type": "VEC3"
             },
             "indices": {
                 "byteOffset": positions_f32.len() * 4,
-                "componentType": 5123,
-                "count": indices_u16.len(),
+                "componentType": 5125,
+                "count": indices_u32.len(),
                 "type": "SCALAR"
             }
         })
@@ -614,16 +631,16 @@ mod tests_b3dm {
         buf.extend_from_slice(&(bt_json_padded_len as u32).to_le_bytes());
         buf.extend_from_slice(&0u32.to_le_bytes());
         buf.extend_from_slice(&ft_json_bytes);
-        pad4_relative(&mut buf);
+        pad4_relative(&mut buf, b' ');
         for val in &positions_f32 {
             buf.extend_from_slice(&val.to_le_bytes());
         }
-        for val in &indices_u16 {
+        for val in &indices_u32 {
             buf.extend_from_slice(&val.to_le_bytes());
         }
-        pad4_relative(&mut buf);
+        pad4_relative(&mut buf, 0u8);
         buf.extend_from_slice(&bt_json_bytes);
-        pad4_relative(&mut buf);
+        pad4_relative(&mut buf, b' ');
         buf
     }
 }

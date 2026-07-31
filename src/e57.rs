@@ -259,20 +259,22 @@ pub fn parse_e57_core(bytes: &[u8]) -> Result<E57Result, String> {
 
         match point.cartesian {
             CartesianCoordinate::Valid { x, y, z } => {
-                positions.push(x as f32);
-                positions.push(y as f32);
-                positions.push(z as f32);
+                // Clamp to f32 range: large georeferenced coordinates (>3.4e38)
+                // would otherwise cast to Infinity and corrupt GPU buffers.
+                positions.push(x.clamp(f32::MIN as f64, f32::MAX as f64) as f32);
+                positions.push(y.clamp(f32::MIN as f64, f32::MAX as f64) as f32);
+                positions.push(z.clamp(f32::MIN as f64, f32::MAX as f64) as f32);
             }
             CartesianCoordinate::Invalid => {
-                // Skip invalid points but keep placeholders for index consistency
-                positions.push(0.0);
-                positions.push(0.0);
-                positions.push(0.0);
+                // Skip invalid points entirely: injecting (0,0,0) placeholders
+                // would create fake origin-located points that consumers cannot
+                // distinguish from real data, appearing as distant outliers.
+                continue;
             }
             CartesianCoordinate::Direction { x, y, z } => {
-                positions.push(x as f32);
-                positions.push(y as f32);
-                positions.push(z as f32);
+                positions.push(x.clamp(f32::MIN as f64, f32::MAX as f64) as f32);
+                positions.push(y.clamp(f32::MIN as f64, f32::MAX as f64) as f32);
+                positions.push(z.clamp(f32::MIN as f64, f32::MAX as f64) as f32);
             }
         }
 
@@ -288,14 +290,19 @@ pub fn parse_e57_core(bytes: &[u8]) -> Result<E57Result, String> {
             c.push(128);
         }
 
-        if let Some(intensity) = point.intensity {
-            if let Some(ref mut ints) = intensities {
-                ints.push(intensity);
-            }
+        if let Some(ref mut ints) = intensities {
+            // Keep the intensities array index-aligned with positions: when a
+            // point in an intensity-bearing cloud has no intensity, push a
+            // sentinel (0.0) so intensities[i] still corresponds to point i.
+            // Without this, the array would be shorter than point_count and
+            // consumers would read wrong values or go out of bounds.
+            ints.push(point.intensity.unwrap_or(0.0));
         }
     }
 
-    let point_count = positions.len() as u32 / 3;
+    // Divide before casting to u32: casting first truncates positions.len()
+    // (usize) when it exceeds u32::MAX, producing a wrong point count.
+    let point_count = (positions.len() / 3) as u32;
 
     Ok(E57Result {
         positions,
@@ -422,7 +429,13 @@ pub fn parse_e57(bytes: &[u8]) -> Result<E57Result, SpatialErrorDetail> {
     parse_e57_core(bytes).map_err(SpatialError::point_cloud_error)
 }
 
-/// Parse E57 points with a JS progress callback. Reports periodically.
+/// Parse E57 points with a JS progress callback.
+///
+/// NOTE: Currently reports only 0% (start) and 100% (end) — the underlying
+/// `parse_e57_core` runs synchronously and blocks the main thread. True
+/// incremental progress (e.g. reporting every N points by wrapping the point
+/// iterator) is a future enhancement. JS callers should not rely on
+/// intermediate progress updates yet.
 #[cfg(feature = "e57-support")]
 #[wasm_bindgen(js_name = "parseE57Stream")]
 pub fn parse_e57_stream(

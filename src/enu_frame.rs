@@ -6,7 +6,7 @@
 use wasm_bindgen::prelude::*;
 
 use crate::cesium_adapter::wgs84_to_cartesian3_single;
-use crate::errors::SpatialError;
+use crate::errors::{SpatialError, SpatialErrorDetail};
 
 const WGS84_A: f64 = 6378137.0;
 const WGS84_B: f64 = 6_356_752.314_245_179;
@@ -30,11 +30,25 @@ pub struct EnuFrame {
 
 impl EnuFrame {
     /// Create an ENU frame from a WGS84 anchor `[longitude°, latitude°, altitude m]`.
-    pub fn from_anchor(lng: f64, lat: f64, alt: f64) -> Self {
+    ///
+    /// Validates that coordinates are finite and latitude is within [-90, 90];
+    /// otherwise the rotation matrix and every downstream conversion would be
+    /// corrupted with NaN/Inf.
+    pub fn from_anchor(lng: f64, lat: f64, alt: f64) -> Result<Self, SpatialErrorDetail> {
+        if !lng.is_finite() || !lat.is_finite() || !alt.is_finite() {
+            return Err(SpatialError::invalid_input(
+                "anchor coordinates must be finite",
+            ));
+        }
+        if !(-90.0..=90.0).contains(&lat) {
+            return Err(SpatialError::invalid_input(format!(
+                "anchor latitude must be in [-90, 90], got {lat}"
+            )));
+        }
         let (x, y, z) = wgs84_to_cartesian3_single(lng, lat, alt);
         let lat_rad = lat.to_radians();
         let lon_rad = lng.to_radians();
-        Self {
+        Ok(Self {
             anchor_lng: lng,
             anchor_lat: lat,
             anchor_alt: alt,
@@ -43,7 +57,7 @@ impl EnuFrame {
             cos_lat: lat_rad.cos(),
             sin_lon: lon_rad.sin(),
             cos_lon: lon_rad.cos(),
-        }
+        })
     }
 
     /// Convert a WGS84 geodetic point to ENU meters relative to the anchor.
@@ -86,38 +100,64 @@ impl EnuFrame {
 }
 
 /// Batch WGS84 `[lng, lat, alt, ...]` → ENU `[e, n, u, ...]` (f64).
-pub fn batch_wgs84_to_enu_core(coords: &[f64], frame: &EnuFrame) -> Vec<f64> {
-    assert!(
-        coords.len().is_multiple_of(3),
-        "coords length must be a multiple of 3"
-    );
+///
+/// Returns a typed error on misaligned input rather than panicking: this is a
+/// `pub` function reachable from Rust, where a panic on ordinary invalid input
+/// would abort the process.
+pub fn batch_wgs84_to_enu_core(
+    coords: &[f64],
+    frame: &EnuFrame,
+) -> Result<Vec<f64>, SpatialErrorDetail> {
+    if !coords.len().is_multiple_of(3) {
+        return Err(SpatialError::invalid_input(
+            "coords length must be a multiple of 3",
+        ));
+    }
     let mut out = Vec::with_capacity(coords.len());
     for triple in coords.chunks_exact(3) {
         let enu = frame.wgs84_to_enu(triple[0], triple[1], triple[2]);
         out.extend_from_slice(&enu);
     }
-    out
+    Ok(out)
 }
 
 /// Batch ENU `[e, n, u, ...]` → WGS84 `[lng, lat, alt, ...]` (f64).
-pub fn batch_enu_to_wgs84_core(coords: &[f64], frame: &EnuFrame) -> Vec<f64> {
-    assert!(
-        coords.len().is_multiple_of(3),
-        "coords length must be a multiple of 3"
-    );
+pub fn batch_enu_to_wgs84_core(
+    coords: &[f64],
+    frame: &EnuFrame,
+) -> Result<Vec<f64>, SpatialErrorDetail> {
+    if !coords.len().is_multiple_of(3) {
+        return Err(SpatialError::invalid_input(
+            "coords length must be a multiple of 3",
+        ));
+    }
     let mut out = Vec::with_capacity(coords.len());
     for triple in coords.chunks_exact(3) {
         let wgs = frame.enu_to_wgs84(triple[0], triple[1], triple[2]);
         out.extend_from_slice(&wgs);
     }
-    out
+    Ok(out)
 }
 
 /// Batch WGS84 → ENU as f32 rendering offsets relative to anchor.
+///
+/// Clamps to the f32 range and replaces non-finite values with 0.0 so extreme
+/// or NaN results (from unvalidated inputs) cannot corrupt GPU vertex buffers.
 pub fn batch_wgs84_to_enu_f32_core(coords: &[f64], frame: &EnuFrame) -> Vec<f32> {
-    batch_wgs84_to_enu_core(coords, frame)
-        .into_iter()
-        .map(|v| v as f32)
+    // On misaligned input, core returns an error; this f32 variant preserves
+    // its non-Result signature by emitting an empty buffer in that case.
+    let enu = match batch_wgs84_to_enu_core(coords, frame) {
+        Ok(v) => v,
+        Err(_) => return Vec::new(),
+    };
+    enu.into_iter()
+        .map(|v| {
+            if v.is_finite() {
+                v.clamp(f32::MIN as f64, f32::MAX as f64) as f32
+            } else {
+                0.0
+            }
+        })
         .collect()
 }
 
@@ -130,8 +170,15 @@ fn cartesian3_to_wgs84(x: f64, y: f64, z: f64) -> (f64, f64, f64) {
     let lat = (z + WGS84_EP_SQ * WGS84_B * sin_theta.powi(3))
         .atan2(p - WGS84_E_SQ * WGS84_A * cos_theta.powi(3));
     let sin_lat = lat.sin();
+    let cos_lat = lat.cos();
     let n = WGS84_A / (1.0 - WGS84_E_SQ * sin_lat * sin_lat).sqrt();
-    let alt = p / lat.cos() - n;
+    // Near the poles cos(lat) → 0; `p / cos(lat)` becomes 0/0 = NaN when p == 0
+    // (a point exactly on the rotation axis). Use the z-based formula there.
+    let alt = if p.abs() < 1e-9 {
+        z / sin_lat - n
+    } else {
+        p / cos_lat - n
+    };
     (lon.to_degrees(), lat.to_degrees(), alt)
 }
 
@@ -157,7 +204,7 @@ pub fn create_enu_frame(anchor: &js_sys::Float64Array) -> Result<WasmEnuFrame, J
             anchor.get_index(0),
             anchor.get_index(1),
             anchor.get_index(2),
-        ),
+        )?,
     })
 }
 
@@ -186,7 +233,7 @@ impl WasmEnuFrame {
                 .with_detail("coords length must be a multiple of 3")
                 .into());
         }
-        let out = batch_wgs84_to_enu_core(coords, &self.inner);
+        let out = batch_wgs84_to_enu_core(coords, &self.inner)?;
         Ok(js_sys::Float64Array::from(&out[..]))
     }
 
@@ -198,7 +245,7 @@ impl WasmEnuFrame {
                 .with_detail("coords length must be a multiple of 3")
                 .into());
         }
-        let out = batch_enu_to_wgs84_core(coords, &self.inner);
+        let out = batch_enu_to_wgs84_core(coords, &self.inner)?;
         Ok(js_sys::Float64Array::from(&out[..]))
     }
 
@@ -228,7 +275,7 @@ mod tests {
 
     #[test]
     fn test_anchor_maps_to_origin() {
-        let frame = EnuFrame::from_anchor(116.391, 39.907, 50.0);
+        let frame = EnuFrame::from_anchor(116.391, 39.907, 50.0).unwrap();
         let enu = frame.wgs84_to_enu(116.391, 39.907, 50.0);
         assert!(enu[0].abs() < 1e-6);
         assert!(enu[1].abs() < 1e-6);
@@ -237,7 +284,7 @@ mod tests {
 
     #[test]
     fn test_roundtrip_at_1km_east() {
-        let frame = EnuFrame::from_anchor(116.391, 39.907, 50.0);
+        let frame = EnuFrame::from_anchor(116.391, 39.907, 50.0).unwrap();
         let enu = [1000.0, 0.0, 0.0];
         let wgs = frame.enu_to_wgs84(enu[0], enu[1], enu[2]);
         let back = frame.wgs84_to_enu(wgs[0], wgs[1], wgs[2]);
@@ -250,7 +297,7 @@ mod tests {
 
     #[test]
     fn test_roundtrip_at_1km_north_and_up() {
-        let frame = EnuFrame::from_anchor(116.391, 39.907, 50.0);
+        let frame = EnuFrame::from_anchor(116.391, 39.907, 50.0).unwrap();
         for enu in [[0.0, 1000.0, 0.0], [0.0, 0.0, 100.0], [700.0, 700.0, 50.0]] {
             let wgs = frame.enu_to_wgs84(enu[0], enu[1], enu[2]);
             let back = frame.wgs84_to_enu(wgs[0], wgs[1], wgs[2]);
@@ -261,16 +308,16 @@ mod tests {
 
     #[test]
     fn test_batch_wgs84_to_enu() {
-        let frame = EnuFrame::from_anchor(0.0, 0.0, 0.0);
+        let frame = EnuFrame::from_anchor(0.0, 0.0, 0.0).unwrap();
         let coords = [0.0, 0.0, 0.0, 0.001, 0.0, 10.0];
-        let out = batch_wgs84_to_enu_core(&coords, &frame);
+        let out = batch_wgs84_to_enu_core(&coords, &frame).unwrap();
         assert_eq!(out.len(), 6);
         assert!(out[0].abs() < 1e-3 && out[1].abs() < 1e-3);
     }
 
     #[test]
     fn test_f32_offsets() {
-        let frame = EnuFrame::from_anchor(116.0, 39.0, 0.0);
+        let frame = EnuFrame::from_anchor(116.0, 39.0, 0.0).unwrap();
         let coords = [116.0, 39.0, 0.0];
         let f32 = batch_wgs84_to_enu_f32_core(&coords, &frame);
         assert_eq!(f32.len(), 3);

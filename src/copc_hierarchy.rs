@@ -3,7 +3,7 @@
 //! Implements the hierarchy page walk described in the
 //! [COPC 1.0 specification](https://copc.io/).
 
-#[cfg(feature = "laz-support")]
+use std::collections::HashSet;
 use std::collections::VecDeque;
 
 /// Parsed COPC `info` VLR payload (160 bytes).
@@ -75,9 +75,14 @@ pub fn parse_hierarchy_page(
     offset: u64,
     size: u64,
 ) -> Result<Vec<CopcHierarchyEntry>, String> {
-    let start = offset as usize;
+    // Use checked conversions: `as usize` would silently truncate on 32-bit
+    // targets for offsets/sizes > usize::MAX (4 GiB), producing wrong slices.
+    let start = usize::try_from(offset)
+        .map_err(|_| format!("COPC hierarchy page offset {} exceeds usize", offset))?;
+    let sz = usize::try_from(size)
+        .map_err(|_| format!("COPC hierarchy page size {} exceeds usize", size))?;
     let end = start
-        .checked_add(size as usize)
+        .checked_add(sz)
         .ok_or_else(|| "COPC hierarchy page size overflow".to_string())?;
     if end > bytes.len() {
         return Err(format!(
@@ -151,7 +156,12 @@ pub fn query_copc_chunks_for_bbox(
 
     let mut chunks = Vec::new();
     let mut queue = VecDeque::new();
+    // Track visited page offsets to prevent unbounded re-enqueue / infinite
+    // loops when a malformed or adversarial COPC file has pages that reference
+    // already-visited offsets (or self-references) — a denial-of-service hazard.
+    let mut visited: HashSet<u64> = HashSet::new();
     queue.push_back((info.root_hier_offset, info.root_hier_size));
+    visited.insert(info.root_hier_offset);
 
     while let Some((page_offset, page_size)) = queue.pop_front() {
         let entries = parse_hierarchy_page(bytes, page_offset, page_size)?;
@@ -159,15 +169,28 @@ pub fn query_copc_chunks_for_bbox(
             if entry.point_count > 0 {
                 if let Some(voxel) = voxel_bounds(info, entry.level, entry.x, entry.y, entry.z) {
                     if bbox_intersects(voxel, query) {
+                        // Reject invalid non-positive byte_size for chunks that
+                        // claim to contain points; `.max(0)` would silently
+                        // produce a zero-length slice and break decompression.
+                        if entry.byte_size <= 0 {
+                            return Err(format!(
+                                "COPC chunk at level {} ({},{},{}) has point_count {} but invalid byte_size {}",
+                                entry.level, entry.x, entry.y, entry.z,
+                                entry.point_count, entry.byte_size
+                            ));
+                        }
                         chunks.push(CopcDataChunk {
                             offset: entry.offset,
-                            byte_size: entry.byte_size.max(0) as u64,
+                            byte_size: entry.byte_size as u64,
                             point_count: entry.point_count as u32,
                         });
                     }
                 }
             } else if entry.point_count == -1 && entry.byte_size > 0 {
-                queue.push_back((entry.offset, entry.byte_size as u64));
+                // Child hierarchy page pointer. Skip if already visited.
+                if visited.insert(entry.offset) {
+                    queue.push_back((entry.offset, entry.byte_size as u64));
+                }
             }
         }
     }

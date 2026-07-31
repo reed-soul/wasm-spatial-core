@@ -84,6 +84,10 @@ impl SpatialError {
     pub fn invalid_input(detail: impl std::fmt::Display) -> SpatialErrorDetail {
         SpatialError::InvalidInput.with_detail(detail)
     }
+    /// Convenience: InputTooLarge with detail
+    pub fn input_too_large(detail: impl std::fmt::Display) -> SpatialErrorDetail {
+        SpatialError::InputTooLarge.with_detail(detail)
+    }
     /// Convenience: ParseError with detail
     pub fn parse_error(detail: impl std::fmt::Display) -> SpatialErrorDetail {
         SpatialError::ParseError.with_detail(detail)
@@ -163,11 +167,24 @@ impl std::error::Error for SpatialErrorDetail {}
 // ===========================================================================
 
 fn error_to_js(code: &str, message: &str) -> JsValue {
-    let obj = js_sys::Object::new();
-    js_sys::Reflect::set(&obj, &"code".into(), &code.into()).ok();
-    js_sys::Reflect::set(&obj, &"message".into(), &message.into()).ok();
-    js_sys::Reflect::set(&obj, &"name".into(), &"SpatialError".into()).ok();
-    obj.into()
+    // Build a real `js_sys::Error` (not a plain `Object`) so JS code using
+    // `e instanceof Error`, `e.stack`, or `console.error` formatting works.
+    // Attach `code`/`name` as custom properties.
+    let err = js_sys::Error::new(message);
+    // The constructor sets `message` already; reflect-set the rest. These
+    // cannot realistically fail on a fresh Error, so use `debug_assert` to
+    // surface bugs in debug builds without aborting release on a JS quirk.
+    let code_val = JsValue::from(code);
+    let name_val = JsValue::from("SpatialError");
+    debug_assert!(
+        js_sys::Reflect::set(&err, &"code".into(), &code_val).is_ok(),
+        "Reflect::set(code) failed"
+    );
+    debug_assert!(
+        js_sys::Reflect::set(&err, &"name".into(), &name_val).is_ok(),
+        "Reflect::set(name) failed"
+    );
+    err.into()
 }
 
 impl From<SpatialError> for JsValue {
@@ -235,6 +252,7 @@ mod tests {
         assert_eq!(SpatialError::TileError.code(), "TILE_ERROR");
         assert_eq!(SpatialError::PointCloudError.code(), "POINT_CLOUD_ERROR");
         assert_eq!(SpatialError::TerrainError.code(), "TERRAIN_ERROR");
+        assert_eq!(SpatialError::Cancelled.code(), "CANCELLED");
     }
 
     #[test]
@@ -248,6 +266,7 @@ mod tests {
             SpatialError::TileError,
             SpatialError::PointCloudError,
             SpatialError::TerrainError,
+            SpatialError::Cancelled,
         ] {
             assert!(!variant.description().is_empty());
             assert!(variant.description().len() > 10);
