@@ -1448,7 +1448,9 @@ export function batchMercatorToWgs84InPlace(coords: Float64Array): void;
 /**
  * Convert batch UTM coordinates to WGS84.
  *
- * Input: flat `[zone, easting, northing, zone, easting, northing, ...]`.
+ * Input: flat `[zone, easting, northing, isNorth, ...]` (4 values/point),
+ * where `isNorth` is non-zero for the northern hemisphere. The hemisphere
+ * flag is mandatory — see `batchWgs84ToUtm`.
  * Output: flat `[lng, lat, lng, lat, ...]`.
  */
 export function batchUtmToWgs84(utm_coords: Float64Array): Float64Array;
@@ -1456,8 +1458,8 @@ export function batchUtmToWgs84(utm_coords: Float64Array): Float64Array;
 /**
  * Convert batch UTM to WGS84 in-place.
  *
- * Input layout: `[zone, easting, northing, ...]`.
- * Output layout: `[lng, lat, 0, ...]` (third component zeroed).
+ * Input layout: `[zone, easting, northing, isNorth, ...]` (4 values/point).
+ * Output layout: `[lng, lat, 0, 0, ...]` (slots 2,3 zeroed).
  */
 export function batchUtmToWgs84InPlace(coords: Float64Array): void;
 
@@ -1549,16 +1551,20 @@ export function batchWgs84ToMercatorInPlace(coords: Float64Array): void;
  * Convert batch WGS84 coordinates to UTM.
  *
  * Input: flat `[lng0, lat0, lng1, lat1, ...]`.
- * Output: flat `[zone, easting, northing, zone, easting, northing, ...]`.
+ * Output: flat `[zone, easting, northing, isNorth, ...]` (4 values/point),
+ * where `isNorth` is `1.0` for the northern hemisphere and `0.0` for the
+ * southern. Carrying the hemisphere explicitly is REQUIRED for a correct
+ * round-trip: UTM south-hemisphere northings have 10,000,000 added, so both
+ * hemispheres are always >= 0 and `northing >= 0` cannot distinguish them.
  */
 export function batchWgs84ToUtm(coords: Float64Array): Float64Array;
 
 /**
  * Convert batch WGS84 to UTM in-place.
  *
- * The input buffer must be pre-allocated with 3 values per point (same as output).
- * Input layout: `[lng, lat, 0, lng, lat, 0, ...]`.
- * Output layout: `[zone, easting, northing, zone, easting, northing, ...]`.
+ * The input buffer must be pre-allocated with 4 values per point.
+ * Input layout: `[lng, lat, 0, 0, lng, lat, 0, 0, ...]` (slots 2,3 unused).
+ * Output layout: `[zone, easting, northing, isNorth, ...]` (4 values/point).
  */
 export function batchWgs84ToUtmInPlace(coords: Float64Array): void;
 
@@ -3691,6 +3697,7 @@ export interface InitOutput {
     readonly __wbg_get_vectortileoptions_tolerance: (a: number) => number;
     readonly __wbg_gltfbuilder_free: (a: number, b: number) => void;
     readonly __wbg_ifcgeometryresult_free: (a: number, b: number) => void;
+    readonly __wbg_ifcmesh_free: (a: number, b: number) => void;
     readonly __wbg_lasheader_free: (a: number, b: number) => void;
     readonly __wbg_lasheaderinfo_free: (a: number, b: number) => void;
     readonly __wbg_lazygeojsoniter_free: (a: number, b: number) => void;
@@ -3747,12 +3754,12 @@ export interface InitOutput {
     readonly batchMercatorToWgs84: (a: number) => number;
     readonly batchMercatorToWgs84InPlace: (a: number, b: number, c: number) => void;
     readonly batchUtmToWgs84: (a: number) => number;
-    readonly batchUtmToWgs84InPlace: (a: number) => void;
+    readonly batchUtmToWgs84InPlace: (a: number, b: number, c: number) => void;
     readonly batchWgs84ToBd09: (a: number) => number;
     readonly batchWgs84ToBd09InPlace: (a: number, b: number, c: number) => void;
     readonly batchWgs84ToBd09Mercator: (a: number) => number;
     readonly batchWgs84ToBd09MercatorInPlace: (a: number, b: number, c: number) => void;
-    readonly batchWgs84ToCartesian3: (a: number, b: number) => number;
+    readonly batchWgs84ToCartesian3: (a: number, b: number, c: number) => void;
     readonly batchWgs84ToCgcs2000: (a: number) => number;
     readonly batchWgs84ToCgcs2000InPlace: (a: number, b: number, c: number) => void;
     readonly batchWgs84ToGcj02: (a: number) => number;
@@ -3762,7 +3769,7 @@ export interface InitOutput {
     readonly batchWgs84ToMercator: (a: number) => number;
     readonly batchWgs84ToMercatorInPlace: (a: number, b: number, c: number) => void;
     readonly batchWgs84ToUtm: (a: number) => number;
-    readonly batchWgs84ToUtmInPlace: (a: number) => void;
+    readonly batchWgs84ToUtmInPlace: (a: number, b: number, c: number) => void;
     readonly bearing: (a: number, b: number, c: number, d: number) => number;
     readonly bestCrsForRegion: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly boundingBox: (a: number) => number;
@@ -3885,6 +3892,8 @@ export interface InitOutput {
     readonly hillshade: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
     readonly ifcgeometryresult_meshCount: (a: number) => number;
     readonly ifcgeometryresult_meshes: (a: number) => number;
+    readonly ifcmesh_indices: (a: number) => number;
+    readonly ifcmesh_positions: (a: number) => number;
     readonly ifcmesh_triangleCount: (a: number) => number;
     readonly ifcmesh_vertexCount: (a: number) => number;
     readonly isInChina: (a: number, b: number) => number;
@@ -4191,7 +4200,6 @@ export interface InitOutput {
     readonly wasmmeshchunk_version: (a: number) => bigint;
     readonly workeroptions_maxDepth: (a: number) => number;
     readonly workeroptions_maxPointsPerNode: (a: number) => number;
-    readonly __wbg_ifcmesh_free: (a: number, b: number) => void;
     readonly __wbg_tinresult_free: (a: number, b: number) => void;
     readonly supportsDraco: () => number;
     readonly supportsGeotiff: () => number;
@@ -4203,8 +4211,6 @@ export interface InitOutput {
     readonly tinresult_vertexCount: (a: number) => number;
     readonly wasmmeshchunk_vertexCount: (a: number) => number;
     readonly __wbg_pointcloudstreamer_free: (a: number, b: number) => void;
-    readonly ifcmesh_indices: (a: number) => number;
-    readonly ifcmesh_positions: (a: number) => number;
     readonly laspointcloud_positions: (a: number) => number;
     readonly pcdpointcloud_positions: (a: number) => number;
     readonly tinresult_indices: (a: number) => number;
@@ -4212,9 +4218,9 @@ export interface InitOutput {
     readonly buildOctreeParallel: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly laspointcloud_colors: (a: number) => number;
     readonly pcdpointcloud_colors: (a: number) => number;
-    readonly __wasm_bindgen_func_elem_2404: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_2418: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_432: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_2414: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_2428: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_435: (a: number, b: number, c: number) => void;
     readonly __wbindgen_export: (a: number, b: number) => number;
     readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_export3: (a: number) => void;
