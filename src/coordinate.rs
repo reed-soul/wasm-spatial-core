@@ -20,6 +20,8 @@
 //! compatible with WebGL `ARRAY_BUFFER` uploads.
 
 use js_sys::Float64Array;
+#[allow(unused_imports)]
+use serde_json::json;
 use wasm_bindgen::prelude::*;
 
 // ===========================================================================
@@ -81,8 +83,12 @@ fn wgs84_to_gcj02_pt(lng: f64, lat: f64) -> (f64, f64) {
     (lng + d_lng, lat + d_lat)
 }
 
+/// GCJ-02 → WGS-84 (single-step approximate inverse).
+///
+/// NOTE: Despite earlier wording, this is NOT iterative — it computes the
+/// GCJ-02 offset at the input point and subtracts it once. Accuracy is
+/// typically within a few meters, sufficient for most map-overlay use cases.
 #[inline(always)]
-/// GCJ-02 → WGS-84 (iterative inverse)
 fn gcj02_to_wgs84_pt(lng: f64, lat: f64) -> (f64, f64) {
     if out_of_china(lng, lat) {
         return (lng, lat);
@@ -470,45 +476,14 @@ pub fn geohash_encode(lng: f64, lat: f64, precision: u8) -> String {
 /// - `[3]` bounding box height in degrees
 #[wasm_bindgen(js_name = "geohashDecode")]
 pub fn geohash_decode(hash: &str) -> js_sys::Float64Array {
-    let mut lat_min = -90.0_f64;
-    let mut lat_max = 90.0_f64;
-    let mut lng_min = -180.0_f64;
-    let mut lng_max = 180.0_f64;
-
-    for c in hash.chars() {
-        if let Some(bits) = geohash_char_to_bits(c) {
-            for i in (0..5).rev() {
-                let bit = (bits >> i) & 1;
-                // Alternates: even index = lng, odd index = lat
-                // First bit of first char is lng
-                let char_pos = hash.chars().position(|x| x == c).unwrap_or(0);
-                let total_bit_idx = char_pos * 5 + (4 - i);
-                if total_bit_idx % 2 == 0 {
-                    let mid = (lng_min + lng_max) / 2.0;
-                    if bit == 1 {
-                        lng_min = mid;
-                    } else {
-                        lng_max = mid;
-                    }
-                } else {
-                    let mid = (lat_min + lat_max) / 2.0;
-                    if bit == 1 {
-                        lat_min = mid;
-                    } else {
-                        lat_max = mid;
-                    }
-                }
-            }
-        }
-    }
-
+    // Delegate to the correct bit-position tracker. The previous inline
+    // implementation used `hash.chars().position(|x| x == c)`, which returns
+    // the index of the FIRST occurrence of `c` — so any geohash with a
+    // repeated character (e.g. "ww4g0", "wx4g00") decoded the wrong bits as
+    // lng/lat, producing incorrect coordinates.
+    let (lng, lat, w, h) = geohash_decode_core(hash);
     let arr = js_sys::Float64Array::new_with_length(4);
-    arr.copy_from(&[
-        (lng_min + lng_max) / 2.0,
-        (lat_min + lat_max) / 2.0,
-        lng_max - lng_min,
-        lat_max - lat_min,
-    ]);
+    arr.copy_from(&[lng, lat, w, h]);
     arr
 }
 
@@ -554,11 +529,10 @@ fn geohash_decode_core(hash: &str) -> (f64, f64, f64, f64) {
 
 /// Core geohash neighbors function — returns 8 neighbor hashes, testable without WASM.
 fn geohash_neighbors_core(hash: &str) -> Vec<String> {
-    let (_, _, w, h) = geohash_decode_core(hash);
+    // Single decode: center (lng, lat) + cell width/height.
+    let (lng, lat, w, h) = geohash_decode_core(hash);
     let precision = hash.len().max(1);
 
-    // Decode center, then compute neighbor cell centers from bounding box
-    let (lng, lat, _, _) = geohash_decode_core(hash);
     let half_w = w / 2.0;
     let half_h = h / 2.0;
 
@@ -746,7 +720,11 @@ pub(crate) fn normalize_coords_native(coords: &[f64], bounds: Option<&[f64]>) ->
     let b = bounds
         .map(|b| {
             let mut arr = [0.0f64; 4];
-            arr.copy_from_slice(b);
+            // copy_from_slice panics if the source length differs from the
+            // destination (4). The WASM entry passes through whatever length
+            // the caller supplies, so cap to exactly 4 elements when present.
+            let n = b.len().min(4);
+            arr[..n].copy_from_slice(&b[..n]);
             arr
         })
         .unwrap_or_else(|| compute_bounds_native(coords));
@@ -776,6 +754,12 @@ pub(crate) fn normalize_coords_native(coords: &[f64], bounds: Option<&[f64]>) ->
 pub(crate) fn denormalize_coords_native(normals: &[f64], bounds: &[f64]) -> Vec<f64> {
     let pair_count = normals.len() / 2;
     if pair_count == 0 {
+        return Vec::new();
+    }
+    // bounds must be `[minLng, minLat, maxLng, maxLat]` (>= 4 elements).
+    // The WASM entry passes the caller's array through directly, so guard
+    // against an out-of-bounds index panic on short input.
+    if bounds.len() < 4 {
         return Vec::new();
     }
     let range_x = bounds[2] - bounds[0];
@@ -1069,19 +1053,24 @@ pub fn utm_to_wgs84(
 /// Convert batch WGS84 coordinates to UTM.
 ///
 /// Input: flat `[lng0, lat0, lng1, lat1, ...]`.
-/// Output: flat `[zone, easting, northing, zone, easting, northing, ...]`.
+/// Output: flat `[zone, easting, northing, isNorth, ...]` (4 values/point),
+/// where `isNorth` is `1.0` for the northern hemisphere and `0.0` for the
+/// southern. Carrying the hemisphere explicitly is REQUIRED for a correct
+/// round-trip: UTM south-hemisphere northings have 10,000,000 added, so both
+/// hemispheres are always >= 0 and `northing >= 0` cannot distinguish them.
 #[wasm_bindgen(js_name = "batchWgs84ToUtm")]
 pub fn batch_wgs84_to_utm(coords: &Float64Array) -> js_sys::Float64Array {
     let len = coords.length() as usize;
     let mut buf = vec![0.0; len];
     coords.copy_to(&mut buf);
     let point_count = len / 2;
-    let mut result = Vec::with_capacity(point_count * 3);
+    let mut result = Vec::with_capacity(point_count * 4);
     for i in 0..point_count {
-        let (zone, easting, northing, _is_north) = wgs84_to_utm_pt(buf[i * 2], buf[i * 2 + 1]);
+        let (zone, easting, northing, is_north) = wgs84_to_utm_pt(buf[i * 2], buf[i * 2 + 1]);
         result.push(zone as f64);
         result.push(easting);
         result.push(northing);
+        result.push(if is_north { 1.0 } else { 0.0 });
     }
     let out = Float64Array::new_with_length(result.len() as u32);
     out.copy_from(&result);
@@ -1090,20 +1079,22 @@ pub fn batch_wgs84_to_utm(coords: &Float64Array) -> js_sys::Float64Array {
 
 /// Convert batch UTM coordinates to WGS84.
 ///
-/// Input: flat `[zone, easting, northing, zone, easting, northing, ...]`.
+/// Input: flat `[zone, easting, northing, isNorth, ...]` (4 values/point),
+/// where `isNorth` is non-zero for the northern hemisphere. The hemisphere
+/// flag is mandatory — see `batchWgs84ToUtm`.
 /// Output: flat `[lng, lat, lng, lat, ...]`.
 #[wasm_bindgen(js_name = "batchUtmToWgs84")]
 pub fn batch_utm_to_wgs84(utm_coords: &Float64Array) -> js_sys::Float64Array {
     let len = utm_coords.length() as usize;
     let mut buf = vec![0.0; len];
     utm_coords.copy_to(&mut buf);
-    let point_count = len / 3;
+    let point_count = len / 4;
     let mut result = Vec::with_capacity(point_count * 2);
     for i in 0..point_count {
-        let zone = buf[i * 3] as u32;
-        let easting = buf[i * 3 + 1];
-        let northing = buf[i * 3 + 2];
-        let is_north = northing >= 0.0; // Heuristic: northern hemisphere northing > 0
+        let zone = buf[i * 4] as u32;
+        let easting = buf[i * 4 + 1];
+        let northing = buf[i * 4 + 2];
+        let is_north = buf[i * 4 + 3] != 0.0;
         let (lng, lat) = utm_to_wgs84_pt(zone, easting, northing, is_north);
         result.push(lng);
         result.push(lat);
@@ -1115,47 +1106,39 @@ pub fn batch_utm_to_wgs84(utm_coords: &Float64Array) -> js_sys::Float64Array {
 
 /// Convert batch WGS84 to UTM in-place.
 ///
-/// The input buffer must be pre-allocated with 3 values per point (same as output).
-/// Input layout: `[lng, lat, 0, lng, lat, 0, ...]`.
-/// Output layout: `[zone, easting, northing, zone, easting, northing, ...]`.
+/// The input buffer must be pre-allocated with 4 values per point.
+/// Input layout: `[lng, lat, 0, 0, lng, lat, 0, 0, ...]` (slots 2,3 unused).
+/// Output layout: `[zone, easting, northing, isNorth, ...]` (4 values/point).
 #[wasm_bindgen(js_name = "batchWgs84ToUtmInPlace")]
-pub fn batch_wgs84_to_utm_inplace(coords: &Float64Array) {
-    let len = coords.length() as usize;
-    let point_count = len / 3;
-    let mut buf = vec![0.0; len];
-    coords.copy_to(&mut buf);
-    let mut result = vec![0.0; point_count * 3];
+pub fn batch_wgs84_to_utm_inplace(coords: &mut [f64]) {
+    let point_count = coords.len() / 4;
     for i in 0..point_count {
-        let (zone, easting, northing, _is_north) = wgs84_to_utm_pt(buf[i * 3], buf[i * 3 + 1]);
-        result[i * 3] = zone as f64;
-        result[i * 3 + 1] = easting;
-        result[i * 3 + 2] = northing;
+        let (zone, easting, northing, is_north) = wgs84_to_utm_pt(coords[i * 4], coords[i * 4 + 1]);
+        coords[i * 4] = zone as f64;
+        coords[i * 4 + 1] = easting;
+        coords[i * 4 + 2] = northing;
+        coords[i * 4 + 3] = if is_north { 1.0 } else { 0.0 };
     }
-    coords.copy_from(&result);
 }
 
 /// Convert batch UTM to WGS84 in-place.
 ///
-/// Input layout: `[zone, easting, northing, ...]`.
-/// Output layout: `[lng, lat, 0, ...]` (third component zeroed).
+/// Input layout: `[zone, easting, northing, isNorth, ...]` (4 values/point).
+/// Output layout: `[lng, lat, 0, 0, ...]` (slots 2,3 zeroed).
 #[wasm_bindgen(js_name = "batchUtmToWgs84InPlace")]
-pub fn batch_utm_to_wgs84_inplace(coords: &Float64Array) {
-    let len = coords.length() as usize;
-    let point_count = len / 3;
-    let mut buf = vec![0.0; len];
-    coords.copy_to(&mut buf);
-    let mut result = vec![0.0; point_count * 3];
+pub fn batch_utm_to_wgs84_inplace(coords: &mut [f64]) {
+    let point_count = coords.len() / 4;
     for i in 0..point_count {
-        let zone = buf[i * 3] as u32;
-        let easting = buf[i * 3 + 1];
-        let northing = buf[i * 3 + 2];
-        let is_north = northing >= 0.0;
+        let zone = coords[i * 4] as u32;
+        let easting = coords[i * 4 + 1];
+        let northing = coords[i * 4 + 2];
+        let is_north = coords[i * 4 + 3] != 0.0;
         let (lng, lat) = utm_to_wgs84_pt(zone, easting, northing, is_north);
-        result[i * 3] = lng;
-        result[i * 3 + 1] = lat;
-        result[i * 3 + 2] = 0.0;
+        coords[i * 4] = lng;
+        coords[i * 4 + 1] = lat;
+        coords[i * 4 + 2] = 0.0;
+        coords[i * 4 + 3] = 0.0;
     }
-    coords.copy_from(&result);
 }
 
 // ===========================================================================
@@ -1249,19 +1232,20 @@ pub fn crs_info(code: &str) -> String {
   "unit":"meter"
 }"#
         .to_string(),
-        _ => format!(
-            r#"{{
-  "name":"Unknown",
-  "code":"{}",
-  "description":"Unsupported coordinate reference system — use external PROJ for arbitrary EPSG",
-  "supported":false,
-  "capabilities":[],
-  "fallback":"use-external-PROJ",
-  "bounds":null,
-  "unit":null
-}}"#,
-            code
-        ),
+        // Use a JSON serializer so `code` (caller-controlled) is properly
+        // escaped — raw interpolation would allow JSON injection via quotes
+        // or backslashes in the code string.
+        _ => json!({
+            "name": "Unknown",
+            "code": code,
+            "description": "Unsupported coordinate reference system — use external PROJ for arbitrary EPSG",
+            "supported": false,
+            "capabilities": [],
+            "fallback": "use-external-PROJ",
+            "bounds": null,
+            "unit": null
+        })
+        .to_string(),
     }
 }
 

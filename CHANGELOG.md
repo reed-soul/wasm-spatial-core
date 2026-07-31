@@ -7,6 +7,96 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — Critical
+
+- **COPC `VecDeque` import broke default build** (`copc_hierarchy.rs`) — the
+  `use std::collections::VecDeque;` import was gated behind
+  `#[cfg(feature = "laz-support")]`, but `query_copc_chunks_for_bbox` (always
+  compiled) uses `VecDeque`. Building without `laz-support` failed with
+  `cannot find type VecDeque in this scope`. Removed the feature gate.
+- **b3dm index truncation** (`cesium_adapter.rs`) — `to_bytes` cast u32 indices
+  to u16 (`v as u16`), silently wrapping any index > 65535 and corrupting
+  meshes with more than 65535 vertices. Now emits u32 indices
+  (componentType 5125 / UNSIGNED_INT).
+- **geohash decode wrong for repeated characters** (`coordinate.rs`) —
+  `geohash_decode` used `hash.chars().position(|x| x == c)`, which returns the
+  FIRST occurrence of `c`. Any geohash with a repeated character (e.g.
+  "ww4g0", "wx4g00") decoded the wrong bits as lng/lat. Now delegates to the
+  correct bit-position tracker `geohash_decode_core`.
+
+### Fixed — High
+
+- **UTM southern-hemisphere always decoded as north** (`coordinate.rs`) — the
+  `northing >= 0.0` hemisphere heuristic is always true for valid UTM
+  (southern northings have 10,000,000 added), so every southern-hemisphere
+  point was decoded with ~10,000,000 m error. **BREAKING**: batch UTM APIs now
+  carry the hemisphere explicitly — `batchWgs84ToUtm` outputs 4 values/point
+  `[zone, easting, northing, isNorth, ...]`, and `batchUtmToWgs84` /
+  `*InPlace` require 4 values/point input. See "Changed" below.
+- **COPC BFS denial-of-service** (`copc_hierarchy.rs`) — the hierarchy walk had
+  no visited-set guard; a malformed/adversarial COPC with self-referencing or
+  cycle-forming pages could loop forever or grow the queue unbounded. Added a
+  `HashSet<u64>` of visited page offsets.
+- **Several panic-on-input bugs** that abort the entire WASM instance instead
+  of returning a typed error: `batch_wgs84_to_cartesian3` on odd-length input
+  (`cesium_adapter.rs`); GeoJSON coordinate arrays with < 2 values
+  (`cesium_adapter.rs`); `normalize_coords_native` `copy_from_slice` when the
+  caller's bounds array length ≠ 4 (`coordinate.rs`); `denormalize_coords_native`
+  `bounds[2]`/`bounds[3]` on short input (`coordinate.rs`); pub `*_core` ENU
+  helpers that asserted on misaligned input (`enu_frame.rs`). All now return
+  `Result<_, SpatialError/JsValue>`.
+- **ENU altitude NaN at the poles** (`enu_frame.rs`) — `p / lat.cos()` divides
+  by zero when a point lies on the rotation axis (p == 0), yielding NaN
+  altitude. Falls back to the z-based formula near the poles.
+- **E57 intensity array desync** (`e57.rs`) — when a point in an
+  intensity-bearing cloud had `intensity: None`, nothing was pushed, so
+  `intensities[i]` no longer lined up with point `i`. Pushes a 0.0 sentinel.
+- **b3dm Feature Table wrong types** (`cesium_adapter.rs`) — POSITIONS declared
+  as "SCALAR" (should be "VEC3"); binary sections padded with 0x20 instead of
+  0x00 per the 3D Tiles spec.
+- **b3dm batch table size mismatch** (`cesium_adapter.rs`) — the batch table
+  always had a single `"id": ["0"]` entry regardless of BATCH_LENGTH, which
+  makes Cesium fail to load tiles with > 1 feature. Now sized to the real
+  feature count (parsed from GeoJSON, not a fragile string-scan estimate).
+- **JSON injection / malformed-JSON hazards** (`chunk_export.rs`,
+  `coordinate.rs`) — caller-controlled `tile_uri` and `code` were interpolated
+  raw into JSON strings; NaN/Infinity bounds produced non-JSON tokens. Now
+  escaped via `json_escape` / `serde_json` and guarded by `json_num`.
+
+### Changed — BREAKING
+
+- **Batch UTM APIs now carry hemisphere explicitly.**
+  - `batchWgs84ToUtm`: output layout changed from 3 to 4 values/point
+    `[zone, easting, northing, isNorth, ...]` (`isNorth` = 1.0 north / 0.0 south).
+  - `batchUtmToWgs84`: input layout changed from 3 to 4 values/point
+    `[zone, easting, northing, isNorth, ...]`.
+  - `batchWgs84ToUtmInPlace` / `batchUtmToWgs84InPlace`: signature changed
+    `&Float64Array` → `&mut [f64]` (true zero-copy, consistent with the other
+    `InPlace` APIs and the file's documented design); 4 values/point layout.
+- **ENU `EnuFrame::from_anchor` and `batch_wgs84_to_enu_core` /
+  `batch_enu_to_wgs84_core` now return `Result<_, SpatialErrorDetail>`**
+  (previously panicked/infallible). `from_anchor` validates finite coordinates
+  and latitude ∈ [-90, 90].
+- **`error_to_js` now throws a real `js_sys::Error`** (not a plain `Object`),
+  so JS `e instanceof Error`, `e.stack`, and `console.error` formatting work.
+  The thrown value still carries `code` / `name = "SpatialError"` properties.
+- **`batch_wgs84_to_cartesian3` now returns `Result<Float64Array, JsValue>`**
+  instead of panicking on odd-length input.
+
+### Fixed — Medium / Low
+
+- COPC `offset`/`size` `as usize` truncation on 32-bit targets →
+  `usize::try_from` (`copc_hierarchy.rs`).
+- COPC invalid negative `byte_size` with points → error instead of `.max(0)`.
+- E57 coordinates `x as f32` overflow → clamped to f32 range; invalid
+  Cartesian points now skipped instead of injecting (0,0,0) placeholders.
+- E57 `point_count = positions.len() as u32 / 3` truncation → divide-then-cast.
+- `batch_wgs84_to_enu_f32_core` now clamps to f32 range and maps non-finite → 0.0.
+- `geohash_neighbors_core` no longer calls `geohash_decode_core` twice.
+- `rgb_colors_for_pnts` RGBA→RGB path pre-allocates the exact capacity.
+- Added `SpatialError::input_too_large` convenience constructor (parity with
+  the other variants); tests now cover the `Cancelled` variant.
+
 ## [0.9.0] - 2026-07-09
 
 A correctness-first release. The headline change fixes a LAS header

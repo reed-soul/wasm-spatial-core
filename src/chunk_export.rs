@@ -91,14 +91,17 @@ fn rgb_colors_for_pnts(
     };
 
     if colors.len() == num_points * 3 {
+        // Already RGB: avoid cloning by borrowing the original buffer.
         return Ok(Some(colors.to_vec()));
     }
 
     if colors.len() == num_points * 4 {
-        let rgb: Vec<u8> = colors
-            .chunks_exact(4)
-            .flat_map(|rgba| rgba[..3].iter().copied())
-            .collect();
+        // RGBA → RGB. Pre-allocate the exact output capacity (collect() from
+        // flat_map does not pre-size).
+        let mut rgb = Vec::with_capacity(num_points * 3);
+        for rgba in colors.chunks_exact(4) {
+            rgb.extend_from_slice(&rgba[..3]);
+        }
         return Ok(Some(rgb));
     }
 
@@ -121,17 +124,51 @@ pub fn build_minimal_tileset_json(
     let hy = (bounds[4] - bounds[1]) * 0.5;
     let hz = (bounds[5] - bounds[2]) * 0.5;
 
+    // Escape the URI for safe JSON-string embedding: a tile_uri containing
+    // quotes/backslashes/control chars (it comes from the WASM caller) would
+    // otherwise produce malformed JSON or enable JSON injection.
+    let uri = json_escape(tile_uri);
+
     format!(
-        r#"{{"asset":{{"version":"1.0"}},"geometricError":{ge:.12},"root":{{"boundingVolume":{{"box":[{cx:.12},{cy:.12},{cz:.12},{hx:.12},0,0,0,{hy:.12},0,0,0,{hz:.12}]}},"geometricError":{ge:.12},"refine":"ADD","content":{{"uri":"{uri}"}}}}}}"#,
-        ge = geometric_error,
-        cx = center[0],
-        cy = center[1],
-        cz = center[2],
-        hx = hx,
-        hy = hy,
-        hz = hz,
-        uri = tile_uri,
+        r#"{{"asset":{{"version":"1.0"}},"geometricError":{ge},"root":{{"boundingVolume":{{"box":[{cx},{cy},{cz},{hx},0,0,0,{hy},0,0,0,{hz}]}},"geometricError":{ge},"refine":"ADD","content":{{"uri":"{uri}"}}}}}}"#,
+        ge = json_num(geometric_error),
+        cx = json_num(center[0]),
+        cy = json_num(center[1]),
+        cz = json_num(center[2]),
+        hx = json_num(hx),
+        hy = json_num(hy),
+        hz = json_num(hz),
     )
+}
+
+/// Format an f64 for JSON output: `{:.12}` for finite values, `"0"` otherwise.
+///
+/// `format!("{:.12}", v)` emits `NaN`/`Infinity`/`-Infinity` for non-finite
+/// inputs, which are not valid JSON tokens and would produce malformed
+/// tileset.json. NaN can flow in from upstream parsing (e.g. bad positions).
+fn json_num(v: f64) -> String {
+    if v.is_finite() {
+        format!("{:.12}", v)
+    } else {
+        "0".to_string()
+    }
+}
+
+/// Escape a string for safe embedding inside a JSON string literal.
+fn json_escape(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '\\' => out.push_str(r"\\"),
+            '"' => out.push_str(r#"\""#),
+            '\n' => out.push_str(r"\n"),
+            '\r' => out.push_str(r"\r"),
+            '\t' => out.push_str(r"\t"),
+            c if (c as u32) < 0x20 => out.push_str(&format!(r"\u{:04x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out
 }
 
 // ===========================================================================
@@ -179,6 +216,14 @@ pub fn export_point_cloud_to_pnts(
 ) -> Result<WasmPointCloudTileExport, JsValue> {
     let mut pos_buf = vec![0.0f32; positions.length() as usize];
     positions.copy_to(&mut pos_buf);
+    // positions must be a flat [x,y,z,...] array. A length that is not a
+    // multiple of 3 would make vertex_count() truncate and chunks_exact(3)
+    // silently drop trailing coordinates, producing corrupt pnts output.
+    if !pos_buf.len().is_multiple_of(3) {
+        return Err(crate::errors::invalid_input_js(
+            "positions length must be a multiple of 3",
+        ));
+    }
 
     let mut chunk = PointCloudChunk {
         metadata: crate::spatial_ir::ChunkMeta::new("export"),

@@ -111,10 +111,10 @@ fn test_point_cloud_export_to_pnts() {
 
 #[test]
 fn test_enu_roundtrip_1km() {
-    let frame = EnuFrame::from_anchor(116.391, 39.907, 50.0);
+    let frame = EnuFrame::from_anchor(116.391, 39.907, 50.0).unwrap();
     let enu: [f64; 6] = [1000.0, 0.0, 0.0, 0.0, 1000.0, 0.0];
-    let wgs = batch_enu_to_wgs84_core(&enu, &frame);
-    let back = batch_wgs84_to_enu_core(&wgs, &frame);
+    let wgs = batch_enu_to_wgs84_core(&enu, &frame).unwrap();
+    let back = batch_wgs84_to_enu_core(&wgs, &frame).unwrap();
     for i in 0..2 {
         let dx = (enu[i * 3] - back[i * 3]).abs();
         let dy = (enu[i * 3 + 1] - back[i * 3 + 1]).abs();
@@ -127,7 +127,7 @@ fn test_enu_roundtrip_1km() {
 #[test]
 fn test_svd_alignment_photogrammetry_to_enu() {
     // Simulated workflow: photo-local control points → surveyed WGS84 → ENU targets.
-    let frame = EnuFrame::from_anchor(116.391, 39.907, 50.0);
+    let frame = EnuFrame::from_anchor(116.391, 39.907, 50.0).unwrap();
 
     let photo_local = [
         0.0, 0.0, 0.0, //
@@ -154,7 +154,7 @@ fn test_svd_alignment_photogrammetry_to_enu() {
         survey_wgs.extend_from_slice(&wgs);
     }
 
-    let target_enu = batch_wgs84_to_enu_core(&survey_wgs, &frame);
+    let target_enu = batch_wgs84_to_enu_core(&survey_wgs, &frame).unwrap();
     let result = compute_svd_alignment_core(&photo_local, &target_enu, true).unwrap();
 
     assert!((result.transform.scale - scale).abs() < 1e-6);
