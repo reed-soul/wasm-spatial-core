@@ -4120,7 +4120,9 @@ export function batchMercatorToWgs84InPlace(coords) {
 /**
  * Convert batch UTM coordinates to WGS84.
  *
- * Input: flat `[zone, easting, northing, zone, easting, northing, ...]`.
+ * Input: flat `[zone, easting, northing, isNorth, ...]` (4 values/point),
+ * where `isNorth` is non-zero for the northern hemisphere. The hemisphere
+ * flag is mandatory — see `batchWgs84ToUtm`.
  * Output: flat `[lng, lat, lng, lat, ...]`.
  * @param {Float64Array} utm_coords
  * @returns {Float64Array}
@@ -4137,16 +4139,14 @@ export function batchUtmToWgs84(utm_coords) {
 /**
  * Convert batch UTM to WGS84 in-place.
  *
- * Input layout: `[zone, easting, northing, ...]`.
- * Output layout: `[lng, lat, 0, ...]` (third component zeroed).
+ * Input layout: `[zone, easting, northing, isNorth, ...]` (4 values/point).
+ * Output layout: `[lng, lat, 0, 0, ...]` (slots 2,3 zeroed).
  * @param {Float64Array} coords
  */
 export function batchUtmToWgs84InPlace(coords) {
-    try {
-        wasm.batchUtmToWgs84InPlace(addBorrowedObject(coords));
-    } finally {
-        heap[stack_pointer++] = undefined;
-    }
+    var ptr0 = passArrayF64ToWasm0(coords, wasm.__wbindgen_export);
+    var len0 = WASM_VECTOR_LEN;
+    wasm.batchUtmToWgs84InPlace(ptr0, len0, addHeapObject(coords));
 }
 
 /**
@@ -4203,10 +4203,21 @@ export function batchWgs84ToBd09MercatorInPlace(coords) {
  * @returns {Float64Array}
  */
 export function batchWgs84ToCartesian3(coords) {
-    const ptr0 = passArrayF64ToWasm0(coords, wasm.__wbindgen_export);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.batchWgs84ToCartesian3(ptr0, len0);
-    return takeObject(ret);
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArrayF64ToWasm0(coords, wasm.__wbindgen_export);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.batchWgs84ToCartesian3(retptr, ptr0, len0);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        if (r2) {
+            throw takeObject(r1);
+        }
+        return takeObject(r0);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+    }
 }
 
 /**
@@ -4328,7 +4339,11 @@ export function batchWgs84ToMercatorInPlace(coords) {
  * Convert batch WGS84 coordinates to UTM.
  *
  * Input: flat `[lng0, lat0, lng1, lat1, ...]`.
- * Output: flat `[zone, easting, northing, zone, easting, northing, ...]`.
+ * Output: flat `[zone, easting, northing, isNorth, ...]` (4 values/point),
+ * where `isNorth` is `1.0` for the northern hemisphere and `0.0` for the
+ * southern. Carrying the hemisphere explicitly is REQUIRED for a correct
+ * round-trip: UTM south-hemisphere northings have 10,000,000 added, so both
+ * hemispheres are always >= 0 and `northing >= 0` cannot distinguish them.
  * @param {Float64Array} coords
  * @returns {Float64Array}
  */
@@ -4344,17 +4359,15 @@ export function batchWgs84ToUtm(coords) {
 /**
  * Convert batch WGS84 to UTM in-place.
  *
- * The input buffer must be pre-allocated with 3 values per point (same as output).
- * Input layout: `[lng, lat, 0, lng, lat, 0, ...]`.
- * Output layout: `[zone, easting, northing, zone, easting, northing, ...]`.
+ * The input buffer must be pre-allocated with 4 values per point.
+ * Input layout: `[lng, lat, 0, 0, lng, lat, 0, 0, ...]` (slots 2,3 unused).
+ * Output layout: `[zone, easting, northing, isNorth, ...]` (4 values/point).
  * @param {Float64Array} coords
  */
 export function batchWgs84ToUtmInPlace(coords) {
-    try {
-        wasm.batchWgs84ToUtmInPlace(addBorrowedObject(coords));
-    } finally {
-        heap[stack_pointer++] = undefined;
-    }
+    var ptr0 = passArrayF64ToWasm0(coords, wasm.__wbindgen_export);
+    var len0 = WASM_VECTOR_LEN;
+    wasm.batchWgs84ToUtmInPlace(ptr0, len0, addHeapObject(coords));
 }
 
 /**
@@ -9548,7 +9561,7 @@ function __wbg_get_imports() {
                     const a = state0.a;
                     state0.a = 0;
                     try {
-                        return __wasm_bindgen_func_elem_2418(a, state0.b, arg0, arg1);
+                        return __wasm_bindgen_func_elem_2428(a, state0.b, arg0, arg1);
                     } finally {
                         state0.a = a;
                     }
@@ -9689,13 +9702,13 @@ function __wbg_get_imports() {
             return addHeapObject(ret);
         },
         __wbindgen_cast_0000000000000001: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 22, ret: Unit, inner_ret: Some(Unit) }, mutable: false }) -> Externref`.
-            const ret = makeClosure(arg0, arg1, __wasm_bindgen_func_elem_432);
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 23, ret: Unit, inner_ret: Some(Unit) }, mutable: false }) -> Externref`.
+            const ret = makeClosure(arg0, arg1, __wasm_bindgen_func_elem_435);
             return addHeapObject(ret);
         },
         __wbindgen_cast_0000000000000002: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 318, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
-            const ret = makeMutClosure(arg0, arg1, __wasm_bindgen_func_elem_2404);
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 326, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
+            const ret = makeMutClosure(arg0, arg1, __wasm_bindgen_func_elem_2414);
             return addHeapObject(ret);
         },
         __wbindgen_cast_0000000000000003: function(arg0) {
@@ -9722,14 +9735,14 @@ function __wbg_get_imports() {
     };
 }
 
-function __wasm_bindgen_func_elem_432(arg0, arg1, arg2) {
-    wasm.__wasm_bindgen_func_elem_432(arg0, arg1, addHeapObject(arg2));
+function __wasm_bindgen_func_elem_435(arg0, arg1, arg2) {
+    wasm.__wasm_bindgen_func_elem_435(arg0, arg1, addHeapObject(arg2));
 }
 
-function __wasm_bindgen_func_elem_2404(arg0, arg1, arg2) {
+function __wasm_bindgen_func_elem_2414(arg0, arg1, arg2) {
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-        wasm.__wasm_bindgen_func_elem_2404(retptr, arg0, arg1, addHeapObject(arg2));
+        wasm.__wasm_bindgen_func_elem_2414(retptr, arg0, arg1, addHeapObject(arg2));
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
         var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
         if (r1) {
@@ -9740,8 +9753,8 @@ function __wasm_bindgen_func_elem_2404(arg0, arg1, arg2) {
     }
 }
 
-function __wasm_bindgen_func_elem_2418(arg0, arg1, arg2, arg3) {
-    wasm.__wasm_bindgen_func_elem_2418(arg0, arg1, addHeapObject(arg2), addHeapObject(arg3));
+function __wasm_bindgen_func_elem_2428(arg0, arg1, arg2, arg3) {
+    wasm.__wasm_bindgen_func_elem_2428(arg0, arg1, addHeapObject(arg2), addHeapObject(arg3));
 }
 
 const Cesium3DTileFinalization = (typeof FinalizationRegistry === 'undefined')
