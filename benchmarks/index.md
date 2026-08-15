@@ -2,7 +2,7 @@
 
 > Task: **LAS point cloud → Cesium 3D Tiles (.pnts + tileset.json)**, end-to-end, no upload, no server.
 
-**Generated:** 2026-07-31T07:03:57.042Z  
+**Generated:** 2026-08-15T20:46:37.074Z  
 **Hardware:** AMD EPYC 9V74 80-Core Processor · 4 CPUs · linux/x64  
 **Methodology:** same input bytes (SHA-256 verified), same no-op transform (no reprojection), trimmed mean of 5 timed runs after warmup. Output bytes = sum of all generated tile files + tileset.json.
 
@@ -18,13 +18,13 @@
 
 | Engine | Wall time | Peak RSS | Output size | Tiles | Speedup vs wasm |
 |--------|----------|----------|-------------|-------|-----------------|
-| loaders.gl `not-installed` | ❌ @loaders.gl/las not installed: Cannot fi | — | — | — | — |
-| py3dtiles `12.1.1` | 3.72s | 244MB | 7.9MB | 40 | **51.9×** ⚡ |
-| wasm-spatial-core `0.9.0` | 72ms | 191MB | 6.0MB | 64 | baseline |
+| loaders.gl `4.x` | 2ms | 137MB | 0 (N/A) | 0 | 0.03× (wasm slower) |
+| py3dtiles `12.1.1` | 3.77s | 245MB | 7.9MB | 40 | **52.5×** ⚡ |
+| wasm-spatial-core `0.10.0` | 72ms | 190MB | 6.0MB | 64 | baseline |
 
 <details><summary>Notes</summary>
 
-- **loaders.gl:** @loaders.gl not installed in this environment. Documented capability gap: @loaders.gl is a reader framework with no shipped LAS→pnts/3D-Tiles writer.
+- **loaders.gl:** PARSE-ONLY. @loaders.gl/tiles not installed. loaders.gl reads LAS but has no shipped LAS→pnts/3D-Tiles writer; output_bytes=0 is the documented capability gap, not a timeout. Tile generation would require a custom writer or a separate tool.
 - **py3dtiles:** py3dtiles convert, no reprojection (matches wasm no-op). point_count=-1 means not readable from tileset.json; byte-count parity is the verification axis. RSS is child-process max across all runs (coarse).
 - **wasm-spatial-core:** parsePointCloudAuto → generateTileset (octree + pnts encode in one call)
 
