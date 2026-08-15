@@ -175,20 +175,22 @@ const compressed = compressTilesetWithDraco(tileset, encoder, { quantizationBits
 ### What's in the npm package?
 
 `npm install wasm-spatial-core` ships a **prebuilt WASM binary** compiled with
-`point-cloud` + `geotiff`. That gives you:
+`point-cloud` + `geotiff` + `laz-support` + `mesh-ingest`, plus both the
+browser (web) and Node.js targets. That gives you:
 
 | Included in npm | Not in npm (custom `wasm-pack` build) |
 |-----------------|---------------------------------------|
-| LAS, PLY, OBJ, PCD parsing | LAZ / COPC (`laz-support`) |
-| Octree + 3D Tiles (pnts) | E57 (`e57-support`) |
-| GeoTIFF → quantized-mesh terrain | Terrain deformation (`terrain-edit`) |
-| Coordinates, GeoJSON, MVT, spatial analysis | Spatial IR + GLB ingest (`mesh-ingest`) |
-| | Mesh QEM / clip / OBB split (`mesh-edit`, needs `mesh-ingest`) |
-| | WebGPU compute kernels (`webgpu`) |
+| LAS / LAZ / COPC parsing | E57 (`e57-support`) |
+| Octree + 3D Tiles (pnts) | Terrain deformation (`terrain-edit`) |
+| GeoTIFF → quantized-mesh terrain | Mesh QEM / clip / OBB split (`mesh-edit`, needs `mesh-ingest`) |
+| Spatial IR + GLB ingest | WebGPU compute kernels (`webgpu`) |
+| Coordinates, GeoJSON, MVT, spatial analysis | Multi-thread build (COOP/COEP, see GitHub Releases) |
 
-**Format counts:** **10+** read/write paths in the default npm build (LAS/PLY/OBJ/PCD, GeoJSON, MVT, WKT/WKB, GeoTIFF, GPX, TopoJSON, 3D Tiles/glTF output, …). **15+** when optional format features are enabled (LAZ/COPC, E57, GLB ingest, …).
+**Format counts:** **12+** read/write paths in the default npm build (LAS/LAZ/COPC, PLY, OBJ, PCD, GeoJSON, MVT, WKT/WKB, GeoTIFF, GPX, TopoJSON, 3D Tiles/glTF output, …). **15+** when optional format features are enabled (E57, GLB ingest, …).
 
 Runtime checks: `supportsLaz()`, `supportsGeotiff()`, `lazStatus()`.
+
+Upgrading from 0.9? See **[docs/MIGRATION_V0_10.md](docs/MIGRATION_V0_10.md)** — the batch UTM APIs now carry the hemisphere explicitly, and southern-hemisphere conversions from ≤ 0.9 were wrong by ~10,000 km.
 
 CI runs **`cargo test --all-features`** — **857 tests pass** (plus 34 `#[ignore]`d performance benchmarks) across the full feature matrix. The live count is printed by CI on every run; see the latest `rust` job log for the current number.
 
