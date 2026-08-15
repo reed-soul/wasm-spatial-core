@@ -153,6 +153,14 @@ UTM values computed by ≤ 0.9 are wrong by ~10,000 km and must be recomputed.
   returning `true` in multi-thread builds; `supportsWorker()` probes `Worker`
   via `Reflect.has` on the global scope.
 
+### Fixed — CI
+
+- **Repaired the browser-test job, red on master since 2026-07-10** — the W4
+  WebGPU bench page imports `examples/webgpu-smoke/app.mjs`, which the site
+  restructure (e752484) deleted; the module 404'd, the page's
+  `__benchResult` stayed `undefined`, and the self-skip check crashed. The
+  helper is restored (its `examples/shared/` dependencies survived).
+
 ## [0.9.0] - 2026-07-09
 
 A correctness-first release. The headline change fixes a LAS header
