@@ -4,7 +4,7 @@
  * @packageDocumentation
  */
 
-import type { TilesetResult } from "./wasm_spatial_core.js";
+import type { TilesetResult } from "./pkg/wasm_spatial_core.js";
 
 /** Options for point cloud → 3D Tiles batch conversion. */
 export interface PointCloudBatchOptions {
@@ -61,7 +61,11 @@ function collectTiles(tileset: TilesetResult): Uint8Array[] {
 function collectTileUris(tileset: TilesetResult): string[] {
   const uris: string[] = [];
   for (let i = 0; i < tileset.tileCount; i++) {
-    uris.push(tileset.tileUri(i));
+    const uri = tileset.tileUri(i);
+    if (uri === undefined) {
+      throw new Error(`TilesetResult.tileUri(${i}) returned no URI`);
+    }
+    uris.push(uri);
   }
   return uris;
 }
@@ -106,7 +110,7 @@ export async function batchPointCloudToTileset(
   return {
     pointCount,
     positions,
-    colors,
+    colors: colors ?? null,
     tilesetJson: tileset.tilesetJson(),
     tiles,
     tileUris,
@@ -153,7 +157,7 @@ export async function batchGeotiffToTerrain(
     width,
     height,
     bounds,
-    tilesetJson: tileset.tilesetJson(),
-    tileCount: tileset.tileCount,
+    tilesetJson: tileset.tilesetJson,
+    tileCount: tileset.tile_count,
   };
 }

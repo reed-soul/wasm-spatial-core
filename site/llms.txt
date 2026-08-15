@@ -1,6 +1,6 @@
 # wasm-spatial-core
 
-> wasm-spatial-core is a Rust → WebAssembly spatial preprocessing engine that runs entirely in the browser (or Node.js). It generates Cesium 3D Tiles, parses point clouds (LAS/LAZ/COPC/PLY/OBJ/PCD/E57), terrain (GeoTIFF → quantized-mesh), and vector data (GeoJSON/MVT/WKT) with no backend and no data upload. Version 0.9.0, MIT licensed.
+> wasm-spatial-core is a Rust → WebAssembly spatial preprocessing engine that runs entirely in the browser (or Node.js). It generates Cesium 3D Tiles, parses point clouds (LAS/LAZ/COPC/PLY/OBJ/PCD/E57), terrain (GeoTIFF → quantized-mesh), and vector data (GeoJSON/MVT/WKT) with no backend and no data upload. Version 0.10.0, MIT licensed.
 
 This file is intended for AI agents and developers who want a compact, machine-readable summary of the project's capabilities, API surface, and quick-start. See https://llmstxt.org for the standard.
 

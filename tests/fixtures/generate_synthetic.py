@@ -10,10 +10,10 @@ Files produced:
 
 import struct
 import math
-import os
 import random
+from pathlib import Path
 
-FIXTURES_DIR = os.path.dirname(os.path.abspath(__file__))
+FIXTURES_DIR = Path(__file__).resolve().parent
 
 # ==========================================================================
 # GeoTIFF builder (minimal Float32 uncompressed)
@@ -314,37 +314,32 @@ def main():
         1026, 0, 1, 4326,  # GeographicTypeGeoKey: WGS84
     ]
     tiff_64 = build_tiff_f32(64, 64, values_64, geo_keys_64)
-    with open(os.path.join(FIXTURES_DIR, 'terrain_64x64.tif'), 'wb') as f:
-        f.write(tiff_64)
+    (FIXTURES_DIR / 'terrain_64x64.tif').write_bytes(tiff_64)
     print(f"OK ({len(tiff_64)} bytes, {min(values_64):.0f}-{max(values_64):.0f}m)")
 
     # 2. 256x256 terrain GeoTIFF
     print("  terrain_256x256.tif ...", end=" ", flush=True)
     values_256 = generate_terrain(256, 256, seed=123)
     tiff_256 = build_tiff_f32(256, 256, values_256, geo_keys_64)
-    with open(os.path.join(FIXTURES_DIR, 'terrain_256x256.tif'), 'wb') as f:
-        f.write(tiff_256)
+    (FIXTURES_DIR / 'terrain_256x256.tif').write_bytes(tiff_256)
     print(f"OK ({len(tiff_256)} bytes, {min(values_256):.0f}-{max(values_256):.0f}m)")
 
     # 3. PLY mesh (bunny-like)
     print("  bunny_color.ply ...", end=" ", flush=True)
     ply_mesh = generate_ply_mesh(n=3000, seed=42)
-    with open(os.path.join(FIXTURES_DIR, 'bunny_color.ply'), 'w') as f:
-        f.write(ply_mesh)
+    (FIXTURES_DIR / 'bunny_color.ply').write_text(ply_mesh)
     print(f"OK ({len(ply_mesh)} bytes)")
 
     # 4. PLY point cloud
     print("  pointcloud_5k.ply ...", end=" ", flush=True)
     ply_pc = generate_ply_pointcloud(n=5000, seed=42)
-    with open(os.path.join(FIXTURES_DIR, 'pointcloud_5k.ply'), 'w') as f:
-        f.write(ply_pc)
+    (FIXTURES_DIR / 'pointcloud_5k.ply').write_text(ply_pc)
     print(f"OK ({len(ply_pc)} bytes)")
 
     # 5. OBJ cube
     print("  cube.obj ...", end=" ", flush=True)
     obj = generate_cube_obj()
-    with open(os.path.join(FIXTURES_DIR, 'cube.obj'), 'w') as f:
-        f.write(obj)
+    (FIXTURES_DIR / 'cube.obj').write_text(obj)
     print(f"OK ({len(obj)} bytes)")
 
     print("\nAll synthetic test data generated.")

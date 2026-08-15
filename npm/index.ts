@@ -200,7 +200,6 @@ export {
   suggestCrsHeuristic,
   isInChina,
   getInputLimits,
-  getInputSizeLimit,
   // ── Topology ──────────────────────────────────────────────
   polygonArea,
   areaWithHoles,
@@ -234,7 +233,7 @@ export {
   setInputSizeLimit,
   getInputSizeLimit,
   getAllocatedBytes,
-} from "./wasm_spatial_core.js";
+} from "./pkg/wasm_spatial_core.js";
 
 // ---------------------------------------------------------------------------
 // Convenience types
@@ -294,7 +293,7 @@ export type StreamChunkCallback = (
  * ```
  */
 export async function loadSpatialCore() {
-  const { default: init, ...api } = await import("./wasm_spatial_core.js");
+  const { default: init, ...api } = await import("./pkg/wasm_spatial_core.js");
   await init();
   return api;
 }

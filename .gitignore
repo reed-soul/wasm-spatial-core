@@ -1,9 +1,15 @@
 # Build artifacts
 /target
 /pkg
+/pkg-*
 /wasm-pkg
 /_site
-# NOTE: docs/pkg/ is intentionally NOT ignored — GitHub Pages serves these WASM files
+
+# npm package build outputs (wasm-pack → npm/pkg*, tsc → npm/*.js).
+# The published tarball is assembled from these in CI; never commit them.
+/npm/pkg
+/npm/pkg-node
+/npm/*.js
 
 # W3.6 headless Cesium test — TMS terrain pyramid is regenerated at test time
 # from the current WASM build (tests/terrain_tms_generate.mjs). Never commit.

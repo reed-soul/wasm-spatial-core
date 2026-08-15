@@ -13,6 +13,17 @@
 // Shader sources embedded for browser bundles. Edit `shaders/*.wgsl` first,
 // then sync the string constants below (see shaders/README.md).
 
+/**
+ * Type-level narrowing only: typed arrays over non-shared buffers are valid
+ * WebGPU buffer sources, but TS's bare `Float32Array` etc. default to
+ * `ArrayBufferLike`, which `writeBuffer` rejects.
+ */
+function gpuSource(
+  data: Float32Array | Uint32Array | Uint8Array,
+): GPUAllowSharedBufferSource {
+  return data as unknown as GPUAllowSharedBufferSource;
+}
+
 /** @version 1.0.0 — keep in sync with shaders/transform_points_v1.wgsl */
 export const TRANSFORM_POINTS_WGSL_V1 = `struct TransformParams {
   matrix: mat4x4<f32>,
@@ -409,8 +420,8 @@ export class GpuContext {
     });
 
     this.device.queue.writeBuffer(uniformBuffer, 0, uniformData);
-    this.device.queue.writeBuffer(posBuffer, 0, positions);
-    this.device.queue.writeBuffer(idxBuffer, 0, indices);
+    this.device.queue.writeBuffer(posBuffer, 0, gpuSource(positions));
+    this.device.queue.writeBuffer(idxBuffer, 0, gpuSource(indices));
     this.device.queue.writeBuffer(quadricBuffer, 0, new Uint8Array(quadricBytes));
 
     const bindGroup = this.device.createBindGroup({
@@ -495,9 +506,9 @@ export class GpuContext {
     });
 
     this.device.queue.writeBuffer(uniformBuffer, 0, uniformData);
-    this.device.queue.writeBuffer(posBuffer, 0, positions);
-    this.device.queue.writeBuffer(quadricBuffer, 0, quadrics);
-    this.device.queue.writeBuffer(edgeBuffer, 0, edges);
+    this.device.queue.writeBuffer(posBuffer, 0, gpuSource(positions));
+    this.device.queue.writeBuffer(quadricBuffer, 0, gpuSource(quadrics));
+    this.device.queue.writeBuffer(edgeBuffer, 0, gpuSource(edges));
 
     const bindGroup = this.device.createBindGroup({
       layout: pipeline.getBindGroupLayout(0),
@@ -574,7 +585,7 @@ export class GpuContext {
     });
 
     this.device.queue.writeBuffer(uniformBuffer, 0, uniformData);
-    this.device.queue.writeBuffer(inBuffer, 0, positions);
+    this.device.queue.writeBuffer(inBuffer, 0, gpuSource(positions));
 
     const bindGroup = this.device.createBindGroup({
       layout: pipeline.getBindGroupLayout(0),
@@ -656,7 +667,7 @@ export class GpuContext {
 
     this.device.queue.writeBuffer(uniformBuffer, 0, uniformData);
     this.device.queue.writeBuffer(maskBuffer, 0, maskU32);
-    this.device.queue.writeBuffer(heightBuffer, 0, heights);
+    this.device.queue.writeBuffer(heightBuffer, 0, gpuSource(heights));
 
     const bindGroup = this.device.createBindGroup({
       layout: pipeline.getBindGroupLayout(0),
@@ -956,7 +967,7 @@ async function simplifyMeshQemGpu(
   }
 
   let pos = new Float32Array(positions);
-  let idx = new Uint32Array(indices);
+  let idx: Uint32Array = new Uint32Array(indices);
   let uv = texcoords ? new Float32Array(texcoords) : null;
   const vertexCount = pos.length / 3;
   const deleted = new Array<boolean>(vertexCount).fill(false);

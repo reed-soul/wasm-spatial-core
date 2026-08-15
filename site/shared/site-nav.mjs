@@ -52,7 +52,7 @@ export function mountNav(opts = {}) {
     <div class="nav-inner">
       <a class="nav-brand" href="${home}index.html" aria-label="wasm-spatial-core home">
         ${LOGO_SVG}<span>wasm-spatial-core</span>
-        <span class="nav-version">v0.9.0</span>
+        <span class="nav-version">v0.10.0</span>
       </a>
       <div class="nav-links">
         ${showBack ? `<a class="nav-back" href="${home}index.html#demos">← Back to site</a>` : ''}
