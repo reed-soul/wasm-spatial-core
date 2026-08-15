@@ -1,10 +1,10 @@
 {
-  "generated_at": "2026-07-31T07:03:57.042Z",
+  "generated_at": "2026-08-15T20:46:37.074Z",
   "rows": [
     {
-      "timestamp": "2026-07-31T07:03:56.987Z",
+      "timestamp": "2026-08-15T20:46:37.024Z",
       "hardware": {
-        "node": "v24.18.0",
+        "node": "v24.19.0",
         "platform": "linux",
         "arch": "x64",
         "cpus": 4,
@@ -12,13 +12,25 @@
         "total_mem_mb": 15990
       },
       "engine": "loaders.gl",
-      "engine_version": "not-installed",
+      "engine_version": "4.x",
       "input": "bench/head-to-head/fixtures/canonical_500k.las",
-      "error": "@loaders.gl/las not installed: Cannot find package '@math.gl/types' imported from /home/runner/work/wasm-spatial-core/wasm-spatial-core/node_modules/@loaders.gl/schema-utils/dist/lib/table/batch-builder/columnar-table-batch-aggregator.js",
-      "notes": "@loaders.gl not installed in this environment. Documented capability gap: @loaders.gl is a reader framework with no shipped LAS→pnts/3D-Tiles writer."
+      "input_digest_sha256_12": "7948d11316ef",
+      "input_size_mb": 14,
+      "point_count": 0,
+      "output_bytes": 0,
+      "tile_count": 0,
+      "wall_ms": {
+        "total": 2.4,
+        "parse_ms": 2.4,
+        "min": 2,
+        "max": 2.8,
+        "runs": 3
+      },
+      "peak_rss_mb": 137,
+      "notes": "PARSE-ONLY. @loaders.gl/tiles not installed. loaders.gl reads LAS but has no shipped LAS→pnts/3D-Tiles writer; output_bytes=0 is the documented capability gap, not a timeout. Tile generation would require a custom writer or a separate tool."
     },
     {
-      "timestamp": "2026-07-31T07:03:56Z",
+      "timestamp": "2026-08-15T20:46:36Z",
       "hardware": {
         "python": "3.12.13",
         "platform": "linux",
@@ -34,18 +46,18 @@
       "output_bytes": 7943205,
       "tile_count": 40,
       "wall_ms": {
-        "total": 3724.5,
-        "min": 3723,
-        "max": 3726.7,
+        "total": 3767.9,
+        "min": 3762,
+        "max": 3772.6,
         "runs": 5
       },
-      "peak_rss_mb": 244,
+      "peak_rss_mb": 245,
       "notes": "py3dtiles convert, no reprojection (matches wasm no-op). point_count=-1 means not readable from tileset.json; byte-count parity is the verification axis. RSS is child-process max across all runs (coarse)."
     },
     {
-      "timestamp": "2026-07-31T07:03:26.783Z",
+      "timestamp": "2026-08-15T20:46:06.035Z",
       "hardware": {
-        "node": "v24.18.0",
+        "node": "v24.19.0",
         "platform": "linux",
         "arch": "x64",
         "cpus": 4,
@@ -53,7 +65,7 @@
         "total_mem_mb": 15990
       },
       "engine": "wasm-spatial-core",
-      "engine_version": "0.9.0",
+      "engine_version": "0.10.0",
       "input": "bench/head-to-head/fixtures/canonical_500k.las",
       "input_digest_sha256_12": "7948d11316ef",
       "input_size_mb": 14,
@@ -62,12 +74,12 @@
       "tile_count": 64,
       "wall_ms": {
         "total": 71.8,
-        "parse_ms": 10.6,
-        "min": 70.8,
-        "max": 72.6,
+        "parse_ms": 10.8,
+        "min": 71.1,
+        "max": 72.8,
         "runs": 5
       },
-      "peak_rss_mb": 191,
+      "peak_rss_mb": 190,
       "notes": "parsePointCloudAuto → generateTileset (octree + pnts encode in one call)"
     }
   ]
