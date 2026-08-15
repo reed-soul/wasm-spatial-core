@@ -1,14 +1,14 @@
 {
-  "generated_at": "2026-08-15T20:46:37.074Z",
+  "generated_at": "2026-08-15T20:56:41.521Z",
   "rows": [
     {
-      "timestamp": "2026-08-15T20:46:37.024Z",
+      "timestamp": "2026-08-15T20:56:41.474Z",
       "hardware": {
         "node": "v24.19.0",
         "platform": "linux",
         "arch": "x64",
         "cpus": 4,
-        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "cpu_model": "AMD EPYC 7763 64-Core Processor",
         "total_mem_mb": 15990
       },
       "engine": "loaders.gl",
@@ -20,17 +20,17 @@
       "output_bytes": 0,
       "tile_count": 0,
       "wall_ms": {
-        "total": 2.4,
-        "parse_ms": 2.4,
-        "min": 2,
-        "max": 2.8,
+        "total": 2.6,
+        "parse_ms": 2.6,
+        "min": 2.1,
+        "max": 3.7,
         "runs": 3
       },
-      "peak_rss_mb": 137,
+      "peak_rss_mb": 150,
       "notes": "PARSE-ONLY. @loaders.gl/tiles not installed. loaders.gl reads LAS but has no shipped LAS→pnts/3D-Tiles writer; output_bytes=0 is the documented capability gap, not a timeout. Tile generation would require a custom writer or a separate tool."
     },
     {
-      "timestamp": "2026-08-15T20:46:36Z",
+      "timestamp": "2026-08-15T20:56:41Z",
       "hardware": {
         "python": "3.12.13",
         "platform": "linux",
@@ -46,22 +46,22 @@
       "output_bytes": 7943205,
       "tile_count": 40,
       "wall_ms": {
-        "total": 3767.9,
-        "min": 3762,
-        "max": 3772.6,
+        "total": 3720.6,
+        "min": 3697.1,
+        "max": 3759.2,
         "runs": 5
       },
-      "peak_rss_mb": 245,
+      "peak_rss_mb": 246,
       "notes": "py3dtiles convert, no reprojection (matches wasm no-op). point_count=-1 means not readable from tileset.json; byte-count parity is the verification axis. RSS is child-process max across all runs (coarse)."
     },
     {
-      "timestamp": "2026-08-15T20:46:06.035Z",
+      "timestamp": "2026-08-15T20:56:10.662Z",
       "hardware": {
         "node": "v24.19.0",
         "platform": "linux",
         "arch": "x64",
         "cpus": 4,
-        "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+        "cpu_model": "AMD EPYC 7763 64-Core Processor",
         "total_mem_mb": 15990
       },
       "engine": "wasm-spatial-core",
@@ -73,13 +73,13 @@
       "output_bytes": 6020200,
       "tile_count": 64,
       "wall_ms": {
-        "total": 71.8,
-        "parse_ms": 10.8,
-        "min": 71.1,
-        "max": 72.8,
+        "total": 75.9,
+        "parse_ms": 12,
+        "min": 75.6,
+        "max": 76.7,
         "runs": 5
       },
-      "peak_rss_mb": 190,
+      "peak_rss_mb": 189,
       "notes": "parsePointCloudAuto → generateTileset (octree + pnts encode in one call)"
     }
   ]
