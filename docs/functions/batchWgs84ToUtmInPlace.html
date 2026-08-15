@@ -16,9 +16,9 @@
 <div class="tsd-signature tsd-anchor-link" id="batchwgs84toutminplace"><span class="tsd-kind-call-signature">batchWgs84ToUtmInPlace</span><span class="tsd-signature-symbol">(</span><span class="tsd-kind-parameter">coords</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">Float64Array</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">void</span><a href="#batchwgs84toutminplace" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></div>
 <div class="tsd-description">
 <div class="tsd-comment tsd-typography"><p>Convert batch WGS84 to UTM in-place.</p>
-<p>The input buffer must be pre-allocated with 3 values per point (same as output).
-Input layout: <code>[lng, lat, 0, lng, lat, 0, ...]</code>.
-Output layout: <code>[zone, easting, northing, zone, easting, northing, ...]</code>.</p>
+<p>The input buffer must be pre-allocated with 4 values per point.
+Input layout: <code>[lng, lat, 0, 0, lng, lat, 0, 0, ...]</code> (slots 2,3 unused).
+Output layout: <code>[zone, easting, northing, isNorth, ...]</code> (4 values/point).</p>
 </div>
 <div class="tsd-parameters">
 <h4 class="tsd-parameters-title">Parameters</h4>
@@ -26,7 +26,7 @@ Output layout: <code>[zone, easting, northing, zone, easting, northing, ...]</co
 <li><span><span class="tsd-kind-parameter">coords</span>: <span class="tsd-signature-type">Float64Array</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/reed-soul/wasm-spatial-core/blob/c93020e9ba2d6cf3ce567d292c1fa22996c8ff16/npm/pkg/wasm_spatial_core.d.ts#L1214">wasm_spatial_core.d.ts:1214</a></li></ul></aside></div></li></ul></section></div>
+<li>Defined in wasm_spatial_core.d.ts:1569</li></ul></aside></div></li></ul></section></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">

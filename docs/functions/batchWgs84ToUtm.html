@@ -17,7 +17,11 @@
 <div class="tsd-description">
 <div class="tsd-comment tsd-typography"><p>Convert batch WGS84 coordinates to UTM.</p>
 <p>Input: flat <code>[lng0, lat0, lng1, lat1, ...]</code>.
-Output: flat <code>[zone, easting, northing, zone, easting, northing, ...]</code>.</p>
+Output: flat <code>[zone, easting, northing, isNorth, ...]</code> (4 values/point),
+where <code>isNorth</code> is <code>1.0</code> for the northern hemisphere and <code>0.0</code> for the
+southern. Carrying the hemisphere explicitly is REQUIRED for a correct
+round-trip: UTM south-hemisphere northings have 10,000,000 added, so both
+hemispheres are always &gt;= 0 and <code>northing &gt;= 0</code> cannot distinguish them.</p>
 </div>
 <div class="tsd-parameters">
 <h4 class="tsd-parameters-title">Parameters</h4>
@@ -25,7 +29,7 @@ Output: flat <code>[zone, easting, northing, zone, easting, northing, ...]</code
 <li><span><span class="tsd-kind-parameter">coords</span>: <span class="tsd-signature-type">Float64Array</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Float64Array</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/reed-soul/wasm-spatial-core/blob/c93020e9ba2d6cf3ce567d292c1fa22996c8ff16/npm/pkg/wasm_spatial_core.d.ts#L1205">wasm_spatial_core.d.ts:1205</a></li></ul></aside></div></li></ul></section></div>
+<li>Defined in wasm_spatial_core.d.ts:1560</li></ul></aside></div></li></ul></section></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">

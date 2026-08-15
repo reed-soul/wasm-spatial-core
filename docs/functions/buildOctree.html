@@ -16,13 +16,13 @@
 <div class="tsd-signature tsd-anchor-link" id="buildoctree"><span class="tsd-kind-call-signature">buildOctree</span><span class="tsd-signature-symbol">(</span><br/>    <span class="tsd-kind-parameter">positions</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">Float32Array</span><span class="tsd-signature-symbol">,</span><br/>    <span class="tsd-kind-parameter">max_points_per_node</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">number</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span><span class="tsd-signature-symbol">,</span><br/>    <span class="tsd-kind-parameter">max_depth</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">number</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span><span class="tsd-signature-symbol">,</span><br/><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">:</span> <a href="../classes/Octree.html" class="tsd-signature-type tsd-kind-class">Octree</a><a href="#buildoctree" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></div>
 <div class="tsd-description">
 <div class="tsd-comment tsd-typography"><p>Build an octree from a flat <code>[x, y, z, ...]</code> position buffer.</p>
-<p>The input buffer is <strong>not</strong> modified (a copy is made internally).
+<p>The input buffer is <strong>reordered in-place</strong> (zero-copy from JS <code>Float32Array</code>).
 Points with NaN/Infinity coordinates are silently filtered.</p>
 <p>Performs a memory pre-check if <code>setMaxWasmMemory</code> has been called with
 a non-zero limit. Returns an error if estimated memory exceeds the limit.</p>
 <h1 id="arguments" class="tsd-anchor-link">Arguments<a href="#arguments" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h1>
 <ul>
-<li><code>positions</code> — <code>Float32Array</code> of <code>[x, y, z, ...]</code> triples.</li>
+<li><code>positions</code> — Mutable <code>Float32Array</code> of <code>[x, y, z, ...]</code> triples.</li>
 <li><code>max_points_per_node</code> — Max points per leaf (default: 50 000).</li>
 <li><code>max_depth</code> — Max tree depth (default: 21).</li>
 </ul>
@@ -35,7 +35,7 @@ a non-zero limit. Returns an error if estimated memory exceeds the limit.</p>
 <li><span><code class="tsd-tag">Optional</code><span class="tsd-kind-parameter">max_depth</span>: <span class="tsd-signature-type">number</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <a href="../classes/Octree.html" class="tsd-signature-type tsd-kind-class">Octree</a></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/reed-soul/wasm-spatial-core/blob/c93020e9ba2d6cf3ce567d292c1fa22996c8ff16/npm/pkg/wasm_spatial_core.d.ts#L1297">wasm_spatial_core.d.ts:1297</a></li></ul></aside></div></li></ul></section></div>
+<li>Defined in wasm_spatial_core.d.ts:1646</li></ul></aside></div></li></ul></section></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">
