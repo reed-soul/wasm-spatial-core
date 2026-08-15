@@ -1361,11 +1361,17 @@ fn check_octree_input_memory(positions: &[f32]) -> Result<(), JsValue> {
 pub fn supports_multi_thread() -> bool {
     #[cfg(feature = "multi-thread")]
     {
-        // Check SharedArrayBuffer availability at runtime.
-        // In WASM, we use js_sys to test this.
-        let _shared = js_sys::eval("typeof SharedArrayBuffer !== 'undefined'");
-        // If it doesn't throw, SharedArrayBuffer is available.
-        true
+        // Probe the global scope without eval: keeps the generated JS free
+        // of an `eval` import (strict-CSP sites reject it).
+        #[cfg(target_arch = "wasm32")]
+        {
+            js_sys::Reflect::has(&js_sys::global(), &JsValue::from_str("SharedArrayBuffer"))
+                .unwrap_or(false)
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            false
+        }
     }
     #[cfg(not(feature = "multi-thread"))]
     {
@@ -1829,9 +1835,9 @@ mod tests {
     fn test_supports_multi_thread_exports_exist() {
         // thread_count() is always callable (returns Rayon thread count or 1).
         let _tc = thread_count();
-        // supports_multi_thread() calls js_sys::eval() which is WASM-only,
-        // so we skip it in native tests. The function itself is validated
-        // by the WASM smoke tests.
+        // supports_multi_thread() probes the JS global scope, which is
+        // WASM-only, so native tests skip calling it. The function itself is
+        // validated by the WASM smoke tests.
         #[cfg(target_arch = "wasm32")]
         let _mt = supports_multi_thread();
     }

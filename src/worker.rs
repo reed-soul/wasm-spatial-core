@@ -78,20 +78,15 @@ impl Default for WorkerOptions {
 /// Returns `true` if `Worker` is defined in the global scope.
 #[wasm_bindgen(js_name = "supportsWorker")]
 pub fn supports_worker() -> bool {
-    let js = js_sys::eval(
-        r#"
-        (function() {
-            try {
-                return typeof Worker !== 'undefined';
-            } catch (e) {
-                return false;
-            }
-        })()
-        "#,
-    );
-    match js {
-        Ok(v) => v.is_truthy(),
-        Err(_) => false,
+    // Probe the global scope without eval: keeps the generated JS free of
+    // an `eval` import (strict-CSP sites reject it).
+    #[cfg(target_arch = "wasm32")]
+    {
+        js_sys::Reflect::has(&js_sys::global(), &JsValue::from_str("Worker")).unwrap_or(false)
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        false
     }
 }
 

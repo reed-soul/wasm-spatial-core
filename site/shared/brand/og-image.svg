@@ -34,7 +34,7 @@
       <circle cx="20" cy="19" r="2.6"/><circle cx="24" cy="22" r="3"/><circle cx="25" cy="14" r="2.6"/><circle cx="25" cy="9" r="2.4"/>
     </g>
     <text x="80" y="30" font-family="Inter,-apple-system,sans-serif" font-size="20" font-weight="600" fill="#8b949e">wasm-spatial-core</text>
-    <text x="80" y="52" font-family="'JetBrains Mono',monospace" font-size="14" fill="#5c6675">v0.9.0 · Rust + WebAssembly</text>
+    <text x="80" y="52" font-family="'JetBrains Mono',monospace" font-size="14" fill="#5c6675">v0.10.0 · Rust + WebAssembly</text>
   </g>
 
   <!-- Headline -->

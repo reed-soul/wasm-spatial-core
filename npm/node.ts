@@ -59,20 +59,32 @@ export {
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-let corePromise: Promise<Record<string, unknown>> | null = null;
+type PkgNodeModule = typeof import("./pkg-node/wasm_spatial_core.js");
+
+/** The full wasm-bindgen Node.js API (everything except the init entry). */
+export type SpatialCoreNodeApi = Omit<PkgNodeModule, "default">;
+
+let corePromise: Promise<SpatialCoreNodeApi> | null = null;
 
 /**
  * Initialise and return the wasm-spatial-core API for Node.js.
  *
  * Safe to call multiple times — subsequent calls return the same instance.
  */
-export async function loadSpatialCoreNode(): Promise<Record<string, unknown>> {
+export async function loadSpatialCoreNode(): Promise<SpatialCoreNodeApi> {
   if (!corePromise) {
     corePromise = (async () => {
-      const mod = await import("./pkg-node/wasm_spatial_core.js");
-      if (typeof mod.default === "function") {
+      const mod = (await import("./pkg-node/wasm_spatial_core.js")) as PkgNodeModule & {
+        default?: unknown;
+      };
+      // nodejs-target builds self-initialise on import; `default` is only a
+      // callable init(bytes) in older layouts, so probe before calling.
+      const init = mod.default as unknown;
+      if (typeof init === "function") {
         const wasmPath = join(__dirname, "pkg-node/wasm_spatial_core_bg.wasm");
-        await mod.default(readFileSync(wasmPath));
+        await (init as (bytes: Uint8Array) => Promise<unknown>)(
+          readFileSync(wasmPath),
+        );
       }
       const { default: _init, ...api } = mod;
       return api;

@@ -45,6 +45,9 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
 
+      - name: Check version strings are in sync
+        run: bash scripts/check-version-sync.sh
+
       - name: Clippy lints (all features)
         run: cargo clippy --all-targets --all-features -- -D warnings
 
@@ -97,6 +100,12 @@ jobs:
         with:
           name: wasm-pkg
           path: pkg/
+
+      - name: Upload Node WASM artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: wasm-pkg-node
+          path: pkg-node/
 
   # ------------------------------------------------------------------
   # 1b. Headless browser test — W3.6 CesiumTerrainProvider acceptance
@@ -218,7 +227,7 @@ jobs:
         with:
           name: wasm-pkg
           path: pkg/
-      - run: npx typedoc@latest --entryPoints "npm/pkg/wasm_spatial_core.d.ts"
+      - run: npx typedoc@latest --entryPoints "pkg/wasm_spatial_core.d.ts"
       - name: Publish docs to gh-pages
         uses: peaceiris/actions-gh-pages@v4
         with:
@@ -373,47 +382,51 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Download WASM artifacts
+      - name: Download WASM artifacts (web target)
         uses: actions/download-artifact@v8
         with:
           name: wasm-pkg
-          path: pkg/
+          path: artifacts/pkg
+
+      - name: Download WASM artifacts (nodejs target)
+        uses: actions/download-artifact@v8
+        with:
+          name: wasm-pkg-node
+          path: artifacts/pkg-node
 
       - uses: actions/setup-node@v6
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
 
-      - name: Stage npm package into pkg/
-        # The wasm-pkg artifact from download-artifact includes wasm-pack's own
-        # pkg/package.json, which has correct `files`/`main`/`types` paths relative
-        # to pkg/. We publish from pkg/ using THAT package.json — NOT npm/package.json
-        # (whose `pkg/...` paths would double the prefix and omit the .wasm/.js,
-        # producing a broken 4-file package as seen in 0.8.0/0.8.1).
+      # Publish from npm/ using the curated npm/package.json — the single
+      # source of truth for `exports` subpaths (./node, ./abort, ./webgpu,
+      # ./draco) and the compiled JS entries. Publishing the wasm-pack
+      # generated package.json instead ships a 6-file package with no subpath
+      # exports (the 0.8.0/0.8.1/0.9.0 defect). The npm/package.json version
+      # is guarded against Cargo.toml drift by scripts/check-version-sync.sh
+      # in the rust job.
+      - name: Stage prebuilt WASM into npm/
         run: |
-          cp npm/tsconfig.json pkg/tsconfig.json 2>/dev/null || true
-          cp npm/index.ts pkg/index.ts 2>/dev/null || true
-          cp npm/node.ts pkg/node.ts 2>/dev/null || true
-          cp npm/batch.ts pkg/batch.ts 2>/dev/null || true
-          cp npm/draco.ts pkg/draco.ts 2>/dev/null || true
-          cp npm/webgpu.ts pkg/webgpu.ts 2>/dev/null || true
-          cp npm/abort.ts pkg/abort.ts 2>/dev/null || true
-          cp README.md pkg/README.md 2>/dev/null || true
+          rm -rf npm/pkg npm/pkg-node
+          cp -R artifacts/pkg npm/pkg
+          cp -R artifacts/pkg-node npm/pkg-node
 
       - name: Install npm dependencies
-        working-directory: pkg
+        working-directory: npm
         run: npm install --ignore-scripts
 
-      - name: Build TypeScript declarations
-        working-directory: pkg
-        run: npx tsc --project tsconfig.json --noEmit || true
+      - name: Typecheck + compile entry points
+        working-directory: npm
+        run: |
+          npm run typecheck
+          npm run build:entries
 
       - name: Publish to npm
-        working-directory: pkg
-        # Publish from pkg/ using wasm-pack's own package.json (correct files/main).
+        working-directory: npm
         # --ignore-scripts: skip `prepack` (which rebuilds WASM via wasm-pack);
-        # this job consumes the pre-built pkg/ from download-artifact, which has
-        # no Rust toolchain, so prepack would fail with exit 127.
+        # this job consumes the pre-built artifacts from the rust job, which
+        # has no Rust toolchain here, so prepack would fail with exit 127.
         run: npm publish --provenance --access public --ignore-scripts
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

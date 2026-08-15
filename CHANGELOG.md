@@ -5,7 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.10.0] - 2026-08-16
+
+A correctness and packaging release. It ships the OCR-audit fixes — three
+critical parser bugs, a COPC hierarchy denial-of-service, several
+panic-on-input paths — and a southern-hemisphere UTM fix that requires a
+BREAKING API change (batch UTM APIs now carry the hemisphere explicitly).
+It is also the first release whose npm package has working subpath exports
+(`/node`, `/abort`, `/webgpu`, `/draco`). If you are upgrading from 0.9,
+read [docs/MIGRATION_V0_10.md](docs/MIGRATION_V0_10.md) — southern-hemisphere
+UTM values computed by ≤ 0.9 are wrong by ~10,000 km and must be recomputed.
 
 ### Fixed — Critical
 
@@ -96,6 +105,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `rgb_colors_for_pnts` RGBA→RGB path pre-allocates the exact capacity.
 - Added `SpatialError::input_too_large` convenience constructor (parity with
   the other variants); tests now cover the `Cancelled` variant.
+
+### Fixed — npm packaging
+
+- **The npm tarball shipped without any subpath exports.** 0.8.0–0.9.0 were
+  published using wasm-pack's generated `package.json`, which restricts the
+  tarball to its own 6 files — so `wasm-spatial-core/abort`, `/node`,
+  `/webgpu` and `/draco` failed to resolve for registry consumers. The
+  curated `npm/package.json` is now the publish manifest: CI stages the
+  prebuilt web+nodejs WASM into `npm/pkg{,-node}`, compiles the TypeScript
+  entries to JS, and type-checks them (the previous `tsc --noEmit || true`
+  in CI silently swallowed failures). The published package now contains
+  the compiled entries, `.d.ts`, and both WASM targets (23 files).
+- `npm/index.ts` re-exported `getInputSizeLimit` twice (hard `tsc` error) and
+  imported the WASM bindings via the never-shipped flat layout — rewritten to
+  the published `./pkg/` layout.
+- `npm/batch.ts` called `TerrainTilesetResult` fields as methods
+  (`tilesetJson()`, `.tileCount`) — now reads the real `tilesetJson` /
+  `tile_count` properties and guards optional `tileUri` results.
+- `npm/webgpu.ts` type-checks against `@webgpu/types` (eight `writeBuffer`
+  type-variance errors fixed).
+- Stale 0.6.0-era `npm/pkg` build outputs (~1.4 MB of binaries, tracked
+  since May) removed from git; `.gitignore` now covers `npm/pkg*` and
+  generated `npm/*.js`.
+
+### Added — Release infrastructure
+
+- `scripts/check-version-sync.sh` — fails CI when any user-facing version
+  string drifts from `Cargo.toml`, and blocks re-committing `npm/pkg` build
+  outputs. Wired into the `rust` CI job.
+- `RELEASE.md` — the release checklist (pre-flight, version-bump table,
+  tag/publish flow, post-release verification), previously recorded only in
+  the v0.9.0 commit message.
+- `docs/MIGRATION_V0_10.md` — JS before/after for every BREAKING change in
+  this release, linked from the README.
+- `ROADMAP_1_0.md` — the 1.0 acceptance criteria and the v0.10 → v0.11 → 1.0
+  release path.
+- The `rust` CI job now uploads the nodejs-target build; `publish-npm`
+  consumes it so `wasm-spatial-core/node` resolves in the published package.
+
+### Fixed — Security / CSP
+
+- **Removed the last `js_sys::eval` calls** (`octree.rs`, `worker.rs`) — the
+  generated bindings no longer import `eval`, so the engine loads under
+  strict Content-Security-Policy without `unsafe-eval`. `supportsMultiThread()`
+  now reports the real `SharedArrayBuffer` availability instead of always
+  returning `true` in multi-thread builds; `supportsWorker()` probes `Worker`
+  via `Reflect.has` on the global scope.
 
 ## [0.9.0] - 2026-07-09
 
@@ -564,5 +620,6 @@ py3dtiles, plus credibility cleanup on the docs surface.
 
 ## [0.1.0]: https://github.com/reed-soul/wasm-spatial-core/releases/tag/v0.1.0
 
-[Unreleased]: https://github.com/reed-soul/wasm-spatial-core/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/reed-soul/wasm-spatial-core/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/reed-soul/wasm-spatial-core/releases/tag/v0.10.0
 [0.9.0]: https://github.com/reed-soul/wasm-spatial-core/releases/tag/v0.9.0

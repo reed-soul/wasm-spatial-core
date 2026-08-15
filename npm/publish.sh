@@ -4,14 +4,19 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-cd "$PROJECT_ROOT"
+cd "$PROJECT_ROOT/npm"
+[ -d node_modules ] || npm install --ignore-scripts
 
-echo "🔧 Building WASM (web target, point-cloud + geotiff features)..."
-wasm-pack build --target web --release --out-dir npm/pkg -- --features point-cloud,geotiff
+echo "🔧 Building WASM (web + nodejs targets)..."
+npm run build:wasm
+npm run build:wasm:node
+
+echo "📝 Type-checking + compiling entry points..."
+npm run typecheck
+npm run build:entries
 
 echo "📦 Dry-run publishing..."
-cd npm
 npm publish --dry-run
 
 echo ""
-echo "✅ Build successful. Run 'cd npm && npm publish' to publish for real."
+echo "✅ Package staged. Inspect the file list above, then run 'cd npm && npm publish' to publish for real."

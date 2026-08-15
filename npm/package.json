@@ -1,6 +1,6 @@
 {
   "name": "wasm-spatial-core",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "A high-performance WebAssembly spatial data processing engine for frontend Web3D/GIS applications",
   "author": "Qingxi <qingxi@zhiqiweilai.com>",
   "license": "MIT",
@@ -36,9 +36,13 @@
     "contour"
   ],
   "type": "module",
-  "main": "./pkg/wasm_spatial_core.js",
-  "module": "./pkg/wasm_spatial_core.js",
+  "main": "./index.js",
+  "module": "./index.js",
   "types": "./index.d.ts",
+  "sideEffects": [
+    "./pkg/snippets/**",
+    "./pkg-node/snippets/**"
+  ],
   "peerDependenciesMeta": {
     "draco3d": {
       "optional": true
@@ -50,67 +54,72 @@
   "exports": {
     ".": {
       "types": "./index.d.ts",
-      "import": "./pkg/wasm_spatial_core.js",
-      "default": "./pkg/wasm_spatial_core.js"
+      "import": "./index.js",
+      "default": "./index.js"
     },
     "./draco": {
       "types": "./draco.d.ts",
-      "import": "./draco.ts",
-      "default": "./draco.ts"
+      "import": "./draco.js",
+      "default": "./draco.js"
     },
     "./node": {
       "types": "./node.d.ts",
-      "import": "./node.ts",
-      "default": "./node.ts"
+      "import": "./node.js",
+      "default": "./node.js"
     },
     "./webgpu": {
       "types": "./webgpu.d.ts",
-      "import": "./webgpu.ts",
-      "default": "./webgpu.ts"
+      "import": "./webgpu.js",
+      "default": "./webgpu.js"
     },
     "./abort": {
       "types": "./abort.d.ts",
-      "import": "./abort.ts",
-      "default": "./abort.ts"
+      "import": "./abort.js",
+      "default": "./abort.js"
     }
   },
   "files": [
-    "pkg/wasm_spatial_core_bg.wasm",
-    "pkg/wasm_spatial_core_bg.wasm.d.ts",
+    "index.js",
+    "index.d.ts",
+    "node.js",
+    "node.d.ts",
+    "batch.js",
+    "batch.d.ts",
+    "draco.js",
+    "draco.d.ts",
+    "webgpu.js",
+    "webgpu.d.ts",
+    "abort.js",
+    "abort.d.ts",
     "pkg/wasm_spatial_core.js",
     "pkg/wasm_spatial_core.d.ts",
-    "pkg-node/wasm_spatial_core_bg.wasm",
-    "pkg-node/wasm_spatial_core_bg.wasm.d.ts",
+    "pkg/wasm_spatial_core_bg.wasm",
+    "pkg/wasm_spatial_core_bg.wasm.d.ts",
+    "pkg/snippets",
     "pkg-node/wasm_spatial_core.js",
     "pkg-node/wasm_spatial_core.d.ts",
-    "index.ts",
-    "index.d.ts",
-    "node.ts",
-    "node.d.ts",
-    "batch.ts",
-    "draco.ts",
-    "draco.d.ts",
-    "webgpu.ts",
-    "webgpu.d.ts",
-    "abort.ts",
-    "abort.d.ts",
+    "pkg-node/wasm_spatial_core_bg.wasm",
+    "pkg-node/wasm_spatial_core_bg.wasm.d.ts",
+    "pkg-node/snippets",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
-    "build:wasm": "cd .. && wasm-pack build --target web --release --out-dir npm/pkg -- --features point-cloud,geotiff",
-    "build:wasm:node": "cd .. && wasm-pack build --target nodejs --release --out-dir npm/pkg-node -- --features point-cloud,geotiff",
+    "build:wasm": "cd .. && wasm-pack build --target web --release --out-dir npm/pkg -- --features point-cloud,geotiff,laz-support,mesh-ingest",
+    "build:wasm:node": "cd .. && wasm-pack build --target nodejs --release --out-dir npm/pkg-node -- --features point-cloud,geotiff,laz-support,mesh-ingest",
     "build:wasm:mt": "cd .. && RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals' cargo +nightly build -Z build-std=panic_abort,std --target wasm32-unknown-unknown --release --features multi-thread,point-cloud,geotiff && wasm-bindgen --target web --out-dir npm/pkg target/wasm32-unknown-unknown/release/wasm_spatial_core.wasm",
     "build:wasm:pc": "cd .. && wasm-pack build --target web --release --out-dir npm/pkg -- --features point-cloud",
-    "build:wasm:all": "cd .. && wasm-pack build --target web --release --out-dir npm/pkg -- --features point-cloud,geotiff",
     "build:wasm:laz": "cd .. && wasm-pack build --target web --release --out-dir npm/pkg -- --features laz-support,geotiff",
     "build:wasm:terrain-edit": "cd .. && wasm-pack build --target web --release --out-dir npm/pkg -- --features point-cloud,terrain-edit",
-    "build": "npm run build:wasm:all && npm run build:wasm:node && npm run build:types",
-    "build:types": "cd pkg && npx -p typescript tsc --declaration --emitDeclarationOnly --outDir . index.ts --ignoreConfig --target esnext --moduleResolution bundler --module esnext --lib esnext --skipLibCheck",
-    "prepack": "npm run build:wasm:all",
+    "build:entries": "tsc index.ts node.ts batch.ts draco.ts webgpu.ts abort.ts --target ES2020 --module esnext --moduleResolution bundler --lib ES2020,DOM --types node,@webgpu/types --declaration --strict --esModuleInterop --skipLibCheck --outDir .",
+    "typecheck": "tsc --project tsconfig.json",
+    "build": "npm run build:wasm && npm run build:wasm:node && npm run build:entries",
+    "prepack": "npm run build",
     "pack:dry-run": "npm pack --dry-run"
   },
   "devDependencies": {
+    "@types/node": "^26.2.0",
+    "@webgpu/types": "^0.1.71",
     "typescript": "^5.4.0"
   },
   "publishConfig": {
