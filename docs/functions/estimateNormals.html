@@ -15,7 +15,7 @@
 <li class="">
 <div class="tsd-signature tsd-anchor-link" id="estimatenormals"><span class="tsd-kind-call-signature">estimateNormals</span><span class="tsd-signature-symbol">(</span><span class="tsd-kind-parameter">positions</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">Float32Array</span><span class="tsd-signature-symbol">,</span> <span class="tsd-kind-parameter">k</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">Float32Array</span><a href="#estimatenormals" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></div>
 <div class="tsd-description">
-<div class="tsd-comment tsd-typography"><p>Estimate normals for a point cloud using brute-force k-nearest neighbors.</p>
+<div class="tsd-comment tsd-typography"><p>Estimate normals for a point cloud using R-tree accelerated k-nearest neighbors.</p>
 <p>For each point, finds the k nearest neighbors, fits a plane via SVD,
 and returns the normal vector of that plane.</p>
 <h1 id="arguments" class="tsd-anchor-link">Arguments<a href="#arguments" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h1>
@@ -33,7 +33,7 @@ and returns the normal vector of that plane.</p>
 <li><span><span class="tsd-kind-parameter">k</span>: <span class="tsd-signature-type">number</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Float32Array</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/reed-soul/wasm-spatial-core/blob/c93020e9ba2d6cf3ce567d292c1fa22996c8ff16/npm/pkg/wasm_spatial_core.d.ts#L1787">wasm_spatial_core.d.ts:1787</a></li></ul></aside></div></li></ul></section></div>
+<li>Defined in wasm_spatial_core.d.ts:2282</li></ul></aside></div></li></ul></section></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">

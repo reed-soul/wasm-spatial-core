@@ -20,7 +20,7 @@ module in a separate thread and executes the full Octree → Tileset pipeline.</
 
 </div></section><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/reed-soul/wasm-spatial-core/blob/c93020e9ba2d6cf3ce567d292c1fa22996c8ff16/npm/pkg/wasm_spatial_core.d.ts#L887">wasm_spatial_core.d.ts:887</a></li></ul></aside>
+<li>Defined in wasm_spatial_core.d.ts:1211</li></ul></aside>
 <section class="tsd-panel-group tsd-index-group">
 <section class="tsd-panel tsd-index-panel">
 <details class="tsd-index-content tsd-accordion" open><summary class="tsd-accordion-summary tsd-index-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>
@@ -67,7 +67,7 @@ the WASM module, initializes it, and waits for <code>process</code> commands.</p
 <li><span><span class="tsd-kind-parameter">wasm_url</span>: <span class="tsd-signature-type">string</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <a href="" class="tsd-signature-type tsd-kind-class">WorkerHandle</a></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/reed-soul/wasm-spatial-core/blob/c93020e9ba2d6cf3ce567d292c1fa22996c8ff16/npm/pkg/wasm_spatial_core.d.ts#L906">wasm_spatial_core.d.ts:906</a></li></ul></aside></div></li></ul></section></section></details>
+<li>Defined in wasm_spatial_core.d.ts:1230</li></ul></aside></div></li></ul></section></section></details>
 <details class="tsd-panel-group tsd-member-group tsd-accordion" open><summary class="tsd-accordion-summary" data-key="section-Methods"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>
 <h2 class="tsd-anchor-link" id="methods-1">Methods<a href="#methods-1" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h2></summary>
 <section>
@@ -79,7 +79,7 @@ the WASM module, initializes it, and waits for <code>process</code> commands.</p
 <div class="tsd-description">
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/reed-soul/wasm-spatial-core/blob/c93020e9ba2d6cf3ce567d292c1fa22996c8ff16/npm/pkg/wasm_spatial_core.d.ts#L889">wasm_spatial_core.d.ts:889</a></li></ul></aside></div></li></ul></section>
+<li>Defined in wasm_spatial_core.d.ts:1213</li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="cancel"><span>cancel</span><a href="#cancel" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -87,12 +87,12 @@ the WASM module, initializes it, and waits for <code>process</code> commands.</p
 <div class="tsd-signature tsd-anchor-link" id="cancel-1"><span class="tsd-kind-call-signature">cancel</span><span class="tsd-signature-symbol">()</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">void</span><a href="#cancel-1" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></div>
 <div class="tsd-description">
 <div class="tsd-comment tsd-typography"><p>Cancel the current processing job.</p>
-<p>The Worker will stop as soon as possible (between octree build
-and tileset generation phases).</p>
+<p>The Worker will stop as soon as possible during octree build and tileset
+generation when <code>cancel()</code> is called.</p>
 </div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/reed-soul/wasm-spatial-core/blob/c93020e9ba2d6cf3ce567d292c1fa22996c8ff16/npm/pkg/wasm_spatial_core.d.ts#L896">wasm_spatial_core.d.ts:896</a></li></ul></aside></div></li></ul></section>
+<li>Defined in wasm_spatial_core.d.ts:1220</li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="free"><span>free</span><a href="#free" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -101,7 +101,7 @@ and tileset generation phases).</p>
 <div class="tsd-description">
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/reed-soul/wasm-spatial-core/blob/c93020e9ba2d6cf3ce567d292c1fa22996c8ff16/npm/pkg/wasm_spatial_core.d.ts#L888">wasm_spatial_core.d.ts:888</a></li></ul></aside></div></li></ul></section>
+<li>Defined in wasm_spatial_core.d.ts:1212</li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="init"><span>init</span><a href="#init" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -114,7 +114,7 @@ message when initialization is complete.</p>
 </div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/reed-soul/wasm-spatial-core/blob/c93020e9ba2d6cf3ce567d292c1fa22996c8ff16/npm/pkg/wasm_spatial_core.d.ts#L913">wasm_spatial_core.d.ts:913</a></li></ul></aside></div></li></ul></section>
+<li>Defined in wasm_spatial_core.d.ts:1237</li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="oncancelled"><span>on<wbr/>Cancelled</span><a href="#oncancelled" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -130,7 +130,7 @@ message when initialization is complete.</p>
 <li><span><span class="tsd-kind-parameter">callback</span>: <span class="tsd-signature-type">Function</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/reed-soul/wasm-spatial-core/blob/c93020e9ba2d6cf3ce567d292c1fa22996c8ff16/npm/pkg/wasm_spatial_core.d.ts#L919">wasm_spatial_core.d.ts:919</a></li></ul></aside></div></li></ul></section>
+<li>Defined in wasm_spatial_core.d.ts:1243</li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="oncomplete"><span>on<wbr/>Complete</span><a href="#oncomplete" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -147,7 +147,7 @@ message when initialization is complete.</p>
 <li><span><span class="tsd-kind-parameter">callback</span>: <span class="tsd-signature-type">Function</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/reed-soul/wasm-spatial-core/blob/c93020e9ba2d6cf3ce567d292c1fa22996c8ff16/npm/pkg/wasm_spatial_core.d.ts#L926">wasm_spatial_core.d.ts:926</a></li></ul></aside></div></li></ul></section>
+<li>Defined in wasm_spatial_core.d.ts:1250</li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="onerror"><span>on<wbr/>Error</span><a href="#onerror" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -163,7 +163,7 @@ message when initialization is complete.</p>
 <li><span><span class="tsd-kind-parameter">callback</span>: <span class="tsd-signature-type">Function</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/reed-soul/wasm-spatial-core/blob/c93020e9ba2d6cf3ce567d292c1fa22996c8ff16/npm/pkg/wasm_spatial_core.d.ts#L932">wasm_spatial_core.d.ts:932</a></li></ul></aside></div></li></ul></section>
+<li>Defined in wasm_spatial_core.d.ts:1256</li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="onprogress"><span>on<wbr/>Progress</span><a href="#onprogress" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -180,7 +180,7 @@ is <code>&quot;octree&quot;</code> or <code>&quot;tileset&quot;</code> and <code
 <li><span><span class="tsd-kind-parameter">callback</span>: <span class="tsd-signature-type">Function</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/reed-soul/wasm-spatial-core/blob/c93020e9ba2d6cf3ce567d292c1fa22996c8ff16/npm/pkg/wasm_spatial_core.d.ts#L939">wasm_spatial_core.d.ts:939</a></li></ul></aside></div></li></ul></section>
+<li>Defined in wasm_spatial_core.d.ts:1263</li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="process"><span>process</span><a href="#process" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -204,7 +204,7 @@ is <code>&quot;octree&quot;</code> or <code>&quot;tileset&quot;</code> and <code
 <li><span><span class="tsd-kind-parameter">options</span>: <a href="WorkerOptions.html" class="tsd-signature-type tsd-kind-class">WorkerOptions</a></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/reed-soul/wasm-spatial-core/blob/c93020e9ba2d6cf3ce567d292c1fa22996c8ff16/npm/pkg/wasm_spatial_core.d.ts#L950">wasm_spatial_core.d.ts:950</a></li></ul></aside></div></li></ul></section>
+<li>Defined in wasm_spatial_core.d.ts:1274</li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="processterrain"><span>process<wbr/>Terrain</span><a href="#processterrain" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -231,7 +231,7 @@ and hillshade, and generate a GLB terrain mesh.</p>
 <li><span><code class="tsd-tag">Optional</code><span class="tsd-kind-parameter">altitude</span>: <span class="tsd-signature-type">number</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/reed-soul/wasm-spatial-core/blob/c93020e9ba2d6cf3ce567d292c1fa22996c8ff16/npm/pkg/wasm_spatial_core.d.ts#L963">wasm_spatial_core.d.ts:963</a></li></ul></aside></div></li></ul></section>
+<li>Defined in wasm_spatial_core.d.ts:1287</li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="terminate"><span>terminate</span><a href="#terminate" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -242,7 +242,7 @@ and hillshade, and generate a GLB terrain mesh.</p>
 </div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/reed-soul/wasm-spatial-core/blob/c93020e9ba2d6cf3ce567d292c1fa22996c8ff16/npm/pkg/wasm_spatial_core.d.ts#L967">wasm_spatial_core.d.ts:967</a></li></ul></aside></div></li></ul></section></section></details></div>
+<li>Defined in wasm_spatial_core.d.ts:1291</li></ul></aside></div></li></ul></section></section></details></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">
