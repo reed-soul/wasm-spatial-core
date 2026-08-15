@@ -9464,10 +9464,6 @@ function __wbg_get_imports() {
                 wasm.__wbindgen_export4(deferred0_0, deferred0_1, 1);
             }
         },
-        __wbg_eval_b3ce086b62c3ca2e: function() { return handleError(function (arg0, arg1) {
-            const ret = eval(getStringFromWasm0(arg0, arg1));
-            return addHeapObject(ret);
-        }, arguments); },
         __wbg_get_41476db20fef99a8: function() { return handleError(function (arg0, arg1) {
             const ret = Reflect.get(getObject(arg0), getObject(arg1));
             return addHeapObject(ret);
@@ -9480,6 +9476,10 @@ function __wbg_get_imports() {
             const ret = getObject(arg0)[arg1 >>> 0];
             return ret;
         },
+        __wbg_has_3a6f31f647e0ba22: function() { return handleError(function (arg0, arg1) {
+            const ret = Reflect.has(getObject(arg0), getObject(arg1));
+            return ret;
+        }, arguments); },
         __wbg_ifcmesh_new: function(arg0) {
             const ret = IfcMesh.__wrap(arg0);
             return addHeapObject(ret);
@@ -9561,7 +9561,7 @@ function __wbg_get_imports() {
                     const a = state0.a;
                     state0.a = 0;
                     try {
-                        return __wasm_bindgen_func_elem_2428(a, state0.b, arg0, arg1);
+                        return __wasm_bindgen_func_elem_2429(a, state0.b, arg0, arg1);
                     } finally {
                         state0.a = a;
                     }
@@ -9708,7 +9708,7 @@ function __wbg_get_imports() {
         },
         __wbindgen_cast_0000000000000002: function(arg0, arg1) {
             // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 326, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
-            const ret = makeMutClosure(arg0, arg1, __wasm_bindgen_func_elem_2414);
+            const ret = makeMutClosure(arg0, arg1, __wasm_bindgen_func_elem_2415);
             return addHeapObject(ret);
         },
         __wbindgen_cast_0000000000000003: function(arg0) {
@@ -9739,10 +9739,10 @@ function __wasm_bindgen_func_elem_435(arg0, arg1, arg2) {
     wasm.__wasm_bindgen_func_elem_435(arg0, arg1, addHeapObject(arg2));
 }
 
-function __wasm_bindgen_func_elem_2414(arg0, arg1, arg2) {
+function __wasm_bindgen_func_elem_2415(arg0, arg1, arg2) {
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-        wasm.__wasm_bindgen_func_elem_2414(retptr, arg0, arg1, addHeapObject(arg2));
+        wasm.__wasm_bindgen_func_elem_2415(retptr, arg0, arg1, addHeapObject(arg2));
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
         var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
         if (r1) {
@@ -9753,8 +9753,8 @@ function __wasm_bindgen_func_elem_2414(arg0, arg1, arg2) {
     }
 }
 
-function __wasm_bindgen_func_elem_2428(arg0, arg1, arg2, arg3) {
-    wasm.__wasm_bindgen_func_elem_2428(arg0, arg1, addHeapObject(arg2), addHeapObject(arg3));
+function __wasm_bindgen_func_elem_2429(arg0, arg1, arg2, arg3) {
+    wasm.__wasm_bindgen_func_elem_2429(arg0, arg1, addHeapObject(arg2), addHeapObject(arg3));
 }
 
 const Cesium3DTileFinalization = (typeof FinalizationRegistry === 'undefined')

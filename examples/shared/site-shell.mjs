@@ -27,7 +27,7 @@ const NAV_HTML = (home, root) => `
         </g>
       </svg>
       <span>wasm-spatial-core</span>
-      <span class="nav-version">v0.9.0</span>
+      <span class="nav-version">v0.10.0</span>
     </a>
     <div class="nav-links">
       <a class="nav-back" href="${home}index.html#demos">← Back to site</a>
