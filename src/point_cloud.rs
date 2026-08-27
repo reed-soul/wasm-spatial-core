@@ -223,11 +223,13 @@ pub fn parse_las_header_core(bytes: &[u8]) -> Result<LasHeader, String> {
         point_format_id: bytes[104],
         point_data_record_length: read_u16_le(bytes, 105),
         num_points: read_u32_le(bytes, 107),
+        // ASPRS public header layout from offset 179 is interleaved:
+        // MaxX, MinX, MaxY, MinY, MaxZ, MinZ (8 bytes each).
         bounds_max_x: read_f64_le(bytes, 179),
-        bounds_max_y: read_f64_le(bytes, 187),
-        bounds_max_z: read_f64_le(bytes, 195),
-        bounds_min_x: read_f64_le(bytes, 203),
-        bounds_min_y: read_f64_le(bytes, 211),
+        bounds_min_x: read_f64_le(bytes, 187),
+        bounds_max_y: read_f64_le(bytes, 195),
+        bounds_min_y: read_f64_le(bytes, 203),
+        bounds_max_z: read_f64_le(bytes, 211),
         bounds_min_z: read_f64_le(bytes, 219),
     })
 }
@@ -348,9 +350,11 @@ pub fn parse_las_points_core(bytes: &[u8]) -> Result<LasPointCloud, String> {
 
         if has_color {
             if let Some(ref mut c) = colors {
-                c.push(bytes[base + 20]);
+                // RGB channels are u16 little-endian starting at byte 20;
+                // the 8-bit value is the high byte of each channel.
                 c.push(bytes[base + 21]);
-                c.push(bytes[base + 22]);
+                c.push(bytes[base + 23]);
+                c.push(bytes[base + 25]);
             }
         }
     }
@@ -1858,9 +1862,11 @@ where
 
         if has_color {
             if let Some(ref mut c) = colors {
-                c.push(bytes[base + 20]);
+                // RGB channels are u16 little-endian starting at byte 20;
+                // the 8-bit value is the high byte of each channel.
                 c.push(bytes[base + 21]);
-                c.push(bytes[base + 22]);
+                c.push(bytes[base + 23]);
+                c.push(bytes[base + 25]);
             }
         }
 
@@ -2313,11 +2319,13 @@ pub fn parse_las_header_only(bytes: &[u8]) -> Result<LasHeaderInfo, SpatialError
         x_offset: read_f64_le(bytes, 155),
         y_offset: read_f64_le(bytes, 163),
         z_offset: read_f64_le(bytes, 171),
+        // ASPRS public header layout from offset 179 is interleaved:
+        // MaxX, MinX, MaxY, MinY, MaxZ, MinZ (8 bytes each).
         bounds_max_x: read_f64_le(bytes, 179),
-        bounds_max_y: read_f64_le(bytes, 187),
-        bounds_max_z: read_f64_le(bytes, 195),
-        bounds_min_x: read_f64_le(bytes, 203),
-        bounds_min_y: read_f64_le(bytes, 211),
+        bounds_min_x: read_f64_le(bytes, 187),
+        bounds_max_y: read_f64_le(bytes, 195),
+        bounds_min_y: read_f64_le(bytes, 203),
+        bounds_max_z: read_f64_le(bytes, 211),
         bounds_min_z: read_f64_le(bytes, 219),
         file_size: bytes.len() as u32,
     })
@@ -4812,11 +4820,12 @@ pub mod test_helpers {
         buf[131..139].copy_from_slice(&1.0_f64.to_le_bytes());
         buf[139..147].copy_from_slice(&1.0_f64.to_le_bytes());
         buf[147..155].copy_from_slice(&1.0_f64.to_le_bytes());
+        // ASPRS interleaved layout: MaxX, MinX, MaxY, MinY, MaxZ, MinZ.
         buf[179..187].copy_from_slice(&max_x.to_le_bytes());
-        buf[187..195].copy_from_slice(&max_y.to_le_bytes());
-        buf[195..203].copy_from_slice(&max_z.to_le_bytes());
-        buf[203..211].copy_from_slice(&min_x.to_le_bytes());
-        buf[211..219].copy_from_slice(&min_y.to_le_bytes());
+        buf[187..195].copy_from_slice(&min_x.to_le_bytes());
+        buf[195..203].copy_from_slice(&max_y.to_le_bytes());
+        buf[203..211].copy_from_slice(&min_y.to_le_bytes());
+        buf[211..219].copy_from_slice(&max_z.to_le_bytes());
         buf[219..227].copy_from_slice(&min_z.to_le_bytes());
 
         for &(x, y, z) in points {
@@ -4827,9 +4836,11 @@ pub mod test_helpers {
             buf[base + 4..base + 8].copy_from_slice(&(y as i32).to_le_bytes());
             buf[base + 8..base + 12].copy_from_slice(&(z as i32).to_le_bytes());
             if has_color {
-                buf[base + 20] = 255;
-                buf[base + 21] = 128;
-                buf[base + 22] = 0;
+                // Format 2 RGB: three u16 little-endian at bytes 20..26.
+                // 8-bit channel value lives in the high byte.
+                buf[base + 20..base + 22].copy_from_slice(&(255u16 << 8).to_le_bytes());
+                buf[base + 22..base + 24].copy_from_slice(&(128u16 << 8).to_le_bytes());
+                buf[base + 24..base + 26].copy_from_slice(&0u16.to_le_bytes());
             }
         }
         buf

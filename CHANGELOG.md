@@ -16,6 +16,48 @@ It is also the first release whose npm package has working subpath exports
 read [docs/MIGRATION_V0_10.md](docs/MIGRATION_V0_10.md) — southern-hemisphere
 UTM values computed by ≤ 0.9 are wrong by ~10,000 km and must be recomputed.
 
+### Fixed — Critical — real COPC/LAZ file support
+
+Verified end-to-end against a real 81 MB COPC file (autzen-classified,
+10.65 M points, 278 chunks): header, chunk table, hierarchy spatial query,
+per-chunk random access and bbox region reads now decode all points exactly.
+
+- **LAS bounds read in the wrong order/layout** (`point_cloud.rs`,
+  `point_cloud_stream.rs`) — the ASPRS public header stores bounds
+  *interleaved* from offset 179 (MaxX, MinX, MaxY, MinY, MaxZ, MinZ); both
+  parsers read them sequentially (and the COPC path even from offset 182),
+  producing garbage bounds on every real file. Synthetic round-trip tests
+  masked the bug because the fixture builder wrote the same wrong layout.
+- **Chunk table was a stub** (`point_cloud_stream.rs`) — the previous reader
+  could not decode the arithmetic-coded LASzip chunk table and fabricated a
+  single pseudo-chunk covering the whole file (with `count = 0xFFFFFFFF` for
+  COPC's variable-size chunks). Now decodes the real table via
+  `laz::laszip::ChunkTable::read_from` (278 exact entries for the sample).
+- **Per-chunk decompression re-created a decompressor over a chunk slice**
+  — `LasZipDecompressor` reads the chunk table itself at construction, so
+  this always failed on real files ("failed to fill whole buffer"). Now a
+  single decompressor over the full file + `seek()` to the chunk's global
+  point index.
+- **Variable-size chunk `seek()` dropped leading points** — laz 0.12's
+  `seek()` computes the in-chunk delta as `point_idx % chunk_point_count`,
+  valid only for fixed-size chunks; COPC's variable chunks lost up to
+  `count-1` leading points per chunk. Worked around by seeking to the first
+  multiple of the chunk's point count inside the chunk (forces delta = 0).
+- **COPC hierarchy offsets passed unconverted** — hierarchy EVLR entries
+  carry absolute file offsets; `read_copc_region` fed them to the chunk
+  reader, which expects offsets relative to `point_data_offset + 8`. All
+  hierarchy-path chunk reads silently produced nothing.
+- **Per-chunk header slice cut at 375 bytes** — the LASZIP VLR lives after
+  the fixed header (offset 1736 in the sample); the per-chunk decompressor
+  could never find it, so hierarchy reads silently skipped every chunk.
+- **RGB extraction wrong on every format** — channels are u16 little-endian
+  (8-bit value = high byte) at byte 20 for formats 2/3 and byte 28 for
+  formats 5/7/8/10 (GPSTIME8 before RGB); the old code read three raw bytes
+  at 20..23, mixing channel halves and missing the GPS-time offset.
+- **`parseCopcHeader` JSON lacked `fileSize`** — `copcQueryRanges` requires
+  it, so the documented JSON round-trip always failed with
+  "Missing fileSize".
+
 ### Fixed — Critical
 
 - **COPC `VecDeque` import broke default build** (`copc_hierarchy.rs`) — the
