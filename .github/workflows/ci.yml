@@ -116,6 +116,43 @@ jobs:
   # against our own decoder; this job drives a headless Chromium to load
   # layer.json + .terrain tiles via Playwright + Cesium 1.119.
   # See tests/cesium-terrain.spec.mjs, tests/terrain_tms_server.mjs.
+  copc-loader:
+    name: copc-loader npm package (real-file COPC streaming)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      # 81 MB real-world COPC sample (autzen-classified, 10.65 M points,
+      # 278 chunks, point format 7) — the ground truth for chunk-exact
+      # decompression. Cashed to keep runs fast.
+      - name: Cache COPC sample
+        id: copc-sample
+        uses: actions/cache@v5
+        with:
+          path: /tmp/autzen.copc.laz
+          key: autzen-classified-copc-laz
+
+      - name: Download COPC sample
+        if: steps.copc-sample.outputs.cache-hit != 'true'
+        run: |
+          curl -sL --fail --max-time 300 \
+            -o /tmp/autzen.copc.laz \
+            https://s3.amazonaws.com/hobu-lidar/autzen-classified.copc.laz
+          test "$(head -c 4 /tmp/autzen.copc.laz)" = "LASF"
+
+      - name: Install dependencies (wasm-spatial-core from npm)
+        run: npm install --registry=https://registry.npmjs.org
+        working-directory: loaders/copc-loader
+
+      - name: Run loader tests (parse + HTTP-range streaming over local server)
+        run: npm test
+        working-directory: loaders/copc-loader
+
   browser-test:
     name: Headless browser tests (W3.6 Cesium + W4 WebGPU bench)
     needs: rust

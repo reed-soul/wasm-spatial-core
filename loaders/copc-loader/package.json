@@ -1,0 +1,53 @@
+{
+  "name": "copc-loader",
+  "version": "0.1.0",
+  "description": "COPC (Cloud Optimized Point Cloud) loader for loaders.gl — WASM LAZ decompression, HTTP-range streaming, zero server required",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/reed-soul/wasm-spatial-core.git",
+    "directory": "loaders/copc-loader"
+  },
+  "homepage": "https://github.com/reed-soul/wasm-spatial-core/tree/master/loaders/copc-loader#readme",
+  "bugs": {
+    "url": "https://github.com/reed-soul/wasm-spatial-core/issues"
+  },
+  "keywords": [
+    "copc",
+    "las",
+    "laz",
+    "point-cloud",
+    "lidar",
+    "loaders.gl",
+    "deck.gl",
+    "webassembly",
+    "wasm",
+    "gis",
+    "geospatial",
+    "streaming"
+  ],
+  "type": "module",
+  "main": "./src/index.js",
+  "module": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    }
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node test/copc-loader.test.mjs"
+  },
+  "dependencies": {
+    "wasm-spatial-core": "^0.10.1"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.2] - 2026-08-28
+
+### Fixed
+
+- **`/node` subpath broken for ESM consumers** — the Node entry re-exported
+  named bindings from the nodejs-target CommonJS glue via
+  `export { x } from './pkg-node/...'`, which depends on cjs-module-lexer
+  static analysis; the glue (top-level side-effect wasm instantiation,
+  thousands of scattered `exports.x =` assignments) defeats it and every
+  ESM import of `wasm-spatial-core/node` failed with
+  "does not provide an export named 'version'". The entry now loads the
+  glue via `createRequire` and re-exports real ESM bindings. CommonJS
+  consumers were unaffected.
+
 ## [0.10.1] - 2026-08-28
 
 Follow-up to 0.10.0's real-file COPC support, aimed at streaming consumers
