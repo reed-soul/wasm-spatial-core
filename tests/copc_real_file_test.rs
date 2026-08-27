@@ -83,4 +83,23 @@ fn copc_real_file_end_to_end() {
         last.1,
         "last chunk must decompress"
     );
+
+    // Standalone chunk decompression (streaming path): same chunk, but from
+    // just its own bytes — no full file, no chunk table seek.
+    let data_start = info.point_data_offset as usize + 8;
+    let start = data_start + last.0 as usize;
+    let end = start + last.2 as usize;
+    let standalone = wasm_spatial_core::read_copc_chunk_standalone_core(
+        &bytes[start..end],
+        last.1 as usize,
+        header_bytes,
+    )
+    .unwrap();
+    assert_eq!(standalone.point_count() as u64, last.1);
+    // Same first point as the full-file path.
+    let a = standalone.positions_native();
+    let b = cloud.positions_native();
+    assert_eq!(a[0], b[0]);
+    assert_eq!(a[1], b[1]);
+    assert_eq!(a[2], b[2]);
 }

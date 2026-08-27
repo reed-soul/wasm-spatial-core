@@ -765,24 +765,28 @@ pub fn parse_copc_header(bytes: &[u8]) -> Result<js_sys::Object, SpatialErrorDet
     Ok(info.to_json_object())
 }
 
-/// Decompress a single COPC chunk from the file bytes.
-///
-/// # Arguments
-///
-/// * `bytes` — Full COPC file bytes.
-/// * `chunk_offset` — Byte offset of the chunk relative to point data start.
-/// * `chunk_size` — Compressed size of the chunk in bytes.
-/// * `expected_points` — Expected number of points in this chunk.
-/// * `header_bytes` — First 375+ bytes of the file (used to locate LASZIP VLR).
+/// LAS/LAZ header context needed to decode point records (Copy scalars).
 #[cfg(feature = "laz-support")]
-pub fn read_copc_chunk_core(
-    bytes: &[u8],
-    chunk_offset: u64,
-    chunk_size: u64,
-    expected_points: usize,
-    header_bytes: &[u8],
-) -> Result<LasPointCloud, String> {
-    // Find LASZIP VLR from header
+#[derive(Clone, Copy)]
+struct LasHeaderContext {
+    point_data_offset: u64,
+    x_scale: f64,
+    y_scale: f64,
+    z_scale: f64,
+    x_offset: f64,
+    y_offset: f64,
+    z_offset: f64,
+    point_size: usize,
+    has_color: bool,
+    rgb_offset: usize,
+}
+
+/// Parse scale/offset and locate the LASZIP VLR in a header+VLR byte slice.
+#[cfg(feature = "laz-support")]
+fn parse_laszip_context(header_bytes: &[u8]) -> Result<(LasHeaderContext, laz::LazVlr), String> {
+    if header_bytes.len() < 375 {
+        return Err("Header slice too short for LAS 1.4 (need 375+ bytes)".to_string());
+    }
     let mut cursor = Cursor::new(header_bytes);
     cursor
         .seek(SeekFrom::Start(94))
@@ -792,7 +796,6 @@ pub fn read_copc_chunk_core(
     let num_vlrs = read_u32_from_cursor(&mut cursor)?;
     let point_format_id = read_u8_from_cursor(&mut cursor)?;
 
-    // Scale/offset
     let x_scale = read_f64_le(header_bytes, 131);
     let y_scale = read_f64_le(header_bytes, 139);
     let z_scale = read_f64_le(header_bytes, 147);
@@ -830,11 +833,10 @@ pub fn read_copc_chunk_core(
             );
         }
     }
-
-    let laz_vlr = laszip_vlr.ok_or("LASZIP VLR not found".to_string())?;
-    let point_size = laz_vlr.items_size() as usize;
+    let vlr = laszip_vlr.ok_or("LASZIP VLR not found".to_string())?;
+    let point_size = vlr.items_size() as usize;
     let has_color = matches!(point_format_id & 0x3F, 2 | 3 | 5 | 7 | 8 | 10)
-        || laz_vlr.items().iter().any(|item| {
+        || vlr.items().iter().any(|item| {
             matches!(
                 item.item_type(),
                 laz::LazItemType::RGB12 | laz::LazItemType::RGB14
@@ -848,6 +850,146 @@ pub fn read_copc_chunk_core(
     } else {
         28
     };
+
+    Ok((
+        LasHeaderContext {
+            point_data_offset,
+            x_scale,
+            y_scale,
+            z_scale,
+            x_offset,
+            y_offset,
+            z_offset,
+            point_size,
+            has_color,
+            rgb_offset,
+        },
+        vlr,
+    ))
+}
+
+/// Drain `expected_points` points from a decompressor into a LasPointCloud.
+#[cfg(feature = "laz-support")]
+fn decompress_points_into_cloud<R: std::io::Read + std::io::Seek + Send + Sync>(
+    decompressor: &mut laz::LasZipDecompressor<'_, R>,
+    ctx: &LasHeaderContext,
+    expected_points: usize,
+) -> LasPointCloud {
+    let mut positions: Vec<f32> = Vec::with_capacity(expected_points * 3);
+    let mut colors: Option<Vec<u8>> = if ctx.has_color {
+        Some(Vec::with_capacity(expected_points * 3))
+    } else {
+        None
+    };
+
+    let mut point_buf = vec![0u8; ctx.point_size];
+    for _ in 0..expected_points {
+        match decompressor.decompress_one(&mut point_buf) {
+            Ok(()) => {}
+            Err(_) => break, // End of chunk
+        }
+
+        let raw_x = read_i32_le(&point_buf, 0) as f64;
+        let raw_y = read_i32_le(&point_buf, 4) as f64;
+        let raw_z = read_i32_le(&point_buf, 8) as f64;
+
+        positions.push((raw_x * ctx.x_scale + ctx.x_offset) as f32);
+        positions.push((raw_y * ctx.y_scale + ctx.y_offset) as f32);
+        positions.push((raw_z * ctx.z_scale + ctx.z_offset) as f32);
+
+        if ctx.has_color && point_buf.len() >= ctx.rgb_offset + 6 {
+            if let Some(ref mut c) = colors {
+                c.push(point_buf[ctx.rgb_offset + 1]);
+                c.push(point_buf[ctx.rgb_offset + 3]);
+                c.push(point_buf[ctx.rgb_offset + 5]);
+            }
+        }
+    }
+
+    LasPointCloud {
+        point_count: positions.len() as u32 / 3,
+        positions,
+        colors,
+    }
+}
+
+/// Decompress a single COPC/LAZ chunk from just its own compressed bytes.
+///
+/// Streaming-friendly variant of [`read_copc_chunk_core`]: needs neither the
+/// full file nor the real chunk table. The chunk is framed as a synthetic
+/// single-chunk LAZ stream — `[u64 table-offset][chunk bytes][1-entry table]`
+/// — so the decompressor can locate and size the chunk by itself.
+#[cfg(feature = "laz-support")]
+pub fn read_copc_chunk_standalone_core(
+    chunk_bytes: &[u8],
+    expected_points: usize,
+    header_bytes: &[u8],
+) -> Result<LasPointCloud, String> {
+    let (ctx, vlr) = parse_laszip_context(header_bytes)?;
+    if expected_points == 0 {
+        return Ok(LasPointCloud {
+            point_count: 0,
+            positions: Vec::new(),
+            colors: None,
+        });
+    }
+
+    // Frame: u64 offset-to-table (points past the chunk data), chunk data,
+    // then a single-entry chunk table describing exactly this chunk.
+    let mut table = laz::laszip::ChunkTable::with_capacity(1);
+    table.push(laz::laszip::ChunkTableEntry {
+        point_count: expected_points as u64,
+        byte_count: chunk_bytes.len() as u64,
+    });
+
+    let mut synth: Vec<u8> = Vec::with_capacity(8 + chunk_bytes.len() + 64);
+    synth.extend_from_slice(&((8 + chunk_bytes.len()) as u64).to_le_bytes());
+    synth.extend_from_slice(chunk_bytes);
+    table
+        .write_to(&mut synth, &vlr)
+        .map_err(|e| format!("Failed to encode synthetic chunk table: {}", e))?;
+
+    let mut decompressor = laz::LasZipDecompressor::new(Cursor::new(synth), vlr)
+        .map_err(|e| format!("Failed to create decompressor for chunk: {}", e))?;
+
+    Ok(decompress_points_into_cloud(
+        &mut decompressor,
+        &ctx,
+        expected_points,
+    ))
+}
+
+/// WASM binding: decompress a single COPC chunk from standalone bytes.
+#[cfg(feature = "laz-support")]
+#[wasm_bindgen(js_name = "readCopcChunkStandalone")]
+pub fn read_copc_chunk_standalone(
+    chunk_bytes: &[u8],
+    expected_points: u32,
+    header_bytes: &[u8],
+) -> Result<LasPointCloud, SpatialErrorDetail> {
+    read_copc_chunk_standalone_core(chunk_bytes, expected_points as usize, header_bytes)
+        .map_err(SpatialError::point_cloud_error)
+}
+
+/// Decompress a single COPC chunk from the file bytes.
+///
+/// # Arguments
+///
+/// * `bytes` — Full COPC file bytes.
+/// * `chunk_offset` — Byte offset of the chunk relative to point data start.
+/// * `chunk_size` — Compressed size of the chunk in bytes.
+/// * `expected_points` — Expected number of points in this chunk.
+/// * `header_bytes` — Header + VLR region (first `pointDataOffset` bytes).
+#[cfg(feature = "laz-support")]
+pub fn read_copc_chunk_core(
+    bytes: &[u8],
+    chunk_offset: u64,
+    chunk_size: u64,
+    expected_points: usize,
+    header_bytes: &[u8],
+) -> Result<LasPointCloud, String> {
+    let (ctx, laz_vlr) = parse_laszip_context(header_bytes)?;
+    let point_data_offset = ctx.point_data_offset;
 
     // The chunk's compressed data must lie inside the file.
     let absolute_offset = point_data_offset + 8 + chunk_offset; // +8 for chunk table offset
@@ -925,42 +1067,11 @@ pub fn read_copc_chunk_core(
         }
     }
 
-    let mut positions: Vec<f32> = Vec::with_capacity(expected_points * 3);
-    let mut colors: Option<Vec<u8>> = if has_color {
-        Some(Vec::with_capacity(expected_points * 3))
-    } else {
-        None
-    };
-
-    let mut point_buf = vec![0u8; point_size];
-    for _ in 0..expected_points {
-        match decompressor.decompress_one(&mut point_buf) {
-            Ok(()) => {}
-            Err(_) => break, // End of chunk
-        }
-
-        let raw_x = read_i32_le(&point_buf, 0) as f64;
-        let raw_y = read_i32_le(&point_buf, 4) as f64;
-        let raw_z = read_i32_le(&point_buf, 8) as f64;
-
-        positions.push((raw_x * x_scale + x_offset) as f32);
-        positions.push((raw_y * y_scale + y_offset) as f32);
-        positions.push((raw_z * z_scale + z_offset) as f32);
-
-        if has_color && point_buf.len() >= rgb_offset + 6 {
-            if let Some(ref mut c) = colors {
-                c.push(point_buf[rgb_offset + 1]);
-                c.push(point_buf[rgb_offset + 3]);
-                c.push(point_buf[rgb_offset + 5]);
-            }
-        }
-    }
-
-    Ok(LasPointCloud {
-        point_count: positions.len() as u32 / 3,
-        positions,
-        colors,
-    })
+    Ok(decompress_points_into_cloud(
+        &mut decompressor,
+        &ctx,
+        expected_points,
+    ))
 }
 
 /// WASM binding: Read a single COPC chunk.
@@ -1042,14 +1153,15 @@ pub fn read_copc_region(
 
     if let Some(chunks) = hierarchy_chunks {
         for chunk in chunks {
-            if chunk.offset < data_start {
-                continue; // invalid entry before point data region
+            // Hierarchy entries carry absolute file offsets + byte sizes —
+            // exactly what the standalone chunk decompressor takes.
+            let start = chunk.offset as usize;
+            let end = start.saturating_add(chunk.byte_size as usize);
+            if start < (data_start - 8) as usize || end > bytes.len() || end <= start {
+                continue; // invalid entry outside the point data region
             }
-            let rel_offset = chunk.offset - data_start;
-            if let Ok(chunk_cloud) = read_copc_chunk_core(
-                bytes,
-                rel_offset,
-                chunk.byte_size,
+            if let Ok(chunk_cloud) = read_copc_chunk_standalone_core(
+                &bytes[start..end],
                 chunk.point_count as usize,
                 header_bytes,
             ) {

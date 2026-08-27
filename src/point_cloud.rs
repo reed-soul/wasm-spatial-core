@@ -130,6 +130,14 @@ impl LasPointCloud {
     }
 }
 
+/// Native (non-wasm) accessor for tests and tools.
+#[cfg(not(target_arch = "wasm32"))]
+impl LasPointCloud {
+    pub fn positions_native(&self) -> &[f32] {
+        &self.positions
+    }
+}
+
 // ===========================================================================
 // Internal byte readers
 // ===========================================================================

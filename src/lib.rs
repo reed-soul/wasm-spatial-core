@@ -228,6 +228,8 @@ pub use e57::{is_e57_format, parse_e57_core, E57Result};
 pub use point_cloud_stream::compute_region_byte_range;
 
 #[cfg(feature = "laz-support")]
+pub use point_cloud_stream::read_copc_chunk_standalone_core;
+#[cfg(feature = "laz-support")]
 pub use point_cloud_stream::{laz_status, supports_laz, PointCloudStreamer};
 #[cfg(feature = "laz-support")]
 pub use point_cloud_stream::{parse_copc_header_core, read_copc_chunk_core};
