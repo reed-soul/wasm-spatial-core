@@ -5,6 +5,10 @@
  * a browser or COOP/COEP headers. The WASM module runs at near-native speed
  * while remaining portable across Linux, macOS, and Windows.
  *
+ * The nodejs-target glue is CommonJS with top-level side effects, which
+ * Node's ESM named-export detection (cjs-module-lexer) cannot analyse —
+ * so this entry loads it via `createRequire` instead of ESM re-exports.
+ *
  * @example
  * ```ts
  * import { loadSpatialCoreNode, batchPointCloudToTileset } from "wasm-spatial-core/node";
@@ -26,6 +30,7 @@
  */
 
 import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -38,31 +43,35 @@ export {
   type GeotiffBatchResult,
 } from "./batch.js";
 
-// Re-export commonly used APIs from the Node.js WASM bindings.
-export {
-  version,
-  parsePointCloudAuto,
-  buildOctree,
-  generateTileset,
-  generateTilesetWithSpacing,
-  estimatePointSpacing,
-  parseGeotiff,
-  encodeTerrainTileset,
-  encodeQuantizedMesh,
-  parseGeoJsonCoords,
-  batchWgs84ToGcj02,
-  batchWgs84ToMercator,
-  TilesetResult,
-  LasPointCloud,
-  GeotiffInfo,
-} from "./pkg-node/wasm_spatial_core.js";
-
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const nodeRequire = createRequire(import.meta.url);
 
+// Loaded through createRequire: ESM `export { x } from <cjs>` relies on
+// cjs-module-lexer, which fails on the nodejs-target glue.
 type PkgNodeModule = typeof import("./pkg-node/wasm_spatial_core.js");
+
+const bindings = nodeRequire("./pkg-node/wasm_spatial_core.js") as PkgNodeModule;
 
 /** The full wasm-bindgen Node.js API (everything except the init entry). */
 export type SpatialCoreNodeApi = Omit<PkgNodeModule, "default">;
+
+// Re-export commonly used APIs from the Node.js WASM bindings as real ESM
+// bindings (values captured from the CJS module object).
+export const version = bindings.version;
+export const parsePointCloudAuto = bindings.parsePointCloudAuto;
+export const buildOctree = bindings.buildOctree;
+export const generateTileset = bindings.generateTileset;
+export const generateTilesetWithSpacing = bindings.generateTilesetWithSpacing;
+export const estimatePointSpacing = bindings.estimatePointSpacing;
+export const parseGeotiff = bindings.parseGeotiff;
+export const encodeTerrainTileset = bindings.encodeTerrainTileset;
+export const encodeQuantizedMesh = bindings.encodeQuantizedMesh;
+export const parseGeoJsonCoords = bindings.parseGeoJsonCoords;
+export const batchWgs84ToGcj02 = bindings.batchWgs84ToGcj02;
+export const batchWgs84ToMercator = bindings.batchWgs84ToMercator;
+export const TilesetResult = bindings.TilesetResult;
+export const LasPointCloud = bindings.LasPointCloud;
+export const GeotiffInfo = bindings.GeotiffInfo;
 
 let corePromise: Promise<SpatialCoreNodeApi> | null = null;
 
@@ -73,22 +82,7 @@ let corePromise: Promise<SpatialCoreNodeApi> | null = null;
  */
 export async function loadSpatialCoreNode(): Promise<SpatialCoreNodeApi> {
   if (!corePromise) {
-    corePromise = (async () => {
-      const mod = (await import("./pkg-node/wasm_spatial_core.js")) as PkgNodeModule & {
-        default?: unknown;
-      };
-      // nodejs-target builds self-initialise on import; `default` is only a
-      // callable init(bytes) in older layouts, so probe before calling.
-      const init = mod.default as unknown;
-      if (typeof init === "function") {
-        const wasmPath = join(__dirname, "pkg-node/wasm_spatial_core_bg.wasm");
-        await (init as (bytes: Uint8Array) => Promise<unknown>)(
-          readFileSync(wasmPath),
-        );
-      }
-      const { default: _init, ...api } = mod;
-      return api;
-    })();
+    corePromise = Promise.resolve(bindings as SpatialCoreNodeApi);
   }
   return corePromise;
 }

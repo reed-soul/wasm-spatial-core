@@ -1,6 +1,6 @@
 {
   "name": "wasm-spatial-core",
-  "version": "0.10.1",
+  "version": "0.10.2",
   "description": "A high-performance WebAssembly spatial data processing engine for frontend Web3D/GIS applications",
   "author": "Qingxi <qingxi@zhiqiweilai.com>",
   "license": "MIT",
@@ -98,6 +98,7 @@
     "pkg/snippets",
     "pkg-node/wasm_spatial_core.js",
     "pkg-node/wasm_spatial_core.d.ts",
+    "pkg-node/package.json",
     "pkg-node/wasm_spatial_core_bg.wasm",
     "pkg-node/wasm_spatial_core_bg.wasm.d.ts",
     "pkg-node/snippets",
@@ -106,7 +107,7 @@
   ],
   "scripts": {
     "build:wasm": "cd .. && wasm-pack build --target web --release --out-dir npm/pkg -- --features point-cloud,geotiff,laz-support,mesh-ingest",
-    "build:wasm:node": "cd .. && wasm-pack build --target nodejs --release --out-dir npm/pkg-node -- --features point-cloud,geotiff,laz-support,mesh-ingest",
+    "build:wasm:node": "cd .. && wasm-pack build --target nodejs --release --out-dir npm/pkg-node -- --features point-cloud,geotiff,laz-support,mesh-ingest && echo '{\"type\":\"commonjs\"}' > npm/pkg-node/package.json",
     "build:wasm:mt": "cd .. && RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals' cargo +nightly build -Z build-std=panic_abort,std --target wasm32-unknown-unknown --release --features multi-thread,point-cloud,geotiff && wasm-bindgen --target web --out-dir npm/pkg target/wasm32-unknown-unknown/release/wasm_spatial_core.wasm",
     "build:wasm:pc": "cd .. && wasm-pack build --target web --release --out-dir npm/pkg -- --features point-cloud",
     "build:wasm:laz": "cd .. && wasm-pack build --target web --release --out-dir npm/pkg -- --features laz-support,geotiff",
