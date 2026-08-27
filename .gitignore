@@ -48,3 +48,6 @@ Thumbs.db
 # External agent/tool configs (not part of this repo)
 arbor_config.yaml
 .zcode/
+
+# Mimosa security-scanner session state (local tool output)
+.mimosa/
