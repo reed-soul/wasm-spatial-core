@@ -126,7 +126,10 @@ export {
   parseLazPointsStream,
   parseCopcHeader,
   readCopcChunk,
+  readCopcChunkStandalone,
   readCopcRegion,
+  copcQueryRanges,
+  copcEstimateDownloadSize,
   // ── Point Cloud Normals ──────────────────────────────────
   estimateNormals,
   flipNormals,

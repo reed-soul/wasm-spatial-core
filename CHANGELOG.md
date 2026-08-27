@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.1] - 2026-08-28
+
+Follow-up to 0.10.0's real-file COPC support, aimed at streaming consumers
+(the upcoming `copc-loader` npm package).
+
+### Added
+
+- **`readCopcChunkStandalone(chunkBytes, expectedPoints, headerBytes)`** —
+  decompress a single COPC/LAZ chunk from just its own compressed bytes:
+  no full file, no chunk table, no seek. The chunk is framed internally as a
+  synthetic single-chunk LAZ stream. This is the primitive HTTP-range
+  streaming needs — fetch a byte range, decode it, discard it.
+- `readCopcRegion`'s hierarchy path now uses the standalone decompressor
+  (absolute hierarchy offsets slice directly; no per-chunk chunk-table
+  decode or offset conversion).
+- Native `positions_native()` accessor on `LasPointCloud` for non-wasm
+  tests/tools.
+- npm wrapper re-exports `copcQueryRanges` / `copcEstimateDownloadSize`.
+
 ## [0.10.0] - 2026-08-16
 
 A correctness and packaging release. It ships the OCR-audit fixes — three
