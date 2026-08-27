@@ -478,6 +478,13 @@ impl CopcInfo {
             &JsValue::from(self.total_bytes as f64),
         )
         .ok();
+        // Alias consumed by copcQueryRanges (JSON round-trip of this object).
+        js_sys::Reflect::set(
+            &obj,
+            &"fileSize".into(),
+            &JsValue::from(self.total_bytes as f64),
+        )
+        .ok();
         js_sys::Reflect::set(
             &obj,
             &"pointDataOffset".into(),
@@ -601,15 +608,16 @@ pub fn parse_copc_header_core(bytes: &[u8]) -> Result<CopcInfo, String> {
     let y_offset = read_f64_from_cursor(&mut cursor)?;
     let z_offset = read_f64_from_cursor(&mut cursor)?;
 
-    // Bounds
+    // Bounds — ASPRS public header layout from offset 179 is interleaved:
+    // MaxX, MinX, MaxY, MinY, MaxZ, MinZ (8 bytes each).
     cursor
-        .seek(SeekFrom::Start(182))
+        .seek(SeekFrom::Start(179))
         .map_err(|e| e.to_string())?;
     let max_x = read_f64_from_cursor(&mut cursor)?;
-    let max_y = read_f64_from_cursor(&mut cursor)?;
-    let max_z = read_f64_from_cursor(&mut cursor)?;
     let min_x = read_f64_from_cursor(&mut cursor)?;
+    let max_y = read_f64_from_cursor(&mut cursor)?;
     let min_y = read_f64_from_cursor(&mut cursor)?;
+    let max_z = read_f64_from_cursor(&mut cursor)?;
     let min_z = read_f64_from_cursor(&mut cursor)?;
 
     // Scan VLRs to find LASZIP VLR
@@ -666,12 +674,9 @@ pub fn parse_copc_header_core(bytes: &[u8]) -> Result<CopcInfo, String> {
         .seek(SeekFrom::Start(point_data_offset))
         .map_err(|e| e.to_string())?;
 
-    // Read chunk table from LAZ data
-    let chunk_table =
-        read_chunk_table_from_laz(bytes, point_data_offset, &laz_vlr).unwrap_or_else(|_| {
-            // Chunk table parsing is non-critical; use fallback
-            Vec::new()
-        });
+    // Read chunk table from LAZ data. Non-critical on failure: hierarchy
+    // queries (readCopcRegion) and whole-file decompression still work.
+    let chunk_table = read_chunk_table_from_laz(bytes, point_data_offset, &laz_vlr, point_count);
 
     let total_bytes = bytes.len() as u64;
 
@@ -696,52 +701,60 @@ pub fn parse_copc_header_core(bytes: &[u8]) -> Result<CopcInfo, String> {
 
 /// Read the chunk table from a LAZ data stream.
 ///
-/// Returns a list of (byte_offset, point_count, byte_size) entries.
+/// Returns a list of (byte_offset, point_count, byte_size) entries, where
+/// `byte_offset` is relative to the start of the compressed point data
+/// (i.e. `point_data_offset + 8`, after the u64 chunk-table-offset field).
 #[cfg(feature = "laz-support")]
 fn read_chunk_table_from_laz(
     bytes: &[u8],
     point_data_offset: u64,
     vlr: &laz::LazVlr,
-) -> Result<Vec<(u64, u64, u64)>, String> {
-    let compressed_slice = &bytes[point_data_offset as usize..];
-    if compressed_slice.len() < 16 {
-        return Ok(Vec::new());
+    total_point_count: u64,
+) -> Vec<(u64, u64, u64)> {
+    let mut cursor = Cursor::new(bytes);
+    if cursor.seek(SeekFrom::Start(point_data_offset)).is_err() {
+        return Vec::new();
     }
 
-    // Read the 8-byte chunk table offset from start of compressed data
-    let offset_to_chunk_table = i64::from_le_bytes(
-        compressed_slice[0..8]
-            .try_into()
-            .map_err(|_| "Failed to read chunk offset")?,
-    );
+    let table = match laz::laszip::ChunkTable::read_from(&mut cursor, vlr) {
+        Ok(t) => t,
+        Err(_) => {
+            // No chunk table (streamed LAZ). Treat all compressed data as a
+            // single chunk bounded by the declared point count.
+            let data_len = (bytes.len() as u64).saturating_sub(point_data_offset + 8);
+            if data_len == 0 || total_point_count == 0 {
+                return Vec::new();
+            }
+            return vec![(0, total_point_count, data_len)];
+        }
+    };
 
-    if offset_to_chunk_table <= 0 {
-        return Ok(Vec::new());
+    let n = table.len();
+    if n == 0 {
+        return Vec::new();
     }
 
-    // The offset is absolute within the compressed data stream
-    let ct_pos = offset_to_chunk_table as usize;
-    if ct_pos + 8 > compressed_slice.len() {
-        return Ok(Vec::new());
+    // For fixed-size chunks the table only stores byte counts; per-entry
+    // point_count is the fixed chunk size (last chunk holds the remainder).
+    let fixed_chunk_size: Option<u64> = if vlr.uses_variable_size_chunks() {
+        None
+    } else {
+        Some(u64::from(vlr.chunk_size()).max(1))
+    };
+
+    let mut entries = Vec::with_capacity(n);
+    let mut rel_offset: u64 = 0;
+    for i in 0..n {
+        let entry = &table[i];
+        let count = match fixed_chunk_size {
+            Some(size) if i + 1 == n => total_point_count.saturating_sub(size * (n as u64 - 1)),
+            Some(size) => size,
+            None => entry.point_count,
+        };
+        entries.push((rel_offset, count, entry.byte_count));
+        rel_offset = rel_offset.saturating_add(entry.byte_count);
     }
-
-    // Read version and count from the chunk table header
-    let _version = u32::from_le_bytes(compressed_slice[ct_pos..ct_pos + 4].try_into().unwrap());
-    let _num_entries =
-        u32::from_le_bytes(compressed_slice[ct_pos + 4..ct_pos + 8].try_into().unwrap());
-
-    // Chunk entries are arithmetic-coded. We can't decode them without the laz crate's
-    // internal decoder. Instead, compute boundaries from the data layout.
-    // Data layout: [8-byte offset] [compressed chunks...] [chunk table at ct_pos]
-    let chunk_data_size = ct_pos.saturating_sub(8);
-    let chunk_size = vlr.chunk_size() as u64;
-
-    let mut entries = Vec::new();
-    if chunk_data_size > 0 {
-        entries.push((0, chunk_size, chunk_data_size as u64));
-    }
-
-    Ok(entries)
+    entries
 }
 
 /// WASM binding: Parse COPC header and return info as JSON object.
@@ -819,8 +832,24 @@ pub fn read_copc_chunk_core(
     }
 
     let laz_vlr = laszip_vlr.ok_or("LASZIP VLR not found".to_string())?;
+    let point_size = laz_vlr.items_size() as usize;
+    let has_color = matches!(point_format_id & 0x3F, 2 | 3 | 5 | 7 | 8 | 10)
+        || laz_vlr.items().iter().any(|item| {
+            matches!(
+                item.item_type(),
+                laz::LazItemType::RGB12 | laz::LazItemType::RGB14
+            )
+        });
+    // ASPRS point formats with RGB: 2/3 are Point10+RGB12 (RGB at byte 20);
+    // 5/7/8/10 insert GPSTIME8 before RGB (RGB at byte 28). Channels are u16
+    // little-endian; the 8-bit value is the high byte of each channel.
+    let rgb_offset: usize = if matches!(point_format_id & 0x3F, 2 | 3) {
+        20
+    } else {
+        28
+    };
 
-    // Get the chunk's compressed data
+    // The chunk's compressed data must lie inside the file.
     let absolute_offset = point_data_offset + 8 + chunk_offset; // +8 for chunk table offset
     let end = (absolute_offset + chunk_size) as usize;
     if end > bytes.len() {
@@ -831,18 +860,70 @@ pub fn read_copc_chunk_core(
         ));
     }
 
-    let chunk_slice = &bytes[absolute_offset as usize..end];
-    let point_size = laz_vlr.items_size() as usize;
-    let has_color = matches!(point_format_id & 0x3F, 2 | 3 | 8)
-        || laz_vlr.items().iter().any(|item| {
-            matches!(
-                item.item_type(),
-                laz::LazItemType::RGB12 | laz::LazItemType::RGB14
-            )
-        });
+    // LasZipDecompressor reads the chunk table itself from the source and
+    // supports seeking to a global point index, so build it over the full
+    // file instead of a single-chunk slice. Map the chunk's byte offset to
+    // the global point index where it starts.
+    let version_minor = *header_bytes.get(25).unwrap_or(&0);
+    let total_point_count: u64 = if version_minor == 4 && header_bytes.len() >= 255 {
+        u64::from_le_bytes(
+            header_bytes[247..255]
+                .try_into()
+                .map_err(|_| "Header too short for 64-bit point count".to_string())?,
+        )
+    } else if header_bytes.len() >= 111 {
+        read_u32_le(header_bytes, 107) as u64
+    } else {
+        0
+    };
+    let table = read_chunk_table_from_laz(bytes, point_data_offset, &laz_vlr, total_point_count);
 
-    let mut decompressor = laz::LasZipDecompressor::new(Cursor::new(chunk_slice), laz_vlr)
+    let mut global_point_start: Option<u64> = None;
+    let mut cumulative_points: u64 = 0;
+    for &(offset, count, size) in &table {
+        if chunk_offset >= offset && chunk_offset < offset + size.max(1) {
+            global_point_start = Some(cumulative_points);
+            break;
+        }
+        cumulative_points += count;
+    }
+
+    let mut cursor = Cursor::new(bytes);
+    cursor
+        .seek(SeekFrom::Start(point_data_offset))
+        .map_err(|e| e.to_string())?;
+    let mut decompressor = laz::LasZipDecompressor::new(cursor, laz_vlr)
         .map_err(|e| format!("Failed to create decompressor for chunk: {}", e))?;
+
+    if let Some(idx) = global_point_start {
+        // laz 0.12's seek() computes the in-chunk delta as `point_idx %
+        // chunk_point_count`, which is only correct for fixed-size chunks.
+        // COPC chunks are variable-sized, so seeking to the chunk's exact
+        // first point index lands mid-chunk (delta = cum % count) and drops
+        // the first `delta` points. Round up to the first multiple of this
+        // chunk's point count inside the chunk — every half-open interval
+        // [cum, cum + count) contains exactly one such multiple — forcing
+        // delta to 0 and seek to the chunk start.
+        let chunk_count = expected_points.max(1) as u64;
+        let aligned = chunk_count * idx.div_ceil(chunk_count);
+        let aligned = if aligned >= idx + chunk_count {
+            idx
+        } else {
+            aligned
+        };
+        decompressor
+            .seek(aligned)
+            .map_err(|e| format!("Failed to seek to chunk at offset {}: {}", chunk_offset, e))?;
+    } else {
+        // Chunk-table-less LAZ: only chunk offset 0 (sequential start) can
+        // be decompressed without a table.
+        if chunk_offset != 0 {
+            return Err(format!(
+                "Chunk offset {} not found in chunk table",
+                chunk_offset
+            ));
+        }
+    }
 
     let mut positions: Vec<f32> = Vec::with_capacity(expected_points * 3);
     let mut colors: Option<Vec<u8>> = if has_color {
@@ -866,11 +947,11 @@ pub fn read_copc_chunk_core(
         positions.push((raw_y * y_scale + y_offset) as f32);
         positions.push((raw_z * z_scale + z_offset) as f32);
 
-        if has_color && point_buf.len() >= 23 {
+        if has_color && point_buf.len() >= rgb_offset + 6 {
             if let Some(ref mut c) = colors {
-                c.push(point_buf[20]);
-                c.push(point_buf[21]);
-                c.push(point_buf[22]);
+                c.push(point_buf[rgb_offset + 1]);
+                c.push(point_buf[rgb_offset + 3]);
+                c.push(point_buf[rgb_offset + 5]);
             }
         }
     }
@@ -934,7 +1015,14 @@ pub fn read_copc_region(
 
     let mut all_positions: Vec<f32> = Vec::new();
     let mut all_colors: Option<Vec<u8>> = None;
-    let header_bytes = &bytes[..std::cmp::min(375, bytes.len())];
+    // The VLR region (LASZIP VLR included) ends at point_data_offset — the
+    // per-chunk decompressor re-parses VLRs from this slice, so it must span
+    // the full header + VLR region, not just the fixed 375-byte header.
+    let header_bytes = &bytes[..std::cmp::min(info.point_data_offset as usize, bytes.len())];
+    // Compressed point data starts right after the u64 chunk-table-offset
+    // field at point_data_offset. Hierarchy entries carry absolute file
+    // offsets; read_copc_chunk_core expects offsets relative to data start.
+    let data_start = info.point_data_offset + 8;
 
     let query = Bbox3d {
         min_x,
@@ -954,9 +1042,13 @@ pub fn read_copc_region(
 
     if let Some(chunks) = hierarchy_chunks {
         for chunk in chunks {
+            if chunk.offset < data_start {
+                continue; // invalid entry before point data region
+            }
+            let rel_offset = chunk.offset - data_start;
             if let Ok(chunk_cloud) = read_copc_chunk_core(
                 bytes,
-                chunk.offset,
+                rel_offset,
                 chunk.byte_size,
                 chunk.point_count as usize,
                 header_bytes,
@@ -1339,10 +1431,11 @@ mod tests {
                 p[0..4].copy_from_slice(&(x as i32).to_le_bytes());
                 p[4..8].copy_from_slice(&(y as i32).to_le_bytes());
                 p[8..12].copy_from_slice(&(z as i32).to_le_bytes());
-                if has_color && p.len() >= 23 {
-                    p[20] = 255;
-                    p[21] = 128;
-                    p[22] = 0;
+                if has_color && p.len() >= 26 {
+                    // Format 2 RGB: three u16 little-endian at bytes 20..26.
+                    p[20..22].copy_from_slice(&(255u16 << 8).to_le_bytes());
+                    p[22..24].copy_from_slice(&(128u16 << 8).to_le_bytes());
+                    p[24..26].copy_from_slice(&0u16.to_le_bytes());
                 }
                 p
             })
@@ -1405,12 +1498,13 @@ mod tests {
         buf[131..139].copy_from_slice(&1.0_f64.to_le_bytes()); // x scale
         buf[139..147].copy_from_slice(&1.0_f64.to_le_bytes()); // y scale
         buf[147..155].copy_from_slice(&1.0_f64.to_le_bytes()); // z scale
-        buf[182..190].copy_from_slice(&max_x.to_le_bytes());
-        buf[190..198].copy_from_slice(&max_y.to_le_bytes());
-        buf[198..206].copy_from_slice(&max_z.to_le_bytes());
-        buf[206..214].copy_from_slice(&min_x.to_le_bytes());
-        buf[214..222].copy_from_slice(&min_y.to_le_bytes());
-        buf[222..230].copy_from_slice(&min_z.to_le_bytes());
+                                                               // ASPRS interleaved layout: MaxX, MinX, MaxY, MinY, MaxZ, MinZ.
+        buf[179..187].copy_from_slice(&max_x.to_le_bytes());
+        buf[187..195].copy_from_slice(&min_x.to_le_bytes());
+        buf[195..203].copy_from_slice(&max_y.to_le_bytes());
+        buf[203..211].copy_from_slice(&min_y.to_le_bytes());
+        buf[211..219].copy_from_slice(&max_z.to_le_bytes());
+        buf[219..227].copy_from_slice(&min_z.to_le_bytes());
 
         // Build VLR
         buf.resize(buf.len() + vlr_total_size, 0);

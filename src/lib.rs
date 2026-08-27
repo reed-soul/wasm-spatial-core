@@ -229,6 +229,8 @@ pub use point_cloud_stream::compute_region_byte_range;
 
 #[cfg(feature = "laz-support")]
 pub use point_cloud_stream::{laz_status, supports_laz, PointCloudStreamer};
+#[cfg(feature = "laz-support")]
+pub use point_cloud_stream::{parse_copc_header_core, read_copc_chunk_core};
 
 pub use ifc_reader::{parse_ifc_geometry_core, IfcGeometryResult, IfcMesh};
 
