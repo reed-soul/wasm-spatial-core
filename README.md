@@ -403,15 +403,21 @@ npm run demo
 | Feature | In npm | Default crate | Description |
 |---------|--------|---------------|-------------|
 | `single-thread` | ✅ | ✅ | Zero-config, works everywhere |
-| `point-cloud` | ✅ | ❌ | LAS/PLY/OBJ/PCD + octree + 3D Tiles |
+| `point-cloud` | ✅ | ✅ | LAS/PLY/OBJ/PCD + octree + 3D Tiles |
 | `geotiff` | ✅ | ❌ | GeoTIFF terrain + quantized-mesh |
+| `laz-support` | ✅ (since 0.10) | ❌ | LAZ/COPC decompression (used by [copc-loader](https://www.npmjs.com/package/copc-loader)) |
+| `mesh-ingest` | ✅ (since 0.10) | ❌ | Spatial IR + GLB ingest (Wave 2) |
 | `multi-thread` | ❌ | ❌ | Web Workers + SharedArrayBuffer |
-| `laz-support` | ❌ | ❌ | LAZ/COPC decompression (+ ~400 KB WASM) |
 | `e57-support` | ❌ | ❌ | E57 format |
 | `terrain-edit` | ❌ | ❌ | Heightfield flatten/deform (requires `geotiff`) |
-| `mesh-ingest` | ❌ | ❌ | Spatial IR + GLB ingest (Wave 2) |
 | `mesh-edit` | ❌ | ❌ | Mesh QEM / OBB split (requires `mesh-ingest`) |
 | `draco-support` | ❌ | ❌ | Draco compression API (JS-side via draco3d) |
+
+❌ in the "In npm" column means **implemented but not compiled into the
+default npm WASM** (to control binary size) — build from source with
+`wasm-pack build --target web --release -- --features <flags>` to enable.
+The JS-side Draco helper (`wasm-spatial-core/draco` with the `draco3d` npm
+package) ships in npm regardless of the flag.
 
 ---
 
