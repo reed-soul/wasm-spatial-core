@@ -132,7 +132,7 @@ jobs:
       # decompression. Cashed to keep runs fast.
       - name: Cache COPC sample
         id: copc-sample
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: /tmp/autzen.copc.laz
           key: autzen-classified-copc-laz
