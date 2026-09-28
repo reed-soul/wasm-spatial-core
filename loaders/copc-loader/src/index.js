@@ -245,7 +245,26 @@ class RangeFetcher {
   }
 
   async range(start, end) {
-    // end inclusive
+    // end inclusive. Retry transient undici `TypeError: fetch failed`
+    // (ECONNRESET / keep-alive pool reuse) — CI copc-loader runs 278
+    // concurrent range fetches against a tiny Node http server.
+    let lastErr;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        return await this.rangeOnce(start, end);
+      } catch (err) {
+        lastErr = err;
+        const transient =
+          err instanceof TypeError ||
+          (err && err.cause && (err.cause.code === 'ECONNRESET' || err.cause.code === 'ECONNREFUSED'));
+        if (!transient || attempt === 2) throw err;
+        await new Promise((r) => setTimeout(r, 40 * (attempt + 1)));
+      }
+    }
+    throw lastErr;
+  }
+
+  async rangeOnce(start, end) {
     const res = await this.fetch(this.url, {
       headers: { Range: `bytes=${start}-${end}` },
     });
