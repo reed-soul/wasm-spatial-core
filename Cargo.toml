@@ -89,7 +89,7 @@ wasm-bindgen-test = "0.3"
 
 # Native-only: Criterion/Rayon do not build for wasm32-unknown-unknown.
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-criterion = { version = "0.5", features = ["html_reports"] }
+criterion = { version = "0.8", features = ["html_reports"] }
 # Stay on rand 0.8: 0.9+ pulls getrandom 0.3/0.4, which still lacks a
 # wasm32-unknown-unknown backend we can enable without the wasm-bindgen pin
 # conflict documented in ROADMAP_V1.md (Draco/getrandom blocker).
