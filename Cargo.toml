@@ -61,11 +61,11 @@ geojsonvt = "0.1.0"
 mvt = "0.13.0"
 geozero = { version = "0.15.1", features = ["with-mvt", "with-geojson"] }
 earcutr = "0.5.0"
-prost = "0.14"
+prost = "0.14.4"
 laz = { version = "0.12.1", optional = true }
 wasm-bindgen-futures = "0.4"
 byteorder = "1.5"
-e57 = { version = "0.11.12", optional = true }
+e57 = { version = "0.11.13", optional = true }
 flate2 = "1.1"
 weezl = "0.2"
 
@@ -90,6 +90,9 @@ wasm-bindgen-test = "0.3"
 # Native-only: Criterion/Rayon do not build for wasm32-unknown-unknown.
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
+# Stay on rand 0.8: 0.9+ pulls getrandom 0.3/0.4, which still lacks a
+# wasm32-unknown-unknown backend we can enable without the wasm-bindgen pin
+# conflict documented in ROADMAP_V1.md (Draco/getrandom blocker).
 rand = "0.8"
 
 # Browser `wasm-pack test` harness.

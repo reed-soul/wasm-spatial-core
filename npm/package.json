@@ -119,8 +119,8 @@
     "pack:dry-run": "npm pack --dry-run"
   },
   "devDependencies": {
-    "@types/node": "^26.2.0",
-    "@webgpu/types": "^0.1.71",
+    "@types/node": "^26.4.0",
+    "@webgpu/types": "^0.1.72",
     "typescript": "^5.4.0"
   },
   "publishConfig": {

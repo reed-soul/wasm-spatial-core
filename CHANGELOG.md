@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Dependency and CI housekeeping from the Dependabot backlog: `prost` 0.14.4,
+  `e57` 0.11.13, `serde_json` 1.0.151, Playwright 1.63, `@types/node` 26.6,
+  `@webgpu/types` 0.1.74, `actions/setup-node` v7, `actions/setup-python` v7,
+  remaining `actions/cache` v6, `softprops/action-gh-release` v3.
+  `geojson` 1.0, `rand` 0.10, and TypeScript 7 are deferred (see Dependabot
+  ignore notes in `.github/dependabot.yml`).
+- Site/docs version badges synced to 0.10.2. `scripts/check-version-sync.sh`
+  no longer aborts on the first grep miss (`pipefail`), which was failing
+  every Dependabot PR's Rust CI in ~10s.
+- `copc-loader` HTTP range fetches retry transient `TypeError: fetch failed`
+  (keep-alive pool / ECONNRESET), which was flaking the bbox-filter CI test.
+
 ## [0.10.2] - 2026-08-28
 
 ### Fixed
