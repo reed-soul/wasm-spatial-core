@@ -1,10 +1,10 @@
 {
-  "generated_at": "2026-08-15T20:56:41.521Z",
+  "generated_at": "2026-09-28T08:44:51.282Z",
   "rows": [
     {
-      "timestamp": "2026-08-15T20:56:41.474Z",
+      "timestamp": "2026-09-28T08:44:51.232Z",
       "hardware": {
-        "node": "v24.19.0",
+        "node": "v24.21.0",
         "platform": "linux",
         "arch": "x64",
         "cpus": 4,
@@ -20,19 +20,19 @@
       "output_bytes": 0,
       "tile_count": 0,
       "wall_ms": {
-        "total": 2.6,
-        "parse_ms": 2.6,
-        "min": 2.1,
-        "max": 3.7,
+        "total": 2.2,
+        "parse_ms": 2.2,
+        "min": 1.9,
+        "max": 2.6,
         "runs": 3
       },
       "peak_rss_mb": 150,
       "notes": "PARSE-ONLY. @loaders.gl/tiles not installed. loaders.gl reads LAS but has no shipped LAS→pnts/3D-Tiles writer; output_bytes=0 is the documented capability gap, not a timeout. Tile generation would require a custom writer or a separate tool."
     },
     {
-      "timestamp": "2026-08-15T20:56:41Z",
+      "timestamp": "2026-09-28T08:44:51Z",
       "hardware": {
-        "python": "3.12.13",
+        "python": "3.12.14",
         "platform": "linux",
         "arch": "x86_64",
         "cpus": 4
@@ -46,18 +46,18 @@
       "output_bytes": 7943205,
       "tile_count": 40,
       "wall_ms": {
-        "total": 3720.6,
-        "min": 3697.1,
-        "max": 3759.2,
+        "total": 3675.3,
+        "min": 3668,
+        "max": 3679.5,
         "runs": 5
       },
-      "peak_rss_mb": 246,
+      "peak_rss_mb": 245,
       "notes": "py3dtiles convert, no reprojection (matches wasm no-op). point_count=-1 means not readable from tileset.json; byte-count parity is the verification axis. RSS is child-process max across all runs (coarse)."
     },
     {
-      "timestamp": "2026-08-15T20:56:10.662Z",
+      "timestamp": "2026-09-28T08:44:20.922Z",
       "hardware": {
-        "node": "v24.19.0",
+        "node": "v24.21.0",
         "platform": "linux",
         "arch": "x64",
         "cpus": 4,
@@ -65,7 +65,7 @@
         "total_mem_mb": 15990
       },
       "engine": "wasm-spatial-core",
-      "engine_version": "0.10.0",
+      "engine_version": "0.10.2",
       "input": "bench/head-to-head/fixtures/canonical_500k.las",
       "input_digest_sha256_12": "7948d11316ef",
       "input_size_mb": 14,
@@ -73,13 +73,13 @@
       "output_bytes": 6020200,
       "tile_count": 64,
       "wall_ms": {
-        "total": 75.9,
-        "parse_ms": 12,
-        "min": 75.6,
-        "max": 76.7,
+        "total": 75.6,
+        "parse_ms": 11.6,
+        "min": 74.8,
+        "max": 76.4,
         "runs": 5
       },
-      "peak_rss_mb": 189,
+      "peak_rss_mb": 190,
       "notes": "parsePointCloudAuto → generateTileset (octree + pnts encode in one call)"
     }
   ]
