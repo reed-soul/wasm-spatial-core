@@ -799,9 +799,9 @@ dependencies = [
 
 [[package]]
 name = "laz"
-version = "0.12.1"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "efb1d9809cf87aa6500b6010e1164c6b6cd3cc15202ba79d6bb1dfb84c555a9b"
+checksum = "5a1bd8242fad6a61a7520b73d072ddf63dff1f3680e3f5c157b1dc6e8e5ab2ec"
 dependencies = [
  "byteorder",
  "num-traits",
