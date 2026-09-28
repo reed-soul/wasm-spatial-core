@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   remaining `actions/cache` v6, `softprops/action-gh-release` v3.
   `geojson` 1.0, `rand` 0.10, and TypeScript 7 are deferred (see Dependabot
   ignore notes in `.github/dependabot.yml`).
+- Site/docs version badges synced to 0.10.2. `scripts/check-version-sync.sh`
+  no longer aborts on the first grep miss (`pipefail`), which was failing
+  every Dependabot PR's Rust CI in ~10s.
 
 ## [0.10.2] - 2026-08-28
 
