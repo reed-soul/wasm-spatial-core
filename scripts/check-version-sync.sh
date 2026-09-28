@@ -27,7 +27,9 @@ check() {
     fail=1
     return
   fi
-  count=$(grep -oF "$VERSION" "$file" | wc -l | tr -d ' ')
+  # grep exits 1 when there are zero matches; with `set -o pipefail` that
+  # would abort the script before we can report which file drifted.
+  count=$( { grep -oF "$VERSION" "$file" || true; } | wc -l | tr -d ' ')
   if [ "$count" -lt "$min" ]; then
     echo "✗ $file: expected ≥$min occurrence(s) of $VERSION, found $count" >&2
     fail=1
