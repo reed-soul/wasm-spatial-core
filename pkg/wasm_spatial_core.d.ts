@@ -3295,6 +3295,11 @@ export function quantizePositions(positions: Float32Array, bits?: number | null)
 export function readCopcChunk(bytes: Uint8Array, chunk_offset: number, chunk_size: number, expected_points: number, header_bytes: Uint8Array): LasPointCloud;
 
 /**
+ * WASM binding: decompress a single COPC chunk from standalone bytes.
+ */
+export function readCopcChunkStandalone(chunk_bytes: Uint8Array, expected_points: number, header_bytes: Uint8Array): LasPointCloud;
+
+/**
  * WASM binding: Read COPC points from a bounding box region.
  *
  * Iterates through all chunks, decompresses each one, and filters
@@ -4048,6 +4053,7 @@ export interface InitOutput {
     readonly quantizeresult_bounds: (a: number) => number;
     readonly quantizeresult_quantized: (a: number) => number;
     readonly readCopcChunk: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
+    readonly readCopcChunkStandalone: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly readCopcRegion: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => void;
     readonly removeProperty: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly renameProperty: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
@@ -4218,9 +4224,9 @@ export interface InitOutput {
     readonly buildOctreeParallel: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly laspointcloud_colors: (a: number) => number;
     readonly pcdpointcloud_colors: (a: number) => number;
-    readonly __wasm_bindgen_func_elem_2415: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_2429: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_435: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_2490: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_2504: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_456: (a: number, b: number, c: number) => void;
     readonly __wbindgen_export: (a: number, b: number) => number;
     readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_export3: (a: number) => void;
