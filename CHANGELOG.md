@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Site/docs version badges synced to 0.10.2. `scripts/check-version-sync.sh`
   no longer aborts on the first grep miss (`pipefail`), which was failing
   every Dependabot PR's Rust CI in ~10s.
+- `copc-loader` HTTP range fetches retry transient `TypeError: fetch failed`
+  (keep-alive pool / ECONNRESET), which was flaking the bbox-filter CI test.
 
 ## [0.10.2] - 2026-08-28
 
