@@ -2,6 +2,9 @@
 # Keeps Rust crates, npm packages, and GitHub Actions versions current.
 # Schedule is weekly (Monday) to avoid noisy daily PRs; CI parity must pass
 # before merge (see AGENTS.md#ci-parity).
+#
+# Labels are omitted: this repo does not define `dependencies` / `rust` /
+# `npm` / `ci`, and missing labels make Dependabot comment on every PR.
 
 version: 2
 
@@ -15,9 +18,16 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: "chore(deps)"
-    labels:
-      - "dependencies"
-      - "rust"
+    ignore:
+      # rand 0.9+ pulls getrandom 0.3/0.4; wasm32-unknown-unknown still has no
+      # usable backend without the wasm-bindgen pin conflict in ROADMAP_V1.md.
+      - dependency-name: "rand"
+        versions: [">=0.9.0"]
+      # geojson 1.0 is a breaking rewrite (GeometryValue named fields, Position
+      # struct). geojsonvt 0.1.0 and geozero 0.15 still compile against 0.24,
+      # so VectorTileEngine cannot take a 1.0 GeoJson without a dual-crate hack.
+      - dependency-name: "geojson"
+        versions: [">=1.0.0"]
 
   # npm dev dependencies (root package.json — Playwright etc.)
   - package-ecosystem: "npm"
@@ -28,9 +38,6 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: "chore(deps)"
-    labels:
-      - "dependencies"
-      - "npm"
     # The published package lives in npm/package.json; track it separately.
     groups:
       playwright:
@@ -47,9 +54,12 @@ updates:
     open-pull-requests-limit: 3
     commit-message:
       prefix: "chore(deps)"
-    labels:
-      - "dependencies"
-      - "npm"
+    ignore:
+      # TypeScript 7 is a native (Go) compiler rewrite: no tsserver, no
+      # programmatic API, and 6.0 deprecations become hard errors. Stay on 5.x
+      # until the npm package is explicitly migrated.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
 
   # GitHub Actions versions (.github/workflows/*.yml)
   - package-ecosystem: "github-actions"
@@ -60,6 +70,3 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: "chore(ci)"
-    labels:
-      - "dependencies"
-      - "ci"
