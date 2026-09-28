@@ -76,7 +76,11 @@ if (!hasSample) {
     const server = createServer((req, res) => {
       const range = req.headers.range;
       if (!range) {
-        res.writeHead(200, { 'content-length': buf.length, 'accept-ranges': 'bytes' });
+        res.writeHead(200, {
+          'content-length': buf.length,
+          'accept-ranges': 'bytes',
+          connection: 'close',
+        });
         res.end(buf);
         return;
       }
@@ -88,6 +92,7 @@ if (!hasSample) {
         'content-length': slice.length,
         'content-range': `bytes ${start}-${end}/${buf.length}`,
         'accept-ranges': 'bytes',
+        connection: 'close',
       });
       res.end(slice);
     });
