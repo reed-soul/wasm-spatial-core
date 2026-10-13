@@ -2,8 +2,8 @@
 
 > Task: **LAS point cloud → Cesium 3D Tiles (.pnts + tileset.json)**, end-to-end, no upload, no server.
 
-**Generated:** 2026-10-13T16:36:52.948Z  
-**Hardware:** AMD EPYC 9V45 96-Core Processor · 4 CPUs · linux/x64  
+**Generated:** 2026-10-13T16:38:06.074Z  
+**Hardware:** AMD EPYC 7763 64-Core Processor · 4 CPUs · linux/x64  
 **Methodology:** same input bytes (SHA-256 verified), same no-op transform (no reprojection), trimmed mean of 5 timed runs after warmup. Output bytes = sum of all generated tile files + tileset.json.
 
 ## ⚖️ Fairness & honesty
@@ -18,9 +18,9 @@
 
 | Engine | Wall time | Peak RSS | Output size | Tiles | Speedup vs wasm |
 |--------|----------|----------|-------------|-------|-----------------|
-| loaders.gl `4.x` | 2ms | 150MB | 0 (N/A) | 0 | 0.05× (wasm slower) |
-| py3dtiles `12.1.1` | 2.07s | 244MB | 7.9MB | 40 | **52.5×** ⚡ |
-| wasm-spatial-core `0.10.2` | 40ms | 189MB | 6.0MB | 64 | baseline |
+| loaders.gl `4.x` | 2ms | 140MB | 0 (N/A) | 0 | 0.03× (wasm slower) |
+| py3dtiles `12.1.1` | 3.62s | 245MB | 7.9MB | 40 | **48.4×** ⚡ |
+| wasm-spatial-core `0.10.2` | 75ms | 189MB | 6.0MB | 64 | baseline |
 
 <details><summary>Notes</summary>
 
