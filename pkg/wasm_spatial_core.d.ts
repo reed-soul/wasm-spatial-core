@@ -4224,9 +4224,9 @@ export interface InitOutput {
     readonly laspointcloud_positions: (a: number) => number;
     readonly laspointcloud_colors: (a: number) => number;
     readonly __wbg_laspointcloud_free: (a: number, b: number) => void;
-    readonly __wasm_bindgen_func_elem_2489: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_2503: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_461: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_2603: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_2617: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_534: (a: number, b: number, c: number) => void;
     readonly __wbindgen_export: (a: number, b: number) => number;
     readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_export3: (a: number) => void;
