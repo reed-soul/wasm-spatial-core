@@ -877,9 +877,9 @@ checksum = "1d87ecb2933e8aeadb3e3a02b828fed80a7528047e68b4f424523a0981a3a084"
 
 [[package]]
 name = "mvt"
-version = "0.13.0"
+version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2d7366256c268a8333bbc0951831f4706ae927f5c2db073ab38c491e7515c1b9"
+checksum = "e729a3951ed9e5e95395dd1b9ab3219f01c32576d44149f6015160ce4ae7a324"
 dependencies = [
  "log",
  "num-traits",
@@ -972,9 +972,9 @@ dependencies = [
 
 [[package]]
 name = "pointy"
-version = "0.8.0"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7319aff932c05d448afab77f22ae717fa30d5b289ff397e249d91bb654156413"
+checksum = "2f7681f30e4dce948b75d8028ddb6321cede92ca51499db112d8cf98a3e086b1"
 dependencies = [
  "num-traits",
 ]
@@ -1682,7 +1682,7 @@ dependencies = [
  "laz",
  "mvt",
  "prost",
- "rand 0.8.6",
+ "rand 0.8.8",
  "rayon",
  "rstar 0.12.2",
  "serde",
