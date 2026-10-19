@@ -1255,6 +1255,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "rstar"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5912b862fa5ffb462607bfd1e35036c458c537921f508c8235a83d5f3987edfe"
+dependencies = [
+ "heapless 0.8.0",
+ "num-traits",
+ "smallvec",
+]
+
+[[package]]
 name = "rustc_version"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1682,9 +1693,9 @@ dependencies = [
  "laz",
  "mvt",
  "prost",
- "rand 0.8.6",
+ "rand 0.8.8",
  "rayon",
- "rstar 0.12.2",
+ "rstar 0.13.0",
  "serde",
  "serde_json",
  "wasm-bindgen",
