@@ -50,8 +50,8 @@ Measured after `wasm-pack build --target web --release --out-dir pkg
 | Metric | Value |
 |--------|-------|
 | Features | `point-cloud,geotiff,laz-support,mesh-ingest,terrain-edit,mesh-edit,webgpu` |
-| WASM binary | 2,048,187 bytes (1.95 MB) |
-| gzip | 708,919 bytes (693 KB) |
+| WASM binary | 2,048,406 bytes (1.95 MB) |
+| gzip | 709,039 bytes (693 KB) |
 | JS glue | 362,045 bytes |
 | TypeScript d.ts | 4,375 lines |
 | Exported functions | 236 |
