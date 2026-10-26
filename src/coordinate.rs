@@ -1267,8 +1267,8 @@ pub fn is_in_china(lng: f64, lat: f64) -> bool {
 
 /// Heuristic CRS suggestion for a geographic bounding box (3 CRS codes only).
 ///
-/// Prefer this name over `bestCrsForRegion` — the result is **not** a PROJ-grade
-/// optimal projection recommendation.
+/// This is **not** a PROJ-grade optimal projection recommendation. The engine
+/// returns one of `GCJ-02`, `EPSG:3857`, or `EPSG:4326` from a bbox heuristic.
 ///
 /// # Arguments
 /// - `min_lng`, `min_lat`, `max_lng`, `max_lat`: Bounding box in degrees.
@@ -1277,16 +1277,10 @@ pub fn is_in_china(lng: f64, lat: f64) -> bool {
 /// JSON string with `crs` and `reason`.
 #[wasm_bindgen(js_name = "suggestCrsHeuristic")]
 pub fn suggest_crs_heuristic(min_lng: f64, min_lat: f64, max_lng: f64, max_lat: f64) -> String {
-    best_crs_for_region_core(min_lng, min_lat, max_lng, max_lat)
+    suggest_crs_heuristic_core(min_lng, min_lat, max_lng, max_lat)
 }
 
-/// @deprecated Use `suggestCrsHeuristic` — same heuristic, kept for compatibility.
-#[wasm_bindgen(js_name = "bestCrsForRegion")]
-pub fn best_crs_for_region(min_lng: f64, min_lat: f64, max_lng: f64, max_lat: f64) -> String {
-    best_crs_for_region_core(min_lng, min_lat, max_lng, max_lat)
-}
-
-fn best_crs_for_region_core(min_lng: f64, min_lat: f64, max_lng: f64, max_lat: f64) -> String {
+fn suggest_crs_heuristic_core(min_lng: f64, min_lat: f64, max_lng: f64, max_lat: f64) -> String {
     // China bounding box check
     let china_min_lng = 73.66;
     let china_max_lng = 135.05;
@@ -1839,7 +1833,7 @@ mod tests {
 
     #[test]
     fn test_best_crs_china() {
-        let result = best_crs_for_region(116.0, 39.0, 117.0, 40.0);
+        let result = suggest_crs_heuristic(116.0, 39.0, 117.0, 40.0);
         assert!(
             result.contains("GCJ-02"),
             "China region should recommend GCJ-02: {}",
@@ -1849,7 +1843,7 @@ mod tests {
 
     #[test]
     fn test_best_crs_global() {
-        let result = best_crs_for_region(-180.0, -90.0, 180.0, 90.0);
+        let result = suggest_crs_heuristic(-180.0, -90.0, 180.0, 90.0);
         assert!(
             result.contains("EPSG:3857"),
             "Large global area should recommend Web Mercator: {}",
@@ -1859,7 +1853,7 @@ mod tests {
 
     #[test]
     fn test_best_crs_small_global() {
-        let result = best_crs_for_region(-1.0, 50.0, 1.0, 52.0);
+        let result = suggest_crs_heuristic(-1.0, 50.0, 1.0, 52.0);
         assert!(
             result.contains("EPSG:4326"),
             "Small non-China area should recommend WGS84: {}",

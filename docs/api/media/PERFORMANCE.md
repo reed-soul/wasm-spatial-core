@@ -1,9 +1,21 @@
 # Performance Benchmarks
 
-Benchmarks measured on **Apple M2 (arm64)**, Rust `debug` profile (native), May 2025.
+**Published, reproducible claims** (the 1.0 documentation bar):
 
-> For release-optimized numbers, build with `--release`. Debug builds have ~5–10× overhead
-> on hot loops due to bounds checks and lack of inlining.
+- Head-to-head LAS → 3D Tiles vs py3dtiles: [`benchmarks/index.md`](./benchmarks/index.md)
+  (generated 2026-07-08, Apple M4, wasm-spatial-core 0.8.2: **36 ms** vs py3dtiles
+  2.86 s on the canonical 500k LAS). Reproduce with the commands in that file.
+- WebGPU vs WASM heightfield / point transform: `tests/webgpu-bench.spec.mjs`
+  (see [ROADMAP_V2.md](./ROADMAP_V2.md) W4). Point transform is memory-bound on
+  integrated GPUs; heightfield flatten measured **1.64×** GPU on Apple M4 Metal.
+
+The tables below are **historical native `debug` timings** (Apple M2, ~May 2025,
+crate v0.6 era). They are useful for relative scale (10K vs 1M) but are **not**
+the numbers to quote in README or the marketing site. Re-run with `--release`:
+
+```bash
+cargo test --test perf_test --features point-cloud --release -- --nocapture
+```
 
 ## Point Cloud Pipeline (LAS → Octree → 3D Tiles)
 
@@ -29,12 +41,19 @@ Benchmarks measured on **Apple M2 (arm64)**, Rust `debug` profile (native), May 
 
 LAZ decompression is near-instant at this scale — the `laz` crate uses vectorized bitstream decoding.
 
-## WASM Binary Size (v0.6.0, wasm-pack --target web, release)
+## WASM Binary Size
 
-| Build | WASM Size | d.ts Lines | Exported Fns | Notes |
-|-------|-----------|------------|-------------|-------|
-| `point-cloud,geotiff` | **1.2 MB** | 3,343 | 173 | Core GIS + point cloud + terrain |
-| All features (single-thread) | **1.5 MB** | 3,470 | 182 | +E57, LAZ/COPC, Draco |
+Measure the current npm artifact after `wasm-pack build --target web --release
+--out-dir pkg -- --features $(cat scripts/npm-wasm-features.txt)`:
+
+```bash
+stat -c%s pkg/wasm_spatial_core_bg.wasm
+```
+
+Historical v0.6.0 snapshot (`point-cloud,geotiff` only): **1.2 MB** WASM, 173
+exports. 0.11 adds `laz-support`, `mesh-ingest`, `terrain-edit`, `mesh-edit`,
+and `webgpu` to that binary — expect a larger file; gzip/brotli transfer is
+still typically a few hundred KB.
 
 > After gzip/brotli compression, typical transfer size is 200–500 KB.
 > WASM streaming compilation means the browser can start executing before the full download completes.
@@ -82,10 +101,10 @@ LAZ decompression is near-instant at this scale — the `laz` crate uses vectori
 
 ```bash
 # Web target (bundler / ESM)
-wasm-pack build --target web --features point-cloud,geotiff
+wasm-pack build --target web --features $(cat scripts/npm-wasm-features.txt)
 
 # Node.js target (for smoke tests)
-wasm-pack build --target nodejs --features point-cloud,geotiff
+wasm-pack build --target nodejs --features $(cat scripts/npm-wasm-features.txt)
 ```
 
 ### Smoke Test

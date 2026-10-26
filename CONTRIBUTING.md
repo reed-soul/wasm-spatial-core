@@ -44,11 +44,10 @@ The `pkg/` directory is listed in `.gitignore` (`/pkg`) and is **not** stored in
 
 | Artifact | WASM features | Tests |
 |----------|---------------|-------|
-| **npm package** (`point-cloud` + `geotiff`) | What consumers get from `npm install` | `cargo test --features point-cloud,geotiff` (~660) |
-| **CI full matrix** | `--all-features` | 819 tests |
+| **npm package** | [`scripts/npm-wasm-features.txt`](./scripts/npm-wasm-features.txt) | `cargo test --all-features` plus Node smokes |
+| **CI full matrix** | `--all-features` | 850+ tests |
 
-Optional capabilities (LAZ/COPC, E57, terrain deformation, mesh QEM) require custom
-`wasm-pack build --features …` — see [README Feature Flags](./README.md#feature-flags).
+`e57-support` and `multi-thread` stay out of the default npm WASM (size / nightly). Build them from source with `wasm-pack build --features …` — see [README Feature Flags](./README.md#feature-flags).
 
 GeoJSON: `parseGeoJsonStream` parses the full input JSON then emits coordinate **chunks**
 (progress-friendly, not byte-stream input). Use `parseGeoJsonLazy` for one-feature-at-a-time
@@ -58,9 +57,49 @@ iteration.
 
 ## Error handling (API)
 
-WASM exports that return `Result<_, JsValue>` should use helpers in `src/errors.rs` (`parse_js`, `invalid_input_js`, `tile_js`, etc.) so JavaScript receives `{ name: "SpatialError", code, message }`.
+Every public wasm-bindgen failure must reach JavaScript as a `SpatialError`:
+`{ name: "SpatialError", code, message }` (a real `Error` instance).
 
-Prefer `Result<_, SpatialErrorDetail>` in new Rust-only APIs; convert with `.map_err(Into::into)` at the wasm boundary.
+Preferred patterns:
+
+- `Result<T, SpatialErrorDetail>` on the WASM export (implements `Into<JsValue>`).
+- `Result<T, JsValue>` only at the bindgen boundary, filled via helpers in
+  `src/errors.rs`: `parse_js`, `invalid_input_js`, `input_too_large_js`,
+  `tile_js`, `geometry_js`, `terrain_js`.
+- Core/native functions may still return `Result<T, String>`; wrap at the
+  WASM export with `SpatialError::parse_error` / `point_cloud_error` / etc.
+
+### `JsValue::from_str` — allowed vs forbidden
+
+| Use | Allowed? |
+|-----|----------|
+| `Err(JsValue::from_str(...))` (WASM **error return**) | **No.** CI fails via `scripts/check-spatial-error-hatches.sh`. |
+| JS property keys, Worker message field names, typed-array string values | Yes. These are not errors. |
+
+Remaining error hatches as of 0.11: **none**.
+
+```js
+try {
+  core.parseGeoJsonCoords(input);
+} catch (e) {
+  if (e.code === "PARSE_ERROR") { /* … */ }
+}
+```
+
+## Deprecation policy
+
+During 0.x, breaking changes bump the **minor** version. **0.11 is the last
+0.x breaking window.**
+
+After 1.0:
+
+1. Deprecations land in **minor** releases with `#[deprecated]` (Rust) and
+   `@deprecated` (TypeScript), a CHANGELOG entry, and a migration note.
+2. Removals only in **major** releases.
+3. Do not remove a symbol in the same release that deprecates it.
+
+0.11 removed `bestCrsForRegion` — use `suggestCrsHeuristic`
+([docs/MIGRATION_V0_11.md](./docs/MIGRATION_V0_11.md)).
 
 ---
 
@@ -94,7 +133,13 @@ cargo test --all-features
 cargo test -- --ignored
 
 # WASM bindgen tests (Node.js harness; CI uses this)
-wasm-pack test --node --release -- --test web
+wasm-pack test --node --release --features $(cat scripts/npm-wasm-features.txt) -- --test web
+
+# SpatialError hatch check (no Err(JsValue::from_str) in src/)
+bash scripts/check-spatial-error-hatches.sh
+
+# npm pack / subpath smoke (needs pkg/ and pkg-node/ staged into npm/)
+node tests/npm_pack_smoke.mjs
 
 # Run benchmarks
 cargo bench
@@ -114,11 +159,12 @@ cargo clippy --all-targets --all-features -- -D warnings
 | `point-cloud` | ❌ | ✅ | LAS/PCD/PLY/OBJ parsing + voxel grid decimation + octree + 3D Tiles |
 | `geotiff` | ❌ | ✅ | GeoTIFF terrain + quantized-mesh |
 | `multi-thread` | ❌ | ❌ | Web Workers + SharedArrayBuffer via Rayon (requires nightly) |
-| `laz-support` | ❌ | ❌ | LAZ/COPC decompression via `laz` crate (implies `point-cloud`, adds ~400KB) |
+| `laz-support` | ❌ | ✅ | LAZ/COPC decompression via `laz` crate (implies `point-cloud`) |
 | `e57-support` | ❌ | ❌ | E57 architectural/industrial scan format via `e57` crate |
-| `terrain-edit` | ❌ | ❌ | Heightfield flatten/deform (requires `geotiff`) |
-| `mesh-ingest` | ❌ | ❌ | Spatial IR + GLB ingest (Wave 2) |
-| `mesh-edit` | ❌ | ❌ | Mesh QEM / OBB split (requires `mesh-ingest`) |
+| `terrain-edit` | ❌ | ✅ | Heightfield flatten/deform (requires `geotiff`) |
+| `mesh-ingest` | ❌ | ✅ | Spatial IR + GLB ingest (Wave 2) |
+| `mesh-edit` | ❌ | ✅ | Mesh QEM / OBB split (requires `mesh-ingest`) |
+| `webgpu` | ❌ | ✅ | Layout constants + CPU fallback for `wasm-spatial-core/webgpu` |
 
 ### Feature Flag Combinations
 
@@ -394,7 +440,7 @@ chore: upgrade wasm-bindgen to 0.2.97
 - **Stress tests**: `tests/stress_test.rs` (marked `#[ignore]`, run with `--ignored`)
 - **Error path tests**: `tests/error_path_test.rs`
 - **Memory audit**: `tests/memory_audit_test.rs`
-- **WASM tests**: `tests/web.rs` (version smoke test via wasm-bindgen-test)
+- **WASM tests**: `tests/web.rs` (wasm-bindgen-test smokes per module group)
 
 ---
 

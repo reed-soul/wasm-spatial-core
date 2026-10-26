@@ -199,7 +199,6 @@ export {
   // ── CRS Utilities ────────────────────────────────────────
   crsInfo,
   getSupportedCrs,
-  bestCrsForRegion,
   suggestCrsHeuristic,
   isInChina,
   getInputLimits,

@@ -8,7 +8,7 @@ Guidance for AI coding agents working in this repository.
 
 **wasm-spatial-core** is a Rust → WebAssembly spatial engine. No backend: **Cargo + wasm-pack** for CI; static HTTP for browser demos.
 
-**Vision & V2 roadmap:** [VISION.md](./VISION.md) · [ROADMAP_V2.md](./ROADMAP_V2.md) · [docs/ENGINE_BOUNDARY.md](./docs/ENGINE_BOUNDARY.md). V1 is complete ([ROADMAP_V1.md](./ROADMAP_V1.md)). New work must be **engine core** (formats, IR, geometry, tiles, GPU) — no product plugins (parking, trajectories, geofence, timelines). Default start: **W2 Spatial IR**.
+**Vision & roadmaps:** [VISION.md](./VISION.md) · [ROADMAP_V2.md](./ROADMAP_V2.md) (W1–W5 complete) · [ROADMAP_1_0.md](./ROADMAP_1_0.md) · [docs/ENGINE_BOUNDARY.md](./docs/ENGINE_BOUNDARY.md). V1 is complete ([ROADMAP_V1.md](./ROADMAP_V1.md)). New work must be **engine core** (formats, IR, geometry, tiles, GPU) — no product plugins (parking, trajectories, geofence, timelines). Default start: **[ROADMAP_1_0.md](./ROADMAP_1_0.md)** (v0.11 API hygiene → 1.0 freeze).
 
 ### Toolchain
 
@@ -27,10 +27,12 @@ rustup component add clippy rustfmt
 | Format | `cargo fmt --all -- --check` |
 | Lint | `cargo clippy --all-targets --all-features -- -D warnings` |
 | Test | `cargo test --all-features --verbose` |
-| WASM build | `wasm-pack build --target web --release --out-dir pkg` |
+| WASM build | `wasm-pack build --target web --release --out-dir pkg --features $(cat scripts/npm-wasm-features.txt)` |
 | WASM smoke | `WASM_PKG_DIR=pkg-node node tests/wasm_smoke_test.mjs` |
 | Node batch | `node tests/node_batch_test.mjs` |
-| WASM bindgen tests | `wasm-pack test --node --release -- --test web` |
+| WASM bindgen tests | `wasm-pack test --node --release --features $(cat scripts/npm-wasm-features.txt) -- --test web` |
+| SpatialError hatches | `bash scripts/check-spatial-error-hatches.sh` |
+| npm pack smoke | stage `pkg/` + `pkg-node/` into `npm/`, then `node tests/npm_pack_smoke.mjs` |
 | Headless Cesium (W3.6) | `npm run test:browser` (after `npm install` + `npx playwright install chromium`; needs `pkg-node` for the generator) |
 
 CI runs tests with `--test-threads=2` and `RAYON_NUM_THREADS=1` to keep flake-free; local runs may omit those flags.
@@ -81,4 +83,4 @@ Incremental tile edits: build `TilesetPatch`, call `setTile(uri, bytes)`, then `
 
 - Default git branch is **`master`** (CI watches `master`, not `main`).
 - `examples/cesium-demo/` does not load WASM.
-- Prefer `SpatialError` for new APIs; some modules still use `JsValue::from_str` (see `CONTRIBUTING.md`).
+- Prefer `SpatialError` / `SpatialErrorDetail` for WASM errors. `Err(JsValue::from_str)` is forbidden (see `CONTRIBUTING.md` and `scripts/check-spatial-error-hatches.sh`).
