@@ -16,6 +16,8 @@
 //! - GeoTIFF terrain (256×256 → 1024×1024): parse, quantized-mesh, color ramp, hillshade
 //! - Format conversion (10K/100K): LAS→pnts, PLY→GLB, mesh→b3dm
 
+#![cfg(not(target_arch = "wasm32"))]
+
 use std::time::Instant;
 
 // ---------------------------------------------------------------------------

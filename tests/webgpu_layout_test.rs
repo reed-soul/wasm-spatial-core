@@ -1,5 +1,6 @@
 //! WebGPU buffer layout contract tests (W4.2).
 
+#![cfg(not(target_arch = "wasm32"))]
 #[cfg(feature = "webgpu")]
 #[test]
 fn test_gpu_layout_matches_npm_constants() {

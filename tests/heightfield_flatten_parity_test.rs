@@ -1,5 +1,6 @@
 //! CPU reference parity for GPU heightfield flatten kernel (W4.4).
 
+#![cfg(not(target_arch = "wasm32"))]
 #[cfg(all(feature = "webgpu", feature = "terrain-edit"))]
 #[test]
 fn test_flatten_heightfield_reference_matches_flatten_inside() {

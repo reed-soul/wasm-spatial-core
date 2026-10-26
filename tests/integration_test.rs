@@ -5,6 +5,7 @@
 
 // ── Pipeline 1: GeoJSON Parsing + Validation ──────────────────────────────
 
+#![cfg(not(target_arch = "wasm32"))]
 #[test]
 fn test_pipeline_geojson_parse_valid() {
     let geojson_str = r#"{

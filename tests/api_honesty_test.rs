@@ -1,5 +1,6 @@
 //! API honesty / capability contract tests (W0).
 
+#![cfg(not(target_arch = "wasm32"))]
 #[test]
 fn test_get_input_limits_json_fields() {
     let json = wasm_spatial_core::get_input_limits();

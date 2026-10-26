@@ -1,5 +1,7 @@
 //! Incremental tileset encoding — tiles emitted per leaf without full retention.
 
+#![cfg(not(target_arch = "wasm32"))]
+
 use wasm_spatial_core::{generate_tileset, generate_tileset_incremental_abort, Octree};
 
 #[test]

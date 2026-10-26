@@ -2,6 +2,8 @@
 //!
 //! Fixture binaries under `tests/fixtures/terrain_edit/` are checked into CI.
 
+#![cfg(not(target_arch = "wasm32"))]
+
 use wasm_spatial_core::{
     excavate_inside, fill_inside, flatten_polygon, rasterize_polygon_mask, CutMode, TerrainGrid,
 };

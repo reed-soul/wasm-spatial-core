@@ -30,7 +30,9 @@ from 0.10, read [docs/MIGRATION_V0_11.md](./docs/MIGRATION_V0_11.md).
   ASPRS offset 107 (not the VLR slot), and CI generates the 500k LAS fixture
   before `cargo test --all-features`.
 - `tests/web.rs` smokes for GeoJSON, CRS, octree, mesh ingest/edit, terrain
-  edit, and WebGPU layout constants.
+  edit, and WebGPU layout constants. Other `tests/*.rs` crates are
+  `cfg(not(target_arch = "wasm32"))` so `wasm-pack test` does not try to
+  compile native-only helpers (e.g. `positions_native`) for wasm32.
 
 ### Fixed
 
