@@ -26,8 +26,9 @@ from 0.10, read [docs/MIGRATION_V0_11.md](./docs/MIGRATION_V0_11.md).
   from the public registry) and imports `/node`, `/abort`, `/webgpu`.
 - `scripts/check-spatial-error-hatches.sh` — CI fails on `Err(JsValue::from_str)`
   (POSIX grep; GitHub-hosted runners do not ship ripgrep).
-- `gen_test_las` creates `test-data/large/` itself; CI generates the 500k LAS
-  fixture before `cargo test --all-features`.
+- `gen_test_las` creates `test-data/large/` itself, writes the point count at
+  ASPRS offset 107 (not the VLR slot), and CI generates the 500k LAS fixture
+  before `cargo test --all-features`.
 - `tests/web.rs` smokes for GeoJSON, CRS, octree, mesh ingest/edit, terrain
   edit, and WebGPU layout constants.
 
