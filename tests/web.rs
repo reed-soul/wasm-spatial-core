@@ -4,9 +4,9 @@
 //! "wasm32"))` so `wasm-pack test` can compile the suite. This file is the
 //! wasm32 harness.
 //!
-//! Run: `wasm-pack test --node --release -- --test web`
+//! Run: `wasm-pack test --node --release --test web`
 //! Enable engine features the same way CI does:
-//! `wasm-pack test --node --release --features point-cloud,geotiff,laz-support,mesh-ingest,terrain-edit,mesh-edit,webgpu -- --test web`
+//! `wasm-pack test --node --release --features point-cloud,geotiff,laz-support,mesh-ingest,terrain-edit,mesh-edit,webgpu --test web`
 
 #![cfg(target_arch = "wasm32")]
 

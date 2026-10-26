@@ -30,7 +30,7 @@ rustup component add clippy rustfmt
 | WASM build | `wasm-pack build --target web --release --out-dir pkg --features $(cat scripts/npm-wasm-features.txt)` |
 | WASM smoke | `WASM_PKG_DIR=pkg-node node tests/wasm_smoke_test.mjs` |
 | Node batch | `node tests/node_batch_test.mjs` |
-| WASM bindgen tests | `wasm-pack test --node --release --features $(cat scripts/npm-wasm-features.txt) -- --test web` |
+| WASM bindgen tests | `wasm-pack test --node --release --features $(cat scripts/npm-wasm-features.txt) --test web` |
 | SpatialError hatches | `bash scripts/check-spatial-error-hatches.sh` |
 | npm pack smoke | stage `pkg/` + `pkg-node/` into `npm/`, then `node tests/npm_pack_smoke.mjs` |
 | Headless Cesium (W3.6) | `npm run test:browser` (after `npm install` + `npx playwright install chromium`; needs `pkg-node` for the generator) |

@@ -133,7 +133,7 @@ cargo test --all-features
 cargo test -- --ignored
 
 # WASM bindgen tests (Node.js harness; CI uses this)
-wasm-pack test --node --release --features $(cat scripts/npm-wasm-features.txt) -- --test web
+wasm-pack test --node --release --features $(cat scripts/npm-wasm-features.txt) --test web
 
 # SpatialError hatch check (POSIX grep; no ripgrep required)
 bash scripts/check-spatial-error-hatches.sh
