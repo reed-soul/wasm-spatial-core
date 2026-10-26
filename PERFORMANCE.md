@@ -43,19 +43,31 @@ LAZ decompression is near-instant at this scale — the `laz` crate uses vectori
 
 ## WASM Binary Size
 
-Measure the current npm artifact after `wasm-pack build --target web --release
---out-dir pkg -- --features $(cat scripts/npm-wasm-features.txt)`:
+Measured after `wasm-pack build --target web --release --out-dir pkg
+-- --features $(cat scripts/npm-wasm-features.txt)` (wasm-pack 0.13.1,
+`wasm-opt = false` as in Cargo.toml, 2026-10-27 Asia/Shanghai):
+
+| Metric | Value |
+|--------|-------|
+| Features | `point-cloud,geotiff,laz-support,mesh-ingest,terrain-edit,mesh-edit,webgpu` |
+| WASM binary | 2,048,187 bytes (1.95 MB) |
+| gzip | 708,919 bytes (693 KB) |
+| JS glue | 362,045 bytes |
+| TypeScript d.ts | 4,375 lines |
+| Exported functions | 236 |
+| Exported classes | 45 |
+
+Re-measure:
 
 ```bash
 stat -c%s pkg/wasm_spatial_core_bg.wasm
+gzip -c pkg/wasm_spatial_core_bg.wasm | wc -c
 ```
 
 Historical v0.6.0 snapshot (`point-cloud,geotiff` only): **1.2 MB** WASM, 173
 exports. 0.11 adds `laz-support`, `mesh-ingest`, `terrain-edit`, `mesh-edit`,
-and `webgpu` to that binary — expect a larger file; gzip/brotli transfer is
-still typically a few hundred KB.
+and `webgpu` — the uncompressed binary is larger; gzip transfer is ~693 KB.
 
-> After gzip/brotli compression, typical transfer size is 200–500 KB.
 > WASM streaming compilation means the browser can start executing before the full download completes.
 > `multi-thread` feature requires `atomics` + `bulk-memory` and COOP/COEP headers — build separately with `RUSTFLAGS='-C target-feature=+atomics,+bulk-memory'`.
 
@@ -84,18 +96,17 @@ still typically a few hundred KB.
 > Note: JS benchmarks are approximate from published reports and may vary by engine/device.
 > WASM consistently achieves 5–10× speedup on compute-heavy operations.
 
-## WASM Build (wasm-pack 0.14.0)
+## WASM Build (wasm-pack 0.13.1; installer may be newer)
 
 | Metric | Value |
 |--------|-------|
 | Target | `wasm32-unknown-unknown` (web) |
-| Features | `point-cloud`, `geotiff` |
-| WASM binary | 1.24 MB |
-| JS glue | 246 KB |
-| TypeScript d.ts | 3,344 lines |
-| Exported functions | 174 |
-| Exported classes | 30 |
-| Build time | ~7.6 s (incremental) |
+| Features | see `scripts/npm-wasm-features.txt` |
+| WASM binary | 1.95 MB (gzip 693 KB) |
+| JS glue | 354 KB |
+| TypeScript d.ts | 4,375 lines |
+| Exported functions | 236 |
+| Exported classes | 45 |
 
 ### Build Commands
 

@@ -41,6 +41,8 @@ from 0.10, read [docs/MIGRATION_V0_11.md](./docs/MIGRATION_V0_11.md).
 
 - Docs (README, VISION, AGENTS, CONTRIBUTING) point at ROADMAP_1_0 as the
   active plan. V2 waves W1–W5 stay documented as complete.
+- PERFORMANCE.md / site badges quote the measured 0.11 npm WASM: 1.95 MB
+  uncompressed, 693 KB gzip (was the v0.6 1.2 MB debug-era figure).
 - Dependency and CI housekeeping from the Dependabot backlog: `prost` 0.14.4,
   `e57` 0.11.13, `serde_json` 1.0.151, Playwright 1.63, `@types/node` 26.6,
   `@webgpu/types` 0.1.74, `actions/setup-node` v7, `actions/setup-python` v7,

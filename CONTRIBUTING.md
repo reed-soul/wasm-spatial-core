@@ -353,7 +353,8 @@ npm run demo
 - **GeoJSON parsing**: ~11× faster than JSON.parse + manual extraction
 - **Octree build**: 1M points < 3s in single-threaded WASM
 - **3D Tiles generation**: ~1s for 1M points (octree + pnts encoding)
-- **WASM binary**: ~1.2 MB with point-cloud + LAZ features
+- **WASM binary**: 1.95 MB (gzip 693 KB) with the default npm feature set
+  (see [PERFORMANCE.md](./PERFORMANCE.md))
 
 ---
 
