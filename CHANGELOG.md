@@ -36,6 +36,9 @@ from 0.10, read [docs/MIGRATION_V0_11.md](./docs/MIGRATION_V0_11.md).
 
 - `encodeTerrainTmsPyramid` with `bounds.length !== 4` throws `SpatialError`
   (`code === "INVALID_INPUT"`) instead of a raw string.
+- WASM `SpatialError` now sets `name` and `code` in **release** builds. Those
+  `Reflect::set` calls previously lived inside `debug_assert!`, so npm
+  packages threw a bare `Error` with only the message.
 
 ### Changed
 
