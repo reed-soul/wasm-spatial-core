@@ -4,19 +4,26 @@
 # ROADMAP_1_0.md §1: every wasm-bindgen failure must be a SpatialError with a
 # typed `code`. `JsValue::from_str` is still allowed for non-error uses
 # (property keys, Worker message fields, typed-array string values).
+#
+# Uses POSIX grep (basic regex) so GitHub-hosted runners do not need ripgrep.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-if ! command -v rg >/dev/null 2>&1; then
-  echo "error: ripgrep (rg) is required" >&2
+set +e
+matches="$(grep -Rn --include='*.rs' 'Err([[:space:]]*JsValue::from_str' src 2>&1)"
+status=$?
+set -e
+
+# grep: 0 = matches, 1 = no matches, 2 = error
+if [[ "$status" -eq 2 ]]; then
+  echo "error: hatch grep failed:" >&2
+  echo "$matches" >&2
   exit 1
 fi
 
-matches="$(rg -n --glob '*.rs' 'Err\(\s*JsValue::from_str' src || true)"
-
-if [[ -n "$matches" ]]; then
+if [[ "$status" -eq 0 ]]; then
   echo "error: WASM error returns must use SpatialError helpers, not JsValue::from_str:" >&2
   echo "$matches" >&2
   echo >&2

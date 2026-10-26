@@ -120,16 +120,25 @@ async function assertSubpaths(pkgRoot) {
     nodeBindings.parseGeoJsonCoords("not-json");
     fail("parseGeoJsonCoords('not-json') should throw");
   } catch (err) {
-    if (!err || err.name !== "SpatialError") {
-      fail(`expected SpatialError name, got ${err && err.name}`);
+    if (!err) {
+      fail("parseGeoJsonCoords('not-json') threw an empty value");
     }
-    if (err.code !== "PARSE_ERROR") {
-      fail(`expected code PARSE_ERROR, got ${err && err.code}`);
+    if (fromRegistry) {
+      log(
+        `registry error shape: name=${err.name} code=${err.code} (0.11 SpatialError is asserted on local packs)`,
+      );
+    } else {
+      if (err.name !== "SpatialError") {
+        fail(`expected SpatialError name, got ${err.name}`);
+      }
+      if (err.code !== "PARSE_ERROR") {
+        fail(`expected code PARSE_ERROR, got ${err.code}`);
+      }
+      log("SpatialError on invalid GeoJSON: name=SpatialError code=PARSE_ERROR");
     }
-    log("SpatialError on invalid GeoJSON: name=SpatialError code=PARSE_ERROR");
   }
 
-  if (typeof nodeBindings.encodeTerrainTmsPyramid === "function") {
+  if (!fromRegistry && typeof nodeBindings.encodeTerrainTmsPyramid === "function") {
     try {
       nodeBindings.encodeTerrainTmsPyramid(
         new Float32Array(4),
@@ -148,8 +157,8 @@ async function assertSubpaths(pkgRoot) {
       }
       log("SpatialError on TMS bounds: code=INVALID_INPUT");
     }
-  } else {
-    log("skip encodeTerrainTmsPyramid (not in this build)");
+  } else if (fromRegistry) {
+    log("skip encodeTerrainTmsPyramid INVALID_INPUT (0.11-only; registry may be older)");
   }
 
   if (typeof nodeBindings.supportsTerrainEdit === "function") {

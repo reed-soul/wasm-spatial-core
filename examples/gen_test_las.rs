@@ -4,8 +4,9 @@
 //! Defaults: 500000 points, test-data/large/synthetic_500k.las, extent 1000 m
 
 use std::env;
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::{BufWriter, Write};
+use std::path::Path;
 
 /// Write the fixed header fields at their standard offsets, then point data.
 fn main() {
@@ -97,6 +98,12 @@ fn main() {
     hdr[219..227].copy_from_slice(&min_z.to_le_bytes());
 
     assert_eq!(hdr.len(), 227);
+
+    if let Some(parent) = Path::new(&out_path).parent() {
+        if !parent.as_os_str().is_empty() {
+            fs::create_dir_all(parent).unwrap();
+        }
+    }
 
     let mut f = BufWriter::new(File::create(&out_path).unwrap());
     f.write_all(&hdr).unwrap();

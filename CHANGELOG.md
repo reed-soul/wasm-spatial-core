@@ -24,7 +24,10 @@ from 0.10, read [docs/MIGRATION_V0_11.md](./docs/MIGRATION_V0_11.md).
   ship in `npm install wasm-spatial-core`.
 - `tests/npm_pack_smoke.mjs` — packs `npm/` (or `NPM_FROM_REGISTRY=1` installs
   from the public registry) and imports `/node`, `/abort`, `/webgpu`.
-- `scripts/check-spatial-error-hatches.sh` — CI fails on `Err(JsValue::from_str)`.
+- `scripts/check-spatial-error-hatches.sh` — CI fails on `Err(JsValue::from_str)`
+  (POSIX grep; GitHub-hosted runners do not ship ripgrep).
+- `gen_test_las` creates `test-data/large/` itself; CI generates the 500k LAS
+  fixture before `cargo test --all-features`.
 - `tests/web.rs` smokes for GeoJSON, CRS, octree, mesh ingest/edit, terrain
   edit, and WebGPU layout constants.
 

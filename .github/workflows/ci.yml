@@ -54,6 +54,9 @@ jobs:
       - name: Clippy lints (all features)
         run: cargo clippy --all-targets --all-features -- -D warnings
 
+      - name: Generate 500k LAS fixture
+        run: cargo run --example gen_test_las --features point-cloud
+
       - name: Run unit tests (all features)
         run: cargo test --all-features --verbose -- --test-threads=2
         env:

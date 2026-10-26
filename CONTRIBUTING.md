@@ -135,7 +135,7 @@ cargo test -- --ignored
 # WASM bindgen tests (Node.js harness; CI uses this)
 wasm-pack test --node --release --features $(cat scripts/npm-wasm-features.txt) -- --test web
 
-# SpatialError hatch check (no Err(JsValue::from_str) in src/)
+# SpatialError hatch check (POSIX grep; no ripgrep required)
 bash scripts/check-spatial-error-hatches.sh
 
 # npm pack / subpath smoke (needs pkg/ and pkg-node/ staged into npm/)
