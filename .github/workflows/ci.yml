@@ -48,6 +48,9 @@ jobs:
       - name: Check version strings are in sync
         run: bash scripts/check-version-sync.sh
 
+      - name: Check SpatialError hatches
+        run: bash scripts/check-spatial-error-hatches.sh
+
       - name: Clippy lints (all features)
         run: cargo clippy --all-targets --all-features -- -D warnings
 
@@ -59,8 +62,12 @@ jobs:
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
-      - name: Build WASM package (web target, point-cloud + geotiff)
-        run: wasm-pack build --target web --release --out-dir pkg --features point-cloud,geotiff,laz-support,mesh-ingest
+      - name: Load npm WASM feature set
+        id: wasm_features
+        run: echo "features=$(tr -d '[:space:]' < scripts/npm-wasm-features.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: Build WASM package (web target, npm features)
+        run: wasm-pack build --target web --release --out-dir pkg --features ${{ steps.wasm_features.outputs.features }}
 
       - name: Verify WASM output
         run: |
@@ -69,7 +76,7 @@ jobs:
           test -f pkg/wasm_spatial_core.js && echo "✅ JS bindings exist"
 
       - name: Build WASM (Node.js target)
-        run: wasm-pack build --target nodejs --release --out-dir pkg-node --features point-cloud,geotiff,laz-support,mesh-ingest
+        run: wasm-pack build --target nodejs --release --out-dir pkg-node --features ${{ steps.wasm_features.outputs.features }}
 
       - name: Run WASM smoke tests (Node.js)
         run: WASM_PKG_DIR=pkg-node node tests/wasm_smoke_test.mjs
@@ -77,23 +84,35 @@ jobs:
       - name: Run Node.js batch API smoke test
         run: node tests/node_batch_test.mjs
 
+      - name: WASM bindgen tests (Node harness)
+        run: wasm-pack test --node --release --features ${{ steps.wasm_features.outputs.features }} -- --test web
+
       - name: WebGPU CPU fallback smoke (Node)
         run: WASM_PKG_DIR=pkg node tests/webgpu_fallback_test.mjs
 
-      - name: Build WASM (webgpu + terrain-edit smoke pkg)
-        run: wasm-pack build --target nodejs --release --out-dir pkg-webgpu-smoke --features point-cloud,geotiff,terrain-edit,webgpu
-
-      - name: Heightfield GPU fallback smoke (Node, skips if unavailable)
+      - name: Heightfield GPU fallback smoke (Node)
         run: |
-          PKG=pkg-webgpu-smoke node --input-type=module -e "
+          node --input-type=module -e "
           import { pathToFileURL } from 'node:url';
           // nodejs target auto-initializes on import — do NOT call mod.default(),
           // which is a truthy non-function (the already-resolved export namespace)
           // and would throw 'mod.default is not a function'.
-          const mod = await import(pathToFileURL('pkg-webgpu-smoke/wasm_spatial_core.js').href);
-          if (typeof mod.flattenTerrain !== 'function') { console.log('SKIP: flattenTerrain not exported'); process.exit(0); }
+          const mod = await import(pathToFileURL('pkg-node/wasm_spatial_core.js').href);
+          if (typeof mod.flattenTerrain !== 'function') {
+            console.error('flattenTerrain not exported — npm WASM features drifted');
+            process.exit(1);
+          }
           console.log('flattenTerrain: OK (exported, auto-init complete)');
           "
+
+      - name: npm pack / subpath smoke
+        run: |
+          rm -rf npm/pkg npm/pkg-node
+          cp -R pkg npm/pkg
+          cp -R pkg-node npm/pkg-node
+          echo '{"type":"commonjs"}' > npm/pkg-node/package.json
+          (cd npm && npm install --ignore-scripts && npm run build:entries)
+          node tests/npm_pack_smoke.mjs
 
       - name: Upload WASM artifacts
         uses: actions/upload-artifact@v7
@@ -186,10 +205,10 @@ jobs:
           targets: wasm32-unknown-unknown
 
       - name: Build WASM (Node.js target for the generator)
-        run: wasm-pack build --target nodejs --release --out-dir pkg-node --features point-cloud,geotiff
+        run: wasm-pack build --target nodejs --release --out-dir pkg-node --features $(tr -d '[:space:]' < scripts/npm-wasm-features.txt)
 
       - name: Build WASM (web target with webgpu for the bench page)
-        run: wasm-pack build --target web --release --out-dir pkg-webgpu-bench --features point-cloud,geotiff,terrain-edit,webgpu
+        run: wasm-pack build --target web --release --out-dir pkg-webgpu-bench --features $(tr -d '[:space:]' < scripts/npm-wasm-features.txt)
 
       - name: Install npm dependencies (Playwright)
         run: npm install

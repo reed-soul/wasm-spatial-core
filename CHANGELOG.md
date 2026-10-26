@@ -7,8 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+0.11 API hygiene toward [ROADMAP_1_0.md](./ROADMAP_1_0.md). If you are upgrading
+from 0.10, read [docs/MIGRATION_V0_11.md](./docs/MIGRATION_V0_11.md).
+
+### Breaking
+
+- **`bestCrsForRegion` removed.** Use `suggestCrsHeuristic` — the two functions
+  were identical; the old name implied a PROJ-grade CRS pick that this engine
+  does not do.
+
+### Added
+
+- Default npm WASM now compiles `terrain-edit`, `mesh-edit`, and `webgpu`
+  (feature set in `scripts/npm-wasm-features.txt`). `supportsTerrainEdit`,
+  `supportsMeshEdit`, `supportsWebGpu`, `flattenTerrain`, and mesh QEM exports
+  ship in `npm install wasm-spatial-core`.
+- `tests/npm_pack_smoke.mjs` — packs `npm/` (or `NPM_FROM_REGISTRY=1` installs
+  from the public registry) and imports `/node`, `/abort`, `/webgpu`.
+- `scripts/check-spatial-error-hatches.sh` — CI fails on `Err(JsValue::from_str)`.
+- `tests/web.rs` smokes for GeoJSON, CRS, octree, mesh ingest/edit, terrain
+  edit, and WebGPU layout constants.
+
+### Fixed
+
+- `encodeTerrainTmsPyramid` with `bounds.length !== 4` throws `SpatialError`
+  (`code === "INVALID_INPUT"`) instead of a raw string.
+
 ### Changed
 
+- Docs (README, VISION, AGENTS, CONTRIBUTING) point at ROADMAP_1_0 as the
+  active plan. V2 waves W1–W5 stay documented as complete.
 - Dependency and CI housekeeping from the Dependabot backlog: `prost` 0.14.4,
   `e57` 0.11.13, `serde_json` 1.0.151, Playwright 1.63, `@types/node` 26.6,
   `@webgpu/types` 0.1.74, `actions/setup-node` v7, `actions/setup-python` v7,

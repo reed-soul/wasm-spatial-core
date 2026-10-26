@@ -45,8 +45,9 @@ If you touched wasm-bindgen surfaces, also smoke-test the artifacts (CI covers
 these, but local runs catch issues earlier):
 
 ```bash
-wasm-pack build --target web --release --out-dir pkg --features point-cloud,geotiff,laz-support,mesh-ingest
-wasm-pack build --target nodejs --release --out-dir pkg-node --features point-cloud,geotiff,laz-support,mesh-ingest
+FEATURES=$(tr -d '[:space:]' < scripts/npm-wasm-features.txt)
+wasm-pack build --target web --release --out-dir pkg --features "$FEATURES"
+wasm-pack build --target nodejs --release --out-dir pkg-node --features "$FEATURES"
 WASM_PKG_DIR=pkg-node node tests/wasm_smoke_test.mjs
 node tests/node_batch_test.mjs
 ```

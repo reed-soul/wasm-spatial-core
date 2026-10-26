@@ -3,11 +3,11 @@
   "private": true,
   "description": "Local development scripts (not published to npm)",
   "scripts": {
-    "build:pkg": "wasm-pack build --target web --release --out-dir pkg -- --features point-cloud,geotiff,laz-support,mesh-ingest",
+    "build:pkg": "wasm-pack build --target web --release --out-dir pkg -- --features $(cat scripts/npm-wasm-features.txt)",
     "build:site": "bash scripts/build-demo-site.sh",
     "demo": "npm run build:site && npx --yes http-server _site -p 8080 -c-1",
     "demo:dev": "npm run build:pkg && npx --yes http-server . -p 8080 -c-1",
-    "test:wasm": "wasm-pack test --node --release -- --test web",
+    "test:wasm": "wasm-pack test --node --release --features $(cat scripts/npm-wasm-features.txt) -- --test web",
     "check": "cargo fmt --all -- --check && cargo clippy --all-targets --all-features -- -D warnings && cargo test",
     "test:webgpu-fallback": "node tests/webgpu_fallback_test.mjs && node tests/heightfield_gpu_fallback_test.mjs",
     "test:browser": "playwright test",
