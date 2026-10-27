@@ -16,8 +16,8 @@
 <div class="tsd-signature tsd-anchor-link" id="suggestcrsheuristic"><span class="tsd-kind-call-signature">suggestCrsHeuristic</span><span class="tsd-signature-symbol">(</span><br/>    <span class="tsd-kind-parameter">min_lng</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">,</span><br/>    <span class="tsd-kind-parameter">min_lat</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">,</span><br/>    <span class="tsd-kind-parameter">max_lng</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">,</span><br/>    <span class="tsd-kind-parameter">max_lat</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">,</span><br/><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><a href="#suggestcrsheuristic" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></div>
 <div class="tsd-description">
 <div class="tsd-comment tsd-typography"><p>Heuristic CRS suggestion for a geographic bounding box (3 CRS codes only).</p>
-<p>Prefer this name over <code>bestCrsForRegion</code> — the result is <strong>not</strong> a PROJ-grade
-optimal projection recommendation.</p>
+<p>This is <strong>not</strong> a PROJ-grade optimal projection recommendation. The engine
+returns one of <code>GCJ-02</code>, <code>EPSG:3857</code>, or <code>EPSG:4326</code> from a bbox heuristic.</p>
 <h1 id="arguments" class="tsd-anchor-link">Arguments<a href="#arguments" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h1>
 <ul>
 <li><code>min_lng</code>, <code>min_lat</code>, <code>max_lng</code>, <code>max_lat</code>: Bounding box in degrees.</li>
@@ -34,7 +34,7 @@ optimal projection recommendation.</p>
 <li><span><span class="tsd-kind-parameter">max_lat</span>: <span class="tsd-signature-type">number</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">string</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in wasm_spatial_core.d.ts:3471</li></ul></aside></div></li></ul></section></div>
+<li>Defined in wasm_spatial_core.d.ts:3539</li></ul></aside></div></li></ul></section></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">
