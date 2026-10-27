@@ -106,8 +106,8 @@
     "LICENSE"
   ],
   "scripts": {
-    "build:wasm": "cd .. && wasm-pack build --target web --release --out-dir npm/pkg -- --features point-cloud,geotiff,laz-support,mesh-ingest",
-    "build:wasm:node": "cd .. && wasm-pack build --target nodejs --release --out-dir npm/pkg-node -- --features point-cloud,geotiff,laz-support,mesh-ingest && echo '{\"type\":\"commonjs\"}' > npm/pkg-node/package.json",
+    "build:wasm": "cd .. && wasm-pack build --target web --release --out-dir npm/pkg -- --features $(cat scripts/npm-wasm-features.txt)",
+    "build:wasm:node": "cd .. && wasm-pack build --target nodejs --release --out-dir npm/pkg-node -- --features $(cat scripts/npm-wasm-features.txt) && echo '{\"type\":\"commonjs\"}' > npm/pkg-node/package.json",
     "build:wasm:mt": "cd .. && RUSTFLAGS='-C target-feature=+atomics,+bulk-memory,+mutable-globals' cargo +nightly build -Z build-std=panic_abort,std --target wasm32-unknown-unknown --release --features multi-thread,point-cloud,geotiff && wasm-bindgen --target web --out-dir npm/pkg target/wasm32-unknown-unknown/release/wasm_spatial_core.wasm",
     "build:wasm:pc": "cd .. && wasm-pack build --target web --release --out-dir npm/pkg -- --features point-cloud",
     "build:wasm:laz": "cd .. && wasm-pack build --target web --release --out-dir npm/pkg -- --features laz-support,geotiff",

@@ -4,6 +4,7 @@
 //!
 //! Memory budget: ~3.5GB (LAS blob ~1.4GB + positions ~1.2GB + octree/tileset)
 
+#![cfg(not(target_arch = "wasm32"))]
 #![cfg(feature = "test-helpers")]
 
 use rand::Rng;

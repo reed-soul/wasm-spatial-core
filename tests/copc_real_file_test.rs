@@ -11,6 +11,8 @@
 //! Without the file present these tests are skipped (not failed), so CI and
 //! `cargo test` stay hermetic.
 
+#![cfg(not(target_arch = "wasm32"))]
+
 #[cfg(feature = "laz-support")]
 #[test]
 fn copc_real_file_end_to_end() {

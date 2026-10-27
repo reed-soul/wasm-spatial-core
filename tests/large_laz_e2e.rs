@@ -3,6 +3,7 @@
 //! Validates header parse → LAZ decompress → point parse → octree → tileset
 //! at production scale (50 million points, ~200MB LAZ, ~600MB 3D Tiles output).
 
+#![cfg(not(target_arch = "wasm32"))]
 #![cfg(feature = "laz-support")]
 
 use rand::Rng;

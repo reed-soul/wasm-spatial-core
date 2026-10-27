@@ -23,7 +23,7 @@ machine.
 [📦 npm](https://www.npmjs.com/package/wasm-spatial-core) ·
 [📖 API Docs](https://reed-soul.github.io/wasm-spatial-core/docs/) ·
 [📊 Head-to-head vs py3dtiles](./benchmarks/index.md) ·
-[🗺️ Roadmap](./ROADMAP_V2.md)
+[🗺️ Roadmap](./ROADMAP_1_0.md)
 
 **🧪 30-second try (drop a `.las` file, get a Cesium tileset):**
 
@@ -97,9 +97,11 @@ zero-upload Cesium viewer that runs on a static host.
 - ⚡ WebGPU compute kernels (with WASM fallback)
 - 🔒 **Zero server, zero upload, zero runtime dependencies**
 
-`npm install wasm-spatial-core` ships a prebuilt 1.2 MB WASM binary — no
+`npm install wasm-spatial-core` ships a prebuilt WASM binary — no
 native deps, no postinstall, works on any static host (GitHub Pages, S3,
-nginx, even `python -m http.server`).
+nginx, even `python -m http.server`). Measure the current artifact with
+`stat -c%s pkg/wasm_spatial_core_bg.wasm` after `npm run build:pkg`
+(see [PERFORMANCE.md](./PERFORMANCE.md)).
 
 ---
 
@@ -175,22 +177,27 @@ const compressed = compressTilesetWithDraco(tileset, encoder, { quantizationBits
 ### What's in the npm package?
 
 `npm install wasm-spatial-core` ships a **prebuilt WASM binary** compiled with
-`point-cloud` + `geotiff` + `laz-support` + `mesh-ingest`, plus both the
-browser (web) and Node.js targets. That gives you:
+the set in [`scripts/npm-wasm-features.txt`](./scripts/npm-wasm-features.txt)
+(`point-cloud`, `geotiff`, `laz-support`, `mesh-ingest`, `terrain-edit`,
+`mesh-edit`, `webgpu`), plus both the browser (web) and Node.js targets:
 
 | Included in npm | Not in npm (custom `wasm-pack` build) |
 |-----------------|---------------------------------------|
 | LAS / LAZ / COPC parsing | E57 (`e57-support`) |
-| Octree + 3D Tiles (pnts) | Terrain deformation (`terrain-edit`) |
-| GeoTIFF → quantized-mesh terrain | Mesh QEM / clip / OBB split (`mesh-edit`, needs `mesh-ingest`) |
-| Spatial IR + GLB ingest | WebGPU compute kernels (`webgpu`) |
-| Coordinates, GeoJSON, MVT, spatial analysis | Multi-thread build (COOP/COEP, see GitHub Releases) |
+| Octree + 3D Tiles (pnts) | Multi-thread build (COOP/COEP, see GitHub Releases) |
+| GeoTIFF → quantized-mesh terrain | |
+| Terrain deformation (flatten / cut / fill) | |
+| Spatial IR + GLB ingest | |
+| Mesh QEM / clip / OBB split | |
+| WebGPU layout constants + CPU fallback | |
+| Coordinates, GeoJSON, MVT, spatial analysis | |
 
 **Format counts:** **12+** read/write paths in the default npm build (LAS/LAZ/COPC, PLY, OBJ, PCD, GeoJSON, MVT, WKT/WKB, GeoTIFF, GPX, TopoJSON, 3D Tiles/glTF output, …). **15+** when optional format features are enabled (E57, GLB ingest, …).
 
-Runtime checks: `supportsLaz()`, `supportsGeotiff()`, `lazStatus()`.
+Runtime checks: `supportsLaz()`, `supportsGeotiff()`, `lazStatus()`,
+`supportsTerrainEdit()`, `supportsMeshEdit()`, `supportsWebGpu()`.
 
-Upgrading from 0.9? See **[docs/MIGRATION_V0_10.md](docs/MIGRATION_V0_10.md)** — the batch UTM APIs now carry the hemisphere explicitly, and southern-hemisphere conversions from ≤ 0.9 were wrong by ~10,000 km.
+Upgrading from 0.9? See **[docs/MIGRATION_V0_10.md](docs/MIGRATION_V0_10.md)** — the batch UTM APIs now carry the hemisphere explicitly, and southern-hemisphere conversions from ≤ 0.9 were wrong by ~10,000 km. Upgrading from 0.10? See **[docs/MIGRATION_V0_11.md](docs/MIGRATION_V0_11.md)** (`bestCrsForRegion` removed; WASM errors are always `SpatialError`).
 
 CI runs **`cargo test --all-features`** — **857 tests pass** (plus 34 `#[ignore]`d performance benchmarks) across the full feature matrix. The live count is printed by CI on every run; see the latest `rust` job log for the current number.
 
@@ -391,8 +398,8 @@ const iter = wasm.parseGeoJsonLazy(hugeGeojson);
 git clone https://github.com/reed-soul/wasm-spatial-core.git
 cd wasm-spatial-core
 
-# Point cloud + GeoTIFF
-wasm-pack build --target web --release --out-dir pkg -- --features point-cloud,geotiff
+# Default npm feature set (see scripts/npm-wasm-features.txt)
+wasm-pack build --target web --release --out-dir pkg -- --features $(cat scripts/npm-wasm-features.txt)
 
 # Run demos
 npm run demo
@@ -407,10 +414,11 @@ npm run demo
 | `geotiff` | ✅ | ❌ | GeoTIFF terrain + quantized-mesh |
 | `laz-support` | ✅ (since 0.10) | ❌ | LAZ/COPC decompression (used by [copc-loader](https://www.npmjs.com/package/copc-loader)) |
 | `mesh-ingest` | ✅ (since 0.10) | ❌ | Spatial IR + GLB ingest (Wave 2) |
+| `terrain-edit` | ✅ (0.11) | ❌ | Heightfield flatten/deform (requires `geotiff`) |
+| `mesh-edit` | ✅ (0.11) | ❌ | Mesh QEM / OBB split (requires `mesh-ingest`) |
+| `webgpu` | ✅ (0.11) | ❌ | WASM layout constants + CPU fallback for `/webgpu` |
 | `multi-thread` | ❌ | ❌ | Web Workers + SharedArrayBuffer |
 | `e57-support` | ❌ | ❌ | E57 format |
-| `terrain-edit` | ❌ | ❌ | Heightfield flatten/deform (requires `geotiff`) |
-| `mesh-edit` | ❌ | ❌ | Mesh QEM / OBB split (requires `mesh-ingest`) |
 | `draco-support` | ❌ | ❌ | Draco compression API (JS-side via draco3d) |
 
 ❌ in the "In npm" column means **implemented but not compiled into the
@@ -426,13 +434,14 @@ package) ships in npm regardless of the flag.
 | Doc | Scope |
 |-----|-------|
 | **[VISION.md](./VISION.md)** | Product vision — Web3D spatial **compute engine** (core only) |
-| **[ROADMAP_V2.md](./ROADMAP_V2.md)** | Active plan — Waves 1–5 (runtime, IR, terrain, GPU, mesh edit) |
+| **[ROADMAP_1_0.md](./ROADMAP_1_0.md)** | **Active** — v0.11 API hygiene → 1.0 freeze |
+| **[ROADMAP_V2.md](./ROADMAP_V2.md)** | ✅ Waves 1–5 (runtime, IR, terrain, GPU, mesh edit) |
 | **[docs/ENGINE_BOUNDARY.md](./docs/ENGINE_BOUNDARY.md)** | What is **in** the engine vs your application |
 | **[ROADMAP_V1.md](./ROADMAP_V1.md)** | ✅ Completed — point cloud → 3D Tiles browser pipeline |
 
 **V1 highlights (done):** LAS → octree → 3D Tiles (npm) · LAZ/COPC/E57 (optional builds) · GeoTIFF terrain · Draco · multi-thread WASM · Node.js batch API
 
-**V2 next:** spatial IR · terrain/mesh edit (source available; not in default npm) · WebGPU · incremental tiles — see [issue templates](./docs/issues/) (start at **W2**)
+**V2 (done):** spatial IR · terrain/mesh edit · WebGPU kernels · incremental tiles. Capability work continues behind feature flags and does **not** gate 1.0 — see [ROADMAP_1_0.md](./ROADMAP_1_0.md).
 
 ---
 

@@ -7,8 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+0.11 API hygiene toward [ROADMAP_1_0.md](./ROADMAP_1_0.md). If you are upgrading
+from 0.10, read [docs/MIGRATION_V0_11.md](./docs/MIGRATION_V0_11.md).
+
+### Breaking
+
+- **`bestCrsForRegion` removed.** Use `suggestCrsHeuristic` — the two functions
+  were identical; the old name implied a PROJ-grade CRS pick that this engine
+  does not do.
+
+### Added
+
+- Default npm WASM now compiles `terrain-edit`, `mesh-edit`, and `webgpu`
+  (feature set in `scripts/npm-wasm-features.txt`). `supportsTerrainEdit`,
+  `supportsMeshEdit`, `supportsWebGpu`, `flattenTerrain`, and mesh QEM exports
+  ship in `npm install wasm-spatial-core`.
+- `tests/npm_pack_smoke.mjs` — packs `npm/` (or `NPM_FROM_REGISTRY=1` installs
+  from the public registry) and imports `/node`, `/abort`, `/webgpu`.
+- `scripts/check-spatial-error-hatches.sh` — CI fails on `Err(JsValue::from_str)`
+  (POSIX grep; GitHub-hosted runners do not ship ripgrep).
+- `gen_test_las` creates `test-data/large/` itself, writes the point count at
+  ASPRS offset 107 (not the VLR slot), and CI generates the 500k LAS fixture
+  before `cargo test --all-features`.
+- `tests/web.rs` smokes for GeoJSON, CRS, octree, mesh ingest/edit, terrain
+  edit, and WebGPU layout constants. Other `tests/*.rs` crates are
+  `cfg(not(target_arch = "wasm32"))` so `wasm-pack test` does not try to
+  compile native-only helpers (e.g. `positions_native`) for wasm32.
+
+### Fixed
+
+- `encodeTerrainTmsPyramid` with `bounds.length !== 4` throws `SpatialError`
+  (`code === "INVALID_INPUT"`) instead of a raw string.
+- WASM `SpatialError` now sets `name` and `code` in **release** builds. Those
+  `Reflect::set` calls previously lived inside `debug_assert!`, so npm
+  packages threw a bare `Error` with only the message.
+
 ### Changed
 
+- Docs (README, VISION, AGENTS, CONTRIBUTING) point at ROADMAP_1_0 as the
+  active plan. V2 waves W1–W5 stay documented as complete.
+- PERFORMANCE.md / site badges quote the measured 0.11 npm WASM: 1.95 MB
+  uncompressed, 693 KB gzip (was the v0.6 1.2 MB debug-era figure).
 - Dependency and CI housekeeping from the Dependabot backlog: `prost` 0.14.4,
   `e57` 0.11.13, `serde_json` 1.0.151, Playwright 1.63, `@types/node` 26.6,
   `@webgpu/types` 0.1.74, `actions/setup-node` v7, `actions/setup-python` v7,

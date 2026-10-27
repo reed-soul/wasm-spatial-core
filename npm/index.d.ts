@@ -9,7 +9,7 @@
  * @license MIT
  * @copyright 2026 智启未来 (Zhiqi Weilai)
  */
-export { default as initWasm, version, batchWgs84ToGcj02, batchGcj02ToWgs84, batchWgs84ToBd09, batchBd09ToWgs84, batchGcj02ToBd09, batchBd09ToGcj02, batchWgs84ToMercator, batchMercatorToWgs84, batchWgs84ToCgcs2000, batchWgs84ToGcj02Mercator, batchWgs84ToBd09Mercator, wgs84ToUtm, utmToWgs84, batchWgs84ToUtm, batchUtmToWgs84, batchWgs84ToUtmInPlace, batchUtmToWgs84InPlace, batchWgs84ToGcj02InPlace, batchGcj02ToWgs84InPlace, batchWgs84ToBd09InPlace, batchBd09ToWgs84InPlace, batchGcj02ToBd09InPlace, batchBd09ToGcj02InPlace, batchWgs84ToMercatorInPlace, batchMercatorToWgs84InPlace, batchWgs84ToCgcs2000InPlace, batchWgs84ToGcj02MercatorInPlace, batchWgs84ToBd09MercatorInPlace, cgcs2000IsWgs84Compatible, geohashEncode, geohashDecode, geohashNeighbors, normalizeCoords, denormalizeCoords, parseGeoJsonCoords, countGeoJsonFeatures, parseGeoJsonProperties, parseGeoJsonFeatures, GeoJsonFeaturesResult, geoJsonFromCoords, geoJsonFeatureCollection, filterGeoJsonByProperty, filterGeoJsonByBBox, countGeoJsonByProperty, addProperty, renameProperty, removeProperty, parseGeoJsonStream, parseGeoJsonPerFeature, parseGeoJsonLazy, LazyGeoJsonIter, SpatialIndex, SpatialEdgeIndex, computeBounds, computeBoundsMulti, VectorTileEngine, VectorTileOptions, decodeMvt, decodeMvtToGeoJson, MvtLayer, MvtFeature, batchWgs84ToCartesian3, CesiumMeshGeometry, generateCesiumGeometry, Cesium3DTile, generate3DTile, parseLasHeader, LasHeader, parseLasHeaderOnly, LasHeaderInfo, parseLasPoints, LasPointCloud, parseLasPointsWithProgress, parseLasPointAt, PointData, parsePcdAscii, PcdPointCloud, parsePcdBinary, decimateVoxelGrid, decimateVoxelGridWithProgress, decimateRandom, generateInterleavedVertexBuffer, generateIndexedGeometry, colorizeByHeight, colorizeByIntensity, applyColorRamp, PointCloudStreamer, computeRegionByteRange, supportsLaz, lazStatus, parsePointCloudAuto, parseLazPoints, parseLazPointsStream, parseCopcHeader, readCopcChunk, readCopcChunkStandalone, readCopcRegion, copcQueryRanges, copcEstimateDownloadSize, estimateNormals, flipNormals, buildOctree, Octree, OctreeChunkBuilder, octreeMemoryUsage, encodePntsTile, generateTileset, generateTilesetWithSpacing, estimatePointSpacing, generateTilesetIncremental, TilesetResult, pointCloudChunkFromBuffers, PointCloudChunk, exportPointCloudToPnts, parseGlb, createEnuFrame, computeSvdAlignment, computeScreenSpaceError, getVisibleTiles, parseIfcGeometry, IfcGeometryResult, IfcMesh, GltfBuilder, pointCloudToGlb, terrainToGlb, meshToGlb, parseGeotiff, encodeQuantizedMesh, encodeTerrainTileset, ColorRamp, hillshade, contourLines, WorkerHandle, WorkerOptions, supportsWorker, processChunked, buildTin, tinInterpolate, haversineDistance, vincentyDistance, rhumbDistance, rhumbBearing, bearing, destination, midpoint, bufferPoint, bufferLineString, boundingBox, centroid, convexHull, concaveHull, clusterByDensity, clusterByGrid, crsInfo, getSupportedCrs, bestCrsForRegion, suggestCrsHeuristic, isInChina, getInputLimits, polygonArea, areaWithHoles, polylineLength, simplifyDouglasPeucker, isPointInRing, polygonIntersection, polygonUnion, contains, touches, disjoint, polygonIntersects, validateCoords, ValidationResult, cleanCoords, deduplicateCoords, sortCoordsByLng, sortCoordsByLat, gridIndex, parseWkb, parseWkt, toWkb, toWkt, memoryInfo, MemoryInfo, setInputSizeLimit, getInputSizeLimit, getAllocatedBytes, } from "./pkg/wasm_spatial_core.js";
+export { default as initWasm, version, batchWgs84ToGcj02, batchGcj02ToWgs84, batchWgs84ToBd09, batchBd09ToWgs84, batchGcj02ToBd09, batchBd09ToGcj02, batchWgs84ToMercator, batchMercatorToWgs84, batchWgs84ToCgcs2000, batchWgs84ToGcj02Mercator, batchWgs84ToBd09Mercator, wgs84ToUtm, utmToWgs84, batchWgs84ToUtm, batchUtmToWgs84, batchWgs84ToUtmInPlace, batchUtmToWgs84InPlace, batchWgs84ToGcj02InPlace, batchGcj02ToWgs84InPlace, batchWgs84ToBd09InPlace, batchBd09ToWgs84InPlace, batchGcj02ToBd09InPlace, batchBd09ToGcj02InPlace, batchWgs84ToMercatorInPlace, batchMercatorToWgs84InPlace, batchWgs84ToCgcs2000InPlace, batchWgs84ToGcj02MercatorInPlace, batchWgs84ToBd09MercatorInPlace, cgcs2000IsWgs84Compatible, geohashEncode, geohashDecode, geohashNeighbors, normalizeCoords, denormalizeCoords, parseGeoJsonCoords, countGeoJsonFeatures, parseGeoJsonProperties, parseGeoJsonFeatures, GeoJsonFeaturesResult, geoJsonFromCoords, geoJsonFeatureCollection, filterGeoJsonByProperty, filterGeoJsonByBBox, countGeoJsonByProperty, addProperty, renameProperty, removeProperty, parseGeoJsonStream, parseGeoJsonPerFeature, parseGeoJsonLazy, LazyGeoJsonIter, SpatialIndex, SpatialEdgeIndex, computeBounds, computeBoundsMulti, VectorTileEngine, VectorTileOptions, decodeMvt, decodeMvtToGeoJson, MvtLayer, MvtFeature, batchWgs84ToCartesian3, CesiumMeshGeometry, generateCesiumGeometry, Cesium3DTile, generate3DTile, parseLasHeader, LasHeader, parseLasHeaderOnly, LasHeaderInfo, parseLasPoints, LasPointCloud, parseLasPointsWithProgress, parseLasPointAt, PointData, parsePcdAscii, PcdPointCloud, parsePcdBinary, decimateVoxelGrid, decimateVoxelGridWithProgress, decimateRandom, generateInterleavedVertexBuffer, generateIndexedGeometry, colorizeByHeight, colorizeByIntensity, applyColorRamp, PointCloudStreamer, computeRegionByteRange, supportsLaz, lazStatus, parsePointCloudAuto, parseLazPoints, parseLazPointsStream, parseCopcHeader, readCopcChunk, readCopcChunkStandalone, readCopcRegion, copcQueryRanges, copcEstimateDownloadSize, estimateNormals, flipNormals, buildOctree, Octree, OctreeChunkBuilder, octreeMemoryUsage, encodePntsTile, generateTileset, generateTilesetWithSpacing, estimatePointSpacing, generateTilesetIncremental, TilesetResult, pointCloudChunkFromBuffers, PointCloudChunk, exportPointCloudToPnts, parseGlb, createEnuFrame, computeSvdAlignment, computeScreenSpaceError, getVisibleTiles, parseIfcGeometry, IfcGeometryResult, IfcMesh, GltfBuilder, pointCloudToGlb, terrainToGlb, meshToGlb, parseGeotiff, encodeQuantizedMesh, encodeTerrainTileset, encodeTerrainTmsPyramid, encodeDeformedTerrainTileset, flattenTerrain, excavateTerrain, fillTerrain, ColorRamp, hillshade, contourLines, geotiffStatus, supportsGeotiff, supportsMeshIngest, supportsTerrainEdit, supportsMeshEdit, supportsWebGpu, clipMeshByPlane, clipAndCapMesh, splitMeshByObb, simplifyMeshQem, WorkerHandle, WorkerOptions, supportsWorker, processChunked, buildTin, tinInterpolate, haversineDistance, vincentyDistance, rhumbDistance, rhumbBearing, bearing, destination, midpoint, bufferPoint, bufferLineString, boundingBox, centroid, convexHull, concaveHull, clusterByDensity, clusterByGrid, crsInfo, getSupportedCrs, suggestCrsHeuristic, isInChina, getInputLimits, polygonArea, areaWithHoles, polylineLength, simplifyDouglasPeucker, isPointInRing, polygonIntersection, polygonUnion, contains, touches, disjoint, polygonIntersects, validateCoords, ValidationResult, cleanCoords, deduplicateCoords, sortCoordsByLng, sortCoordsByLat, gridIndex, parseWkb, parseWkt, toWkb, toWkt, memoryInfo, MemoryInfo, setInputSizeLimit, getInputSizeLimit, getAllocatedBytes, } from "./pkg/wasm_spatial_core.js";
 /** Supported coordinate reference systems. */
 export type CRS = "WGS84" | "GCJ02" | "BD09" | "CGCS2000" | "EPSG:3857";
 /** Options for batch coordinate conversion. */
@@ -86,7 +86,6 @@ export declare function loadSpatialCore(): Promise<{
     batchWgs84ToUtm(coords: Float64Array): Float64Array;
     batchWgs84ToUtmInPlace(coords: Float64Array): void;
     bearing(lng1: number, lat1: number, lng2: number, lat2: number): number;
-    bestCrsForRegion(min_lng: number, min_lat: number, max_lng: number, max_lat: number): string;
     boundingBox(coords: Float64Array): Float64Array;
     bufferLineString(coords: Float64Array, radius_meters: number, segments?: number | null): Float64Array;
     bufferPoint(lng: number, lat: number, radius_meters: number, segments?: number | null): Float64Array;
@@ -100,6 +99,8 @@ export declare function loadSpatialCore(): Promise<{
     cgcs2000IsWgs84Compatible(): boolean;
     checkMemoryAvailable(estimated_bytes: number): boolean;
     cleanCoords(coords: Float64Array, strategy: string): Float64Array;
+    clipAndCapMesh(mesh: import("./pkg/wasm_spatial_core.js").WasmMeshChunk, normal: Float32Array, distance: number): import("./pkg/wasm_spatial_core.js").WasmMeshChunk;
+    clipMeshByPlane(mesh: import("./pkg/wasm_spatial_core.js").WasmMeshChunk, normal: Float32Array, distance: number): import("./pkg/wasm_spatial_core.js").WasmMeshChunk;
     clusterByDensity(coords: Float64Array, epsilon: number, min_points: number): Float64Array;
     clusterByGrid(coords: Float64Array, cell_size: number, min_points: number): Float64Array;
     colorizeByClassification(classes: Uint8Array): Uint8Array;
@@ -139,6 +140,7 @@ export declare function loadSpatialCore(): Promise<{
     dracoStatus(): string;
     e57Status(): string;
     encodeB3dmTile(glb_bytes: Uint8Array, batch_length: number, batch_table_json?: string | null): Uint8Array;
+    encodeDeformedTerrainTileset(heights: Float32Array, width: number, height: number, bounds: Float64Array, max_zoom: number): import("./pkg/wasm_spatial_core.js").TerrainTilesetResult;
     encodeI3dmTile(glb_bytes: Uint8Array, positions: Float32Array, orientations?: Float32Array | null, scales?: Float32Array | null): Uint8Array;
     encodeOct16Normal(nx: number, ny: number, nz: number): number;
     encodePntsTile(positions: Float32Array, center_x: number, center_y: number, center_z: number, colors?: Uint8Array | null): Uint8Array;
@@ -151,11 +153,14 @@ export declare function loadSpatialCore(): Promise<{
     estimateNormals(positions: Float32Array, k: number): Float32Array;
     estimateOctreeMemory(num_points: number): number;
     estimatePointSpacing(positions: Float32Array, sample_size?: number | null): number;
+    excavateTerrain(heights: Float32Array, width: number, height: number, bounds: Float64Array, polygon: Float64Array, mode: string, value: number, feather_cells: number): void;
     exportPointCloudToPnts(positions: Float32Array, colors?: Uint8Array | null, tile_uri?: string | null): import("./pkg/wasm_spatial_core.js").WasmPointCloudTileExport;
+    fillTerrain(heights: Float32Array, width: number, height: number, bounds: Float64Array, polygon: Float64Array, target: number, feather_cells: number): void;
     filterByBounds(positions: Float32Array, colors: any, min_x: number, min_y: number, min_z: number, max_x: number, max_y: number, max_z: number): import("./pkg/wasm_spatial_core.js").FilteredResult;
     filterByClassification(positions: Float32Array, colors: any, classifications: Uint8Array, class_ids: Uint8Array): import("./pkg/wasm_spatial_core.js").FilteredResult;
     filterGeoJsonByBBox(input: string, min_lng: number, min_lat: number, max_lng: number, max_lat: number): string;
     filterGeoJsonByProperty(input: string, key: string, value: string): string;
+    flattenTerrain(heights: Float32Array, width: number, height: number, bounds: Float64Array, polygon: Float64Array, target: number, feather_cells: number): void;
     flipNormals(normals: Float32Array, positions: Float32Array): Float32Array;
     generate3DTile(geojson_str: string, height_property?: string | null): import("./index.js").Cesium3DTile;
     generateCesiumGeometry(geojson_str: string, height_property?: string | null): import("./index.js").CesiumMeshGeometry;
@@ -238,6 +243,7 @@ export declare function loadSpatialCore(): Promise<{
     processChunked(positions: Float32Array, colors: Uint8Array | null | undefined, max_points_per_node: number | null | undefined, max_depth: number | null | undefined, on_chunk: Function): Promise<any>;
     processChunkedWithAbort(positions: Float32Array, colors: Uint8Array | null | undefined, max_points_per_node: number | null | undefined, max_depth: number | null | undefined, on_chunk: Function, should_abort: Function): Promise<any>;
     quantizePositions(positions: Float32Array, bits?: number | null): import("./pkg/wasm_spatial_core.js").QuantizeResult;
+    rasterizeTerrainMask(width: number, height: number, bounds: Float64Array, polygon: Float64Array): Uint8Array;
     readCopcChunk(bytes: Uint8Array, chunk_offset: number, chunk_size: number, expected_points: number, header_bytes: Uint8Array): import("./index.js").LasPointCloud;
     readCopcChunkStandalone(chunk_bytes: Uint8Array, expected_points: number, header_bytes: Uint8Array): import("./index.js").LasPointCloud;
     readCopcRegion(bytes: Uint8Array, min_x: number, min_y: number, min_z: number, max_x: number, max_y: number, max_z: number): import("./index.js").LasPointCloud;
@@ -250,15 +256,20 @@ export declare function loadSpatialCore(): Promise<{
     setInputSizeLimit(bytes: number): void;
     setMaxWasmMemory(bytes: number): void;
     simplifyDouglasPeucker(coords: Float64Array, tolerance: number): Float64Array;
+    simplifyMeshQem(mesh: import("./pkg/wasm_spatial_core.js").WasmMeshChunk, target_triangles: number, preserve_uv_seams?: boolean | null): import("./pkg/wasm_spatial_core.js").WasmQemResult;
     sortCoordsByLat(coords: Float64Array): Float64Array;
     sortCoordsByLng(coords: Float64Array): Float64Array;
+    splitMeshByObb(mesh: import("./pkg/wasm_spatial_core.js").WasmMeshChunk, obb: Float32Array): import("./pkg/wasm_spatial_core.js").WasmMeshSplit;
     suggestCrsHeuristic(min_lng: number, min_lat: number, max_lng: number, max_lat: number): string;
     supportsDraco(): boolean;
     supportsE57(): boolean;
     supportsGeotiff(): boolean;
     supportsLaz(): boolean;
+    supportsMeshEdit(): boolean;
     supportsMeshIngest(): boolean;
     supportsMultiThread(): boolean;
+    supportsTerrainEdit(): boolean;
+    supportsWebGpu(): boolean;
     supportsWorker(): boolean;
     terrainToGlb(heights: Float32Array, width: number, height: number, bounds: Float64Array): Uint8Array;
     threadCount(): number;
@@ -273,6 +284,8 @@ export declare function loadSpatialCore(): Promise<{
     validateCoords(coords: Float64Array, crs: string): import("./index.js").ValidationResult;
     version(): string;
     vincentyDistance(lng1: number, lat1: number, lng2: number, lat2: number): number;
+    webGpuShaderVersion(): string;
+    webGpuStatus(): string;
     wgs84ToUtm(lng: number, lat: number): Float64Array;
     initSync(module: {
         module: import("./pkg/wasm_spatial_core.js").SyncInitInput;
@@ -317,7 +330,9 @@ export declare function loadSpatialCore(): Promise<{
     WasmAlignmentResult: typeof import("./pkg/wasm_spatial_core.js").WasmAlignmentResult;
     WasmEnuFrame: typeof import("./pkg/wasm_spatial_core.js").WasmEnuFrame;
     WasmMeshChunk: typeof import("./pkg/wasm_spatial_core.js").WasmMeshChunk;
+    WasmMeshSplit: typeof import("./pkg/wasm_spatial_core.js").WasmMeshSplit;
     WasmPointCloudTileExport: typeof import("./pkg/wasm_spatial_core.js").WasmPointCloudTileExport;
+    WasmQemResult: typeof import("./pkg/wasm_spatial_core.js").WasmQemResult;
     WasmTmsPyramid: typeof import("./pkg/wasm_spatial_core.js").WasmTmsPyramid;
     WorkerHandle: typeof import("./index.js").WorkerHandle;
     WorkerOptions: typeof import("./index.js").WorkerOptions;

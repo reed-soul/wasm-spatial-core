@@ -9,6 +9,8 @@
 //!
 //! For CI, only the quick tests (non-ignored) run by default.
 
+#![cfg(not(target_arch = "wasm32"))]
+
 use wasm_spatial_core::batch_wgs84_to_gcj02_in_place;
 use wasm_spatial_core::test_exports::{
     count_geojson_features, deduplicate_coords_native, geojson_feature_collection_native,

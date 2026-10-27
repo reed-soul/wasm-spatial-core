@@ -2,6 +2,8 @@
 //!
 //! Run: cargo test --test large_file_e2e --features point-cloud,test-helpers -- --nocapture
 
+#![cfg(not(target_arch = "wasm32"))]
+
 use std::time::Instant;
 use wasm_spatial_core::test_exports::test_helpers::get_positions;
 use wasm_spatial_core::{

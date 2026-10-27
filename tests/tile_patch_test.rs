@@ -1,5 +1,7 @@
 //! Integration tests for incremental tileset patching (Wave 1.1).
 
+#![cfg(not(target_arch = "wasm32"))]
+
 use wasm_spatial_core::{apply_patch, generate_tileset, Octree, TilesetPatch};
 
 fn sample_tileset() -> wasm_spatial_core::TilesetResult {

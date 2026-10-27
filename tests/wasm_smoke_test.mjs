@@ -248,6 +248,45 @@ async function main() {
   console.log('\n📐 CRS:');
   // crsInfo may crash without full WASM memory config — skip in smoke test
   assert(true, 'CRS module available (crsInfo skipped in Node.js)');
+  const crsHint = mod.suggestCrsHeuristic(116.0, 39.0, 117.0, 40.0);
+  assert(typeof crsHint === 'string' && crsHint.includes('GCJ-02'), `suggestCrsHeuristic: ${crsHint}`);
+  assert(typeof mod.bestCrsForRegion !== 'function', 'bestCrsForRegion removed in 0.11');
+
+  // ── SpatialError ──
+  console.log('\n🚨 SpatialError:');
+  try {
+    mod.parseGeoJsonCoords('not-json');
+    assert(false, 'parseGeoJsonCoords(invalid) should throw');
+  } catch (e) {
+    assert(e && e.name === 'SpatialError', `invalid GeoJSON name=${e && e.name}`);
+    assert(e && e.code === 'PARSE_ERROR', `invalid GeoJSON code=${e && e.code}`);
+  }
+  if (typeof mod.encodeTerrainTmsPyramid === 'function') {
+    try {
+      mod.encodeTerrainTmsPyramid(
+        new Float32Array(4),
+        2,
+        2,
+        new Float64Array([0, 0, 1]),
+        new Float64Array(0),
+        1,
+      );
+      assert(false, 'encodeTerrainTmsPyramid(short bounds) should throw');
+    } catch (e) {
+      assert(e && e.name === 'SpatialError', `TMS bounds name=${e && e.name}`);
+      assert(e && e.code === 'INVALID_INPUT', `TMS bounds code=${e && e.code}`);
+    }
+  }
+
+  if (typeof mod.supportsTerrainEdit === 'function') {
+    assert(mod.supportsTerrainEdit() === true, `supportsTerrainEdit=${mod.supportsTerrainEdit()}`);
+  }
+  if (typeof mod.supportsMeshEdit === 'function') {
+    assert(mod.supportsMeshEdit() === true, `supportsMeshEdit=${mod.supportsMeshEdit()}`);
+  }
+  if (typeof mod.supportsWebGpu === 'function') {
+    assert(mod.supportsWebGpu() === true, `supportsWebGpu=${mod.supportsWebGpu()}`);
+  }
 
   // ── Summary ──
   console.log('\n' + '─'.repeat(50));

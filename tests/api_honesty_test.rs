@@ -1,5 +1,6 @@
 //! API honesty / capability contract tests (W0).
 
+#![cfg(not(target_arch = "wasm32"))]
 #[test]
 fn test_get_input_limits_json_fields() {
     let json = wasm_spatial_core::get_input_limits();
@@ -58,8 +59,10 @@ fn test_estimate_job_bytes_new_ops() {
 }
 
 #[test]
-fn test_suggest_crs_heuristic_matches_best() {
-    let a = wasm_spatial_core::suggest_crs_heuristic(116.0, 39.0, 117.0, 40.0);
-    let b = wasm_spatial_core::best_crs_for_region(116.0, 39.0, 117.0, 40.0);
-    assert_eq!(a, b);
+fn test_suggest_crs_heuristic_china() {
+    let json = wasm_spatial_core::suggest_crs_heuristic(116.0, 39.0, 117.0, 40.0);
+    assert!(
+        json.contains("GCJ-02"),
+        "China bbox should suggest GCJ-02: {json}"
+    );
 }

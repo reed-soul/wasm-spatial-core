@@ -17,7 +17,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-FEATURES="${SITE_FEATURES:-point-cloud,geotiff,laz-support,mesh-ingest}"
+FEATURES="${SITE_FEATURES:-$(tr -d '[:space:]' < "$ROOT/scripts/npm-wasm-features.txt")}"
 
 if [[ "${SKIP_WASM_BUILD:-0}" != "1" ]]; then
   echo "Building WASM package → pkg/  (features: $FEATURES)"

@@ -2,6 +2,7 @@
 //!
 //! Ensures every function handles edge cases gracefully without panics.
 
+#![cfg(not(target_arch = "wasm32"))]
 #[cfg(feature = "point-cloud")]
 use wasm_spatial_core::{
     encode_pnts_tile, parse_las_header_core, parse_las_points_core, parse_pnts_header, Octree,

@@ -10,6 +10,8 @@
 //! Required feature: `terrain-edit` (matches `quantized_mesh_roundtrip_test.rs`
 //! — both modules are gated under `geotiff`, which `terrain-edit` implies).
 
+#![cfg(not(target_arch = "wasm32"))]
+
 use wasm_spatial_core::{encode_terrain_tms_pyramid, TmsPyramidResult};
 
 fn fixture_heights_16x16() -> (Vec<f32>, u32, u32, [f64; 4]) {

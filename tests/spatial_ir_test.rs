@@ -2,6 +2,8 @@
 //!
 //! Run with: `cargo test --features mesh-ingest spatial_ir`
 
+#![cfg(not(target_arch = "wasm32"))]
+
 use wasm_spatial_core::{
     batch_enu_to_wgs84_core, batch_wgs84_to_enu_core, compute_svd_alignment_core, parse_glb_core,
     parse_ply_core, Aabb, ChunkMeta, EnuFrame, MeshChunk, PointCloudChunk, SpatialChunk,

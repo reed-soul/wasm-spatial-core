@@ -169,21 +169,19 @@ impl std::error::Error for SpatialErrorDetail {}
 fn error_to_js(code: &str, message: &str) -> JsValue {
     // Build a real `js_sys::Error` (not a plain `Object`) so JS code using
     // `e instanceof Error`, `e.stack`, or `console.error` formatting works.
-    // Attach `code`/`name` as custom properties.
+    // Attach `code`/`name` as own properties on every build — wrapping the
+    // `Reflect::set` calls in `debug_assert!` compiled them out of `--release`
+    // WASM, so Node/browser consumers only saw a bare `Error` with the code
+    // stuffed into `message`.
     let err = js_sys::Error::new(message);
-    // The constructor sets `message` already; reflect-set the rest. These
-    // cannot realistically fail on a fresh Error, so use `debug_assert` to
-    // surface bugs in debug builds without aborting release on a JS quirk.
-    let code_val = JsValue::from(code);
-    let name_val = JsValue::from("SpatialError");
-    debug_assert!(
-        js_sys::Reflect::set(&err, &"code".into(), &code_val).is_ok(),
-        "Reflect::set(code) failed"
+    let code_ok = js_sys::Reflect::set(&err, &JsValue::from_str("code"), &JsValue::from_str(code));
+    let name_ok = js_sys::Reflect::set(
+        &err,
+        &JsValue::from_str("name"),
+        &JsValue::from_str("SpatialError"),
     );
-    debug_assert!(
-        js_sys::Reflect::set(&err, &"name".into(), &name_val).is_ok(),
-        "Reflect::set(name) failed"
-    );
+    debug_assert!(code_ok.is_ok(), "Reflect::set(code) failed");
+    debug_assert!(name_ok.is_ok(), "Reflect::set(name) failed");
     err.into()
 }
 

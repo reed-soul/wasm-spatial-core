@@ -849,6 +849,13 @@ mod tests {
         assert_eq!(count, 2);
     }
 
+    #[test]
+    fn test_invalid_geojson_is_parse_error() {
+        let err = count_geojson_features("not json").unwrap_err();
+        assert_eq!(err.code(), "PARSE_ERROR");
+        assert!(err.message().contains("Failed to parse"));
+    }
+
     // ── Tests that exercise the public WASM API (requires wasm32) ─────
 
     #[cfg(target_arch = "wasm32")]

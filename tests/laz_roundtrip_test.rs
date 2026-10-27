@@ -6,6 +6,7 @@
 //! preservation, and support for multiple point formats and distributions.
 
 // All tests require laz-support feature
+#![cfg(not(target_arch = "wasm32"))]
 #![cfg(feature = "laz-support")]
 
 use wasm_spatial_core::parse_laz_points_core;

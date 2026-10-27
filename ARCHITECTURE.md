@@ -163,24 +163,25 @@ gates each.
 
 ## 4. Feature flags
 
-The default build is intentionally small. Everything beyond core formats and
-coordinate transforms is opt-in. From `Cargo.toml`:
+The crate default is intentionally small. Everything beyond core formats and
+coordinate transforms is opt-in. The published npm WASM uses
+[`scripts/npm-wasm-features.txt`](./scripts/npm-wasm-features.txt). From `Cargo.toml`:
 
 | Feature | Pulls in | In default npm package? |
 |---------|----------|-------------------------|
 | `point-cloud` | LAS/PLY/OBJ/PCD, octree, pnts | yes |
-| `laz-support` | `point-cloud` + LAZ/COPC decompression | no (custom build) |
+| `laz-support` | `point-cloud` + LAZ/COPC decompression | yes |
 | `e57-support` | E57 reader | no |
 | `geotiff` | GeoTIFF decode + quantized-mesh | yes |
-| `mesh-ingest` | `point-cloud` + GLB read + Spatial IR | no |
-| `terrain-edit` | `geotiff` + terrain deformation (W3) | no |
-| `mesh-edit` | `mesh-ingest` + clip/cap/QEM (W5) | no |
-| `webgpu` | `point-cloud` + WebGPU kernels (W4) | no |
+| `mesh-ingest` | `point-cloud` + GLB read + Spatial IR | yes |
+| `terrain-edit` | `geotiff` + terrain deformation (W3) | yes |
+| `mesh-edit` | `mesh-ingest` + clip/cap/QEM (W5) | yes |
+| `webgpu` | `point-cloud` + WebGPU kernels (W4) | yes |
 | `multi-thread` | rayon + wasm-bindgen-rayon (needs COOP/COEP) | nightly build only |
 | `single-thread` | (default) | yes |
 
 CI runs `cargo test --all-features`, so the whole matrix is green on every push.
-The published npm package builds a curated subset — see the
+The published npm package builds the curated feature set above — see the
 [`npm/package.json` `exports` map](./npm/package.json).
 
 ---
