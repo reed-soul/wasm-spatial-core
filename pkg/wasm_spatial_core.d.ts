@@ -1143,6 +1143,19 @@ export class WasmMeshChunk {
 }
 
 /**
+ * WASM-visible mesh split result.
+ */
+export class WasmMeshSplit {
+    private constructor();
+    free(): void;
+    [Symbol.dispose](): void;
+    insideGlb(): Uint8Array;
+    outsideGlb(): Uint8Array;
+    readonly inside: WasmMeshChunk;
+    readonly outside: WasmMeshChunk;
+}
+
+/**
  * WASM result of exporting a point cloud to pnts + tileset.json.
  */
 export class WasmPointCloudTileExport {
@@ -1153,6 +1166,19 @@ export class WasmPointCloudTileExport {
     readonly center: Float64Array;
     readonly pnts: Uint8Array;
     readonly tilesetJson: string;
+}
+
+/**
+ * WASM-visible QEM simplification result.
+ */
+export class WasmQemResult {
+    private constructor();
+    free(): void;
+    [Symbol.dispose](): void;
+    readonly maxError: number;
+    readonly mesh: WasmMeshChunk;
+    readonly trianglesAfter: number;
+    readonly trianglesBefore: number;
 }
 
 /**
@@ -1583,11 +1609,6 @@ export function batchWgs84ToUtmInPlace(coords: Float64Array): void;
 export function bearing(lng1: number, lat1: number, lng2: number, lat2: number): number;
 
 /**
- * @deprecated Use `suggestCrsHeuristic` — same heuristic, kept for compatibility.
- */
-export function bestCrsForRegion(min_lng: number, min_lat: number, max_lng: number, max_lat: number): string;
-
-/**
  * Compute the axis-aligned bounding box of a set of coordinates.
  *
  * Returns `[minLng, minLat, maxLng, maxLat]`.
@@ -1729,6 +1750,16 @@ export function checkMemoryAvailable(estimated_bytes: number): boolean;
  * * `strategy` — One of: `"remove"`, `"clamp"`, `"snap"`
  */
 export function cleanCoords(coords: Float64Array, strategy: string): Float64Array;
+
+/**
+ * Clip a mesh by plane and cap the open boundary.
+ */
+export function clipAndCapMesh(mesh: WasmMeshChunk, normal: Float32Array, distance: number): WasmMeshChunk;
+
+/**
+ * Clip a mesh to the positive half-space of a plane.
+ */
+export function clipMeshByPlane(mesh: WasmMeshChunk, normal: Float32Array, distance: number): WasmMeshChunk;
 
 /**
  * Density-based spatial clustering (simplified DBSCAN).
@@ -2162,6 +2193,11 @@ export function e57Status(): string;
 export function encodeB3dmTile(glb_bytes: Uint8Array, batch_length: number, batch_table_json?: string | null): Uint8Array;
 
 /**
+ * Re-encode deformed terrain as a quantized-mesh tileset (WASM).
+ */
+export function encodeDeformedTerrainTileset(heights: Float32Array, width: number, height: number, bounds: Float64Array, max_zoom: number): TerrainTilesetResult;
+
+/**
  * WASM-exported i3dm encoder.
  */
 export function encodeI3dmTile(glb_bytes: Uint8Array, positions: Float32Array, orientations?: Float32Array | null, scales?: Float32Array | null): Uint8Array;
@@ -2304,12 +2340,22 @@ export function estimateOctreeMemory(num_points: number): number;
 export function estimatePointSpacing(positions: Float32Array, sample_size?: number | null): number;
 
 /**
+ * Excavate terrain inside a polygon.
+ */
+export function excavateTerrain(heights: Float32Array, width: number, height: number, bounds: Float64Array, polygon: Float64Array, mode: string, value: number, feather_cells: number): void;
+
+/**
  * Export point cloud positions to a single pnts tile + minimal tileset.json.
  *
  * `positions`: flat `[x, y, z, ...]` Float32Array.
  * `colors`: optional RGB (`3×N`) or RGBA (`4×N`) bytes.
  */
 export function exportPointCloudToPnts(positions: Float32Array, colors?: Uint8Array | null, tile_uri?: string | null): WasmPointCloudTileExport;
+
+/**
+ * Fill terrain inside a polygon (only raises cells below target).
+ */
+export function fillTerrain(heights: Float32Array, width: number, height: number, bounds: Float64Array, polygon: Float64Array, target: number, feather_cells: number): void;
 
 /**
  * Filter point cloud by axis-aligned bounding box.
@@ -2368,6 +2414,11 @@ export function filterGeoJsonByBBox(input: string, min_lng: number, min_lat: num
  * Filtered GeoJSON FeatureCollection string.
  */
 export function filterGeoJsonByProperty(input: string, key: string, value: string): string;
+
+/**
+ * Flatten terrain inside a polygon to target elevation.
+ */
+export function flattenTerrain(heights: Float32Array, width: number, height: number, bounds: Float64Array, polygon: Float64Array, target: number, feather_cells: number): void;
 
 /**
  * Flip normals to ensure consistent orientation toward the centroid.
@@ -3290,6 +3341,11 @@ export function processChunkedWithAbort(positions: Float32Array, colors: Uint8Ar
 export function quantizePositions(positions: Float32Array, bits?: number | null): QuantizeResult;
 
 /**
+ * Rasterize polygon mask on a terrain grid.
+ */
+export function rasterizeTerrainMask(width: number, height: number, bounds: Float64Array, polygon: Float64Array): Uint8Array;
+
+/**
  * WASM binding: Read a single COPC chunk.
  */
 export function readCopcChunk(bytes: Uint8Array, chunk_offset: number, chunk_size: number, expected_points: number, header_bytes: Uint8Array): LasPointCloud;
@@ -3431,6 +3487,13 @@ export function setMaxWasmMemory(bytes: number): void;
 export function simplifyDouglasPeucker(coords: Float64Array, tolerance: number): Float64Array;
 
 /**
+ * Decimate a mesh toward a target triangle count using QEM.
+ *
+ * `preserve_uv_seams` defaults to `true` when omitted.
+ */
+export function simplifyMeshQem(mesh: WasmMeshChunk, target_triangles: number, preserve_uv_seams?: boolean | null): WasmQemResult;
+
+/**
  * Sort coordinate pairs by latitude (keeping lng,lat pairs together).
  *
  * # Arguments
@@ -3457,10 +3520,15 @@ export function sortCoordsByLat(coords: Float64Array): Float64Array;
 export function sortCoordsByLng(coords: Float64Array): Float64Array;
 
 /**
+ * Split a [`WasmMeshChunk`] by OBB and return inside/outside submeshes.
+ */
+export function splitMeshByObb(mesh: WasmMeshChunk, obb: Float32Array): WasmMeshSplit;
+
+/**
  * Heuristic CRS suggestion for a geographic bounding box (3 CRS codes only).
  *
- * Prefer this name over `bestCrsForRegion` — the result is **not** a PROJ-grade
- * optimal projection recommendation.
+ * This is **not** a PROJ-grade optimal projection recommendation. The engine
+ * returns one of `GCJ-02`, `EPSG:3857`, or `EPSG:4326` from a bbox heuristic.
  *
  * # Arguments
  * - `min_lng`, `min_lat`, `max_lng`, `max_lat`: Bounding box in degrees.
@@ -3499,6 +3567,11 @@ export function supportsGeotiff(): boolean;
 export function supportsLaz(): boolean;
 
 /**
+ * Whether `mesh-edit` is enabled in this build.
+ */
+export function supportsMeshEdit(): boolean;
+
+/**
  * Whether mesh ingest (Spatial IR + GLB read) is available.
  */
 export function supportsMeshIngest(): boolean;
@@ -3510,6 +3583,16 @@ export function supportsMeshIngest(): boolean;
  * Cross-Origin-Isolation (COOP + COEP headers).
  */
 export function supportsMultiThread(): boolean;
+
+/**
+ * Whether terrain edit (Wave 3) is available.
+ */
+export function supportsTerrainEdit(): boolean;
+
+/**
+ * Whether the crate was built with WebGPU compute integration enabled.
+ */
+export function supportsWebGpu(): boolean;
 
 /**
  * Check if Web Workers are available in the current environment.
@@ -3666,6 +3749,16 @@ export function version(): string;
 export function vincentyDistance(lng1: number, lat1: number, lng2: number, lat2: number): number;
 
 /**
+ * WGSL shader bundle version for cache invalidation.
+ */
+export function webGpuShaderVersion(): string;
+
+/**
+ * Human-readable WebGPU module status.
+ */
+export function webGpuStatus(): string;
+
+/**
  * Convert a single WGS84 coordinate to UTM.
  *
  * # Arguments
@@ -3738,7 +3831,9 @@ export interface InitOutput {
     readonly __wbg_wasmalignmentresult_free: (a: number, b: number) => void;
     readonly __wbg_wasmenuframe_free: (a: number, b: number) => void;
     readonly __wbg_wasmmeshchunk_free: (a: number, b: number) => void;
+    readonly __wbg_wasmmeshsplit_free: (a: number, b: number) => void;
     readonly __wbg_wasmpointcloudtileexport_free: (a: number, b: number) => void;
+    readonly __wbg_wasmqemresult_free: (a: number, b: number) => void;
     readonly __wbg_wasmtmspyramid_free: (a: number, b: number) => void;
     readonly __wbg_workerhandle_free: (a: number, b: number) => void;
     readonly __wbg_workeroptions_free: (a: number, b: number) => void;
@@ -3776,7 +3871,6 @@ export interface InitOutput {
     readonly batchWgs84ToUtm: (a: number) => number;
     readonly batchWgs84ToUtmInPlace: (a: number, b: number, c: number) => void;
     readonly bearing: (a: number, b: number, c: number, d: number) => number;
-    readonly bestCrsForRegion: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly boundingBox: (a: number) => number;
     readonly bufferLineString: (a: number, b: number, c: number) => number;
     readonly bufferPoint: (a: number, b: number, c: number, d: number) => number;
@@ -3794,6 +3888,8 @@ export interface InitOutput {
     readonly cgcs2000IsWgs84Compatible: () => number;
     readonly checkMemoryAvailable: (a: number) => number;
     readonly cleanCoords: (a: number, b: number, c: number, d: number) => void;
+    readonly clipAndCapMesh: (a: number, b: number, c: number, d: number) => void;
+    readonly clipMeshByPlane: (a: number, b: number, c: number, d: number) => void;
     readonly clusterByDensity: (a: number, b: number, c: number) => number;
     readonly clusterByGrid: (a: number, b: number, c: number) => number;
     readonly colorizeByClassification: (a: number) => number;
@@ -3833,6 +3929,7 @@ export interface InitOutput {
     readonly dracoStatus: (a: number) => void;
     readonly e57Status: (a: number) => void;
     readonly encodeB3dmTile: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly encodeDeformedTerrainTileset: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
     readonly encodeI3dmTile: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly encodeOct16Normal: (a: number, b: number, c: number) => number;
     readonly encodePntsTile: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
@@ -3845,7 +3942,9 @@ export interface InitOutput {
     readonly estimateNormals: (a: number, b: number) => number;
     readonly estimateOctreeMemory: (a: number) => number;
     readonly estimatePointSpacing: (a: number, b: number, c: number) => number;
+    readonly excavateTerrain: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number) => void;
     readonly exportPointCloudToPnts: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
+    readonly fillTerrain: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => void;
     readonly filterByBounds: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => number;
     readonly filterByClassification: (a: number, b: number, c: number, d: number) => number;
     readonly filterGeoJsonByBBox: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
@@ -3853,6 +3952,7 @@ export interface InitOutput {
     readonly filteredresult_colors: (a: number) => number;
     readonly filteredresult_pointCount: (a: number) => number;
     readonly filteredresult_positions: (a: number) => number;
+    readonly flattenTerrain: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => void;
     readonly flipNormals: (a: number, b: number) => number;
     readonly generate3DTile: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly generateCesiumGeometry: (a: number, b: number, c: number, d: number, e: number) => void;
@@ -4052,6 +4152,7 @@ export interface InitOutput {
     readonly quantizedmeshresult_data: (a: number) => number;
     readonly quantizeresult_bounds: (a: number) => number;
     readonly quantizeresult_quantized: (a: number) => number;
+    readonly rasterizeTerrainMask: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
     readonly readCopcChunk: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
     readonly readCopcChunkStandalone: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly readCopcRegion: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => void;
@@ -4062,6 +4163,7 @@ export interface InitOutput {
     readonly rotatePointCloud: (a: number, b: number, c: number) => number;
     readonly scalePointCloud: (a: number, b: number, c: number, d: number) => number;
     readonly simplifyDouglasPeucker: (a: number, b: number) => number;
+    readonly simplifyMeshQem: (a: number, b: number, c: number, d: number) => void;
     readonly sortCoordsByLat: (a: number) => number;
     readonly sortCoordsByLng: (a: number) => number;
     readonly spatialedgeindex_nearestNeighbor: (a: number, b: number, c: number) => number;
@@ -4071,6 +4173,8 @@ export interface InitOutput {
     readonly spatialindex_nearestNeighbor: (a: number, b: number, c: number) => number;
     readonly spatialindex_new: (a: number) => number;
     readonly spatialindex_searchBBox: (a: number, b: number, c: number, d: number, e: number) => number;
+    readonly splitMeshByObb: (a: number, b: number, c: number) => void;
+    readonly suggestCrsHeuristic: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly supportsE57: () => number;
     readonly supportsWorker: () => number;
     readonly terrainToGlb: (a: number, b: number, c: number, d: number) => number;
@@ -4133,10 +4237,17 @@ export interface InitOutput {
     readonly wasmmeshchunk_selectPolygon: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly wasmmeshchunk_texcoords: (a: number) => number;
     readonly wasmmeshchunk_toGlb: (a: number) => number;
+    readonly wasmmeshsplit_inside: (a: number) => number;
+    readonly wasmmeshsplit_insideGlb: (a: number) => number;
+    readonly wasmmeshsplit_outside: (a: number) => number;
+    readonly wasmmeshsplit_outsideGlb: (a: number) => number;
     readonly wasmpointcloudtileexport_bounds: (a: number) => number;
     readonly wasmpointcloudtileexport_center: (a: number) => number;
     readonly wasmpointcloudtileexport_pnts: (a: number) => number;
     readonly wasmpointcloudtileexport_tilesetJson: (a: number, b: number) => void;
+    readonly wasmqemresult_mesh: (a: number) => number;
+    readonly wasmqemresult_trianglesAfter: (a: number) => number;
+    readonly wasmqemresult_trianglesBefore: (a: number) => number;
     readonly wasmquantbounds_maxX: (a: number) => number;
     readonly wasmquantbounds_maxY: (a: number) => number;
     readonly wasmquantbounds_maxZ: (a: number) => number;
@@ -4148,6 +4259,8 @@ export interface InitOutput {
     readonly wasmtmspyramid_tileCount: (a: number) => number;
     readonly wasmtmspyramid_tilePath: (a: number, b: number, c: number) => void;
     readonly wasmtmspyramid_totalBytes: (a: number) => number;
+    readonly webGpuShaderVersion: (a: number) => void;
+    readonly webGpuStatus: (a: number) => void;
     readonly wgs84ToUtm: (a: number, b: number) => number;
     readonly workerhandle_cancel: (a: number, b: number) => void;
     readonly workerhandle_createPointCloudWorker: (a: number, b: number, c: number) => void;
@@ -4200,6 +4313,7 @@ export interface InitOutput {
     readonly wasmenuframe_anchorLat: (a: number) => number;
     readonly wasmenuframe_anchorLng: (a: number) => number;
     readonly wasmmeshchunk_version: (a: number) => bigint;
+    readonly wasmqemresult_maxError: (a: number) => number;
     readonly workeroptions_maxDepth: (a: number) => number;
     readonly workeroptions_maxPointsPerNode: (a: number) => number;
     readonly getMaxWasmMemory: () => number;
@@ -4207,14 +4321,16 @@ export interface InitOutput {
     readonly supportsDraco: () => number;
     readonly supportsGeotiff: () => number;
     readonly supportsLaz: () => number;
+    readonly supportsMeshEdit: () => number;
     readonly supportsMeshIngest: () => number;
     readonly supportsMultiThread: () => number;
+    readonly supportsTerrainEdit: () => number;
+    readonly supportsWebGpu: () => number;
     readonly threadCount: () => number;
     readonly setInputSizeLimit: (a: number) => void;
     readonly setMaxWasmMemory: (a: number) => void;
     readonly __wbg_tinresult_free: (a: number, b: number) => void;
     readonly __wbg_pointcloudstreamer_free: (a: number, b: number) => void;
-    readonly suggestCrsHeuristic: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly init: () => void;
     readonly tinresult_positions: (a: number) => number;
     readonly tinresult_indices: (a: number) => number;
@@ -4224,9 +4340,9 @@ export interface InitOutput {
     readonly laspointcloud_positions: (a: number) => number;
     readonly laspointcloud_colors: (a: number) => number;
     readonly __wbg_laspointcloud_free: (a: number, b: number) => void;
-    readonly __wasm_bindgen_func_elem_2603: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_2617: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_534: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_2687: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_2701: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_553: (a: number, b: number, c: number) => void;
     readonly __wbindgen_export: (a: number, b: number) => number;
     readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_export3: (a: number) => void;
