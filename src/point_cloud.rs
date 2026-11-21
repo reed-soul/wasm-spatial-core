@@ -2681,7 +2681,7 @@ fn estimate_normals_native(positions: &[f32], k: usize) -> Vec<f32> {
             positions[i * 3 + 2] as f64,
         ];
         let neighbors: Vec<usize> = tree
-            .nearest_neighbor_iter(&query)
+            .nearest_neighbor_iter(query)
             .filter(|p| p.data != i)
             .take(k)
             .map(|p| p.data)

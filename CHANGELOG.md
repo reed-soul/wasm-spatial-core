@@ -69,6 +69,8 @@ from 0.10, read [docs/MIGRATION_V0_11.md](./docs/MIGRATION_V0_11.md).
 - `Cargo.toml` `rust-version` is **1.90**, matching AGENTS.md / CONTRIBUTING.
 - README WASM size badge uses the measured 0.11 npm binary (1.95 MB /
   693 KB gzip), not the v0.6 1.2 MB figure.
+- `rstar` 0.14: `locate_in_envelope` / `nearest_neighbor` /
+  `nearest_neighbor_iter` take Envelope/Point by value.
 
 ### Security
 
