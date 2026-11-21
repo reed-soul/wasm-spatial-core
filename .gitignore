@@ -51,3 +51,8 @@ arbor_config.yaml
 
 # Mimosa security-scanner session state (local tool output)
 .mimosa/
+
+# Generated LAS fixtures (CI / examples/gen_test_las). Never commit.
+/test-data/
+/bench/head-to-head/fixtures/*.las
+/bench/head-to-head/results-*.jsonl
