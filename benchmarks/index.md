@@ -2,33 +2,29 @@
 
 > Task: **LAS point cloud → Cesium 3D Tiles (.pnts + tileset.json)**, end-to-end, no upload, no server.
 
-**Generated:** 2026-10-13T16:50:38.723Z  
-**Hardware:** AMD EPYC 9V74 80-Core Processor · 4 CPUs · linux/x64  
-**Methodology:** same input bytes (SHA-256 verified), same no-op transform (no reprojection), trimmed mean of 5 timed runs after warmup. Output bytes = sum of all generated tile files + tileset.json.
+<!-- HEAD_TO_HEAD_RESULTS_START -->
 
-## ⚖️ Fairness & honesty
-
-- Every engine that produced a result is shown — including rows where wasm-spatial-core is **slower or ties**.
-- **loaders.gl cannot do this task** (LAS read only, no pnts writer) — that row documents a capability gap, not a timeout. `output_bytes = 0`.
-- **Cesium ion is not timed here** — it requires uploading private data to a cloud service and an API key, which contradicts the zero-upload thesis. It is a different category (cloud tiling service vs. in-browser engine). See the architecture comparison below.
-- py3dtiles is a Python CLI; wasm-spatial-core runs in WASM/Node. The comparison is **wall-clock end-to-end** on the same machine, not a microbenchmark of equivalent algorithms.
-- RSS for py3dtiles is child-process max (coarse); wasm RSS is Node process RSS.
+**Generated:** 2026-11-21T17:38:52.758Z  
+**Hardware:** Intel(R) Xeon(R) 6975P-C · 4 CPUs · linux/x64  
+**Methodology:** same input bytes, no reprojection, trimmed mean of 5 timed runs after warmup (min/max dropped). Output bytes = sum of generated tile files + tileset.json.
 
 ## bench/head-to-head/fixtures/canonical_500k.las
 
 | Engine | Wall time | Peak RSS | Output size | Tiles | Speedup vs wasm |
 |--------|----------|----------|-------------|-------|-----------------|
-| loaders.gl `4.x` | 2ms | 150MB | 0 (N/A) | 0 | 0.04× (wasm slower) |
-| py3dtiles `12.1.1` | 2.88s | 243MB | 7.9MB | 40 | **49.1×** ⚡ |
-| wasm-spatial-core `0.10.2` | 59ms | 189MB | 6.0MB | 64 | baseline |
+| loaders.gl `not-installed` | ❌ @loaders.gl/las not installed: @loaders.gl/las n | — | — | — | — |
+| py3dtiles `--version` | 1.95s | 248MB | 7.6MB | 39 | **29.6×** ⚡ |
+| wasm-spatial-core `0.10.2` | 66ms | 177MB | 5.7MB | 64 | baseline |
 
 <details><summary>Notes</summary>
 
-- **loaders.gl:** PARSE-ONLY. @loaders.gl/tiles not installed. loaders.gl reads LAS but has no shipped LAS→pnts/3D-Tiles writer; output_bytes=0 is the documented capability gap, not a timeout. Tile generation would require a custom writer or a separate tool.
-- **py3dtiles:** py3dtiles convert, no reprojection (matches wasm no-op). point_count=-1 means not readable from tileset.json; byte-count parity is the verification axis. RSS is child-process max across all runs (coarse).
+- **loaders.gl:** @loaders.gl not installed in this environment. Documented capability gap: @loaders.gl is a reader framework with no shipped LAS→pnts/3D-Tiles writer.
+- **py3dtiles:** py3dtiles convert, no reprojection (matches wasm no-op). RSS is GNU time max RSS of the child (Linux) or unavailable.
 - **wasm-spatial-core:** parsePointCloudAuto → generateTileset (octree + pnts encode in one call)
 
 </details>
+
+<!-- HEAD_TO_HEAD_RESULTS_END -->
 
 ## 🏗️ Architecture comparison (not timed)
 
@@ -36,7 +32,7 @@
 |---|---|---|---|---|
 | Runs where | Browser (WASM) or Node | Python process | Browser/Node | Cloud service |
 | Data leaves machine | **No** | No (local) | No (local) | **Yes** (upload) |
-| Install needed | `npm i` (1.2MB WASM) | Python + pip + deps | npm | Account + token |
+| Install needed | `npm i` (1.95MB WASM) | Python + pip + deps | npm | Account + token |
 | LAS → 3D Tiles | ✅ full pipeline | ✅ full pipeline | ❌ read only | ✅ (cloud) |
 | Offline / air-gapped | ✅ | ✅ | ✅ | ❌ |
 | Cesium ion quota | not consumed | not consumed | not consumed | consumed |
@@ -45,12 +41,21 @@
 
 ```bash
 git clone https://github.com/reed-soul/wasm-spatial-core.git && cd wasm-spatial-core
+mkdir -p bench/head-to-head/fixtures
+cargo run --example gen_test_las --features point-cloud -- \
+  500000 bench/head-to-head/fixtures/canonical_500k.las
 wasm-pack build --target nodejs --release --out-dir pkg-node -- --features point-cloud
-pip install py3dtiles
-npm install @loaders.gl/las   # optional; documents the capability gap
-node bench/head-to-head/run-wasm.mjs test-data/large/synthetic_500k.las > bench/head-to-head/results-wasm.jsonl
-python3 bench/head-to-head/run-py3dtiles.py test-data/large/synthetic_500k.las > bench/head-to-head/results-py3dtiles.jsonl
-node bench/head-to-head/run-loaders-gl.mjs test-data/large/synthetic_500k.las > bench/head-to-head/results-loaders-gl.jsonl
+pip install 'py3dtiles[las]'
+npm install --no-save @loaders.gl/las   # optional; documents the capability gap
+WASM_PKG_DIR=pkg-node node bench/head-to-head/run-wasm.mjs \
+  bench/head-to-head/fixtures/canonical_500k.las \
+  > bench/head-to-head/results-wasm.jsonl
+python3 bench/head-to-head/run-py3dtiles.py \
+  bench/head-to-head/fixtures/canonical_500k.las \
+  > bench/head-to-head/results-py3dtiles.jsonl
+node bench/head-to-head/run-loaders-gl.mjs \
+  bench/head-to-head/fixtures/canonical_500k.las \
+  > bench/head-to-head/results-loaders-gl.jsonl
 node bench/head-to-head/aggregate.mjs
-# → opens benchmarks/index.md
+# → updates the results table in benchmarks/index.md
 ```
