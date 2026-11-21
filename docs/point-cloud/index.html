@@ -1,0 +1,1353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>wasm-spatial-core — Point Cloud Demo (Three.js)</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --accent: #58a6ff;
+      --green: #3fb950;
+      --orange: #d29922;
+      --red: #f85149;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header */
+    header {
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-shrink: 0;
+    }
+    header h1 {
+      font-size: 1.1rem;
+      background: linear-gradient(135deg, var(--accent), var(--green));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    header .subtitle {
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+
+    /* Main layout */
+    .main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 280px;
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+    }
+    .panel-title {
+      font-weight: 600;
+      font-size: 0.85rem;
+      margin-bottom: 8px;
+      color: var(--accent);
+    }
+
+    /* Drop zone */
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: 8px;
+      padding: 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: var(--accent);
+      background: rgba(88, 166, 255, 0.05);
+      color: var(--accent);
+    }
+    .drop-zone .icon {
+      font-size: 2rem;
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    /* Progress bar */
+    .progress-container {
+      display: none;
+    }
+    .progress-container.active {
+      display: block;
+    }
+    .progress-bar {
+      width: 100%;
+      height: 6px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--green));
+      border-radius: 3px;
+      transition: width 0.3s;
+      width: 0%;
+    }
+    .progress-text {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    /* File info */
+    .file-info {
+      font-size: 0.8rem;
+      color: var(--muted);
+      line-height: 1.8;
+    }
+    .file-info .value {
+      color: var(--text);
+      font-weight: 500;
+    }
+
+    /* Controls */
+    label {
+      font-size: 0.8rem;
+      color: var(--muted);
+      display: block;
+      margin-bottom: 4px;
+    }
+    select, input[type="range"] {
+      width: 100%;
+      margin-bottom: 8px;
+    }
+    select {
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 6px 8px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+    }
+    input[type="range"] {
+      -webkit-appearance: none;
+      height: 4px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 2px;
+      outline: none;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+    }
+    input[type="number"] {
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      width: 80px;
+      margin-bottom: 8px;
+    }
+
+    /* Format badges */
+    .format-badges {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+      font-size: 0.7rem;
+    }
+    .format-badge {
+      background: rgba(88, 166, 255, 0.15);
+      color: var(--accent);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+    .format-badge.disabled {
+      background: rgba(255,255,255,0.05);
+      color: var(--muted);
+    }
+
+    /* Canvas container */
+    .canvas-container {
+      flex: 1;
+      position: relative;
+      background: #000;
+    }
+    .canvas-container canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* Status bar */
+    footer {
+      padding: 8px 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 24px;
+      font-size: 0.75rem;
+      color: var(--muted);
+      flex-shrink: 0;
+    }
+    footer .stat-value {
+      color: var(--text);
+      font-weight: 500;
+    }
+
+    /* Loading overlay */
+    .loading-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      z-index: 10;
+      display: none;
+    }
+    .loading-overlay.active {
+      display: flex;
+    }
+    .spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid rgba(255,255,255,0.1);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Hint */
+    .hint {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      color: var(--muted);
+      pointer-events: none;
+      z-index: 5;
+    }
+    .hint .icon {
+      font-size: 3rem;
+      margin-bottom: 12px;
+      display: block;
+      opacity: 0.3;
+    }
+    .hint .shortcuts {
+      font-size: 0.75rem;
+      margin-top: 16px;
+      line-height: 1.8;
+      opacity: 0.5;
+    }
+    .hint kbd {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 1px 5px;
+      font-family: inherit;
+      font-size: 0.7rem;
+    }
+
+    /* Stats panel */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      font-size: 0.75rem;
+    }
+    .stat-item {
+      background: rgba(255,255,255,0.03);
+      padding: 6px 8px;
+      border-radius: 4px;
+    }
+    .stat-item .label {
+      color: var(--muted);
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .stat-item .val {
+      color: var(--text);
+      font-weight: 500;
+      font-size: 0.8rem;
+    }
+  </style>
+</head>
+<body>
+
+<header><a href="../" style="color:var(--accent);font-size:0.8rem;margin-right:auto">← Home</a>
+  <h1>🌍 wasm-spatial-core</h1>
+  <span class="subtitle">Point Cloud Viewer — Three.js + WASM</span>
+</header>
+
+<div class="main">
+  <aside class="sidebar">
+    <!-- Upload -->
+    <div class="panel">
+      <div class="panel-title">📁 Upload Point Cloud</div>
+      <div id="dropZone" class="drop-zone">
+        <span class="icon">📂</span>
+        Drag & drop a point cloud file here<br>
+        or click to browse
+        <div class="format-badges">
+          <span class="format-badge">.las</span>
+          <span class="format-badge">.laz</span>
+          <span class="format-badge">.ply</span>
+          <span class="format-badge">.obj</span>
+          <span class="format-badge" id="e57Badge" style="display:none">.e57</span>
+        </div>
+      </div>
+      <input type="file" id="fileInput" accept=".las,.laz,.ply,.obj,.e57" style="display:none">
+      <div id="progressContainer" class="progress-container">
+        <div class="progress-bar">
+          <div id="progressFill" class="progress-bar-fill"></div>
+        </div>
+        <div id="progressText" class="progress-text">Initializing...</div>
+      </div>
+    </div>
+
+    <!-- File info -->
+    <div id="fileInfoPanel" class="panel" style="display:none">
+      <div class="panel-title">📊 File Info</div>
+      <div id="fileInfo" class="file-info"></div>
+    </div>
+
+    <!-- Statistics panel -->
+    <div id="statsPanel" class="panel" style="display:none">
+      <div class="panel-title">📈 Statistics</div>
+      <div id="statsContent" class="stats-grid"></div>
+    </div>
+
+    <!-- Display settings -->
+    <div id="controlsPanel" class="panel" style="display:none">
+      <div class="panel-title">🎨 Display Settings</div>
+      <label>Point Size <kbd>+</kbd> <kbd>-</kbd></label>
+      <input type="range" id="pointSize" min="0.5" max="10" step="0.5" value="2">
+      <label>Color Mode</label>
+      <select id="colorMode">
+        <option value="original">Original Colors</option>
+        <option value="height">Height Gradient</option>
+        <option value="intensity">Intensity (Gray)</option>
+        <option value="classification">Classification (ASPRS)</option>
+        <option value="heatmap">Heatmap (Elevation)</option>
+      </select>
+    </div>
+
+    <!-- Octree params -->
+    <div id="octreePanel" class="panel" style="display:none">
+      <div class="panel-title">🌳 Octree / Tiling</div>
+      <label>Max Points Per Node</label>
+      <input type="number" id="maxPointsPerNode" value="50000" min="100" max="1000000" step="1000">
+      <button id="rebuildBtn" style="
+        background: linear-gradient(135deg, #238636, #2ea043);
+        border: none;
+        color: white;
+        padding: 8px 12px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.8rem;
+        font-weight: 600;
+        width: 100%;
+        margin-top: 4px;
+      ">Rebuild Tileset</button>
+    </div>
+  </aside>
+
+  <div class="canvas-container">
+    <div id="hint" class="hint">
+      <span class="icon">☁️</span>
+      Load a point cloud file to view<br>
+      <div class="shortcuts">
+        <kbd>R</kbd> Reset view &nbsp; <kbd>+</kbd> <kbd>-</kbd> Point size &nbsp; <kbd>1</kbd>–<kbd>5</kbd> Color mode
+      </div>
+    </div>
+    <div id="loadingOverlay" class="loading-overlay">
+      <div class="spinner"></div>
+      <span id="loadingText">Loading WASM...</span>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <span>FPS: <span id="fpsValue" class="stat-value">—</span></span>
+  <span>Points: <span id="pointCountValue" class="stat-value">0</span></span>
+  <span>Tiles: <span id="tileCountValue" class="stat-value">0</span></span>
+  <span>Memory: <span id="memoryValue" class="stat-value">—</span></span>
+  <span>Mode: <span id="processingMode" class="stat-value">—</span></span>
+</footer>
+
+<!-- Three.js from CDN -->
+<script src="https://unpkg.com/three@0.170.0/build/three.min.js"></script>
+<script src="https://unpkg.com/three@0.170.0/examples/js/controls/OrbitControls.js"></script>
+
+<script type="module">
+// =========================================================================
+// WASM Loading
+// =========================================================================
+
+let wasm = null;
+const WASM_CDN = '../pkg/wasm-spatial-core.js';
+
+async function loadWasm() {
+  showLoading('Loading WASM module...');
+  try {
+    // Try CDN first
+    const module = await import(WASM_CDN);
+    await module.default();
+    wasm = module;
+    return true;
+  } catch (e) {
+    console.warn('CDN load failed, trying local pkg:', e);
+  }
+
+  try {
+    // Try local pkg
+    const module = await import('../pkg/wasm-spatial-core.js');
+    await module.default();
+    wasm = module;
+    return true;
+  } catch (e) {
+    console.warn('Local pkg load failed:', e);
+    showError('Failed to load WASM module. Run `wasm-pack build` first.');
+    return false;
+  }
+}
+
+// =========================================================================
+// Environment Detection
+// =========================================================================
+
+function detectProcessingMode() {
+  // Check if SharedArrayBuffer is available (requires COOP/COEP headers)
+  const hasSAB = typeof SharedArrayBuffer !== 'undefined';
+  const mode = hasSAB ? 'Worker' : 'Main Thread';
+  document.getElementById('processingMode').textContent = mode;
+  return mode;
+}
+
+function showDracoStatus() {
+  try {
+    if (wasm && wasm.supportsDraco) {
+      const supported = wasm.supportsDraco();
+      console.log('[Draco] Supported:', supported);
+      if (!supported && wasm.dracoStatus) {
+        console.log('[Draco]', wasm.dracoStatus());
+      }
+    }
+  } catch (e) { /* Draco API not available */ }
+}
+
+// =========================================================================
+// Three.js Setup
+// =========================================================================
+
+let scene, camera, renderer, controls, pointCloud;
+
+function initThreeJS() {
+  const container = document.querySelector('.canvas-container');
+
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0a0a);
+
+  camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 100000);
+  camera.position.set(50, 50, 50);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(container.clientWidth, container.clientHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+  container.appendChild(renderer.domElement);
+
+  controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.05;
+
+  // Grid helper
+  const grid = new THREE.GridHelper(200, 40, 0x333333, 0x1a1a1a);
+  scene.add(grid);
+
+  // Axes helper
+  const axes = new THREE.AxesHelper(20);
+  scene.add(axes);
+
+  window.addEventListener('resize', () => {
+    camera.aspect = container.clientWidth / container.clientHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(container.clientWidth, container.clientHeight);
+  });
+}
+
+// =========================================================================
+// FPS Counter
+// =========================================================================
+
+let frameCount = 0;
+let lastFpsTime = performance.now();
+
+function updateFPS() {
+  frameCount++;
+  const now = performance.now();
+  if (now - lastFpsTime >= 1000) {
+    document.getElementById('fpsValue').textContent = frameCount;
+    frameCount = 0;
+    lastFpsTime = now;
+  }
+}
+
+// =========================================================================
+// Animation Loop
+// =========================================================================
+
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+  updateFPS();
+}
+
+// =========================================================================
+// Point Cloud Rendering
+// =========================================================================
+
+function createPointCloud(positions, colors, pointSize) {
+  if (pointCloud) {
+    scene.remove(pointCloud);
+    pointCloud.geometry.dispose();
+    pointCloud.material.dispose();
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+
+  let material;
+  if (colors && colors.length > 0) {
+    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 4));
+    material = new THREE.PointsMaterial({
+      size: pointSize,
+      vertexColors: true,
+      sizeAttenuation: true,
+    });
+  } else {
+    material = new THREE.PointsMaterial({
+      size: pointSize,
+      color: 0x00aaff,
+      sizeAttenuation: true,
+    });
+  }
+
+  pointCloud = new THREE.Points(geometry, material);
+  scene.add(pointCloud);
+
+  // Center camera on point cloud
+  geometry.computeBoundingBox();
+  const box = geometry.boundingBox;
+  const center = new THREE.Vector3();
+  box.getCenter(center);
+  const size = new THREE.Vector3();
+  box.getSize(size);
+  const maxDim = Math.max(size.x, size.y, size.z);
+
+  controls.target.copy(center);
+  camera.position.set(
+    center.x + maxDim * 0.8,
+    center.y + maxDim * 0.8,
+    center.z + maxDim * 0.8
+  );
+  controls.update();
+}
+
+function applyHeightColors(positions, minZ, maxZ) {
+  const colors = new Float32Array(positions.length / 3 * 4);
+  const range = maxZ - minZ || 1;
+  for (let i = 0; i < positions.length / 3; i++) {
+    const t = (positions[i * 3 + 2] - minZ) / range;
+    // Blue → Green → Yellow → Red
+    const r = Math.min(1, Math.max(0, t * 2 - 0.5));
+    const g = Math.min(1, Math.max(0, t < 0.5 ? t * 2 : 2 - t * 2));
+    const b = Math.min(1, Math.max(0, 1 - t * 2));
+    colors[i * 4] = r;
+    colors[i * 4 + 1] = g;
+    colors[i * 4 + 2] = b;
+    colors[i * 4 + 3] = 1;
+  }
+  return colors;
+}
+
+function applyOriginalColors(positions, rgbBytes) {
+  const colors = new Float32Array(positions.length / 3 * 4);
+  for (let i = 0; i < colors.length / 4; i++) {
+    colors[i * 4] = rgbBytes[i * 3] / 255;
+    colors[i * 4 + 1] = rgbBytes[i * 3 + 1] / 255;
+    colors[i * 4 + 2] = rgbBytes[i * 3 + 2] / 255;
+    colors[i * 4 + 3] = 1;
+  }
+  return colors;
+}
+
+function applyIntensityColors(positions) {
+  const colors = new Float32Array(positions.length / 3 * 4);
+  for (let i = 0; i < colors.length / 4; i++) {
+    const v = 0.5;
+    colors[i * 4] = v;
+    colors[i * 4 + 1] = v;
+    colors[i * 4 + 2] = v;
+    colors[i * 4 + 3] = 1;
+  }
+  return colors;
+}
+
+function applyClassificationColors(positions) {
+  // Simulated classification — in real usage, classes come from the point data
+  const numPoints = positions.length / 3;
+  const colors = new Float32Array(numPoints * 4);
+  const classColors = [
+    [1, 1, 1],       // 0: white
+    [0.545, 0.353, 0.169], // 1: brown
+    [0.133, 0.545, 0.133], // 2: green
+    [0, 0.706, 0],    // 3: green
+    [0, 0.392, 0],    // 4: dark green
+    [0.392, 0.392, 1], // 5: blue-gray
+    [0.545, 0, 0],    // 6: red
+    [0.753, 0.753, 0.753], // 7: gray
+    [1, 1, 0],        // 8: yellow
+    [0, 0, 1],        // 9: blue
+    [1, 0.647, 0],    // 10: orange
+  ];
+  for (let i = 0; i < numPoints; i++) {
+    const z = positions[i * 3 + 2];
+    const classId = Math.floor(Math.abs(z)) % classColors.length;
+    const c = classColors[classId];
+    colors[i * 4] = c[0];
+    colors[i * 4 + 1] = c[1];
+    colors[i * 4 + 2] = c[2];
+    colors[i * 4 + 3] = 1;
+  }
+  return colors;
+}
+
+function applyHeatmapColors(positions) {
+  // Use elevation as value for heatmap
+  let minZ = Infinity, maxZ = -Infinity;
+  for (let i = 0; i < positions.length / 3; i++) {
+    const z = positions[i * 3 + 2];
+    if (z < minZ) minZ = z;
+    if (z > maxZ) maxZ = z;
+  }
+  const range = maxZ - minZ || 1;
+  const colors = new Float32Array(positions.length / 3 * 4);
+  for (let i = 0; i < colors.length / 4; i++) {
+    const t = (positions[i * 3 + 2] - minZ) / range;
+    // blue→cyan→green→yellow→red
+    let r, g, b;
+    if (t < 0.25) {
+      r = 0; g = t * 4; b = 1;
+    } else if (t < 0.5) {
+      r = 0; g = 1; b = 1 - (t - 0.25) * 4;
+    } else if (t < 0.75) {
+      r = (t - 0.5) * 4; g = 1; b = 0;
+    } else {
+      r = 1; g = 1 - (t - 0.75) * 4; b = 0;
+    }
+    colors[i * 4] = r;
+    colors[i * 4 + 1] = g;
+    colors[i * 4 + 2] = b;
+    colors[i * 4 + 3] = 1;
+  }
+  return colors;
+}
+
+// =========================================================================
+// File Processing Pipeline
+// =========================================================================
+
+let currentPositions = null;
+let currentRgbBytes = null;
+let currentHeader = null;
+let currentFileInfo = null;
+
+function getFormatFromName(filename) {
+  const ext = filename.toLowerCase().split('.').pop();
+  return ext;
+}
+
+async function processFile(file) {
+  const format = getFormatFromName(file.name);
+  switch (format) {
+    case 'las':
+    case 'laz':
+      await processLasFile(file);
+      break;
+    case 'ply':
+      await processPlyFile(file);
+      break;
+    case 'obj':
+      await processObjFile(file);
+      break;
+    case 'e57':
+      await processE57File(file);
+      break;
+    default:
+      showError(`Unsupported format: .${format}. Supported: .las, .laz, .ply, .obj${wasm.supportsE57 ? ', .e57' : ''}`);
+      hideLoading();
+  }
+}
+
+// ── LAS/LAZ Processing ──────────────────────────────────────────
+
+async function processLasFile(file) {
+  showLoading('Reading file...');
+  setProgress(0, 'Reading file...');
+
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const headerBytes = bytes.slice(0, 230);
+
+  showLoading('Parsing LAS header...');
+  setProgress(10, 'Parsing header...');
+
+  const header = wasm.parseLasHeader(headerBytes);
+  if (!header) {
+    showError('Failed to parse LAS header. Is this a valid LAS file?');
+    hideLoading();
+    return;
+  }
+
+  currentHeader = {
+    numPoints: header.numPoints(),
+    versionMajor: header.versionMajor(),
+    versionMinor: header.versionMinor(),
+    pointFormatId: header.pointFormatId(),
+    pointDataRecordLength: header.pointDataRecordLength(),
+    boundsMinX: header.boundsMinX(),
+    boundsMinY: header.boundsMinY(),
+    boundsMinZ: header.boundsMinZ(),
+    boundsMaxX: header.boundsMaxX(),
+    boundsMaxY: header.boundsMaxY(),
+    boundsMaxZ: header.boundsMaxZ(),
+  };
+
+  showLoading(`Parsing ${currentHeader.numPoints.toLocaleString()} points...`);
+  setProgress(20, 'Parsing points...');
+
+  const isLaz = currentHeader.pointFormatId() >= 128;
+  let cloud;
+  if (isLaz && wasm.supportsLaz()) {
+    cloud = wasm.parseLazPointsStream(bytes, (processed, total) => {
+      const pct = 20 + Math.floor((processed / total) * 50);
+      setProgress(pct, `Decompressing ${processed.toLocaleString()} / ${total.toLocaleString()} points`);
+    });
+  } else if (isLaz) {
+    try {
+      cloud = wasm.parsePointCloudAuto(bytes);
+    } catch (e) {
+      showError('LAZ support not available. Build with --features laz-support.');
+      hideLoading();
+      return;
+    }
+  } else {
+    cloud = wasm.parseLasPointsWithProgress(bytes, (processed, total) => {
+      const pct = 20 + Math.floor((processed / total) * 50);
+      setProgress(pct, `Parsed ${processed.toLocaleString()} / ${total.toLocaleString()} points`);
+    });
+  }
+
+  if (!cloud) {
+    showError('Failed to parse LAS points.');
+    hideLoading();
+    return;
+  }
+
+  const positions = Array.from(cloud.positions());
+  const colorsObj = cloud.colors();
+  const rgbBytes = colorsObj ? Array.from(colorsObj) : null;
+
+  currentPositions = positions;
+  currentRgbBytes = rgbBytes;
+
+  showFileInfoAndRender(file.name, file.size, positions, rgbBytes, {
+    numPoints: currentHeader.numPoints,
+    version: `${currentHeader.versionMajor}.${currentHeader.versionMinor}`,
+    format: currentHeader.pointFormatId,
+  });
+}
+
+// ── PLY Processing ──────────────────────────────────────────────
+
+async function processPlyFile(file) {
+  showLoading('Reading PLY file...');
+  setProgress(10, 'Reading file...');
+
+  const bytes = new Uint8Array(await file.arrayBuffer());
+
+  showLoading('Parsing PLY...');
+  setProgress(30, 'Parsing vertices...');
+
+  let plyResult;
+  try {
+    plyResult = wasm.parsePly(bytes);
+  } catch (e) {
+    showError(`Failed to parse PLY: ${e}`);
+    hideLoading();
+    return;
+  }
+
+  const vertexCount = plyResult.vertexCount();
+  if (vertexCount === 0) {
+    showError('PLY file contains no vertices.');
+    hideLoading();
+    return;
+  }
+
+  const positions = Array.from(plyResult.positions());
+  let rgbBytes = null;
+  if (plyResult.hasColors()) {
+    rgbBytes = Array.from(plyResult.colors());
+  }
+
+  currentPositions = positions;
+  currentRgbBytes = rgbBytes;
+
+  setProgress(70, `Parsed ${vertexCount.toLocaleString()} vertices`);
+
+  showFileInfoAndRender(file.name, file.size, positions, rgbBytes, {
+    numPoints: vertexCount,
+    version: '-',
+    format: 'PLY',
+  });
+}
+
+// ── OBJ Processing ──────────────────────────────────────────────
+
+async function processObjFile(file) {
+  showLoading('Reading OBJ file...');
+  setProgress(10, 'Reading file...');
+
+  const text = await file.text();
+
+  showLoading('Parsing OBJ...');
+  setProgress(30, 'Extracting vertices...');
+
+  try {
+    const positions = Array.from(wasm.parseObjVertices(text));
+    const vertexCount = positions.length / 3;
+
+    if (vertexCount === 0) {
+      showError('OBJ file contains no vertices.');
+      hideLoading();
+      return;
+    }
+
+    currentPositions = positions;
+    currentRgbBytes = null;
+
+    setProgress(70, `Extracted ${vertexCount.toLocaleString()} vertices`);
+
+    showFileInfoAndRender(file.name, file.size, positions, null, {
+      numPoints: vertexCount,
+      version: '-',
+      format: 'OBJ',
+    });
+  } catch (e) {
+    showError(`Failed to parse OBJ: ${e}`);
+    hideLoading();
+  }
+}
+
+// ── E57 Processing ──────────────────────────────────────────────
+
+async function processE57File(file) {
+  if (!wasm.supportsE57) {
+    showError('E57 support is not available. Build with --features e57-support.');
+    hideLoading();
+    return;
+  }
+
+  showLoading('Reading E57 file...');
+  setProgress(10, 'Reading file...');
+
+  const bytes = new Uint8Array(await file.arrayBuffer());
+
+  showLoading('Parsing E57...');
+  setProgress(20, 'Parsing point cloud...');
+
+  let e57Result;
+  try {
+    e57Result = wasm.parseE57(bytes);
+  } catch (e) {
+    showError(`Failed to parse E57: ${e}`);
+    hideLoading();
+    return;
+  }
+
+  const pointCount = e57Result.pointCount;
+  if (pointCount === 0) {
+    showError('E57 file contains no points.');
+    hideLoading();
+    return;
+  }
+
+  const positions = Array.from(e57Result.positions());
+  let rgbBytes = null;
+  const colorsObj = e57Result.colors();
+  if (colorsObj) {
+    rgbBytes = Array.from(colorsObj);
+  }
+
+  currentPositions = positions;
+  currentRgbBytes = rgbBytes;
+
+  setProgress(70, `Parsed ${pointCount.toLocaleString()} points`);
+
+  let fileInfoExtra = '';
+  try {
+    const info = JSON.parse(e57Result.fileInfo());
+    fileInfoExtra = `E57 GUID: ${info.guid}`;
+  } catch (e) { /* ignore */ }
+
+  showFileInfoAndRender(file.name, file.size, positions, rgbBytes, {
+    numPoints: pointCount,
+    version: '-',
+    format: 'E57',
+    extra: fileInfoExtra,
+  });
+}
+
+// ── Common Render Pipeline ──────────────────────────────────────
+
+function showFileInfoAndRender(fileName, fileSize, positions, rgbBytes, meta) {
+  showLoading('Building octree & tiles...');
+  setProgress(75, 'Building octree...');
+
+  // Build tileset
+  const maxPts = parseInt(document.getElementById('maxPointsPerNode').value) || 50000;
+  const tileset = wasm.generateTileset(
+    new Float32Array(positions),
+    maxPts,
+    21,
+    rgbBytes ? new Uint8Array(rgbBytes) : null,
+  );
+
+  const tileCount = tileset.tileCount;
+  const totalBytes = tileset.totalBytes;
+
+  setProgress(90, `Generated ${tileCount} tiles (${(totalBytes / 1024).toFixed(1)} KB)`);
+
+  // Display
+  const pointSize = parseFloat(document.getElementById('pointSize').value);
+  const colorMode = document.getElementById('colorMode').value;
+  renderPointCloud(positions, rgbBytes, pointSize, colorMode);
+
+  // File info
+  currentFileInfo = {
+    name: fileName,
+    size: fileSize,
+    numPoints: meta.numPoints,
+    tileCount,
+    version: meta.version,
+    format: meta.format,
+    extra: meta.extra || '',
+  };
+  showFileInfo(currentFileInfo);
+
+  // Compute and show statistics
+  showStats(positions);
+
+  // Memory info
+  try {
+    const mem = wasm.memoryInfo();
+    document.getElementById('memoryValue').textContent = formatBytes(mem.used());
+  } catch (e) { /* memoryInfo not available */ }
+
+  // Show processing mode and Draco status
+  detectProcessingMode();
+  showDracoStatus();
+
+  document.getElementById('pointCountValue').textContent = (positions.length / 3).toLocaleString();
+  document.getElementById('tileCountValue').textContent = tileCount;
+
+  setProgress(100, 'Done!');
+  document.getElementById('hint').style.display = 'none';
+
+  setTimeout(() => {
+    hideLoading();
+    document.getElementById('controlsPanel').style.display = 'block';
+    document.getElementById('octreePanel').style.display = 'block';
+  }, 500);
+}
+
+function renderPointCloud(positions, rgbBytes, pointSize, colorMode) {
+  let colors;
+  switch (colorMode) {
+    case 'height': {
+      let minZ = Infinity, maxZ = -Infinity;
+      for (let i = 0; i < positions.length / 3; i++) {
+        const z = positions[i * 3 + 2];
+        if (z < minZ) minZ = z;
+        if (z > maxZ) maxZ = z;
+      }
+      colors = applyHeightColors(positions, minZ, maxZ);
+      break;
+    }
+    case 'intensity':
+      colors = applyIntensityColors(positions);
+      break;
+    case 'classification':
+      colors = applyClassificationColors(positions);
+      break;
+    case 'heatmap':
+      colors = applyHeatmapColors(positions);
+      break;
+    case 'original':
+    default:
+      if (rgbBytes && rgbBytes.length > 0) {
+        colors = applyOriginalColors(positions, rgbBytes);
+      }
+      break;
+  }
+
+  createPointCloud(positions, colors, pointSize);
+}
+
+// =========================================================================
+// Statistics Panel
+// =========================================================================
+
+function showStats(positions) {
+  const panel = document.getElementById('statsPanel');
+  const content = document.getElementById('statsContent');
+
+  const numPoints = positions.length / 3;
+  if (numPoints === 0) {
+    panel.style.display = 'none';
+    return;
+  }
+
+  // Compute bounds
+  let minX = Infinity, minY = Infinity, minZ = Infinity;
+  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+  let sumX = 0, sumY = 0, sumZ = 0;
+
+  for (let i = 0; i < positions.length / 3; i++) {
+    const x = positions[i * 3];
+    const y = positions[i * 3 + 1];
+    const z = positions[i * 3 + 2];
+    minX = Math.min(minX, x); minY = Math.min(minY, y); minZ = Math.min(minZ, z);
+    maxX = Math.max(maxX, x); maxY = Math.max(maxY, y); maxZ = Math.max(maxZ, z);
+    sumX += x; sumY += y; sumZ += z;
+  }
+
+  const cx = sumX / numPoints;
+  const cy = sumY / numPoints;
+  const cz = sumZ / numPoints;
+
+  const dx = (maxX - minX) || 0.001;
+  const dy = (maxY - minY) || 0.001;
+  const dz = (maxZ - minZ) || 0.001;
+  const volume = dx * dy * dz;
+  const density = numPoints / volume;
+
+  content.innerHTML = `
+    <div class="stat-item"><div class="label">Points</div><div class="val">${numPoints.toLocaleString()}</div></div>
+    <div class="stat-item"><div class="label">Density</div><div class="val">${density.toFixed(4)} pts/m³</div></div>
+    <div class="stat-item"><div class="label">Min XYZ</div><div class="val">${minX.toFixed(1)}, ${minY.toFixed(1)}, ${minZ.toFixed(1)}</div></div>
+    <div class="stat-item"><div class="label">Max XYZ</div><div class="val">${maxX.toFixed(1)}, ${maxY.toFixed(1)}, ${maxZ.toFixed(1)}</div></div>
+    <div class="stat-item"><div class="label">Centroid</div><div class="val">${cx.toFixed(1)}, ${cy.toFixed(1)}, ${cz.toFixed(1)}</div></div>
+    <div class="stat-item"><div class="label">Volume</div><div class="val">${volume > 1000000 ? (volume / 1e6).toFixed(2) + 'M' : volume > 1000 ? (volume / 1e3).toFixed(2) + 'K' : volume.toFixed(1)} m³</div></div>
+  `;
+
+  panel.style.display = 'block';
+}
+
+// =========================================================================
+// UI Helpers
+// =========================================================================
+
+function showLoading(text) {
+  document.getElementById('loadingText').textContent = text || 'Loading...';
+  document.getElementById('loadingOverlay').classList.add('active');
+}
+
+function hideLoading() {
+  document.getElementById('loadingOverlay').classList.remove('active');
+}
+
+function setProgress(pct, text) {
+  const container = document.getElementById('progressContainer');
+  container.classList.add('active');
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressText').textContent = text;
+  if (pct >= 100) {
+    setTimeout(() => container.classList.remove('active'), 2000);
+  }
+}
+
+function showError(msg) {
+  console.error(msg);
+  alert(msg);
+}
+
+function showFileInfo(info) {
+  document.getElementById('fileInfoPanel').style.display = 'block';
+  document.getElementById('fileInfo').innerHTML = `
+    <div>File: <span class="value">${info.name}</span></div>
+    <div>Size: <span class="value">${formatBytes(info.size)}</span></div>
+    <div>Points: <span class="value">${info.numPoints.toLocaleString()}</span></div>
+    <div>Format: <span class="value">${info.format}</span></div>
+    ${info.version !== '-' ? `<div>Version: <span class="value">${info.version}</span></div>` : ''}
+    <div>Tiles: <span class="value">${info.tileCount}</span></div>
+    ${info.extra ? `<div><span class="value">${info.extra}</span></div>` : ''}
+  `;
+}
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+// =========================================================================
+// Event Handlers
+// =========================================================================
+
+function getSupportedFormats() {
+  const formats = ['.las', '.laz', '.ply', '.obj'];
+  if (wasm && wasm.supportsE57) formats.push('.e57');
+  return formats;
+}
+
+function setupEvents() {
+  const dropZone = document.getElementById('dropZone');
+  const fileInput = document.getElementById('fileInput');
+
+  // Click to upload
+  dropZone.addEventListener('click', () => fileInput.click());
+
+  // File input change
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files.length > 0) {
+      processFile(e.target.files[0]);
+    }
+  });
+
+  // Drag & drop
+  dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('drag-over');
+  });
+
+  dropZone.addEventListener('dragleave', () => {
+    dropZone.classList.remove('drag-over');
+  });
+
+  dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    if (e.dataTransfer.files.length > 0) {
+      const file = e.dataTransfer.files[0];
+      const ext = '.' + file.name.toLowerCase().split('.').pop();
+      const supported = getSupportedFormats();
+      if (!supported.includes(ext)) {
+        showError(`Unsupported format: ${ext}\nSupported formats: ${supported.join(', ')}`);
+        return;
+      }
+      processFile(file);
+    }
+  });
+
+  // Point size
+  document.getElementById('pointSize').addEventListener('input', (e) => {
+    if (pointCloud) {
+      pointCloud.material.size = parseFloat(e.target.value);
+    }
+  });
+
+  // Color mode
+  document.getElementById('colorMode').addEventListener('change', () => {
+    if (!currentPositions) return;
+    const pointSize = parseFloat(document.getElementById('pointSize').value);
+    const colorMode = document.getElementById('colorMode').value;
+    renderPointCloud(currentPositions, currentRgbBytes, pointSize, colorMode);
+  });
+
+  // Rebuild tileset
+  document.getElementById('rebuildBtn').addEventListener('click', async () => {
+    if (!currentPositions) return;
+    showLoading('Rebuilding tileset...');
+    setProgress(50, 'Building octree...');
+
+    const maxPts = parseInt(document.getElementById('maxPointsPerNode').value) || 50000;
+    const tileset = wasm.generateTileset(
+      new Float32Array(currentPositions),
+      maxPts,
+      21,
+      currentRgbBytes ? new Uint8Array(currentRgbBytes) : null,
+    );
+
+    document.getElementById('tileCountValue').textContent = tileset.tileCount;
+    setProgress(100, `Generated ${tileset.tileCount} tiles`);
+    hideLoading();
+  });
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    // Don't capture when typing in inputs
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+
+    switch (e.key) {
+      case 'r':
+      case 'R':
+        resetView();
+        break;
+      case '+':
+      case '=':
+        adjustPointSize(0.5);
+        break;
+      case '-':
+      case '_':
+        adjustPointSize(-0.5);
+        break;
+      case '1':
+        setColorMode('original');
+        break;
+      case '2':
+        setColorMode('height');
+        break;
+      case '3':
+        setColorMode('intensity');
+        break;
+      case '4':
+        setColorMode('classification');
+        break;
+      case '5':
+        setColorMode('heatmap');
+        break;
+    }
+  });
+}
+
+function resetView() {
+  if (!pointCloud || !currentPositions) return;
+  const geometry = pointCloud.geometry;
+  geometry.computeBoundingBox();
+  const box = geometry.boundingBox;
+  const center = new THREE.Vector3();
+  box.getCenter(center);
+  const size = new THREE.Vector3();
+  box.getSize(size);
+  const maxDim = Math.max(size.x, size.y, size.z);
+
+  controls.target.copy(center);
+  camera.position.set(
+    center.x + maxDim * 0.8,
+    center.y + maxDim * 0.8,
+    center.z + maxDim * 0.8
+  );
+  controls.update();
+}
+
+function adjustPointSize(delta) {
+  const slider = document.getElementById('pointSize');
+  let val = parseFloat(slider.value) + delta;
+  val = Math.max(0.5, Math.min(10, val));
+  slider.value = val;
+  if (pointCloud) {
+    pointCloud.material.size = val;
+  }
+}
+
+function setColorMode(mode) {
+  const select = document.getElementById('colorMode');
+  select.value = mode;
+  if (!currentPositions) return;
+  const pointSize = parseFloat(document.getElementById('pointSize').value);
+  renderPointCloud(currentPositions, currentRgbBytes, pointSize, mode);
+}
+
+// =========================================================================
+// Init
+// =========================================================================
+
+(async function main() {
+  initThreeJS();
+  animate();
+  setupEvents();
+
+  const ok = await loadWasm();
+  if (ok) {
+    console.log('wasm-spatial-core loaded, version:', wasm.version());
+
+    // Show format support status
+    const formats = ['LAS'];
+    if (wasm.supportsLaz) formats.push('LAZ/COPC');
+    if (wasm.supportsE57) {
+      formats.push('E57');
+      document.getElementById('e57Badge').style.display = '';
+    }
+    formats.push('PLY', 'OBJ');
+
+    // Detect processing mode immediately
+    detectProcessingMode();
+
+    document.getElementById('dropZone').innerHTML = `
+      <span class="icon">📂</span>
+      Drag & drop a point cloud file here<br>
+      or click to browse
+      <div class="format-badges">
+        ${formats.map(f => `<span class="format-badge">.${f.toLowerCase()}</span>`).join('')}
+      </div>
+      <small style="color:var(--muted);margin-top:8px;display:block">
+        WASM v${wasm.version()} loaded ✓
+      </small>
+    `;
+
+    // Update file input to include E57
+    if (wasm.supportsE57) {
+      document.getElementById('fileInput').accept = '.las,.laz,.ply,.obj,.e57';
+    }
+  }
+})();
+</script>
+
+</body>
+</html>
