@@ -8,6 +8,8 @@
 //!
 //! Also tests cross-format pipelines and edge cases.
 
+#![cfg(not(target_arch = "wasm32"))]
+
 use wasm_spatial_core::test_exports::test_helpers::{
     build_test_las_blob, get_colors, get_point_count, get_positions,
 };

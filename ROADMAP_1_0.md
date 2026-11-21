@@ -1,6 +1,7 @@
 # Roadmap: 1.0
 
-Status: **draft** — the path from v0.10 to a stable 1.0.
+Status: **in progress** — the path from v0.10 to a stable 1.0. 0.11 API hygiene
+lands in this tree (see CHANGELOG `[Unreleased]`); 1.0.0 is the freeze.
 
 V1 delivered the point-cloud → 3D Tiles pipeline; the V2 waves (W1 runtime,
 W2 Spatial IR, W3 terrain, W4 WebGPU, W5 mesh edit) are complete. Nothing on
@@ -18,8 +19,10 @@ credibility** milestone: the promise that the public API can be relied on.
 ## 1.0 acceptance criteria
 
 1. **Error handling is uniform.** Every public wasm-bindgen API reports
-   failures as `SpatialError` (typed `code`). The remaining
-   `JsValue::from_str` escape hatches listed in CONTRIBUTING.md are gone.
+   failures as `SpatialError` (typed `code`). `Err(JsValue::from_str)` is
+   forbidden; CI runs `scripts/check-spatial-error-hatches.sh`. The policy
+   and remaining non-error `JsValue::from_str` uses are listed in
+   CONTRIBUTING.md.
 2. **Deprecation policy is written and followed.** After 1.0: deprecations
    land in minor releases with `#[deprecated]` + CHANGELOG entry + migration
    note; removals only in majors. 0.11 is the last chance for gratuitous
@@ -32,11 +35,14 @@ credibility** milestone: the promise that the public API can be relied on.
    in CI. *(done in 0.10)*
 5. **The npm package installs and imports from the public registry.** Someone
    other than the author can `npm install wasm-spatial-core` in a fresh Vite
-   project and load `/node`, `/abort`, `/webgpu` subpaths. *(packaging fixed
-   in 0.10; the from-registry smoke test is the 1.0 gate)*
-6. *(stretch)* **Browser-side Rust tests.** `tests/web.rs` grows from 1
-   `wasm-bindgen-test` to at least one smoke test per exported module group,
-   so the browser target is exercised by Rust CI, not only by Playwright.
+   project and load `/node`, `/abort`, `/webgpu` subpaths. Packaging was
+   fixed in 0.10. `tests/npm_pack_smoke.mjs` packs the local `npm/` tree and
+   imports those subpaths on every CI run; `NPM_FROM_REGISTRY=1` hits the
+   public registry (the post-publish 1.0 gate).
+6. *(stretch, landed)* **Browser-side Rust tests.** `tests/web.rs` has one
+   `wasm-bindgen-test` per exported module group (version, GeoJSON, CRS,
+   GeoTIFF flag, octree, mesh ingest/edit, terrain edit, WebGPU layouts).
+   CI runs `wasm-pack test --node --release`.
 
 ## Explicitly not gating 1.0
 

@@ -1,5 +1,6 @@
 //! Runtime abort and memory budget tests (Wave 1.2 + W1.3).
 
+#![cfg(not(target_arch = "wasm32"))]
 #![cfg(all(feature = "point-cloud", feature = "test-helpers"))]
 
 use wasm_spatial_core::test_exports::test_helpers::build_test_las_blob;

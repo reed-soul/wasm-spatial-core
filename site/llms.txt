@@ -5,7 +5,7 @@
 This file is intended for AI agents and developers who want a compact, machine-readable summary of the project's capabilities, API surface, and quick-start. See https://llmstxt.org for the standard.
 
 ## TL;DR
-- A single npm package: `npm i wasm-spatial-core` (~1.2 MB wasm, zero runtime deps).
+- A single npm package: `npm i wasm-spatial-core` (1.95 MB wasm / ~693 KB gzip, zero runtime deps).
 - Core thesis: **generate Cesium 3D Tiles in the browser — no server, no upload, no ion quota.**
 - Performance: 78.7× faster than py3dtiles on LAS→3D-Tiles (36 ms vs 2.86 s, Apple M4); 27–67× faster than JS coordinate libs.
 - 850+ tests pass. Headless Cesium 1.119 acceptance test for quantized-mesh.

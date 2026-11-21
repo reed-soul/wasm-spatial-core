@@ -4,8 +4,9 @@
 //! Defaults: 500000 points, test-data/large/synthetic_500k.las, extent 1000 m
 
 use std::env;
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::{BufWriter, Write};
+use std::path::Path;
 
 /// Write the fixed header fields at their standard offsets, then point data.
 fn main() {
@@ -67,15 +68,16 @@ fn main() {
     hdr[94..96].copy_from_slice(&227u16.to_le_bytes());
     // 96..100: Offset to Point Data
     hdr[96..100].copy_from_slice(&227u32.to_le_bytes());
-    // 100..104: Number of Point Records
-    hdr[100..104].copy_from_slice(&n.to_le_bytes());
+    // 100..104: Number of Variable Length Records
+    hdr[100..104].copy_from_slice(&0u32.to_le_bytes());
     // 104: Point Data Format ID = 1 (with GPS time)
     hdr[104] = 1;
     // 105..107: Point Data Record Length = 28
     hdr[105..107].copy_from_slice(&28u16.to_le_bytes());
-    // 107..108: Number of VLRs = 0
-    // 111..131: Number of Points by Return (5 × u32)
-    let by_return = [0u32, 0, n, 0, 0];
+    // 107..111: Legacy Number of Point Records (ASPRS LAS 1.2)
+    hdr[107..111].copy_from_slice(&n.to_le_bytes());
+    // 111..131: Number of Points by Return (5 × u32) — all return 1
+    let by_return = [n, 0, 0, 0, 0];
     for (i, r) in by_return.iter().enumerate() {
         let off = 111 + i * 4;
         hdr[off..off + 4].copy_from_slice(&r.to_le_bytes());
@@ -97,6 +99,12 @@ fn main() {
     hdr[219..227].copy_from_slice(&min_z.to_le_bytes());
 
     assert_eq!(hdr.len(), 227);
+
+    if let Some(parent) = Path::new(&out_path).parent() {
+        if !parent.as_os_str().is_empty() {
+            fs::create_dir_all(parent).unwrap();
+        }
+    }
 
     let mut f = BufWriter::new(File::create(&out_path).unwrap());
     f.write_all(&hdr).unwrap();

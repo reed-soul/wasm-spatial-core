@@ -1,5 +1,7 @@
 //! Integration tests for terrain deformation (Wave 3).
 
+#![cfg(not(target_arch = "wasm32"))]
+
 use wasm_spatial_core::{
     encode_deformed_terrain_tileset, flatten_inside, flatten_polygon, rasterize_polygon_mask,
     CutMode, TerrainGrid,

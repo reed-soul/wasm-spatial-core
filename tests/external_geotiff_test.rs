@@ -2,6 +2,8 @@
 //!
 //! Tests with downloaded real GeoTIFF files (not synthetic).
 
+#![cfg(not(target_arch = "wasm32"))]
+
 use wasm_spatial_core::parse_geotiff_core;
 
 fn load_fixture(name: &str) -> Vec<u8> {

@@ -175,17 +175,19 @@
 
 ---
 
-## Feature Flags (Planned)
+## Feature Flags
+
+Canonical npm WASM set: [`scripts/npm-wasm-features.txt`](./scripts/npm-wasm-features.txt).
 
 | Feature | Modules | Default crate | npm package |
 |---------|---------|---------------|-------------|
 | `point-cloud` | LAS/PLY/OBJ, octree, pnts | off | ✅ |
 | `geotiff` | Terrain decode + quantized-mesh | off | ✅ |
-| `laz-support` | LAZ/COPC decompression | off | ❌ (custom build) |
-| `mesh-ingest` | GLB read, Spatial IR | off | ❌ |
-| `terrain-edit` | W3 deformation | off | ❌ |
-| `webgpu` | W4 compute | off | ❌ |
-| `mesh-edit` | W5 clip/QEM | off | ❌ |
+| `laz-support` | LAZ/COPC decompression | off | ✅ (since 0.10) |
+| `mesh-ingest` | GLB read, Spatial IR | off | ✅ (since 0.10) |
+| `terrain-edit` | W3 deformation | off | ✅ (0.11) |
+| `webgpu` | W4 compute (layout + CPU fallback) | off | ✅ (0.11) |
+| `mesh-edit` | W5 clip/QEM | off | ✅ (0.11) |
 
 No `live-twin` flag — instance export stays under existing 3D Tiles / i3dm APIs.
 
@@ -194,7 +196,7 @@ No `live-twin` flag — instance export stays under existing 3D Tiles / i3dm API
 ## How to File Work
 
 1. Read [ENGINE_BOUNDARY.md](./docs/ENGINE_BOUNDARY.md) — confirm the work is core  
-2. Pick a deliverable (default start: **W2.1**)  
+2. New **engine** capability: pick a deliverable below (waves are implemented; this tracks extras). Stability / 1.0 work starts at **[ROADMAP_1_0.md](./ROADMAP_1_0.md)**.  
 3. Copy issue block from [docs/issues/](./docs/issues/)  
 4. Labels: `roadmap-v2`, `wave-N`, `engine`  
 
@@ -211,3 +213,4 @@ No `live-twin` flag — instance export stays under existing 3D Tiles / i3dm API
 | 2026-07-05 | W3.6 promoted 🟡→✅: headless Cesium `CesiumTerrainProvider` acceptance test (`tests/cesium-terrain.spec.mjs`) proves quantized-mesh bytes load via the real consumer, not just our own decoder. Added `encodeTerrainTmsPyramid` WASM API emitting TMS pyramid + `layer.json` |
 | 2026-07-05 | W4.4 promoted 🟡→✅: `tests/webgpu-bench.spec.mjs` measures 2048×2048 heightfield at 1.64× GPU speedup on Apple M4 Metal (exact-match parity). W4.3 stays 🟡 (transform is memory-bound, integrated GPU loses; discrete GPU still required). Bench also caught + fixed a WGSL `target` reserved-keyword compile bug in `heightfield_flatten_v1.wgsl` — the kernel had never compiled in a real browser. |
 | 2026-07-09 | W4.3 re-scoped 🟡→✅: code path verified (CPU/GPU parity max abs err 6.1e-5). The "GPU beats WASM" speedup is re-scoped to a **discrete-GPU hardware precondition** — point transform is memory-bound and WASM SIMD legitimately wins on integrated GPUs (M4: 0.72×). Not a bug; no 🟡 items remain. Test count refreshed to 857 pass. |
+| 2026-10-27 | Feature-flag table synced to the published npm WASM (`laz-support` + `mesh-ingest` since 0.10; `terrain-edit` + `mesh-edit` + `webgpu` in 0.11). Stability work moved to [ROADMAP_1_0.md](./ROADMAP_1_0.md). |

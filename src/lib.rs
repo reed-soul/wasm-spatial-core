@@ -200,8 +200,8 @@ mod quantization;
 pub use coordinate::{
     batch_bd09_to_gcj02_in_place, batch_bd09_to_wgs84_in_place, batch_gcj02_to_bd09_in_place,
     batch_gcj02_to_wgs84_in_place, batch_mercator_to_wgs84_in_place, batch_wgs84_to_bd09_in_place,
-    batch_wgs84_to_gcj02_in_place, batch_wgs84_to_mercator_in_place, best_crs_for_region, crs_info,
-    get_supported_crs, suggest_crs_heuristic,
+    batch_wgs84_to_gcj02_in_place, batch_wgs84_to_mercator_in_place, crs_info, get_supported_crs,
+    suggest_crs_heuristic,
 };
 
 #[cfg(feature = "point-cloud")]
@@ -239,8 +239,8 @@ pub use ifc_reader::{parse_ifc_geometry_core, IfcGeometryResult, IfcMesh};
 #[cfg(feature = "geotiff")]
 pub use geotiff::{
     apply_color_ramp_core, contour_lines_core, encode_quantized_mesh_core,
-    encode_terrain_tileset_core, hillshade_core, parse_geotiff_core, ColorRamp, GeotiffInfo,
-    QuantizedMeshResult, TerrainTilesetResult,
+    encode_terrain_tileset_core, geotiff_status, hillshade_core, parse_geotiff_core,
+    supports_geotiff, ColorRamp, GeotiffInfo, QuantizedMeshResult, TerrainTilesetResult,
 };
 
 #[cfg(feature = "geotiff")]

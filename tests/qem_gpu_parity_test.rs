@@ -1,5 +1,6 @@
 //! CPU reference parity for GPU QEM kernels (W5.7).
 
+#![cfg(not(target_arch = "wasm32"))]
 #[cfg(all(feature = "mesh-edit", feature = "webgpu"))]
 #[test]
 fn test_qem_accumulate_quadrics_reference() {

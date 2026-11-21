@@ -83,7 +83,7 @@ into Cesium-compatible 3D Tiles — the foundation for zero-upload, zero-server
 
 ## What's Next
 
-> **Active roadmap:** [VISION.md](./VISION.md) · [ROADMAP_V2.md](./ROADMAP_V2.md) · [ENGINE_BOUNDARY.md](./docs/ENGINE_BOUNDARY.md) · [Issue templates](./docs/issues/)
+> **Active roadmap:** [ROADMAP_1_0.md](./ROADMAP_1_0.md) · [VISION.md](./VISION.md) · [ROADMAP_V2.md](./ROADMAP_V2.md) (W1–W5 complete) · [ENGINE_BOUNDARY.md](./docs/ENGINE_BOUNDARY.md) · [Issue templates](./docs/issues/)
 
 **Engine backlog only** (not core waves — file issue only when unblocked):
 

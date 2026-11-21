@@ -7,20 +7,25 @@
 
 ## What you get from `npm install`
 
-The published package is a **prebuilt WASM binary** (`point-cloud` + `geotiff`):
+The published package is a **prebuilt WASM binary** compiled with
+`point-cloud` + `geotiff` + `laz-support` + `mesh-ingest` + `terrain-edit` +
+`mesh-edit` + `webgpu`:
 
 | Included | Requires custom build |
 |----------|----------------------|
-| LAS, PLY, OBJ, PCD | LAZ / COPC (`laz-support`) |
-| Octree + 3D Tiles (pnts) | E57 (`e57-support`) |
-| GeoTIFF → quantized-mesh | Terrain deformation (`terrain-edit`) |
-| Coordinates, GeoJSON, MVT | Spatial IR + GLB ingest (`mesh-ingest`) |
-| | Mesh QEM / clip / OBB split (`mesh-edit`, needs `mesh-ingest`) |
-| | WebGPU compute kernels (`webgpu`) |
+| LAS / LAZ / COPC | E57 (`e57-support`) |
+| Octree + 3D Tiles (pnts) | Multi-thread (COOP/COEP) |
+| GeoTIFF → quantized-mesh | |
+| Terrain deformation | |
+| Spatial IR + GLB ingest | |
+| Mesh QEM / clip / OBB split | |
+| WebGPU layout + CPU fallback | |
+| Coordinates, GeoJSON, MVT | |
 
-**Formats:** **10+** in the default npm build · **15+** with optional format features (LAZ/COPC, E57, GLB ingest).
+**Formats:** **12+** in the default npm build · **15+** with optional format features (E57, …).
 
-Check at runtime: `supportsLaz()`, `supportsGeotiff()`, `lazStatus()`, `supportsWebGpu()`, `supportsMeshEdit()`.
+Check at runtime: `supportsLaz()`, `supportsGeotiff()`, `lazStatus()`,
+`supportsTerrainEdit()`, `supportsMeshEdit()`, `supportsWebGpu()`.
 
 Full matrix: [Feature flags in the repo README](../README.md#feature-flags).
 

@@ -7,6 +7,8 @@
 //! 4. Verify tileset.json is valid JSON
 //! 5. Verify all tiles are valid pnts
 
+#![cfg(not(target_arch = "wasm32"))]
+
 use wasm_spatial_core::{generate_tileset, parse_pnts_header, Octree};
 
 /// Generate a synthetic point cloud with `n` points uniformly distributed

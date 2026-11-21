@@ -3,6 +3,7 @@
 //! Tests the complete pipeline: LAS parsing → Octree → Tileset → validation
 //! using synthetically generated large datasets.
 
+#![cfg(not(target_arch = "wasm32"))]
 #[cfg(all(feature = "point-cloud", feature = "test-helpers"))]
 use wasm_spatial_core::{
     generate_tileset, parse_las_header_core, parse_las_points_core, parse_pnts_header,

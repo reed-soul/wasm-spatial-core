@@ -331,7 +331,7 @@ pub fn encode_terrain_tms_pyramid_js(
     max_zoom: u32,
 ) -> Result<WasmTmsPyramid, JsValue> {
     if bounds.len() != 4 {
-        return Err(JsValue::from_str(&format!(
+        return Err(crate::errors::invalid_input_js(format!(
             "encodeTerrainTmsPyramid: bounds must have length 4, got {}",
             bounds.len()
         )));

@@ -3,6 +3,8 @@
 //! Verifies that what we encode can be decoded back to the original grid,
 //! and that the binary layout matches the CesiumGS/quantized-mesh spec.
 
+#![cfg(not(target_arch = "wasm32"))]
+
 use wasm_spatial_core::{decode_index_stream, encode_quantized_mesh, zigzag_decode};
 
 // --- Minimal in-test decoder (proves the bytes are self-consistent) ---

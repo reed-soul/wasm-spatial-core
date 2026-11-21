@@ -3,6 +3,8 @@
 //! Uses synthetically-generated GeoTIFF files with realistic terrain features
 //! (mountains, ridges, valleys, noise) in `tests/fixtures/`.
 
+#![cfg(not(target_arch = "wasm32"))]
+
 use wasm_spatial_core::{
     apply_color_ramp_core, contour_lines_core, encode_quantized_mesh_core,
     encode_terrain_tileset_core, hillshade_core, parse_geotiff_core, ColorRamp,

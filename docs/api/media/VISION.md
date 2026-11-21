@@ -1,6 +1,6 @@
 # wasm-spatial-core — Product Vision
 
-> **One-liner:** A **Web3D spatial compute engine** for the latest Chrome — ingest, edit geometry, emit 3D Tiles / glTF in the browser. **Core only**; product UIs and IoT live in your application repo.
+> **One-liner:** A **browser-side point cloud & terrain preprocessing engine** for the latest Chrome — ingest, edit geometry, emit 3D Tiles / glTF. **Core only**; product UIs and IoT live in your application repo. Not a PROJ/QGIS replacement.
 
 **Boundary doc:** [docs/ENGINE_BOUNDARY.md](./docs/ENGINE_BOUNDARY.md)
 
@@ -104,10 +104,11 @@ graph TB
 | Doc | Scope |
 |-----|-------|
 | [ROADMAP_V1.md](./ROADMAP_V1.md) | ✅ Point cloud → 3D Tiles |
-| [ROADMAP_V2.md](./ROADMAP_V2.md) | 🔜 Core engine waves W1–W5 |
-| [PLAN.md](./PLAN.md) | Historical checklist + backlog |
+| [ROADMAP_V2.md](./ROADMAP_V2.md) | ✅ Core engine waves W1–W5 |
+| [ROADMAP_1_0.md](./ROADMAP_1_0.md) | **Active** — v0.11 API hygiene → 1.0 freeze |
+| [PLAN.md](./PLAN.md) | Historical checklist + research backlog |
 
-**Default implementation order:** W2 → W3/W5 (geometry) → W4 (GPU) → W1 (runtime hardening in parallel when needed).
+**Default implementation order:** [ROADMAP_1_0.md](./ROADMAP_1_0.md) (stability). New engine capability is opt-in and does not gate 1.0.
 
 ---
 

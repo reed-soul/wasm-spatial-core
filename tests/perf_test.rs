@@ -3,6 +3,8 @@
 //! These tests print timing information for manual evaluation.
 //! Run with: `cargo test --features point-cloud -- perf_test --nocapture`
 
+#![cfg(not(target_arch = "wasm32"))]
+
 use std::time::Instant;
 
 #[cfg(feature = "point-cloud")]

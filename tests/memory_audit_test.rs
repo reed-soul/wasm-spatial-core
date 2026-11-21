@@ -25,6 +25,7 @@
 //! ✅ These wrapper structs own their inner `TilesetResult` / `Octree` data.
 //!    No borrows from WASM memory are stored.
 
+#![cfg(not(target_arch = "wasm32"))]
 #[test]
 fn test_memory_audit_documented() {
     // This test exists solely to ensure the audit is tracked in CI.
