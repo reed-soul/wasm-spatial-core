@@ -58,7 +58,7 @@ console_error_panic_hook = { version = "0.1", optional = true }
 rayon = { version = "1.10", optional = true }
 wasm-bindgen-rayon = { version = "1.2", optional = true }
 geojsonvt = "0.1.0"
-mvt = "0.13.0"
+mvt = "0.15.0"
 geozero = { version = "0.15.1", features = ["with-mvt", "with-geojson"] }
 earcutr = "0.5.0"
 prost = "0.14.4"
