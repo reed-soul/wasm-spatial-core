@@ -2,7 +2,7 @@
 name = "wasm-spatial-core"
 version = "0.10.2"
 edition = "2021"
-rust-version = "1.87"
+rust-version = "1.90"
 authors = ["Qingxi <qingxi@zhiqiweilai.com>"]
 license = "MIT"
 description = "A high-performance WebAssembly spatial data processing engine for frontend Web3D/GIS applications"
@@ -178,3 +178,9 @@ required-features = ["mesh-edit", "webgpu"]
 [[bench]]
 name = "spatial_benchmarks"
 harness = false
+
+# rustc 1.100 turned `chunks_exact(N)` into a deny-by-CI warning. Packed
+# xyz/uv/rgba buffers in this crate *want* remainder-dropping; converting
+# ~125 call sites to `as_chunks::<N>().0` is noise with no behavior change.
+[lints.clippy]
+chunks_exact_to_as_chunks = "allow"

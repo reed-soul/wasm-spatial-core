@@ -532,7 +532,9 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────
   head-to-head-bench:
     name: Head-to-head Benchmark (vs py3dtiles)
-    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    # Run on PRs too so the harness is verifiable before merge. gh-pages
+    # publish stays master-push only.
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
     needs: rust
     runs-on: ubuntu-latest
     permissions:
@@ -569,6 +571,12 @@ jobs:
       - name: Build WASM (nodejs target, point-cloud feature)
         run: wasm-pack build --target nodejs --release --out-dir pkg-node -- --features point-cloud
 
+      - name: Generate 500k LAS fixture
+        run: |
+          mkdir -p bench/head-to-head/fixtures
+          cargo run --example gen_test_las --features point-cloud -- \
+            500000 bench/head-to-head/fixtures/canonical_500k.las
+
       - name: Run wasm-spatial-core benchmark
         run: |
           WASM_PKG_DIR=pkg-node node bench/head-to-head/run-wasm.mjs \
@@ -591,6 +599,7 @@ jobs:
         run: node bench/head-to-head/aggregate.mjs
 
       - name: Publish comparison to gh-pages
+        if: github.ref == 'refs/heads/master' && github.event_name == 'push'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
