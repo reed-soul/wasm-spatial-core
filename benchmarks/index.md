@@ -4,8 +4,8 @@
 
 <!-- HEAD_TO_HEAD_RESULTS_START -->
 
-**Generated:** 2026-11-21T17:47:06.728Z  
-**Hardware:** AMD EPYC 9V74 80-Core Processor · 4 CPUs · linux/x64  
+**Generated:** 2026-11-21T17:47:23.629Z  
+**Hardware:** AMD EPYC 7763 64-Core Processor · 4 CPUs · linux/x64  
 **Methodology:** same input bytes, no reprojection, trimmed mean of 5 timed runs after warmup (min/max dropped). Output bytes = sum of generated tile files + tileset.json.
 
 ## bench/head-to-head/fixtures/canonical_500k.las
@@ -13,8 +13,8 @@
 | Engine | Wall time | Peak RSS | Output size | Tiles | Speedup vs wasm |
 |--------|----------|----------|-------------|-------|-----------------|
 | loaders.gl `not-installed` | ❌ @loaders.gl/las not installed: @loaders.gl/las n | — | — | — | — |
-| py3dtiles `--version` | 2.21s | 248MB | 7.6MB | 39 | **34.6×** ⚡ |
-| wasm-spatial-core `0.10.2` | 64ms | 176MB | 5.7MB | 64 | baseline |
+| py3dtiles `--version` | 2.86s | 247MB | 7.6MB | 39 | **34.8×** ⚡ |
+| wasm-spatial-core `0.10.2` | 82ms | 175MB | 5.7MB | 64 | baseline |
 
 <details><summary>Notes</summary>
 
