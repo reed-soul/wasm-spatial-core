@@ -41,6 +41,13 @@ from 0.10, read [docs/MIGRATION_V0_11.md](./docs/MIGRATION_V0_11.md).
 - WASM `SpatialError` now sets `name` and `code` in **release** builds. Those
   `Reflect::set` calls previously lived inside `debug_assert!`, so npm
   packages threw a bare `Error` with only the message.
+- Clippy `needless_range_loop` on rustc 1.100 (`src/geotiff.rs` GeoTIFF
+  elevation check) that failed CI `-D warnings`. Allow the new
+  `chunks_exact_to_as_chunks` lint (packed xyz/uv/rgba remainder-dropping
+  is intentional; ~125 call sites, no behavior change).
+- Head-to-head benchmark job: commit the missing `bench/head-to-head/`
+  harness, generate the 500k LAS fixture in CI (do not commit the binary),
+  and `mkdir` before JSONL redirects so the job is no longer always-red.
 
 ### Changed
 
@@ -59,6 +66,14 @@ from 0.10, read [docs/MIGRATION_V0_11.md](./docs/MIGRATION_V0_11.md).
   every Dependabot PR's Rust CI in ~10s.
 - `copc-loader` HTTP range fetches retry transient `TypeError: fetch failed`
   (keep-alive pool / ECONNRESET), which was flaking the bbox-filter CI test.
+- `Cargo.toml` `rust-version` is **1.90**, matching AGENTS.md / CONTRIBUTING.
+- README WASM size badge uses the measured 0.11 npm binary (1.95 MB /
+  693 KB gzip), not the v0.6 1.2 MB figure.
+
+### Security
+
+- Bump `crossbeam-epoch` to ≥ 0.9.20 (RUSTSEC-2026-0204) plus other
+  lock-only security patches that do not change public Cargo.toml pins.
 
 ## [0.10.2] - 2026-08-28
 

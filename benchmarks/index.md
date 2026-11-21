@@ -2,6 +2,8 @@
 
 > Task: **LAS point cloud → Cesium 3D Tiles (.pnts + tileset.json)**, end-to-end, no upload, no server.
 
+<!-- HEAD_TO_HEAD_RESULTS_START -->
+
 **Generated:** 2026-07-08T17:51:24.035Z  
 **Hardware:** Apple M4 · 10 CPUs · darwin/arm64  
 **Methodology:** same input bytes (SHA-256 verified), same no-op transform (no reprojection), trimmed mean of 5 timed runs after warmup. Output bytes = sum of all generated tile files + tileset.json.
@@ -30,13 +32,15 @@
 
 </details>
 
+<!-- HEAD_TO_HEAD_RESULTS_END -->
+
 ## 🏗️ Architecture comparison (not timed)
 
 | | wasm-spatial-core | py3dtiles | loaders.gl | Cesium ion |
 |---|---|---|---|---|
 | Runs where | Browser (WASM) or Node | Python process | Browser/Node | Cloud service |
 | Data leaves machine | **No** | No (local) | No (local) | **Yes** (upload) |
-| Install needed | `npm i` (1.2MB WASM) | Python + pip + deps | npm | Account + token |
+| Install needed | `npm i` (1.95MB WASM) | Python + pip + deps | npm | Account + token |
 | LAS → 3D Tiles | ✅ full pipeline | ✅ full pipeline | ❌ read only | ✅ (cloud) |
 | Offline / air-gapped | ✅ | ✅ | ✅ | ❌ |
 | Cesium ion quota | not consumed | not consumed | not consumed | consumed |
@@ -45,12 +49,21 @@
 
 ```bash
 git clone https://github.com/reed-soul/wasm-spatial-core.git && cd wasm-spatial-core
+mkdir -p bench/head-to-head/fixtures
+cargo run --example gen_test_las --features point-cloud -- \
+  500000 bench/head-to-head/fixtures/canonical_500k.las
 wasm-pack build --target nodejs --release --out-dir pkg-node -- --features point-cloud
-pip install py3dtiles
-npm install @loaders.gl/las   # optional; documents the capability gap
-node bench/head-to-head/run-wasm.mjs test-data/large/synthetic_500k.las > bench/head-to-head/results-wasm.jsonl
-python3 bench/head-to-head/run-py3dtiles.py test-data/large/synthetic_500k.las > bench/head-to-head/results-py3dtiles.jsonl
-node bench/head-to-head/run-loaders-gl.mjs test-data/large/synthetic_500k.las > bench/head-to-head/results-loaders-gl.jsonl
+pip install 'py3dtiles[las]'
+npm install --no-save @loaders.gl/las   # optional; documents the capability gap
+WASM_PKG_DIR=pkg-node node bench/head-to-head/run-wasm.mjs \
+  bench/head-to-head/fixtures/canonical_500k.las \
+  > bench/head-to-head/results-wasm.jsonl
+python3 bench/head-to-head/run-py3dtiles.py \
+  bench/head-to-head/fixtures/canonical_500k.las \
+  > bench/head-to-head/results-py3dtiles.jsonl
+node bench/head-to-head/run-loaders-gl.mjs \
+  bench/head-to-head/fixtures/canonical_500k.las \
+  > bench/head-to-head/results-loaders-gl.jsonl
 node bench/head-to-head/aggregate.mjs
-# → opens benchmarks/index.md
+# → updates the results table in benchmarks/index.md
 ```
