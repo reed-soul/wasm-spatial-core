@@ -12,7 +12,7 @@ machine.
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 ![Tests](https://img.shields.io/badge/tests-850%2B%20(all%20features)-success)
-![WASM](https://img.shields.io/badge/WASM-1.2%20MB%20%2B%20zero%20deps-blueviolet)
+![WASM](https://img.shields.io/badge/WASM-1.95%20MB%20gzip%20693%20KB-blueviolet)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/demo.png">
