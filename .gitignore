@@ -52,6 +52,9 @@ arbor_config.yaml
 # Mimosa security-scanner session state (local tool output)
 .mimosa/
 
+# Python bytecode from local harness runs
+**/__pycache__/
+
 # Generated LAS fixtures (CI / examples/gen_test_las). Never commit.
 /test-data/
 /bench/head-to-head/fixtures/*.las
