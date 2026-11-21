@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-21
+
 0.11 API hygiene toward [ROADMAP_1_0.md](./ROADMAP_1_0.md). If you are upgrading
 from 0.10, read [docs/MIGRATION_V0_11.md](./docs/MIGRATION_V0_11.md).
 
@@ -55,13 +57,14 @@ from 0.10, read [docs/MIGRATION_V0_11.md](./docs/MIGRATION_V0_11.md).
   active plan. V2 waves W1–W5 stay documented as complete.
 - PERFORMANCE.md / site badges quote the measured 0.11 npm WASM: 1.95 MB
   uncompressed, 693 KB gzip (was the v0.6 1.2 MB debug-era figure).
-- Dependency and CI housekeeping from the Dependabot backlog: `prost` 0.14.4,
-  `e57` 0.11.13, `serde_json` 1.0.151, Playwright 1.63, `@types/node` 26.6,
+- Dependency and CI housekeeping from the Dependabot backlog: `prost` 0.14.6,
+  `e57` 0.11.13, `serde` 1.0.229, `serde_json` 1.0.154, `mvt` 0.15.0,
+  `rstar` 0.14.0, Playwright 1.64.1, `@types/node` 26.6.6,
   `@webgpu/types` 0.1.74, `actions/setup-node` v7, `actions/setup-python` v7,
   remaining `actions/cache` v6, `softprops/action-gh-release` v3.
   `geojson` 1.0, `rand` 0.10, and TypeScript 7 are deferred (see Dependabot
   ignore notes in `.github/dependabot.yml`).
-- Site/docs version badges synced to 0.10.2. `scripts/check-version-sync.sh`
+- Site/docs version badges synced to 0.11.0. `scripts/check-version-sync.sh`
   no longer aborts on the first grep miss (`pipefail`), which was failing
   every Dependabot PR's Rust CI in ~10s.
 - `copc-loader` HTTP range fetches retry transient `TypeError: fetch failed`
@@ -775,6 +778,8 @@ py3dtiles, plus credibility cleanup on the docs surface.
 
 ## [0.1.0]: https://github.com/reed-soul/wasm-spatial-core/releases/tag/v0.1.0
 
-[Unreleased]: https://github.com/reed-soul/wasm-spatial-core/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/reed-soul/wasm-spatial-core/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/reed-soul/wasm-spatial-core/releases/tag/v0.11.0
+[0.10.2]: https://github.com/reed-soul/wasm-spatial-core/releases/tag/v0.10.2
 [0.10.0]: https://github.com/reed-soul/wasm-spatial-core/releases/tag/v0.10.0
 [0.9.0]: https://github.com/reed-soul/wasm-spatial-core/releases/tag/v0.9.0
