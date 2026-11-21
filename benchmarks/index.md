@@ -4,7 +4,7 @@
 
 <!-- HEAD_TO_HEAD_RESULTS_START -->
 
-**Generated:** 2026-11-21T17:38:52.758Z  
+**Generated:** 2026-11-21T17:46:50.931Z  
 **Hardware:** Intel(R) Xeon(R) 6975P-C · 4 CPUs · linux/x64  
 **Methodology:** same input bytes, no reprojection, trimmed mean of 5 timed runs after warmup (min/max dropped). Output bytes = sum of generated tile files + tileset.json.
 
@@ -13,8 +13,8 @@
 | Engine | Wall time | Peak RSS | Output size | Tiles | Speedup vs wasm |
 |--------|----------|----------|-------------|-------|-----------------|
 | loaders.gl `not-installed` | ❌ @loaders.gl/las not installed: @loaders.gl/las n | — | — | — | — |
-| py3dtiles `--version` | 1.95s | 248MB | 7.6MB | 39 | **29.6×** ⚡ |
-| wasm-spatial-core `0.10.2` | 66ms | 177MB | 5.7MB | 64 | baseline |
+| py3dtiles `--version` | 1.96s | 248MB | 7.6MB | 39 | **29.4×** ⚡ |
+| wasm-spatial-core `0.10.2` | 67ms | 177MB | 5.7MB | 64 | baseline |
 
 <details><summary>Notes</summary>
 
