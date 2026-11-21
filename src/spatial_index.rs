@@ -49,7 +49,7 @@ impl SpatialIndex {
         let envelope = AABB::from_corners([min_x, min_y], [max_x, max_y]);
         let mut results = Vec::new();
 
-        for point in self.tree.locate_in_envelope(&envelope) {
+        for point in self.tree.locate_in_envelope(envelope) {
             results.push(point.data);
         }
 
@@ -69,7 +69,7 @@ impl SpatialIndex {
     #[wasm_bindgen(js_name = "nearestNeighbor")]
     pub fn nearest_neighbor(&self, query_x: f64, query_y: f64) -> Option<u32> {
         let query_point = [query_x, query_y];
-        let nearest = self.tree.nearest_neighbor(&query_point)?;
+        let nearest = self.tree.nearest_neighbor(query_point)?;
         Some(nearest.data)
     }
 
@@ -79,7 +79,7 @@ impl SpatialIndex {
     #[wasm_bindgen(js_name = "kNearestNeighbors")]
     pub fn k_nearest_neighbors(&self, query_x: f64, query_y: f64, k: u32) -> Uint32Array {
         let query_point = [query_x, query_y];
-        let nearest_iter = self.tree.nearest_neighbor_iter(&query_point);
+        let nearest_iter = self.tree.nearest_neighbor_iter(query_point);
         let results: Vec<u32> = nearest_iter.take(k as usize).map(|p| p.data).collect();
 
         let result_array = Uint32Array::new_with_length(results.len() as u32);
@@ -143,7 +143,7 @@ impl SpatialEdgeIndex {
         let envelope = AABB::from_corners([min_x, min_y], [max_x, max_y]);
         let mut results = Vec::new();
 
-        for edge in self.tree.locate_in_envelope(&envelope) {
+        for edge in self.tree.locate_in_envelope(envelope) {
             results.push(edge.data);
         }
 
@@ -166,7 +166,7 @@ impl SpatialEdgeIndex {
     #[wasm_bindgen(js_name = "nearestNeighbor")]
     pub fn nearest_neighbor(&self, query_x: f64, query_y: f64) -> Option<u32> {
         let query_point = [query_x, query_y];
-        let nearest = self.tree.nearest_neighbor(&query_point)?;
+        let nearest = self.tree.nearest_neighbor(query_point)?;
         Some(nearest.data)
     }
 }
@@ -387,7 +387,7 @@ mod tests {
 
         let tree = RTree::bulk_load(points);
         let envelope = AABB::from_corners([5.0, 5.0], [15.0, 15.0]);
-        let results: Vec<_> = tree.locate_in_envelope(&envelope).collect();
+        let results: Vec<_> = tree.locate_in_envelope(envelope).collect();
 
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].data, 1);
@@ -404,11 +404,11 @@ mod tests {
         let tree = RTree::bulk_load(points);
 
         // Query near (10, 10) — should return id 1
-        let nearest = tree.nearest_neighbor(&[11.0, 9.0]).unwrap();
+        let nearest = tree.nearest_neighbor([11.0, 9.0]).unwrap();
         assert_eq!(nearest.data, 1);
 
         // Query near (0, 0) — should return id 0
-        let nearest = tree.nearest_neighbor(&[0.5, 0.5]).unwrap();
+        let nearest = tree.nearest_neighbor([0.5, 0.5]).unwrap();
         assert_eq!(nearest.data, 0);
     }
 
@@ -422,7 +422,7 @@ mod tests {
         ];
 
         let tree = RTree::bulk_load(points);
-        let nearest_iter = tree.nearest_neighbor_iter(&[4.0, 1.0]);
+        let nearest_iter = tree.nearest_neighbor_iter([4.0, 1.0]);
         let results: Vec<u32> = nearest_iter.take(2).map(|p| p.data).collect();
 
         // Nearest to (4,1) should be id=1 (5,0), then id=0 (0,0)
@@ -447,7 +447,7 @@ mod tests {
 
         // Use a larger query box that fully contains edges 0 and 2
         let envelope = AABB::from_corners([-1.0, -1.0], [16.0, 16.0]);
-        let mut ids: Vec<u32> = tree.locate_in_envelope(&envelope).map(|e| e.data).collect();
+        let mut ids: Vec<u32> = tree.locate_in_envelope(envelope).map(|e| e.data).collect();
         ids.sort();
 
         assert!(ids.contains(&0), "Edge 0 should be in bbox");
@@ -464,11 +464,11 @@ mod tests {
         let tree = RTree::bulk_load(edges);
 
         // Query point (5, 1) — nearest should be edge 0 (y=0)
-        let nearest = tree.nearest_neighbor(&[5.0, 1.0]).unwrap();
+        let nearest = tree.nearest_neighbor([5.0, 1.0]).unwrap();
         assert_eq!(nearest.data, 0);
 
         // Query point (5, 9) — nearest should be edge 1 (y=10)
-        let nearest = tree.nearest_neighbor(&[5.0, 9.0]).unwrap();
+        let nearest = tree.nearest_neighbor([5.0, 9.0]).unwrap();
         assert_eq!(nearest.data, 1);
     }
 
@@ -479,10 +479,10 @@ mod tests {
         assert_eq!(tree.size(), 0);
 
         let envelope = AABB::from_corners([0.0, 0.0], [100.0, 100.0]);
-        let results: Vec<_> = tree.locate_in_envelope(&envelope).collect();
+        let results: Vec<_> = tree.locate_in_envelope(envelope).collect();
         assert!(results.is_empty());
 
-        assert!(tree.nearest_neighbor(&[0.0, 0.0]).is_none());
+        assert!(tree.nearest_neighbor([0.0, 0.0]).is_none());
     }
 
     #[test]
@@ -493,10 +493,10 @@ mod tests {
 
         // Envelope must fully contain the edge's bounding box
         let envelope = AABB::from_corners([-1.0, -1.0], [101.0, 101.0]);
-        let results: Vec<u32> = tree.locate_in_envelope(&envelope).map(|e| e.data).collect();
+        let results: Vec<u32> = tree.locate_in_envelope(envelope).map(|e| e.data).collect();
         assert_eq!(results, vec![0]);
 
-        let nearest = tree.nearest_neighbor(&[50.0, 50.0]).unwrap();
+        let nearest = tree.nearest_neighbor([50.0, 50.0]).unwrap();
         assert_eq!(nearest.data, 0);
     }
 
