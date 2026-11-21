@@ -2536,8 +2536,8 @@ mod tests {
         assert_eq!(info.height(), 3);
         assert_eq!(info.elevations.len(), 12);
 
-        for i in 0..12 {
-            assert!((info.elevations[i] - (i as f32) * 10.0).abs() < 0.001);
+        for (i, elevation) in info.elevations.iter().enumerate() {
+            assert!((*elevation - (i as f32) * 10.0).abs() < 0.001);
         }
     }
 
